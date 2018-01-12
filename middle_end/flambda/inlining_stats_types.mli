@@ -36,6 +36,7 @@ module Not_inlined : sig
     | Above_threshold of int
     | Annotation
     | No_useful_approximations
+    | Inlining_depth_exceeded
     | Unrolling_depth_exceeded
     | Self_call
     | Without_subfunctions of

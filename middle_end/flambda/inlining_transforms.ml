@@ -45,9 +45,9 @@ let fold_over_projections_of_vars_bound_by_closure ~closure_id_being_applied
     bound_variables
     init
 
-let set_inline_attribute_on_all_apply body inline specialise =
+let set_attributes_on_all_apply body inline specialise inlining_depth =
   Flambda_iterators.map_toplevel_expr (function
-      | Apply apply -> Apply { apply with inline; specialise }
+      | Apply apply -> Apply { apply with inline; specialise; inlining_depth }
       | expr -> expr)
     body
 
@@ -115,14 +115,16 @@ let inline_by_copying_function_body ~env ~r
       Lambda.equal_specialise_attribute specialise_requested Default_specialise
     in
     if function_body.stub
-    && ((not default_inline) || (not default_specialise)) then
+    && ((not default_inline) 
+        || (not default_specialise)
+        || (E.inlining_depth env <> 0)) then
       (* When the function inlined function is a stub, the annotation
          is reported to the function applications inside the stub.
          This allows reporting the annotation to the application the
          original programmer really intended: the stub is not visible
          in the source. *)
-      set_inline_attribute_on_all_apply body
-        inline_requested specialise_requested
+      set_attributes_on_all_apply body
+        inline_requested specialise_requested (E.inlining_depth env)
     else
       body
   in
@@ -170,6 +172,9 @@ let inline_by_copying_function_body ~env ~r
   let env = E.set_never_inline env in
   let env = E.activate_freshening env in
   let env = E.set_inline_debuginfo ~dbg env in
+  (* Important that we *not* update the inlining depth when we simplify now
+     because [Inlining_decision.inline] is going to call simplify again *)
+  let env = E.clear_inlining_depth env in
   simplify env r expr
 
 type state = {
@@ -536,7 +541,6 @@ let rewrite_function ~lhs_of_application ~closure_id_being_applied
       ~inline:function_body.inline
       ~specialise:function_body.specialise
       ~is_a_functor:function_body.is_a_functor
-      ~closure_origin:(Closure_origin.create (Closure_id.wrap new_fun_var))
   in
   let new_funs =
     Variable.Map.add new_fun_var new_function_decl state.new_funs
@@ -654,6 +658,7 @@ let inline_by_copying_function_declaration
       in
       let apply : Flambda.apply =
         { func = closure_var; args; kind = Direct closure_id; dbg;
+          inlining_depth = E.inlining_depth env;
           inline = inline_requested; specialise = Default_specialise; }
       in
       let body =
@@ -664,5 +669,8 @@ let inline_by_copying_function_declaration
       in
       let expr = Flambda_utils.bind ~body ~bindings:state.let_bindings in
       let env = E.activate_freshening (E.set_never_inline env) in
+      (* Important that we *not* update the inlining depth when we simplify now
+         because [Inlining_decision.specialise] is going to call simplify again *)
+      let env = E.clear_inlining_depth env in
       Some (simplify env r expr)
     end

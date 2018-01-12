@@ -37,6 +37,7 @@ type apply = {
   func : Variable.t;
   args : Variable.t list;
   kind : call_kind;
+  inlining_depth : int;
   dbg : Debuginfo.t;
   inline : Lambda.inline_attribute;
   (** Instructions from the source code as to whether the callee should
@@ -299,7 +300,6 @@ and function_declarations = private {
 }
 
 and function_declaration = private {
-  closure_origin: Closure_origin.t;
   params : Parameter.t list;
   body : t;
   recursive : bool;
@@ -555,7 +555,6 @@ val create_function_declaration
   -> inline:Lambda.inline_attribute
   -> specialise:Lambda.specialise_attribute
   -> is_a_functor:bool
-  -> closure_origin:Closure_origin.t
   -> function_declaration
 
 (** Create a function declaration based on another function declaration *)
@@ -682,6 +681,11 @@ val equal_call_kind
    : call_kind
   -> call_kind
   -> bool
+  
+val print_inlining_depth
+   : Format.formatter
+  -> int
+  -> unit
 
 val equal_specialised_to
    : specialised_to

@@ -231,7 +231,6 @@ MIDDLE_END=\
   middle_end/flambda/base_types/mutable_variable.cmo \
   middle_end/flambda/base_types/set_of_closures_id.cmo \
   middle_end/flambda/base_types/set_of_closures_origin.cmo \
-  middle_end/flambda/base_types/closure_origin.cmo \
   middle_end/flambda/base_types/var_within_closure.cmo \
   middle_end/flambda/base_types/static_exception.cmo \
   middle_end/flambda/pass_wrapper.cmo \

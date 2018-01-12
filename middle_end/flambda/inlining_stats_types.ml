@@ -83,6 +83,7 @@ module Not_inlined = struct
     | Above_threshold of int
     | Annotation
     | No_useful_approximations
+    | Inlining_depth_exceeded
     | Unrolling_depth_exceeded
     | Self_call
     | Without_subfunctions of Wsb.t
@@ -108,6 +109,10 @@ module Not_inlined = struct
         "This function was not inlined because \
          there was no useful information about any of its parameters, \
          and it was not particularly small."
+    | Inlining_depth_exceeded ->
+      Format.pp_print_text ppf
+        "This function was not inlined because \
+         the inlining depth was exceeded."
     | Unrolling_depth_exceeded ->
       Format.pp_print_text ppf
         "This function was not inlined because \
@@ -130,6 +135,7 @@ module Not_inlined = struct
     | Above_threshold _
     | Annotation
     | No_useful_approximations
+    | Inlining_depth_exceeded
     | Unrolling_depth_exceeded
     | Self_call -> ()
     | Without_subfunctions wsb ->

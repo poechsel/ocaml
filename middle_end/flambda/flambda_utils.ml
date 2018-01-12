@@ -249,10 +249,10 @@ let toplevel_substitution sb tree =
     | Assign { being_assigned; new_value; } ->
       let new_value = sb new_value in
       Assign { being_assigned; new_value; }
-    | Apply { func; args; kind; dbg; inline; specialise; } ->
+    | Apply { func; args; kind; dbg; inlining_depth; inline; specialise; } ->
       let func = sb func in
       let args = List.map sb args in
-      Apply { func; args; kind; dbg; inline; specialise; }
+      Apply { func; args; kind; dbg; inlining_depth; inline; specialise; }
     | If_then_else (cond, e1, e2) ->
       let cond = sb cond in
       If_then_else (cond, e1, e2)
@@ -349,7 +349,6 @@ let make_closure_declaration
     Flambda.create_function_declaration ~params:(List.map subst_param params)
       ~body ~recursive ~stub ~dbg:Debuginfo.none ~inline:Default_inline
       ~specialise:Default_specialise ~is_a_functor:false
-      ~closure_origin:(Closure_origin.create (Closure_id.wrap id))
   in
   assert (Variable.Set.equal (Variable.Set.map subst free_variables)
     function_declaration.free_variables);
@@ -696,14 +695,14 @@ let substitute_read_symbol_field_for_variables
       bind_from_value @@
       bind_to_value @@
       Flambda.For { bound_var; from_value; to_value; direction; body }
-    | Apply { func; args; kind; dbg; inline; specialise } ->
+    | Apply { func; args; kind; dbg; inlining_depth; inline; specialise } ->
       let func, bind_func = make_var_subst func in
       let args, bind_args =
         List.split (List.map make_var_subst args)
       in
       bind_func @@
       List.fold_right (fun f expr -> f expr) bind_args @@
-      Flambda.Apply { func; args; kind; dbg; inline; specialise }
+      Flambda.Apply { func; args; kind; inlining_depth; dbg; inline; specialise }
     | Send { kind; meth; obj; args; dbg } ->
       let meth, bind_meth = make_var_subst meth in
       let obj, bind_obj = make_var_subst obj in
