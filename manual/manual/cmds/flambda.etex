@@ -117,7 +117,7 @@ section\ \ref{assessment-inlining}.
   \machine{-inline-prim-cost}] Likewise.
 \item[\machine{-inline-lifting-benefit}] Controls inlining of functors
 at toplevel.  See section\ \ref{assessment-inlining}.
-\item[\machine{-inline-max-depth}] The maximum depth of any
+\item[\machine{-inline-max-speculation-depth}] The maximum depth of any
 speculative inlining search.  See section\ \ref{speculation}.
 \item[\machine{-inline-max-unroll}] The maximum depth of any unrolling of
 recursive functions during any speculative inlining search.
@@ -479,7 +479,7 @@ the corresponding command-line flags (or their default values):
 \begin{itemize}
 \item {\tt -inline} (or, if the call site that triggered speculation is
 at toplevel, {\tt -inline-toplevel});
-\item {\tt -inline-max-depth};
+\item {\tt -inline-max-speculation-depth};
 \item {\tt -inline-max-unroll}.
 \end{itemize}
 {\bf Note in particular} that {\tt -inline} does not have the meaning that
@@ -500,8 +500,8 @@ The inlining depth starts at zero
 and is increased by one every time the inliner
 descends into another function.  It is then decreased by one every time the
 inliner leaves such function.  If the depth exceeds the value set by
-{\tt -inline-max-depth} then speculation stops.  This parameter is intended
-as a general backstop for situations where the inlining
+{\tt -inline-max-speculation-depth} then speculation stops. This parameter is
+intended as a general backstop for situations where the inlining
 threshold does not control the search sufficiently.
 
 The unrolling depth applies to calls within the same mutually-recursive
@@ -651,7 +651,7 @@ round of optimisation using the following parameters.
 \entree{{\tt -inline-prim-cost}}{3}
 \entree{{\tt -inline-lifting-benefit}}{1300}
 \entree{{\tt -inline-toplevel}}{160}
-\entree{{\tt -inline-max-depth}}{1}
+\entree{{\tt -inline-max-speculation-depth}}{1}
 \entree{{\tt -inline-max-unroll}}{0}
 \entree{{\tt -unbox-closures-factor}}{10}
 \end{tableau}
@@ -672,7 +672,7 @@ the following parameters.
 \entree{{\tt -inline-prim-cost}}{Double the default}
 \entree{{\tt -inline-lifting-benefit}}{Same as default}
 \entree{{\tt -inline-toplevel}}{400}
-\entree{{\tt -inline-max-depth}}{2}
+\entree{{\tt -inline-max-speculation-depth}}{2}
 \entree{{\tt -inline-max-unroll}}{Same as default}
 \entree{{\tt -unbox-closures-factor}}{Same as default}
 \end{tableau}
@@ -693,7 +693,7 @@ the following parameters.
 \entree{{\tt -inline-prim-cost}}{Triple the default}
 \entree{{\tt -inline-lifting-benefit}}{Same as default}
 \entree{{\tt -inline-toplevel}}{800}
-\entree{{\tt -inline-max-depth}}{3}
+\entree{{\tt -inline-max-speculation-depth}}{3}
 \entree{{\tt -inline-max-unroll}}{1}
 \entree{{\tt -unbox-closures-factor}}{Same as default}
 \end{tableau}

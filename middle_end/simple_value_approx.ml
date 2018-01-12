@@ -86,7 +86,6 @@ and function_body = {
 }
 
 and function_declaration = {
-  closure_origin : Closure_origin.t;
   params : Parameter.t list;
   function_body : function_body option;
 }
@@ -969,8 +968,7 @@ let function_declaration_approx ~keep_body
     end
   in
   { function_body;
-    params = fun_decl.params;
-    closure_origin = fun_decl.closure_origin;  }
+    params = fun_decl.params;  }
 
 let function_declarations_approx ~keep_body
   (fun_decls : Flambda.function_declarations) =

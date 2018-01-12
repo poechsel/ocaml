@@ -29,6 +29,7 @@ type apply = {
   func : Variable.t;
   args : Variable.t list;
   kind : call_kind;
+  inlining_depth : int;
   dbg : Debuginfo.t;
   inline : Lambda.inline_attribute;
   specialise : Lambda.specialise_attribute;
@@ -117,7 +118,6 @@ and function_declarations = {
 }
 
 and function_declaration = {
-  closure_origin: Closure_origin.t;
   params : Parameter.t list;
   body : t;
   recursive : bool;
@@ -187,12 +187,15 @@ let print_move_within_set_of_closures =
   Projection.print_move_within_set_of_closures
 let print_project_closure = Projection.print_project_closure
 
+let print_inlining_depth ppf inlining_depth =
+  fprintf ppf "[%d]" inlining_depth
+
 (** CR-someday lwhite: use better name than this *)
 let rec lam ppf (flam : t) =
   match flam with
   | Var (id) ->
       Variable.print ppf id
-  | Apply({func; args; kind; inline; dbg}) ->
+  | Apply({func; args; kind; inline; inlining_depth; dbg}) ->
     let direct ppf () =
       match kind with
       | Indirect -> ()
@@ -205,8 +208,9 @@ let rec lam ppf (flam : t) =
       | Unroll i -> fprintf ppf "<unroll %i>" i
       | Default_inline -> ()
     in
-    fprintf ppf "@[<2>(apply%a%a<%s>@ %a%a)@]" direct () inline ()
+    fprintf ppf "@[<2>(apply%a%a<%s>@,%a@ %a%a)@]" direct () inline ()
       (Debuginfo.to_string dbg)
+      print_inlining_depth inlining_depth
       Variable.print func Variable.print_list args
   | Assign { being_assigned; new_value; } ->
     fprintf ppf "@[<2>(assign@ %a@ %a)@]"
@@ -997,7 +1001,6 @@ let free_symbols_program (program : program) =
 let create_function_declaration ~recursive ~params ~body ~stub ~dbg
       ~(inline : Lambda.inline_attribute)
       ~(specialise : Lambda.specialise_attribute) ~is_a_functor
-      ~closure_origin
       : function_declaration =
   begin match stub, inline with
   | true, (Never_inline | Default_inline)
@@ -1015,8 +1018,7 @@ let create_function_declaration ~recursive ~params ~body ~stub ~dbg
       "Stubs may not be annotated as [Always_specialise]: %a"
       print body
   end;
-  { closure_origin;
-    params;
+  { params;
     body;
     recursive;
     free_variables = free_variables body;

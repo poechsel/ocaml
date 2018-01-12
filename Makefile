@@ -208,7 +208,6 @@ MIDDLE_END=\
   middle_end/base_types/set_of_closures_origin.cmo \
   middle_end/base_types/closure_element.cmo \
   middle_end/base_types/closure_id.cmo \
-  middle_end/base_types/closure_origin.cmo \
   middle_end/base_types/var_within_closure.cmo \
   middle_end/base_types/static_exception.cmo \
   middle_end/base_types/export_id.cmo \

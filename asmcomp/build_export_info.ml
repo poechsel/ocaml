@@ -553,7 +553,6 @@ let build_transient (program : Flambda.program) : Export_info.transient =
       and closure_id_of_descr (descr : Export_info.descr) =
         match descr with
         | Value_closure { closure_id; _ } -> Some closure_id
-        | Value_recursive (Value_symbol sym, _) -> symbol_to_closure_id sym
         | _ -> None
       in
       let invariant_params =
