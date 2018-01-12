@@ -72,6 +72,7 @@ module Options = Main_args.Make_optcomp_options (struct
   let _inlining_report = option "-inlining-report"
   let _dump_pass = option_with_arg "-dump-pass"
   let _inline_max_depth n = option_with_arg "-inline-max-depth" n
+  let _inline_max_speculation_depth n = option_with_arg "-inline-max-speculation-depth" n
   let _rounds n = option_with_int "-rounds" n
   let _inline_max_unroll n = option_with_arg "-unroll" n
   let _inline_call_cost n = option_with_arg "-inline-call-cost" n

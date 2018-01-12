@@ -615,7 +615,6 @@ and simplify_set_of_closures original_env r
         ~body ~stub:function_decl.stub ~dbg:function_decl.dbg
         ~inline:function_decl.inline ~specialise:function_decl.specialise
         ~is_a_functor:function_decl.is_a_functor
-        ~closure_origin:function_decl.closure_origin
     in
     let used_params' = Flambda.used_params function_decl in
     Variable.Map.add fun_var function_decl funs,
@@ -670,8 +669,10 @@ and simplify_apply env r ~(apply : Flambda.apply) : Flambda.t * R.t =
   let {
     Flambda. func = lhs_of_application; args; kind = _; dbg;
     inline = inline_requested; specialise = specialise_requested;
+    inlining_depth = original_inlining_depth
   } = apply in
   let dbg = E.add_inlined_debuginfo env ~dbg in
+  let env = E.add_original_inlining_depth env original_inlining_depth in
   simplify_free_variable env lhs_of_application
     ~f:(fun env lhs_of_application lhs_of_application_approx ->
       simplify_free_variables env args ~f:(fun env args args_approxs ->
@@ -764,7 +765,8 @@ and simplify_apply env r ~(apply : Flambda.apply) : Flambda.t * R.t =
           wrap result, r
         | Wrong ->  (* Insufficient approximation information to simplify. *)
           Apply ({ func = lhs_of_application; args; kind = Indirect; dbg;
-              inline = inline_requested; specialise = specialise_requested; }),
+                   inline = inline_requested; specialise = specialise_requested;
+                   inlining_depth = E.inlining_depth env; }),
             ret r (A.value_unknown Other)))
 
 and simplify_full_application env r ~function_decls ~lhs_of_application
@@ -820,6 +822,7 @@ and simplify_partial_application env r ~lhs_of_application
         dbg;
         inline = Default_inline;
         specialise = Default_specialise;
+        inlining_depth = 0;
       }
     in
     let closure_variable =
@@ -863,7 +866,8 @@ and simplify_over_application env r ~args ~args_approxs ~function_decls
   let expr : Flambda.t =
     Flambda.create_let func_var (Expr expr)
       (Apply { func = func_var; args = remaining_args; kind = Indirect; dbg;
-        inline = inline_requested; specialise = specialise_requested; })
+               inline = inline_requested; specialise = specialise_requested;
+               inlining_depth = E.inlining_depth env })
   in
   let expr = Lift_code.lift_lets_expr expr ~toplevel:true in
   simplify (E.set_never_inline env) r expr
@@ -1382,7 +1386,7 @@ and simplify_list env r l =
     else h' :: t', approxs, r
 
 and duplicate_function ~env ~(set_of_closures : Flambda.set_of_closures)
-      ~fun_var ~new_fun_var =
+      ~fun_var =
   let function_decl =
     match Variable.Map.find fun_var set_of_closures.function_decls.funs with
     | exception Not_found ->
@@ -1424,7 +1428,6 @@ and duplicate_function ~env ~(set_of_closures : Flambda.set_of_closures)
       ~body ~stub:function_decl.stub ~dbg:function_decl.dbg
       ~inline:function_decl.inline ~specialise:function_decl.specialise
       ~is_a_functor:function_decl.is_a_functor ~recursive:function_decl.recursive
-      ~closure_origin:(Closure_origin.create (Closure_id.wrap new_fun_var))
   in
   function_decl, specialised_args
 

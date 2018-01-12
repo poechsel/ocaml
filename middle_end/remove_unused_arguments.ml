@@ -23,8 +23,7 @@ let rename_var var =
   Variable.rename var
     ~current_compilation_unit:(Compilation_unit.get_current_exn ())
 
-let remove_params unused (fun_decl: Flambda.function_declaration)
-      ~new_fun_var =
+let remove_params unused (fun_decl: Flambda.function_declaration) =
   let unused_params, used_params =
     List.partition (fun v -> Variable.Set.mem (Parameter.var v) unused)
       fun_decl.params
@@ -42,7 +41,6 @@ let remove_params unused (fun_decl: Flambda.function_declaration)
     ~params:used_params ~body
     ~stub:fun_decl.stub ~dbg:fun_decl.dbg ~inline:fun_decl.inline
     ~specialise:fun_decl.specialise ~is_a_functor:fun_decl.is_a_functor
-    ~closure_origin:(Closure_origin.create (Closure_id.wrap new_fun_var))
 
 let make_stub unused var (fun_decl : Flambda.function_declaration)
     ~specialised_args ~additional_specialised_args =
@@ -91,6 +89,7 @@ let make_stub unused var (fun_decl : Flambda.function_declaration)
       func = renamed;
       args = Parameter.List.vars args;
       kind;
+      inlining_depth = 0;
       dbg = fun_decl.dbg;
       inline = Default_inline;
       specialise = Default_specialise;
@@ -101,7 +100,6 @@ let make_stub unused var (fun_decl : Flambda.function_declaration)
       ~params:(List.map snd args') ~body
       ~stub:true ~dbg:fun_decl.dbg ~inline:Default_inline
       ~specialise:Default_specialise ~is_a_functor:fun_decl.is_a_functor
-      ~closure_origin:fun_decl.closure_origin
   in
   function_decl, renamed, additional_specialised_args
 
@@ -139,9 +137,7 @@ let separate_unused_arguments ~only_specialised
                 ~specialised_args:set_of_closures.specialised_args
                 ~additional_specialised_args
             in
-            let cleaned =
-              remove_params unused fun_decl ~new_fun_var:renamed_fun_id
-            in
+            let cleaned = remove_params unused fun_decl in
             Variable.Map.add fun_id stub
               (Variable.Map.add renamed_fun_id cleaned funs),
             additional_specialised_args

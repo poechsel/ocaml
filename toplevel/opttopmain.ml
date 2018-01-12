@@ -147,10 +147,10 @@ module Options = Main_args.Make_opttop_options (struct
     Float_arg_helper.parse spec
       "Syntax: -inline-branch-factor <n> | <round>=<n>[,...]"
       inline_branch_factor
-  let _inline_max_depth spec =
+  let _inline_max_speculation_depth spec =
     Int_arg_helper.parse spec
-      "Syntax: -inline-max-depth <n> | <round>=<n>[,...]"
-      inline_max_depth
+      "Syntax: -inline-max-speculation-depth <n> | <round>=<n>[,...]"
+      inline_max_speculation_depth
   let _no_unbox_free_vars_of_closures = clear unbox_free_vars_of_closures
   let _no_unbox_specialised_args = clear unbox_specialised_args
   let _o s = output_name := Some s

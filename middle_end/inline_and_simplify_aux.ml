@@ -29,7 +29,7 @@ module Env = struct
     current_functions : Set_of_closures_origin.Set.t;
     (* The functions currently being declared: used to avoid inlining
        recursively *)
-    inlining_level : int;
+    speculation_depth : int;
     (* Number of times "inline" has been called recursively *)
     inside_branch : int;
     freshening : Freshening.t;
@@ -37,7 +37,7 @@ module Env = struct
     never_inline_inside_closures : bool;
     never_inline_outside_closures : bool;
     unroll_counts : int Set_of_closures_origin.Map.t;
-    inlining_counts : int Closure_origin.Map.t;
+    inlining_depth : int;
     actively_unrolling : int Set_of_closures_origin.Map.t;
     closure_depth : int;
     inlining_stats_closure_stack : Inlining_stats.Closure_stack.t;
@@ -52,14 +52,14 @@ module Env = struct
       approx_sym = Symbol.Map.empty;
       projections = Projection.Map.empty;
       current_functions = Set_of_closures_origin.Set.empty;
-      inlining_level = 0;
+      speculation_depth = 0;
       inside_branch = 0;
       freshening = Freshening.empty;
       never_inline;
       never_inline_inside_closures = false;
       never_inline_outside_closures = false;
       unroll_counts = Set_of_closures_origin.Map.empty;
-      inlining_counts = Closure_origin.Map.empty;
+      inlining_depth = 0;
       actively_unrolling = Set_of_closures_origin.Map.empty;
       closure_depth = 0;
       inlining_stats_closure_stack =
@@ -78,13 +78,14 @@ module Env = struct
       inlined_debuginfo = Debuginfo.none;
     }
 
-  let inlining_level_up env =
+  let speculation_depth_up env =
     let max_level =
-      Clflags.Int_arg_helper.get ~key:(env.round) !Clflags.inline_max_depth
+      Clflags.Int_arg_helper.get ~key:(env.round)
+        !Clflags.inline_max_speculation_depth
     in
-    if (env.inlining_level + 1) > max_level then
+    if (env.speculation_depth + 1) > max_level then
       Misc.fatal_error "Inlining level increased above maximum";
-    { env with inlining_level = env.inlining_level + 1 }
+    { env with speculation_depth = env.speculation_depth + 1 }
 
   let print ppf t =
     Format.fprintf ppf
@@ -330,30 +331,26 @@ module Env = struct
     in
     { t with unroll_counts }
 
-  let inlining_allowed t id =
-    let inlining_count =
-      try
-        Closure_origin.Map.find id t.inlining_counts
-      with Not_found ->
-        max 1 (Clflags.Int_arg_helper.get
-                 ~key:t.round !Clflags.inline_max_unroll)
+  let inlining_allowed t =
+    let limit =
+      Clflags.Int_arg_helper.get
+        ~key:t.round !Clflags.inline_max_depth
     in
-    inlining_count > 0
+    t.inlining_depth < limit
 
-  let inside_inlined_function t id =
-    let inlining_count =
-      try
-        Closure_origin.Map.find id t.inlining_counts
-      with Not_found ->
-        max 1 (Clflags.Int_arg_helper.get
-                 ~key:t.round !Clflags.inline_max_unroll)
-    in
-    let inlining_counts =
-      Closure_origin.Map.add id (inlining_count - 1) t.inlining_counts
-    in
-    { t with inlining_counts }
+  let inside_inlined_function t =
+    let inlining_depth = t.inlining_depth + 1 in
+    { t with inlining_depth }
 
-  let inlining_level t = t.inlining_level
+  let clear_inlining_depth t =
+    { t with inlining_depth = 0 }
+
+  let add_original_inlining_depth t orig =
+    let inlining_depth = orig + t.inlining_depth in
+    { t with inlining_depth }
+
+  let speculation_depth t = t.speculation_depth
+  let inlining_depth t = t.inlining_depth
   let freshening t = t.freshening
   let never_inline t = t.never_inline || t.never_inline_outside_closures
 

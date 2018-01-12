@@ -170,12 +170,18 @@ module Env : sig
       environment. *)
   val never_inline : t -> bool
 
-  val inlining_level : t -> int
+  val speculation_depth : t -> int
+
+  val inlining_depth : t -> int
+
+  val add_original_inlining_depth : t -> int -> t
+
+  val clear_inlining_depth : t -> t
 
   (** Mark that this environment is used to rewrite code for inlining. This is
       used by the inlining heuristics to decide whether to continue.
       Unconditionally inlined does not take this into account. *)
-  val inlining_level_up : t -> t
+  val speculation_depth_up : t -> t
 
   (** Whether we are actively unrolling a given function. *)
   val actively_unrolling : t -> Set_of_closures_origin.t -> int option
@@ -196,11 +202,11 @@ module Env : sig
 
   (** Whether it is permissible to inline a call to a function in the given
       environment. *)
-  val inlining_allowed : t -> Closure_origin.t -> bool
+  val inlining_allowed : t -> bool
 
   (** Whether the given environment is currently being used to rewrite the
       body of an inlined function. *)
-  val inside_inlined_function : t -> Closure_origin.t -> t
+  val inside_inlined_function : t -> t
 
   (** If collecting inlining statistics, record that the inliner is about to
       descend into [closure_id].  This information enables us to produce a
