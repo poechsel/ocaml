@@ -444,8 +444,10 @@ let specialise env r ~lhs_of_application
             in
               E.set_never_inline_outside_closures env
           in
-          let application_env = E.set_never_inline_inside_closures env in
           let expr, r = simplify closure_env r expr in
+          let application_env = E.set_never_inline_inside_closures env in
+          (* Inlining stacks just updated above; don't update them again! *)
+          let application_env = E.clear_inlining_stack application_env in
           let res = simplify application_env r expr in
           let decision =
             if always_specialise then S.Specialised.Annotation
@@ -472,6 +474,8 @@ let specialise env r ~lhs_of_application
                         (Inlining_cost.Benefit.(+) (R.benefit r))
              in
              let application_env = E.set_never_inline_inside_closures env in
+             (* Inlining stacks already updated; don't update them again! *)
+             let application_env = E.clear_inlining_stack application_env in
              let res = simplify application_env r expr in
              let decision =
                S.Specialised.With_subfunctions (wsb, wsb_with_subfunctions)
@@ -514,11 +518,14 @@ let for_call_site ~env ~r ~(function_decls : Flambda.function_declarations)
     | Always_inline | Default_inline | Never_inline -> inline_requested
   in
   let original =
+    (* Update inlining stack in any case *)
+    let stack = E.inlining_stack env in
     Flambda.Apply {
       func = lhs_of_application;
       args;
       kind = Direct closure_id_being_applied;
       dbg;
+      stack;
       inline = inline_requested;
       specialise = specialise_requested;
     }

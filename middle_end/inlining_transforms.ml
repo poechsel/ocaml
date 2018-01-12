@@ -71,9 +71,9 @@ let fold_over_projections_of_vars_bound_by_closure ~closure_id_being_applied
       function_decls)
     init
 
-let set_inline_attribute_on_all_apply body inline specialise =
+let set_attributes_on_all_apply body inline specialise stack =
   Flambda_iterators.map_toplevel_expr (function
-      | Apply apply -> Apply { apply with inline; specialise }
+      | Apply apply -> Apply { apply with inline; specialise; stack }
       | expr -> expr)
     body
 
@@ -132,14 +132,15 @@ let inline_by_copying_function_body ~env ~r
   let body =
     if function_decl.stub &&
        ((inline_requested <> Lambda.Default_inline)
-        || (specialise_requested <> Lambda.Default_specialise)) then
+        || (specialise_requested <> Lambda.Default_specialise)
+        || List.length (E.inlining_stack env) <> 0) then
       (* When the function inlined function is a stub, the annotation
          is reported to the function applications inside the stub.
          This allows to report the annotation to the application the
          original programmer really intended: the stub is not visible
          in the source. *)
-      set_inline_attribute_on_all_apply body
-        inline_requested specialise_requested
+      set_attributes_on_all_apply body
+        inline_requested specialise_requested (E.inlining_stack env)
     else
       body
   in
@@ -180,6 +181,9 @@ let inline_by_copying_function_body ~env ~r
   in
   let env = E.activate_freshening (E.set_never_inline env) in
   let env = E.set_inline_debuginfo ~dbg env in
+  (* Important that we *not* update the inlining stacks when we simplify now
+     because [Inlining_decision.inline] is going to call simplify again *)
+  let env = E.clear_inlining_stack env in
   simplify env r expr
 
 let inline_by_copying_function_declaration ~env ~r
@@ -521,6 +525,7 @@ let inline_by_copying_function_declaration ~env ~r
               func;
               args;
               kind = Direct closure_id_being_applied;
+              stack = E.inlining_stack env;
               dbg;
               inline = inline_requested;
               specialise = Default_specialise;
@@ -534,4 +539,7 @@ let inline_by_copying_function_declaration ~env ~r
       Flambda_utils.bind ~body:duplicated_application ~bindings:args_decl
     in
     let env = E.activate_freshening (E.set_never_inline env) in
+    (* Important that we *not* update the inlining stacks when we simplify now
+       because [Inlining_decision.inline] is going to call simplify again *)
+    let env = E.clear_inlining_stack env in
     Some (simplify env r expr)

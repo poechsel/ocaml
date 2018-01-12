@@ -88,6 +88,7 @@ let make_stub unused var (fun_decl : Flambda.function_declaration)
       func = renamed;
       args = Parameter.List.vars args;
       kind;
+      stack = Flambda_utils.stub_inlining_stack;
       dbg = fun_decl.dbg;
       inline = Default_inline;
       specialise = Default_specialise;

@@ -473,6 +473,7 @@ module Make (T : S) = struct
             (Parameter.List.vars wrapper_params) @
             spec_args_bound_in_the_wrapper;
           kind = Direct (Closure_id.wrap new_fun_var);
+          stack = Flambda_utils.stub_inlining_stack;
           dbg = Debuginfo.none;
           inline = Default_inline;
           specialise = Default_specialise;

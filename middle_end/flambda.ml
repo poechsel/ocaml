@@ -25,10 +25,27 @@ type const =
   | Char of char
   | Const_pointer of int
 
+type inline_frame = {
+  closure : Closure_id.t;
+  dbg : Debuginfo.t;
+}
+
+type unroll_frame = {
+  origin : Set_of_closures_origin.t;
+  dbg : Debuginfo.t;
+}
+
+type inlining_stack_frame =
+  | Inline of inline_frame
+  | Unroll of unroll_frame
+
+type inlining_stack = inlining_stack_frame list
+
 type apply = {
   func : Variable.t;
   args : Variable.t list;
   kind : call_kind;
+  stack : inlining_stack;
   dbg : Debuginfo.t;
   inline : Lambda.inline_attribute;
   specialise : Lambda.specialise_attribute;
@@ -184,12 +201,30 @@ let print_move_within_set_of_closures =
   Projection.print_move_within_set_of_closures
 let print_project_closure = Projection.print_project_closure
 
+let print_inlining_stack ppf stack =
+  let frame ppf first fr =
+    let sep ppf () = if first then () else fprintf ppf "@ " in
+    match fr with
+    | Inline {closure} -> begin
+      fprintf ppf "%aI:%a" sep () Closure_id.print closure;
+      false
+    end
+    | Unroll {origin}  -> begin
+      fprintf ppf "%aU:%a" sep () Set_of_closures_origin.print origin;
+      false
+    end
+  in
+  let frames ppf () =
+    ignore (List.fold_left (frame ppf) true stack)
+  in
+  fprintf ppf "[%a]" frames ()
+
 (** CR-someday lwhite: use better name than this *)
 let rec lam ppf (flam : t) =
   match flam with
   | Var (id) ->
       Variable.print ppf id
-  | Apply({func; args; kind; inline; dbg}) ->
+  | Apply({func; args; kind; inline; stack; dbg}) ->
     let direct ppf () =
       match kind with
       | Indirect -> ()
@@ -202,8 +237,9 @@ let rec lam ppf (flam : t) =
       | Unroll i -> fprintf ppf "<unroll %i>" i
       | Default_inline -> ()
     in
-    fprintf ppf "@[<2>(apply%a%a<%s>@ %a%a)@]" direct () inline ()
+    fprintf ppf "@[<2>(apply%a%a<%s>@,%a@ %a%a)@]" direct () inline ()
       (Debuginfo.to_string dbg)
+      print_inlining_stack stack
       Variable.print func Variable.print_list args
   | Assign { being_assigned; new_value; } ->
     fprintf ppf "@[<2>(assign@ %a@ %a)@]"

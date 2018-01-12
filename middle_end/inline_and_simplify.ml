@@ -671,8 +671,10 @@ and simplify_apply env r ~(apply : Flambda.apply) : Flambda.t * R.t =
   let {
     Flambda. func = lhs_of_application; args; kind = _; dbg;
     inline = inline_requested; specialise = specialise_requested;
+    stack = original_inlining_stack
   } = apply in
   let dbg = E.add_inlined_debuginfo env ~dbg in
+  let env = E.add_original_inlining_stack env original_inlining_stack in
   simplify_free_variable env lhs_of_application
     ~f:(fun env lhs_of_application lhs_of_application_approx ->
       simplify_free_variables env args ~f:(fun env args args_approxs ->
@@ -766,7 +768,8 @@ and simplify_apply env r ~(apply : Flambda.apply) : Flambda.t * R.t =
           wrap result, r
         | Wrong ->  (* Insufficient approximation information to simplify. *)
           Apply ({ func = lhs_of_application; args; kind = Indirect; dbg;
-              inline = inline_requested; specialise = specialise_requested; }),
+                   inline = inline_requested; specialise = specialise_requested;
+                   stack = E.inlining_stack env; }),
             ret r (A.value_unknown Other)))
 
 and simplify_full_application env r ~function_decls ~lhs_of_application
@@ -822,6 +825,7 @@ and simplify_partial_application env r ~lhs_of_application
         dbg;
         inline = Default_inline;
         specialise = Default_specialise;
+        stack = Flambda_utils.stub_inlining_stack;
       }
     in
     let closure_variable =
@@ -864,7 +868,8 @@ and simplify_over_application env r ~args ~args_approxs ~function_decls
   let expr : Flambda.t =
     Flambda.create_let func_var (Expr expr)
       (Apply { func = func_var; args = remaining_args; kind = Indirect; dbg;
-        inline = inline_requested; specialise = specialise_requested; })
+               inline = inline_requested; specialise = specialise_requested;
+               stack = E.inlining_stack env })
   in
   let expr = Lift_code.lift_lets_expr expr ~toplevel:true in
   simplify (E.set_never_inline env) r expr

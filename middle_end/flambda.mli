@@ -34,6 +34,22 @@ type const =
      boxed (typically a variant type with both constant and non-constant
      constructors). *)
 
+type inline_frame = {
+  closure : Closure_id.t;
+  dbg : Debuginfo.t;
+}
+
+type unroll_frame = {
+  origin : Set_of_closures_origin.t;
+  dbg : Debuginfo.t;
+}
+
+type inlining_stack_frame =
+  | Inline of inline_frame
+  | Unroll of unroll_frame
+
+type inlining_stack = inlining_stack_frame list
+
 (** The application of a function to a list of arguments. *)
 type apply = {
   (* CR-soon mshinwell: rename func -> callee, and
@@ -41,6 +57,7 @@ type apply = {
   func : Variable.t;
   args : Variable.t list;
   kind : call_kind;
+  stack : inlining_stack;
   dbg : Debuginfo.t;
   inline : Lambda.inline_attribute;
   (** Instructions from the source code as to whether the callee should
@@ -645,6 +662,11 @@ val print_set_of_closures
 val print_specialised_to
    : Format.formatter
   -> specialised_to
+  -> unit
+
+val print_inlining_stack
+   : Format.formatter
+  -> inlining_stack
   -> unit
 
 val equal_specialised_to

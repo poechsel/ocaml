@@ -83,6 +83,7 @@ let tupled_function_call_stub original_params unboxed_version
         (* CR-someday mshinwell for mshinwell: investigate if there is some
            redundancy here (func is also unboxed_version) *)
         kind = Direct (Closure_id.wrap unboxed_version);
+        stack = [];
         dbg = Debuginfo.none;
         inline = Default_inline;
         specialise = Default_specialise;
@@ -231,6 +232,7 @@ let rec close t env (lam : Lambda.lambda) : Flambda.t =
               func = func_var;
               args;
               kind = Indirect;
+              stack = Flambda_utils.empty_inlining_stack;
               dbg = Debuginfo.from_location ap_loc;
               inline = ap_inlined;
               specialise = ap_specialised;

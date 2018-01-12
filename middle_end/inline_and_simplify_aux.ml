@@ -36,8 +36,7 @@ module Env = struct
     never_inline : bool ;
     never_inline_inside_closures : bool;
     never_inline_outside_closures : bool;
-    unroll_counts : int Set_of_closures_origin.Map.t;
-    inlining_counts : int Closure_id.Map.t;
+    inlining_stack : Flambda.inlining_stack;
     actively_unrolling : int Set_of_closures_origin.Map.t;
     closure_depth : int;
     inlining_stats_closure_stack : Inlining_stats.Closure_stack.t;
@@ -58,8 +57,7 @@ module Env = struct
       never_inline;
       never_inline_inside_closures = false;
       never_inline_outside_closures = false;
-      unroll_counts = Set_of_closures_origin.Map.empty;
-      inlining_counts = Closure_id.Map.empty;
+      inlining_stack = Flambda_utils.empty_inlining_stack;
       actively_unrolling = Set_of_closures_origin.Map.empty;
       closure_depth = 0;
       inlining_stats_closure_stack =
@@ -300,54 +298,66 @@ module Env = struct
     in
     { t with actively_unrolling }
 
-  let unrolling_allowed t origin =
-    let unroll_count =
-      try
-        Set_of_closures_origin.Map.find origin t.unroll_counts
-      with Not_found ->
-        Clflags.Int_arg_helper.get
-          ~key:t.round !Clflags.inline_max_unroll
+  let unroll_depth_for t origin =
+    let is_match = function
+      | Flambda.Unroll {origin = origin'} -> Set_of_closures_origin.equal origin origin'
+      | _ -> false
+    in List.length (List.filter is_match t.inlining_stack)
+
+  let unrolls_remaining t origin =
+    let limit =
+      Clflags.Int_arg_helper.get ~key:t.round !Clflags.inline_max_unroll
     in
-    unroll_count > 0
+    limit - unroll_depth_for t origin
+
+  let unrolling_allowed t origin =
+    unrolls_remaining t origin > 0
 
   let inside_unrolled_function t origin =
-    let unroll_count =
-      try
-        Set_of_closures_origin.Map.find origin t.unroll_counts
-      with Not_found ->
-        Clflags.Int_arg_helper.get
-          ~key:t.round !Clflags.inline_max_unroll
+    let new_frame = Flambda.Unroll {
+      origin;
+      dbg = t.inlined_debuginfo;
+    }
     in
-    let unroll_counts =
-      Set_of_closures_origin.Map.add
-        origin (unroll_count - 1) t.unroll_counts
+    let inlining_stack = new_frame :: t.inlining_stack in
+    { t with inlining_stack }
+
+  let inline_depth_for t id =
+    let is_match = function
+      | Flambda.Inline {closure = id'} -> Closure_id.equal id id'
+      | _ -> false
+    in List.length (List.filter is_match t.inlining_stack)
+
+  let inlines_remaining t id =
+    let limit =
+      max 1 (Clflags.Int_arg_helper.get
+               ~key:t.round !Clflags.inline_max_unroll)
     in
-    { t with unroll_counts }
+    limit - inline_depth_for t id
 
   let inlining_allowed t id =
-    let inlining_count =
-      try
-        Closure_id.Map.find id t.inlining_counts
-      with Not_found ->
-        max 1 (Clflags.Int_arg_helper.get
-                 ~key:t.round !Clflags.inline_max_unroll)
-    in
-    inlining_count > 0
+    inlines_remaining t id > 0
 
   let inside_inlined_function t id =
-    let inlining_count =
-      try
-        Closure_id.Map.find id t.inlining_counts
-      with Not_found ->
-        max 1 (Clflags.Int_arg_helper.get
-                 ~key:t.round !Clflags.inline_max_unroll)
+    let new_frame = Flambda.Inline {
+      closure = id;
+      dbg = t.inlined_debuginfo;
+    }
     in
-    let inlining_counts =
-      Closure_id.Map.add id (inlining_count - 1) t.inlining_counts
+    let inlining_stack = new_frame :: t.inlining_stack in
+    { t with inlining_stack }
+
+  let clear_inlining_stack t =
+    { t with inlining_stack = Flambda_utils.empty_inlining_stack }
+
+  let add_original_inlining_stack t orig =
+    let inlining_stack =
+      Flambda_utils.augment_inlining_stack ~orig ~new_:t.inlining_stack
     in
-    { t with inlining_counts }
+    { t with inlining_stack }
 
   let inlining_level t = t.inlining_level
+  let inlining_stack t = t.inlining_stack
   let freshening t = t.freshening
   let never_inline t = t.never_inline || t.never_inline_outside_closures
 
