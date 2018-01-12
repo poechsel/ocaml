@@ -359,6 +359,7 @@ module Env = struct
 
   let speculation_depth t = t.speculation_depth
   let inlining_stack t = t.inlining_stack
+  let inlining_depth t = List.length t.inlining_stack
   let freshening t = t.freshening
   let never_inline t = t.never_inline || t.never_inline_outside_closures
 

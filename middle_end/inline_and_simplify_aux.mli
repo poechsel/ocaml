@@ -178,6 +178,8 @@ module Env : sig
 
   val inlining_stack : t -> Flambda.inlining_stack
 
+  val inlining_depth : t -> int
+
   val add_original_inlining_stack : t -> Flambda.inlining_stack -> t
 
   val clear_inlining_stack : t -> t

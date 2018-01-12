@@ -133,7 +133,7 @@ let inline_by_copying_function_body ~env ~r
     if function_decl.stub &&
        ((inline_requested <> Lambda.Default_inline)
         || (specialise_requested <> Lambda.Default_specialise)
-        || List.length (E.inlining_stack env) <> 0) then
+        || (E.inlining_depth env <> 0)) then
       (* When the function inlined function is a stub, the annotation
          is reported to the function applications inside the stub.
          This allows to report the annotation to the application the
