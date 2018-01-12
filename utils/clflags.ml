@@ -188,7 +188,7 @@ let default_inline_indirect_cost = 4
 let default_inline_branch_factor = 0.1
 let default_inline_lifting_benefit = 1300
 let default_inline_max_unroll = 0
-let default_inline_max_depth = 1
+let default_inline_max_speculation_depth = 1
 
 let inline_threshold = ref (Float_arg_helper.default default_inline_threshold)
 let inline_toplevel_threshold =
@@ -206,8 +206,8 @@ let inline_lifting_benefit =
   ref (Int_arg_helper.default default_inline_lifting_benefit)
 let inline_max_unroll =
   ref (Int_arg_helper.default default_inline_max_unroll)
-let inline_max_depth =
-  ref (Int_arg_helper.default default_inline_max_depth)
+let inline_max_speculation_depth =
+  ref (Int_arg_helper.default default_inline_max_speculation_depth)
 
 
 let unbox_specialised_args = ref true   (* -no-unbox-specialised-args *)
@@ -226,7 +226,7 @@ type inlining_arguments = {
   inline_indirect_cost : int option;
   inline_lifting_benefit : int option;
   inline_branch_factor : float option;
-  inline_max_depth : int option;
+  inline_max_speculation_depth : int option;
   inline_max_unroll : int option;
   inline_threshold : float option;
   inline_toplevel_threshold : int option;
@@ -272,8 +272,8 @@ let use_inlining_arguments_set ?round (arg:inlining_arguments) =
     default_inline_lifting_benefit arg.inline_lifting_benefit;
   set_float inline_branch_factor
     default_inline_branch_factor arg.inline_branch_factor;
-  set_int inline_max_depth
-    default_inline_max_depth arg.inline_max_depth;
+  set_int inline_max_speculation_depth
+    default_inline_max_speculation_depth arg.inline_max_speculation_depth;
   set_int inline_max_unroll
     default_inline_max_unroll arg.inline_max_unroll;
   set_float inline_threshold
@@ -290,7 +290,7 @@ let o1_arguments = {
   inline_indirect_cost = None;
   inline_lifting_benefit = None;
   inline_branch_factor = None;
-  inline_max_depth = None;
+  inline_max_speculation_depth = None;
   inline_max_unroll = None;
   inline_threshold = None;
   inline_toplevel_threshold = None;
@@ -304,7 +304,7 @@ let classic_arguments = {
   inline_indirect_cost = None;
   inline_lifting_benefit = None;
   inline_branch_factor = None;
-  inline_max_depth = None;
+  inline_max_speculation_depth = None;
   inline_max_unroll = None;
   (* [inline_threshold] matches the current compiler's default.
      Note that this particular fraction can be expressed exactly in
@@ -322,7 +322,7 @@ let o2_arguments = {
   inline_indirect_cost = Some (2 * default_inline_indirect_cost);
   inline_lifting_benefit = None;
   inline_branch_factor = None;
-  inline_max_depth = Some 2;
+  inline_max_speculation_depth = Some 2;
   inline_max_unroll = None;
   inline_threshold = Some 25.;
   inline_toplevel_threshold = Some (25 * inline_toplevel_multiplier);
@@ -336,7 +336,7 @@ let o3_arguments = {
   inline_indirect_cost = Some (3 * default_inline_indirect_cost);
   inline_lifting_benefit = None;
   inline_branch_factor = Some 0.;
-  inline_max_depth = Some 3;
+  inline_max_speculation_depth = Some 3;
   inline_max_unroll = Some 1;
   inline_threshold = Some 50.;
   inline_toplevel_threshold = Some (50 * inline_toplevel_multiplier);

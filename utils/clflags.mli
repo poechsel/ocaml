@@ -51,7 +51,7 @@ type inlining_arguments = {
   inline_indirect_cost : int option;
   inline_lifting_benefit : int option;
   inline_branch_factor : float option;
-  inline_max_depth : int option;
+  inline_max_speculation_depth : int option;
   inline_max_unroll : int option;
   inline_threshold : float option;
   inline_toplevel_threshold : int option;
@@ -194,8 +194,8 @@ val default_unbox_closures_factor : int
 val unbox_free_vars_of_closures : bool ref
 val unbox_specialised_args : bool ref
 val clambda_checks : bool ref
-val default_inline_max_depth : int
-val inline_max_depth : Int_arg_helper.parsed ref
+val default_inline_max_speculation_depth : int
+val inline_max_speculation_depth : Int_arg_helper.parsed ref
 val remove_unused_arguments : bool ref
 val dump_flambda_verbose : bool ref
 val classic_inlining : bool ref

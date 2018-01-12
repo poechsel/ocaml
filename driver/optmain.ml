@@ -114,10 +114,10 @@ module Options = Main_args.Make_optcomp_options (struct
   let _no_keep_locs = clear keep_locs
   let _labels = clear classic
   let _linkall = set link_everything
-  let _inline_max_depth spec =
+  let _inline_max_speculation_depth spec =
     Int_arg_helper.parse spec
-      "Syntax: -inline-max-depth <n> | <round>=<n>[,...]"
-       inline_max_depth
+      "Syntax: -inline-max-speculation-depth <n> | <round>=<n>[,...]"
+       inline_max_speculation_depth
   let _alias_deps = clear transparent_modules
   let _no_alias_deps = set transparent_modules
   let _linscan = set use_linscan

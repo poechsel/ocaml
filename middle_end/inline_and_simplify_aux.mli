@@ -174,7 +174,7 @@ module Env : sig
       environment. *)
   val never_inline : t -> bool
 
-  val inlining_level : t -> int
+  val speculation_depth : t -> int
 
   val inlining_stack : t -> Flambda.inlining_stack
 
@@ -185,7 +185,7 @@ module Env : sig
   (** Mark that this environment is used to rewrite code for inlining. This is
       used by the inlining heuristics to decide whether to continue.
       Unconditionally inlined does not take this into account. *)
-  val inlining_level_up : t -> t
+  val speculation_depth_up : t -> t
 
   (** Whether we are actively unrolling a given function. *)
   val actively_unrolling : t -> Set_of_closures_origin.t -> int option

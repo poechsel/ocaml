@@ -29,7 +29,7 @@ module Env = struct
     current_functions : Set_of_closures_origin.Set.t;
     (* The functions currently being declared: used to avoid inlining
        recursively *)
-    inlining_level : int;
+    speculation_depth : int;
     (* Number of times "inline" has been called recursively *)
     inside_branch : int;
     freshening : Freshening.t;
@@ -51,7 +51,7 @@ module Env = struct
       approx_sym = Symbol.Map.empty;
       projections = Projection.Map.empty;
       current_functions = Set_of_closures_origin.Set.empty;
-      inlining_level = 0;
+      speculation_depth = 0;
       inside_branch = 0;
       freshening = Freshening.empty;
       never_inline;
@@ -76,13 +76,14 @@ module Env = struct
       inlined_debuginfo = Debuginfo.none;
     }
 
-  let inlining_level_up env =
+  let speculation_depth_up env =
     let max_level =
-      Clflags.Int_arg_helper.get ~key:(env.round) !Clflags.inline_max_depth
+      Clflags.Int_arg_helper.get ~key:(env.round)
+        !Clflags.inline_max_speculation_depth
     in
-    if (env.inlining_level + 1) > max_level then
+    if (env.speculation_depth + 1) > max_level then
       Misc.fatal_error "Inlining level increased above maximum";
-    { env with inlining_level = env.inlining_level + 1 }
+    { env with speculation_depth = env.speculation_depth + 1 }
 
   let print ppf t =
     Format.fprintf ppf
@@ -356,7 +357,7 @@ module Env = struct
     in
     { t with inlining_stack }
 
-  let inlining_level t = t.inlining_level
+  let speculation_depth t = t.speculation_depth
   let inlining_stack t = t.inlining_stack
   let freshening t = t.freshening
   let never_inline t = t.never_inline || t.never_inline_outside_closures

@@ -224,12 +224,12 @@ let inline env r ~lhs_of_application
       in
       let env = E.inside_inlined_function env closure_id_being_applied in
       let env =
-        if E.inlining_level env = 0
+        if E.speculation_depth env = 0
            (* If the function was considered for inlining without considering
               its sub-functions, and it is not below another inlining choice,
               then we are certain that this code will be kept. *)
         then env
-        else E.inlining_level_up env
+        else E.speculation_depth_up env
       in
       Changed ((simplify env r body), decision)
     in
@@ -256,7 +256,7 @@ let inline env r ~lhs_of_application
          no opportunities for inlining. *)
         Original (S.Not_inlined.Without_subfunctions wsb)
       end else begin
-        let env = E.inlining_level_up env in
+        let env = E.speculation_depth_up env in
         let env = E.note_entering_inlined env in
         let env =
           (* We decrement the unrolling count even if the function is recursive
@@ -434,13 +434,13 @@ let specialise env r ~lhs_of_application
           in
           let closure_env =
             let env =
-              if E.inlining_level env = 0
+              if E.speculation_depth env = 0
                (* If the function was considered for specialising without
                   considering its sub-functions, and it is not below another
                   inlining choice, then we are certain that this code will
                   be kept. *)
               then env
-              else E.inlining_level_up env
+              else E.speculation_depth_up env
             in
               E.set_never_inline_outside_closures env
           in
@@ -456,7 +456,7 @@ let specialise env r ~lhs_of_application
           Changed (res, decision)
         end else begin
           let closure_env =
-            let env = E.inlining_level_up env in
+            let env = E.speculation_depth_up env in
             E.set_never_inline_outside_closures env
           in
           let expr, r_inlined = simplify closure_env r_inlined expr in
@@ -553,7 +553,8 @@ let for_call_site ~env ~r ~(function_decls : Flambda.function_declarations)
         ~closure_id:closure_id_being_applied ~dbg:dbg
     in
     let max_level =
-      Clflags.Int_arg_helper.get ~key:(E.round env) !Clflags.inline_max_depth
+      Clflags.Int_arg_helper.get ~key:(E.round env)
+        !Clflags.inline_max_speculation_depth
     in
     let raw_inlining_threshold = R.inlining_threshold r in
     let max_inlining_threshold =
@@ -582,7 +583,7 @@ let for_call_site ~env ~r ~(function_decls : Flambda.function_declarations)
     let simpl =
       if inlining_prevented then
         Original (D.Prevented Function_prevented_from_inlining)
-      else if E.inlining_level env >= max_level then
+      else if E.speculation_depth env >= max_level then
         Original (D.Prevented Level_exceeded)
       else begin
         let self_call =
@@ -652,7 +653,7 @@ let for_call_site ~env ~r ~(function_decls : Flambda.function_declarations)
       | Original decision -> (original, original_r), decision
       | Changed ((expr, r), decision) ->
         let res =
-          if E.inlining_level env = 0
+          if E.speculation_depth env = 0
           then expr, R.set_inlining_threshold r raw_inlining_threshold
           else expr, R.add_inlining_threshold r inlining_threshold_diff
         in
