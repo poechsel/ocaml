@@ -101,6 +101,7 @@ and named =
   | Project_closure of project_closure
   | Move_within_set_of_closures of move_within_set_of_closures
   | Project_var of project_var
+  | Recursive of Variable.t
   | Prim of Lambda.primitive * Variable.t list * Debuginfo.t
   | Expr of t
 
@@ -380,6 +381,7 @@ and print_named ppf (named : named) =
     print_move_within_set_of_closures ppf move_within_set_of_closures
   | Set_of_closures (set_of_closures) ->
     print_set_of_closures ppf set_of_closures
+  | Recursive (var) -> fprintf ppf "Recursive(%a)" Variable.print var
   | Prim(prim, args, dbg) ->
     fprintf ppf "@[<2>(%a<%s>%a)@]" Printlambda.primitive prim
       (Debuginfo.to_string dbg)
@@ -669,6 +671,7 @@ and variables_usage_named ?ignore_uses_in_project_var
     end
   | Move_within_set_of_closures { closure; start_from = _; move_to = _ } ->
     free_variable closure
+  | Recursive var -> free_variable var
   | Prim (_, args, _) -> List.iter free_variable args
   | Expr flam ->
     free := Variable.Set.union
@@ -827,7 +830,7 @@ let iter_general ~toplevel f f_named maybe_named =
     f_named named;
     match named with
     | Symbol _ | Const _ | Allocated_const _ | Read_mutable _
-    | Read_symbol_field _
+    | Read_symbol_field _ | Recursive _
     | Project_closure _ | Project_var _ | Move_within_set_of_closures _
     | Prim _ -> ()
     | Set_of_closures ({ function_decls = funcs; free_vars = _;

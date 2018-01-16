@@ -184,6 +184,8 @@ and same_named (named1 : Flambda.named) (named2 : Flambda.named) =
     same_move_within_set_of_closures m1 m2
   | Move_within_set_of_closures _, _ | _, Move_within_set_of_closures _ ->
     false
+  | Recursive v1, Recursive v2 -> Variable.equal v1 v2
+  | Recursive _, _ | _, Recursive _ -> false
   | Prim (p1, al1, _), Prim (p2, al2, _) ->
     p1 = p2 && Misc.Stdlib.List.equal Variable.equal al1 al2
   | Prim _, _ | _, Prim _ -> false
@@ -274,6 +276,9 @@ let toplevel_substitution sb tree =
     | Symbol _ | Const _ | Expr _ -> named
     | Allocated_const _ | Read_mutable _ -> named
     | Read_symbol_field _ -> named
+    | Recursive var ->
+      let var = sb var in
+      Recursive var
     | Set_of_closures set_of_closures ->
       let set_of_closures =
         Flambda.create_set_of_closures
@@ -569,6 +574,7 @@ let substitute_read_symbol_field_for_variables
     | Symbol _ | Const _ | Expr _ -> named
     | Allocated_const _ | Read_mutable _ -> named
     | Read_symbol_field _ -> named
+    | Recursive v -> Recursive (sb v)
     | Set_of_closures set_of_closures ->
       let set_of_closures =
         Flambda.create_set_of_closures

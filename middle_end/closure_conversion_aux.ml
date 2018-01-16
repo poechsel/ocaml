@@ -25,6 +25,7 @@ module Env = struct
     static_exceptions : Static_exception.t Numbers.Int.Map.t;
     globals : Symbol.t Numbers.Int.Map.t;
     at_toplevel : bool;
+    in_rec_scopes : Ident.Set.t;
   }
 
   let empty = {
@@ -33,10 +34,11 @@ module Env = struct
     static_exceptions = Numbers.Int.Map.empty;
     globals = Numbers.Int.Map.empty;
     at_toplevel = true;
+    in_rec_scopes = Ident.Set.empty;
   }
 
   let clear_local_bindings env =
-    { empty with globals = env.globals }
+    { empty with globals = env.globals; in_rec_scopes = env.in_rec_scopes }
 
   let add_var t id var = { t with variables = Ident.add id var t.variables }
   let add_vars t ids vars = List.fold_left2 add_var t ids vars
@@ -80,6 +82,12 @@ module Env = struct
   let at_toplevel t = t.at_toplevel
 
   let not_at_toplevel t = { t with at_toplevel = false; }
+
+  let enter_rec_scope t id =
+    { t with in_rec_scopes = Ident.Set.add id t.in_rec_scopes }
+  let enter_rec_scopes t ids =
+    List.fold_left enter_rec_scope t ids
+  let in_rec_scope t id = Ident.Set.mem id t.in_rec_scopes
 end
 
 module Function_decls = struct

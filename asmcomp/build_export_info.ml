@@ -223,7 +223,7 @@ let rec approx_of_expr (env : Env.t) (flam : Flambda.t) : Export_info.approx =
     | Direct closure_id' ->
       match Env.get_descr env (Env.find_approx env func) with
       | Some (Value_closure
-          { closure_id; set_of_closures = { results; _ }; }) ->
+          { closure_id; set_of_closures = { results; _ }; rec_info = _ }) ->
         assert (Closure_id.equal closure_id closure_id');
         assert (Closure_id.Map.mem closure_id results);
         Closure_id.Map.find closure_id results
@@ -279,7 +279,8 @@ and descr_of_named (env : Env.t) (named : Flambda.named)
           Closure_id.print closure_id
       end;
       let descr : Export_info.descr =
-        Value_closure { closure_id = closure_id; set_of_closures; }
+        let rec_info = Export_info.Non_recursive_occ in
+        Value_closure { closure_id = closure_id; set_of_closures; rec_info }
       in
       Value_id (Env.new_descr env descr)
     | _ ->
@@ -290,10 +291,10 @@ and descr_of_named (env : Env.t) (named : Flambda.named)
     end
   | Move_within_set_of_closures { closure; start_from; move_to; } ->
     begin match Env.get_descr env (Env.find_approx env closure) with
-    | Some (Value_closure { set_of_closures; closure_id; }) ->
+    | Some (Value_closure { set_of_closures; closure_id; rec_info }) ->
       assert (Closure_id.equal closure_id start_from);
       let descr : Export_info.descr =
-        Value_closure { closure_id = move_to; set_of_closures; }
+        Value_closure { closure_id = move_to; set_of_closures; rec_info; }
       in
       Value_id (Env.new_descr env descr)
     | _ -> Value_unknown
@@ -301,7 +302,7 @@ and descr_of_named (env : Env.t) (named : Flambda.named)
   | Project_var { closure; closure_id = closure_id'; var; } ->
     begin match Env.get_descr env (Env.find_approx env closure) with
     | Some (Value_closure
-        { set_of_closures = { bound_vars; _ }; closure_id; }) ->
+        { set_of_closures = { bound_vars; _ }; closure_id; rec_info = _ }) ->
       assert (Closure_id.equal closure_id closure_id');
       if not (Var_within_closure.Map.mem var bound_vars) then begin
         Misc.fatal_errorf "Project_var from %a (closure ID %a) of \
@@ -313,6 +314,21 @@ and descr_of_named (env : Env.t) (named : Flambda.named)
           (Var_within_closure.Map.print (fun _ _ -> ())) bound_vars
       end;
       Var_within_closure.Map.find var bound_vars
+    | _ -> Value_unknown
+    end
+  | Recursive var ->
+    begin match Env.get_descr env (Env.find_approx env var) with
+    | Some (Value_closure { set_of_closures; closure_id; rec_info }) ->
+      let rec_info = match rec_info with
+        | Non_recursive_occ ->
+          Export_info.Recursive_occ { depth = 0 }
+        | Recursive_occ { depth = n } ->
+          Export_info.Recursive_occ { depth = n + 1 }
+      in
+      let descr : Export_info.descr =
+        Value_closure { set_of_closures; closure_id; rec_info }
+      in
+      Value_id (Env.new_descr env descr)
     | _ -> Value_unknown
     end
 
@@ -355,6 +371,7 @@ and describe_set_of_closures env (set : Flambda.set_of_closures)
           Value_closure
             { closure_id = Closure_id.wrap fun_var;
               set_of_closures = initial_value_set_of_closures;
+              rec_info = Non_recursive_occ
             }
         in
         Export_info.Value_id (Env.new_descr env descr))
@@ -415,9 +432,10 @@ let describe_constant_defining_value env export_id symbol
             set of closures"
           Closure_id.print closure_id
       end;
+      let rec_info = Export_info.Non_recursive_occ in
       let descr =
         Export_info.Value_closure
-          { closure_id = closure_id; set_of_closures; }
+          { closure_id = closure_id; set_of_closures; rec_info }
       in
       Env.record_descr env export_id descr
     | None ->

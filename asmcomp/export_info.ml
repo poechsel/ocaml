@@ -50,6 +50,7 @@ type descr =
 and value_closure = {
   closure_id : Closure_id.t;
   set_of_closures : value_set_of_closures;
+  rec_info : recursion_info;
 }
 
 and value_set_of_closures = {
@@ -58,6 +59,10 @@ and value_set_of_closures = {
   results : approx Closure_id.Map.t;
   aliased_symbol : Symbol.t option;
 }
+
+and recursion_info =
+  | Non_recursive_occ
+  | Recursive_occ of { depth : int }
 
 and approx =
   | Value_unknown

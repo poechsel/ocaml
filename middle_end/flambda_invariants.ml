@@ -257,6 +257,8 @@ let variable_and_symbol_invariants (program : Flambda.program) =
       check_variable_is_bound env closure;
       ignore_closure_id closure_id;
       ignore_var_within_closure var
+    | Recursive var ->
+      check_variable_is_bound env var
     | Prim (prim, args, dbg) ->
       ignore_primitive prim;
       check_variables_are_bound env args;
@@ -565,7 +567,7 @@ let used_closure_ids (program:Flambda.program) =
     | Project_var { closure = _; closure_id; var = _ } ->
       used := Closure_id.Set.add closure_id !used
     | Set_of_closures _ | Symbol _ | Const _ | Allocated_const _
-    | Prim _ | Expr _ | Read_mutable _ | Read_symbol_field _ -> ()
+    | Prim _ | Expr _ | Recursive _ | Read_mutable _ | Read_symbol_field _ -> ()
   in
   (* CR-someday pchambart: check closure_ids of constant_defining_values'
      project_closures *)

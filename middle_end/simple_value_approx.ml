@@ -64,6 +64,7 @@ and descr =
 and value_closure = {
   set_of_closures : t;
   closure_id : Closure_id.t;
+  rec_info : recursion_info;
 }
 
 and value_set_of_closures = {
@@ -84,6 +85,10 @@ and value_float_array = {
   contents : value_float_array_contents;
   size : int;
 }
+
+and recursion_info =
+  | Non_recursive_occ
+  | Recursive_occ of { depth : int }
 
 let descr t = t.descr
 
@@ -117,8 +122,13 @@ let rec print_descr ppf = function
   | Value_bottom -> Format.fprintf ppf "bottom"
   | Value_extern id -> Format.fprintf ppf "_%a_" Export_id.print id
   | Value_symbol sym -> Format.fprintf ppf "%a" Symbol.print sym
-  | Value_closure { set_of_closures; closure_id; } ->
-    Format.fprintf ppf "(closure:@ %a from@ %a)" Closure_id.print closure_id
+  | Value_closure { set_of_closures; closure_id; rec_info; } ->
+    let print_rec_info ppf = function
+      | Non_recursive_occ -> ()
+      | Recursive_occ { depth } -> Format.fprintf ppf " <rec %i>" depth
+    in
+    Format.fprintf ppf "(closure:@ %a%a from@ %a)" Closure_id.print closure_id
+      print_rec_info rec_info
       print set_of_closures
   | Value_set_of_closures set_of_closures ->
     print_value_set_of_closures ppf set_of_closures
@@ -218,7 +228,7 @@ let value_any_float = approx (Value_float None)
 let value_boxed_int bi i = approx (Value_boxed_int (bi,i))
 
 let value_closure ?closure_var ?set_of_closures_var ?set_of_closures_symbol
-      value_set_of_closures closure_id =
+      ?(rec_info=Non_recursive_occ) value_set_of_closures closure_id =
   let approx_set_of_closures =
     { descr = Value_set_of_closures value_set_of_closures;
       var = set_of_closures_var;
@@ -228,6 +238,7 @@ let value_closure ?closure_var ?set_of_closures_var ?set_of_closures_symbol
   let value_closure =
     { set_of_closures = approx_set_of_closures;
       closure_id;
+      rec_info;
     }
   in
   { descr = Value_closure value_closure;
@@ -277,6 +288,20 @@ let value_set_of_closures ?set_of_closures_var value_set_of_closures =
     var = set_of_closures_var;
     symbol = None;
   }
+
+let increase_recursiveness approx =
+  match approx.descr with
+  | Value_closure value_closure ->
+    let rec_info = match value_closure.rec_info with
+      | Non_recursive_occ -> Recursive_occ { depth = 0 }
+      | Recursive_occ { depth } -> Recursive_occ { depth = depth + 1 }
+    in
+    { approx with descr = Value_closure { value_closure with rec_info; } }
+  | Value_block _ | Value_int _ | Value_char _ | Value_constptr _
+  | Value_float _ | Value_boxed_int _ | Value_set_of_closures _
+  | Value_string _ | Value_float_array _ | Value_unknown _ | Value_bottom
+  | Value_extern _ | Value_symbol _ | Value_unresolved _ ->
+    assert false
 
 let value_block t b = approx (Value_block (t, b))
 let value_extern ex = approx (Value_extern ex)

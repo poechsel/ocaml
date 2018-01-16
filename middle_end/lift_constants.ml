@@ -110,6 +110,8 @@ let assign_symbols_and_collect_constant_definitions
           Flambda.print_named named
       | Project_var project_var ->
         record_definition (AA.Project_var project_var)
+      | Recursive v ->
+        record_definition (AA.Variable v)
       | Expr e ->
         match tail_variable e with
         | None -> assert false  (* See [Inconstant_idents]. *)
@@ -997,7 +999,7 @@ let lift_constants (program : Flambda.program) ~backend =
         | (Project_var project_var) as original ->
           rewrite_project_var var_to_block_field_tbl project_var ~original
         | (Symbol _ | Const _ | Allocated_const _ | Project_closure _
-        | Move_within_set_of_closures _ | Prim _ | Expr _
+        | Move_within_set_of_closures _ | Prim _ | Expr _ | Recursive _
         | Read_mutable _ | Read_symbol_field _) as named -> named)
       expr
   in

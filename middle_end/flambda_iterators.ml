@@ -195,7 +195,7 @@ let iter_on_sets_of_closures f t =
   iter_named (function
       | Set_of_closures clos -> f clos
       | Symbol _ | Const _ | Allocated_const _ | Read_mutable _
-      | Read_symbol_field _
+      | Read_symbol_field _ | Recursive _
       | Project_closure _ | Move_within_set_of_closures _ | Project_var _
       | Prim _ | Expr _ -> ())
     t
@@ -396,7 +396,7 @@ let map_general ~toplevel f f_named tree =
       match named with
       | Symbol _ | Const _ | Allocated_const _ | Read_mutable _
       | Project_closure _ | Move_within_set_of_closures _ | Project_var _
-      | Prim _ | Read_symbol_field _ -> named
+      | Prim _ | Read_symbol_field _ | Recursive _ -> named
       | Set_of_closures ({ function_decls; free_vars; specialised_args;
           direct_call_surrogates }) ->
         if toplevel then named
@@ -484,7 +484,7 @@ let map_symbols tree ~f =
           Read_symbol_field (new_sym, field)
       | (Const _ | Allocated_const _ | Set_of_closures _ | Read_mutable _
       | Project_closure _ | Move_within_set_of_closures _ | Project_var _
-      | Prim _ | Expr _) as named -> named)
+      | Recursive _ | Prim _ | Expr _) as named -> named)
     tree
 
 let map_symbols_on_set_of_closures
@@ -529,7 +529,7 @@ let map_toplevel_sets_of_closures tree ~f =
       | (Symbol _ | Const _ | Allocated_const _ | Read_mutable _
       | Read_symbol_field _
       | Project_closure _ | Move_within_set_of_closures _ | Project_var _
-      | Prim _ | Expr _) as named -> named)
+      | Recursive _ | Prim _ | Expr _) as named -> named)
     tree
 
 let map_apply tree ~f =
@@ -553,7 +553,7 @@ let map_sets_of_closures tree ~f =
         else
           Set_of_closures new_set_of_closures
       | (Symbol _ | Const _ | Allocated_const _ | Project_closure _
-      | Move_within_set_of_closures _ | Project_var _
+      | Move_within_set_of_closures _ | Project_var _ | Recursive _
       | Prim _ | Expr _ | Read_mutable _
       | Read_symbol_field _) as named -> named)
     tree
@@ -567,7 +567,7 @@ let map_project_var_to_expr_opt tree ~f =
         end
       | (Symbol _ | Const _ | Allocated_const _
       | Set_of_closures _ | Project_closure _ | Move_within_set_of_closures _
-      | Prim _ | Expr _ | Read_mutable _ | Read_symbol_field _)
+      | Prim _ | Expr _ | Read_mutable _ | Read_symbol_field _ | Recursive _)
           as named -> named)
     tree
 
@@ -580,7 +580,7 @@ let map_project_var_to_named_opt tree ~f =
         end
       | (Symbol _ | Const _ | Allocated_const _
       | Set_of_closures _ | Project_closure _ | Move_within_set_of_closures _
-      | Prim _ | Expr _ | Read_mutable _ | Read_symbol_field _)
+      | Prim _ | Expr _ | Read_mutable _ | Read_symbol_field _ | Recursive _)
           as named -> named)
     tree
 
