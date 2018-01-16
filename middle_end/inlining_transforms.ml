@@ -50,6 +50,28 @@ let set_attributes_on_all_apply body inline specialise inlining_depth =
       | expr -> expr)
     body
 
+let rewrite_recursive_calls_from_symbols_to_variables env function_decls =
+  let symbol_to_closure_id = E.find_closure_id_for_symbol env in
+  let get_funs (decls : Simple_value_approx.function_declarations) =
+    decls.funs
+  in
+  let get_free_symbols (decl : Simple_value_approx.function_declaration) =
+    match decl.function_body with
+    | None -> Symbol.Set.empty
+    | Some function_body -> function_body.free_symbols
+  in
+  let update_function_declaration_body =
+    Simple_value_approx.update_function_declaration_body
+  in
+  let update_function_declarations =
+    Simple_value_approx.update_function_declarations
+  in
+  Freshening.rewrite_recursive_calls_with_symbols (Freshening.activate Freshening.empty)
+    function_decls
+    ~get_funs ~get_free_symbols
+    ~update_function_declaration_body ~update_function_declarations
+    ~symbol_to_closure_id
+
 (** Assign fresh names for a function's parameters and rewrite the body to
     use these new names. *)
 let copy_of_function's_body_with_freshened_params env
@@ -92,12 +114,19 @@ let inline_by_copying_function_body ~env ~r
       ~(inline_requested : Lambda.inline_attribute)
       ~(specialise_requested : Lambda.specialise_attribute)
       ~closure_id_being_applied
-      ~(function_decl : A.function_declaration)
+      ~(function_decls : A.function_declarations)
       ~(function_body : A.function_body)
-      ~fun_vars
       ~args ~dbg ~simplify =
   assert (E.mem env lhs_of_application);
   assert (List.for_all (E.mem env) args);
+  let function_decls =
+    (* This lets us check which recursive siblings are used simply by
+       checking free variables. *)
+    rewrite_recursive_calls_from_symbols_to_variables env function_decls
+  in
+  let function_decl =
+    A.find_declaration closure_id_being_applied function_decls
+  in
   let r =
     if function_body.stub then r
     else R.map_benefit r B.remove_call
@@ -133,7 +162,7 @@ let inline_by_copying_function_body ~env ~r
       let params = Parameter.Set.vars function_decl.params in
       Variable.Set.diff
         (Variable.Set.diff function_body.free_variables params)
-        fun_vars
+        (Variable.Map.keys function_decls.funs)
     in
     fold_over_projections_of_vars_bound_by_closure ~closure_id_being_applied
       ~lhs_of_application ~bound_variables ~init:bindings_for_params_to_args
@@ -145,21 +174,42 @@ let inline_by_copying_function_body ~env ~r
      applied to another closure in the same set.
   *)
   let expr =
-    Variable.Set.fold (fun another_closure_in_the_same_set expr ->
+    Variable.Map.fold (fun another_closure_in_the_same_set other_decl expr ->
       let used =
         Variable.Set.mem another_closure_in_the_same_set
            function_body.free_variables
       in
       if used then
-        Flambda.create_let another_closure_in_the_same_set
-          (Move_within_set_of_closures {
+        let original_body : Flambda.named =
+          Move_within_set_of_closures {
             closure = lhs_of_application;
             start_from = closure_id_being_applied;
             move_to = Closure_id.wrap another_closure_in_the_same_set;
-          })
+          }
+        in
+        let recursive =
+          match function_decl.function_body, other_decl.A.function_body with
+          | Some function_body, Some other_body ->
+              function_body.recursive && other_body.recursive
+          | _, _ -> false
+        in
+        if recursive then
+          let rec_var = Variable.rename another_closure_in_the_same_set in
+          let rec_body : Flambda.named =
+            Recursive (another_closure_in_the_same_set, 1)
+          in
+          Flambda.create_let another_closure_in_the_same_set original_body @@
+          Flambda.create_let rec_var rec_body @@
+          (* Not strictly necessary to rename like this, but convenient to make
+             recursive declarations always end in _rec *)
+          Flambda.create_let another_closure_in_the_same_set
+            (Expr (Var rec_var)) @@
+          expr
+        else
+          Flambda.create_let another_closure_in_the_same_set original_body @@
           expr
       else expr)
-      fun_vars
+      function_decls.funs
       bindings_for_vars_bound_by_closure_and_params_to_args
   in
   let env = E.set_never_inline env in
@@ -188,6 +238,9 @@ type state = {
   to_copy : Variable.t list;
     (* List of functions that still need to be copied to the new set
        of closures *)
+  recursive_applied_closure_var : Variable.t option;
+    (* New outside var bound to a Recursive wrapped version of the
+       closure being applied *)
   new_funs : Flambda.function_declaration Variable.Map.t;
     (* The function declerations for the new set of closures *)
   new_free_vars_with_old_projections : Flambda.specialised_to Variable.Map.t;
@@ -206,6 +259,7 @@ let empty_state =
     old_params_to_new_outside = Variable.Map.empty;
     old_fun_var_to_new_fun_var = Variable.Map.empty;
     let_bindings = [];
+    recursive_applied_closure_var = None;
     new_funs = Variable.Map.empty;
     new_free_vars_with_old_projections = Variable.Map.empty;
     new_specialised_args_with_old_projections = Variable.Map.empty; }
@@ -318,20 +372,42 @@ let add_param ~specialised_args ~state ~param =
   in
   state, Parameter.wrap new_param
 
+let add_recursive_applied_closure_var ~lhs_of_application ~state =
+  match state.recursive_applied_closure_var with
+  | Some var -> state, var
+  | None ->
+      let var = Variable.rename lhs_of_application in
+      let expr : Flambda.named = Recursive (lhs_of_application, 1) in
+      let let_bindings = (var, expr) :: state.let_bindings in
+      let recursive_applied_closure_var = Some var in
+      let state = { state with let_bindings; recursive_applied_closure_var } in
+      state, var
+
 (* Add a let binding for an old fun_var, add it to the new free variables, and
    add it to [old_inside_to_new_inside] *)
 let add_fun_var ~lhs_of_application ~closure_id_being_applied ~state ~fun_var =
   if Variable.Map.mem fun_var state.old_inside_to_new_inside then state
   else begin
-    let inside_var = Variable.rename fun_var in
-    let outside_var = Variable.create Internal_variable_names.closure in
-    let expr =
-      Flambda.Move_within_set_of_closures
-        { closure    = lhs_of_application;
-          start_from = closure_id_being_applied;
-          move_to    = Closure_id.wrap fun_var; }
+    let state, applied_var =
+      add_recursive_applied_closure_var ~lhs_of_application ~state
     in
-    let let_bindings = (outside_var, expr) :: state.let_bindings in
+    let inside_var = Variable.rename fun_var in
+    let closure_id = Closure_id.wrap fun_var in
+    let let_bindings, outside_var =
+      if Closure_id.equal closure_id closure_id_being_applied then
+        state.let_bindings, applied_var
+      else begin
+        let outside_var = Variable.create Internal_variable_names.closure in
+        let expr =
+          Flambda.Move_within_set_of_closures
+            { closure    = applied_var;
+              start_from = closure_id_being_applied;
+              move_to    = closure_id; }
+        in
+        let let_bindings = (outside_var, expr) :: state.let_bindings in
+        let_bindings, outside_var
+      end
+    in
     let spec : Flambda.specialised_to =
       { var = outside_var; projection = None; }
     in
@@ -371,41 +447,44 @@ let add_free_var ~free_vars ~state ~free_var =
   end
 
 (* Add a function to the new set of closures iff:
-   1) All it's specialised parameters are available in
+   1) It's recursive
+   2) All it's specialised parameters are available in
       [old_outside_to_new_outside]
-   2) At least one more parameter will become specialised *)
+   3) At least one more parameter will become specialised *)
 let add_function ~specialised_args ~state ~fun_var ~function_decl =
   match function_decl.A.function_body with
   | None -> None
-  | Some _ -> begin
-    let rec loop worth_specialising = function
-      | [] -> worth_specialising
-      | param :: params -> begin
-          let param = Parameter.var param in
-          match Variable.Map.find_opt param specialised_args with
-          | Some (spec : Flambda.specialised_to) ->
-              Variable.Map.mem spec.var state.old_outside_to_new_outside
-              && loop worth_specialising params
-          | None ->
-              let worth_specialising =
-                worth_specialising
-                || Variable.Map.mem param state.old_params_to_new_outside
-              in
-              loop worth_specialising params
+  | Some function_body ->
+      if not (function_body.recursive) then None
+      else begin
+        let rec loop worth_specialising = function
+          | [] -> worth_specialising
+          | param :: params -> begin
+              let param = Parameter.var param in
+              match Variable.Map.find_opt param specialised_args with
+              | Some (spec : Flambda.specialised_to) ->
+                  Variable.Map.mem spec.var state.old_outside_to_new_outside
+                  && loop worth_specialising params
+              | None ->
+                  let worth_specialising =
+                    worth_specialising
+                    || Variable.Map.mem param state.old_params_to_new_outside
+                  in
+                  loop worth_specialising params
+            end
+        in
+        let worth_specialising = loop false function_decl.A.params in
+        if not worth_specialising then None
+        else begin
+          let new_fun_var = Variable.rename fun_var in
+          let old_fun_var_to_new_fun_var =
+            Variable.Map.add fun_var new_fun_var state.old_fun_var_to_new_fun_var
+          in
+          let to_copy = fun_var :: state.to_copy in
+          let state = { state with old_fun_var_to_new_fun_var; to_copy } in
+          Some (state, new_fun_var)
         end
-    in
-    let worth_specialising = loop false function_decl.A.params in
-    if not worth_specialising then None
-    else begin
-      let new_fun_var = Variable.rename fun_var in
-      let old_fun_var_to_new_fun_var =
-        Variable.Map.add fun_var new_fun_var state.old_fun_var_to_new_fun_var
-      in
-      let to_copy = fun_var :: state.to_copy in
-      let state = { state with old_fun_var_to_new_fun_var; to_copy } in
-      Some (state, new_fun_var)
-    end
-  end
+      end
 
 (* Lookup a function in the new set of closures, trying to add it if
    necessary. *)
@@ -583,6 +662,7 @@ let inline_by_copying_function_declaration
     ~(r : Inline_and_simplify_aux.Result.t)
     ~(function_decls : A.function_declarations)
     ~(lhs_of_application : Variable.t)
+    ~(rec_depth : int)
     ~(inline_requested : Lambda.inline_attribute)
     ~(closure_id_being_applied : Closure_id.t)
     ~(function_decl : A.function_declaration)
@@ -639,7 +719,7 @@ let inline_by_copying_function_declaration
       in
       let direct_call_surrogates = Variable.Map.empty in
       let set_of_closures =
-        Flambda.create_set_of_closures ~function_decls
+        Flambda.create_set_of_closures ~function_decls ~rec_depth
           ~free_vars ~specialised_args ~direct_call_surrogates
       in
       let closure_var = new_var Internal_variable_names.dup_func in

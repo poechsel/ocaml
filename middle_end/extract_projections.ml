@@ -159,7 +159,7 @@ let rec analyse_expr ~which_variables expr =
       List.iter check_free_variable vars
     | Symbol _ | Const _ | Allocated_const _ | Read_mutable _
     | Read_symbol_field _ | Project_var _ | Project_closure _
-    | Move_within_set_of_closures _
+    | Move_within_set_of_closures _ | Recursive _
     | Expr _ -> ()
   in
   Flambda_iterators.iter_toplevel for_expr for_named expr;

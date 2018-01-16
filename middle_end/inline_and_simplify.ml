@@ -269,8 +269,8 @@ let simplify_project_closure env r ~(project_closure : Flambda.project_closure)
             | Some _ | None -> None
           in
           let approx =
-            A.value_closure ?set_of_closures_var value_set_of_closures
-              closure_id
+            A.value_closure ?set_of_closures_var ~rec_depth:0
+              value_set_of_closures closure_id
           in
           Project_closure { set_of_closures; closure_id; }, ret r approx)
 
@@ -311,7 +311,7 @@ let simplify_move_within_set_of_closures env r
           move_to = move_within_set_of_closures.move_to;
         },
         ret r (A.value_unknown (Unresolved_value value))
-    | Ok (_value_closure, set_of_closures_var, set_of_closures_symbol,
+    | Ok (value_closure, set_of_closures_var, set_of_closures_symbol,
           value_set_of_closures) ->
       let freshen =
         (* CR-soon mshinwell: potentially misleading name---not freshening with
@@ -327,14 +327,42 @@ let simplify_move_within_set_of_closures env r
           move_to;
         }
       in
+      let target_rec_depth =
+        let funs = value_set_of_closures.function_decls.funs in
+        let is_recursive cid =
+          let fun_decl = Variable.Map.find (Closure_id.unwrap cid) funs in
+          match fun_decl.function_body with
+          | None -> false
+          | Some function_body -> function_body.recursive
+        in
+        if is_recursive start_from && is_recursive move_to then
+          value_closure.rec_depth
+        else
+          0
+      in
+      let adjust_rec_depth flam approx =
+        let direct_closure =
+          match Simple_value_approx.check_approx_for_closure approx with
+          | Ok (direct_closure, _, _, _) -> direct_closure
+          | Wrong -> assert false
+        in
+        let rec_depth = target_rec_depth - direct_closure.rec_depth in
+        Flambda_utils.increase_recursion_depth flam rec_depth,
+        Simple_value_approx.increase_recursion_depth approx rec_depth
+      in
       match E.find_projection env ~projection with
       | Some var ->
         simplify_free_variable_named env var ~f:(fun _env var var_approx ->
           let r = R.map_benefit r (B.remove_projection projection) in
-          Expr (Var var), ret r var_approx)
+          let flam = Flambda.Expr (Var var) in
+          let approx = var_approx in
+          let flam, approx = adjust_rec_depth flam approx in
+          flam, ret r approx)
       | None ->
         match reference_recursive_function_directly env move_to with
-        | Some (flam, approx) -> flam, ret r approx
+        | Some (flam, approx) ->
+          let flam, approx = adjust_rec_depth flam approx in
+          flam, ret r approx
         | None ->
           if Closure_id.equal start_from move_to then
             (* Moving from one closure to itself is a no-op.  We can return an
@@ -351,11 +379,14 @@ let simplify_move_within_set_of_closures env r
                   closure_id = move_to;
                 }
               in
+              let flam : Flambda.named = Project_closure project_closure in
               let approx =
-                A.value_closure ~set_of_closures_var value_set_of_closures
-                  move_to
+                A.value_closure ~set_of_closures_var
+                  ~rec_depth:value_set_of_closures.rec_depth
+                  value_set_of_closures move_to
               in
-              Project_closure project_closure, ret r approx
+              let flam, approx = adjust_rec_depth flam approx in
+              flam, ret r approx
             | Some _ | None ->
               match set_of_closures_symbol with
               | Some set_of_closures_symbol ->
@@ -375,23 +406,28 @@ let simplify_move_within_set_of_closures env r
                     (Project_closure project_closure)
                     (Var project_closure_var)
                 in
-                let expr =
-                  Flambda.create_let set_of_closures_var
-                    (Symbol set_of_closures_symbol)
-                    let1
+                let flam =
+                  Flambda.Expr (Flambda.create_let set_of_closures_var
+                     (Symbol set_of_closures_symbol)
+                     let1)
                 in
                 let approx =
                   A.value_closure ~set_of_closures_var ~set_of_closures_symbol
+                    ~rec_depth:value_set_of_closures.rec_depth
                     value_set_of_closures move_to
                 in
-                Expr expr, ret r approx
+                let flam, approx = adjust_rec_depth flam approx in
+                flam, ret r approx
               | None ->
                 (* The set of closures is not available in scope, and we
                    have no other information by which to simplify the move. *)
                 let move_within : Flambda.move_within_set_of_closures =
                   { closure; start_from; move_to; }
                 in
-                let approx = A.value_closure value_set_of_closures move_to in
+                let approx =
+                  A.value_closure ~rec_depth:target_rec_depth
+                    value_set_of_closures move_to
+                in
                 Move_within_set_of_closures move_within, ret r approx)
 
 (* Transform an expression denoting an access to a variable bound in
@@ -575,18 +611,16 @@ and simplify_set_of_closures original_env r
       (set_of_closures : Flambda.set_of_closures)
       : Flambda.set_of_closures * R.t * Freshening.Project_var.t =
   let function_decls =
-    let symbol_to_closure_id = E.find_closure_id_for_symbol original_env in
     (* CR-soon mshinwell: Does this affect
        [reference_recursive_function_directly]?
        mshinwell: This should be thought about as part of the wider issue of
        references to functions via symbols or variables. *)
-    Freshening.rewrite_recursive_calls_with_symbols (E.freshening original_env)
-      set_of_closures.function_decls
-      ~symbol_to_closure_id
+    Inline_and_simplify_aux.rewrite_recursive_calls_with_symbols
+      original_env set_of_closures.function_decls
   in
   let env = E.increase_closure_depth original_env in
   let free_vars, specialised_args, function_decls, parameter_approximations,
-      internal_value_set_of_closures, set_of_closures_env =
+      internal_value_set_of_closures, nonrec_closure_env, rec_closure_env =
     Inline_and_simplify_aux.prepare_to_simplify_set_of_closures ~env
       ~set_of_closures ~function_decls ~only_for_function_decl:None
       ~freshen:true
@@ -597,7 +631,7 @@ and simplify_set_of_closures original_env r
     let closure_env =
       Inline_and_simplify_aux.prepare_to_simplify_closure ~function_decl
         ~free_vars ~specialised_args ~parameter_approximations
-        ~set_of_closures_env
+        ~nonrec_closure_env ~rec_closure_env
     in
     let body, r =
       E.enter_closure closure_env ~closure_id:(Closure_id.wrap fun_var)
@@ -641,6 +675,7 @@ and simplify_set_of_closures original_env r
   let value_set_of_closures =
     A.create_value_set_of_closures
       ~function_decls:function_decls_approx
+      ~rec_depth:set_of_closures.rec_depth
       ~bound_vars:internal_value_set_of_closures.bound_vars
       ~invariant_params
       ~specialised_args:internal_value_set_of_closures.specialised_args
@@ -658,6 +693,7 @@ and simplify_set_of_closures original_env r
   in
   let set_of_closures =
     Flambda.create_set_of_closures ~function_decls
+      ~rec_depth:set_of_closures.rec_depth
       ~free_vars:(Variable.Map.map fst free_vars)
       ~specialised_args
       ~direct_call_surrogates
@@ -711,6 +747,7 @@ and simplify_apply env r ~(apply : Flambda.apply) : Flambda.t * R.t =
               in
               let approx_for_surrogate =
                 A.value_closure ~closure_var:surrogate_var
+                  ~rec_depth:value_closure.rec_depth
                   ?set_of_closures_var ?set_of_closures_symbol
                   value_set_of_closures surrogate
               in
@@ -734,6 +771,7 @@ and simplify_apply env r ~(apply : Flambda.apply) : Flambda.t * R.t =
                   approximation references non-existent closure %a@."
                 Closure_id.print closure_id_being_applied
           in
+          let rec_depth = value_closure.rec_depth in
           let r =
             match apply.kind with
             | Indirect ->
@@ -744,12 +782,12 @@ and simplify_apply env r ~(apply : Flambda.apply) : Flambda.t * R.t =
           let arity = A.function_arity function_decl in
           let result, r =
             if nargs = arity then
-              simplify_full_application env r ~function_decls
+              simplify_full_application env r ~function_decls ~rec_depth
                 ~lhs_of_application ~closure_id_being_applied ~function_decl
                 ~value_set_of_closures ~args ~args_approxs ~dbg
                 ~inline_requested ~specialise_requested
             else if nargs > arity then
-              simplify_over_application env r ~args ~args_approxs
+              simplify_over_application env r ~args ~args_approxs ~rec_depth
                 ~function_decls ~lhs_of_application ~closure_id_being_applied
                 ~function_decl ~value_set_of_closures ~dbg ~inline_requested
                 ~specialise_requested
@@ -770,10 +808,10 @@ and simplify_apply env r ~(apply : Flambda.apply) : Flambda.t * R.t =
             ret r (A.value_unknown Other)))
 
 and simplify_full_application env r ~function_decls ~lhs_of_application
-      ~closure_id_being_applied ~function_decl ~value_set_of_closures ~args
+      ~rec_depth ~closure_id_being_applied ~function_decl ~value_set_of_closures ~args
       ~args_approxs ~dbg ~inline_requested ~specialise_requested =
   Inlining_decision.for_call_site ~env ~r ~function_decls
-    ~lhs_of_application ~closure_id_being_applied ~function_decl
+    ~lhs_of_application ~rec_depth ~closure_id_being_applied ~function_decl
     ~value_set_of_closures ~args ~args_approxs ~dbg ~simplify
     ~inline_requested ~specialise_requested
 
@@ -815,15 +853,10 @@ and simplify_partial_application env r ~lhs_of_application
   in
   let wrapper_accepting_remaining_args =
     let body : Flambda.t =
-      Apply {
-        func = lhs_of_application;
-        args = Parameter.List.vars freshened_params;
-        kind = Direct closure_id_being_applied;
-        dbg;
-        inline = Default_inline;
-        specialise = Default_specialise;
-        inlining_depth = 0;
-      }
+      Flambda_utils.make_stub_body lhs_of_application
+        (Parameter.List.vars freshened_params)
+        ~dbg
+        ~kind:(Direct closure_id_being_applied)
     in
     let closure_variable =
       Variable.rename
@@ -834,6 +867,7 @@ and simplify_partial_application env r ~lhs_of_application
       ~body
       ~params:remaining_args
       ~recursive:false
+      ~rec_depth:0
       ~stub:true
   in
   let with_known_args =
@@ -845,7 +879,7 @@ and simplify_partial_application env r ~lhs_of_application
   simplify env r with_known_args
 
 and simplify_over_application env r ~args ~args_approxs ~function_decls
-      ~lhs_of_application ~closure_id_being_applied ~function_decl
+      ~lhs_of_application ~rec_depth ~closure_id_being_applied ~function_decl
       ~value_set_of_closures ~dbg ~inline_requested ~specialise_requested =
   let arity = A.function_arity function_decl in
   assert (arity < List.length args);
@@ -860,7 +894,7 @@ and simplify_over_application env r ~args ~args_approxs ~function_decls
     simplify_full_application env r ~function_decls ~lhs_of_application
       ~closure_id_being_applied ~function_decl ~value_set_of_closures
       ~args:full_app_args ~args_approxs:full_app_approxs ~dbg
-      ~inline_requested ~specialise_requested
+      ~inline_requested ~specialise_requested ~rec_depth
   in
   let func_var = Variable.create Internal_variable_names.full_apply in
   let expr : Flambda.t =
@@ -1078,6 +1112,45 @@ and simplify_named env r (tree : Flambda.named) : Flambda.named * R.t =
         in
         expr, ret r approx
       end)
+  | Recursive (var, depth) ->
+    let var = Freshening.apply_variable (E.freshening env) var in
+    let approx = E.find_exn env var in
+    let var, approx, depth =
+      let use_var_from_approx () =
+        match approx.var with
+        | Some var -> var, approx, depth
+        | None -> var, approx, depth
+      in
+      match A.check_approx_for_closure approx with
+      | Ok ({ rec_target_var = Some tgt_var; rec_depth; _ }, _, _, _) ->
+        let tgt_var = Freshening.apply_variable (E.freshening env) tgt_var in
+        if Variable.equal tgt_var var then
+          use_var_from_approx ()
+        else begin
+          match E.find_opt env tgt_var with
+          | Some tgt_approx ->
+            begin
+              match A.check_approx_for_closure tgt_approx with
+              | Ok ({ rec_depth = tgt_rec_depth; _}, _, _, _) ->
+                let depth = depth + (rec_depth - tgt_rec_depth) in
+                tgt_var, tgt_approx, depth
+              | Wrong ->
+                use_var_from_approx ()
+            end
+          | None ->
+            use_var_from_approx ()
+        end
+      | Ok _ | Wrong ->
+        use_var_from_approx ()
+    in
+    if depth = 0 then
+      (* Multiple Recursives canceled out. Proceed as with (Expr (Var var)),
+         only skip freshening because it's already been freshened. *)
+      let expr, r = simplify_using_approx_and_env env r (Var var) approx in
+      Expr expr, r
+    else
+      let approx = A.increase_recursion_depth approx depth in
+      Recursive (var, depth), ret r approx
   | Expr expr ->
     let expr, r = simplify env r expr in
     Expr expr, r
@@ -1396,7 +1469,7 @@ and duplicate_function ~env ~(set_of_closures : Flambda.set_of_closures)
   in
   let env = E.activate_freshening (E.set_never_inline env) in
   let free_vars, specialised_args, function_decls, parameter_approximations,
-      _internal_value_set_of_closures, set_of_closures_env =
+      _internal_value_set_of_closures, nonrec_closure_env, rec_closure_env =
     Inline_and_simplify_aux.prepare_to_simplify_set_of_closures ~env
       ~set_of_closures ~function_decls:set_of_closures.function_decls
       ~freshen:false ~only_for_function_decl:(Some function_decl)
@@ -1411,7 +1484,7 @@ and duplicate_function ~env ~(set_of_closures : Flambda.set_of_closures)
   let closure_env =
     Inline_and_simplify_aux.prepare_to_simplify_closure ~function_decl
       ~free_vars ~specialised_args ~parameter_approximations
-      ~set_of_closures_env
+      ~nonrec_closure_env ~rec_closure_env
   in
   let body, _r =
     E.enter_closure closure_env
@@ -1450,7 +1523,8 @@ let constant_defining_value_approx
         fields
     in
     A.value_block tag (Array.of_list fields)
-  | Set_of_closures { function_decls; free_vars; specialised_args } ->
+  | Set_of_closures
+      { function_decls; rec_depth; free_vars; specialised_args } ->
     (* At toplevel, there is no freshening currently happening (this
        cannot be the body of a currently inlined function), so we can
        keep the original set_of_closures in the approximation. *)
@@ -1470,6 +1544,7 @@ let constant_defining_value_approx
         A.function_declarations_approx ~keep_body function_decls
       in
       A.create_value_set_of_closures ~function_decls
+        ~rec_depth
         ~bound_vars:Var_within_closure.Map.empty
         ~invariant_params
         ~specialised_args:Variable.Map.empty
@@ -1491,7 +1566,7 @@ let constant_defining_value_approx
           let closure_id =
             A.freshen_and_check_closure_id value_set_of_closures closure_id
           in
-          A.value_closure value_set_of_closures closure_id
+          A.value_closure ~rec_depth:0 value_set_of_closures closure_id
         | Unresolved sym -> A.value_unresolved sym
         | Unknown -> A.value_unknown Other
         | Unknown_because_of_unresolved_value value ->
@@ -1501,31 +1576,44 @@ let constant_defining_value_approx
                              when being used as a [constant_defining_value]: %a"
             Flambda.print_constant_defining_value constant_defining_value
     end
+  | Recursive (target_symbol, depth) -> begin
+      match E.find_symbol_opt env target_symbol with
+      | None ->
+        A.value_unresolved (Symbol target_symbol)
+      | Some target_approx ->
+        A.increase_recursion_depth target_approx depth
+    end
 
 (* See documentation on [Let_rec_symbol] in flambda.mli. *)
-let define_let_rec_symbol_approx orig_env defs =
+let define_let_rec_symbol_approx orig_env def_lists =
   (* First declare an empty version of the symbols *)
   let init_env =
     List.fold_left (fun building_env (symbol, _) ->
         E.add_symbol building_env symbol (A.value_unresolved (Symbol symbol)))
-      orig_env defs
+      orig_env (List.flatten def_lists)
   in
   let rec loop times lookup_env =
     if times <= 0 then
       lookup_env
     else
       let env =
-        List.fold_left (fun building_env (symbol, constant_defining_value) ->
+        (* Shadow lookup_env in the outer loop but /not/ the inner loop, since
+           definitions in later /lists/ are allowed to depend on earlier ones
+           but we want definitions within each list to be independent (since
+           their order is arbitrary). *)
+        List.fold_left (fun lookup_env defs ->
+          List.fold_left (fun building_env (symbol, constant_defining_value) ->
             let approx =
               constant_defining_value_approx lookup_env constant_defining_value
             in
             let approx = A.augment_with_symbol approx symbol in
-            E.add_symbol building_env symbol approx)
-          orig_env defs
+            E.redefine_symbol building_env symbol approx
+          ) lookup_env defs
+        ) lookup_env def_lists
       in
       loop (times-1) env
   in
-  loop 2 init_env
+  loop 3 init_env
 
 let simplify_constant_defining_value
     env r symbol
@@ -1565,7 +1653,7 @@ let simplify_constant_defining_value
           let closure_id =
             A.freshen_and_check_closure_id value_set_of_closures closure_id
           in
-          A.value_closure value_set_of_closures closure_id
+          A.value_closure ~rec_depth:0 value_set_of_closures closure_id
         | Unresolved sym -> A.value_unresolved sym
         | Unknown -> A.value_unknown Other
         | Unknown_because_of_unresolved_value value ->
@@ -1576,6 +1664,35 @@ let simplify_constant_defining_value
             Flambda.print_constant_defining_value constant_defining_value
       in
       r, constant_defining_value, closure_approx
+    | Recursive (target_symbol, depth) ->
+      let target_approx =
+        E.find_symbol_exn env target_symbol
+      in
+      let constant_defining_value, target_approx, depth =
+        match A.check_approx_for_closure target_approx with
+        | Ok ({ rec_target_symbol = Some new_target_symbol; rec_depth; _ },
+              _, _, _)
+             when not (Symbol.equal new_target_symbol target_symbol) ->
+          begin
+            let new_target_approx = E.find_symbol_exn env new_target_symbol in
+            match A.check_approx_for_closure new_target_approx with
+            | Ok ({ rec_depth = new_rec_depth; _}, _, _, _) ->
+              let depth = depth + (rec_depth - new_rec_depth) in
+              (* Note: This may create a Recursive of zero, which is redundant.
+                 However, we have no good way of getting rid of it now, so we
+                 keep it. Uses should get simplified away. *)
+              let constant_defining_value =
+                Flambda.Recursive (new_target_symbol, depth)
+              in
+              constant_defining_value, new_target_approx, depth
+            | Wrong ->
+              constant_defining_value, target_approx, depth
+          end
+        | Ok _ | Wrong ->
+          constant_defining_value, target_approx, depth
+      in
+      let rec_approx = A.increase_recursion_depth target_approx depth in
+      r, constant_defining_value, rec_approx
   in
   let approx = A.augment_with_symbol approx symbol in
   let r = ret r approx in
@@ -1590,8 +1707,17 @@ let rec simplify_program_body env r (program : Flambda.program_body)
         (function
           | (_, Flambda.Set_of_closures _) -> true
           | _ -> false)
-        defs in
-    let process_defs ~lookup_env ~env r defs =
+        defs
+    in
+    let recursive_defs, other_defs =
+      List.partition
+        (function
+          | (_, Flambda.Recursive _) -> true
+          | _ -> false)
+        other_defs
+    in
+    let process_defs env r defs defs_to_approximate =
+      let lookup_env = define_let_rec_symbol_approx env defs_to_approximate in
       List.fold_left (fun (building_env, r, defs) (symbol, def) ->
         let r, def, approx =
           simplify_constant_defining_value lookup_env r symbol def
@@ -1602,15 +1728,19 @@ let rec simplify_program_body env r (program : Flambda.program_body)
         (env, r, []) defs
     in
     let env, r, set_of_closures_defs =
-      let lookup_env = define_let_rec_symbol_approx env defs in
-      process_defs ~lookup_env ~env r set_of_closures_defs
+      process_defs env r set_of_closures_defs
+        [set_of_closures_defs; other_defs; recursive_defs]
     in
     let env, r, other_defs =
-      let lookup_env = define_let_rec_symbol_approx env other_defs in
-      process_defs ~lookup_env ~env r other_defs
+      process_defs env r other_defs
+        [other_defs; recursive_defs]
+    in
+    let env, r, recursive_defs =
+      process_defs env r recursive_defs
+        [recursive_defs]
     in
     let program, r = simplify_program_body env r program in
-    Let_rec_symbol (set_of_closures_defs @ other_defs, program), r
+    Let_rec_symbol (set_of_closures_defs @ other_defs @ recursive_defs, program), r
   | Let_symbol (symbol, constant_defining_value, program) ->
     let r, constant_defining_value, approx =
       simplify_constant_defining_value env r symbol constant_defining_value

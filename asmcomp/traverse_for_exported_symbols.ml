@@ -180,7 +180,8 @@ let traverse
          | Expr _
          | Const _
          | Allocated_const _
-         | Read_mutable _ -> ())
+         | Read_mutable _
+         | Recursive _ -> ())
       function_body.body
   in
   let rec loop () =
@@ -197,6 +198,8 @@ let traverse
           process_value_set_of_closures value_closure.set_of_closures
         | Value_set_of_closures soc ->
           process_value_set_of_closures soc
+        | Value_recursive(approx, _) ->
+          process_approx approx
         | _ -> ()
         end
       | Q_symbol symbol ->

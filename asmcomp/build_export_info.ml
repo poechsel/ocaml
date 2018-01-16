@@ -339,6 +339,11 @@ and descr_of_named (env : Env.t) (named : Flambda.named)
       Var_within_closure.Map.find var bound_vars
     | _ -> Value_unknown
     end
+  | Recursive (var, depth) ->
+    let descr : Export_info.descr =
+      Value_recursive (Env.find_approx env var, depth)
+    in
+    Value_id (Env.new_descr env descr)
 
 and describe_set_of_closures env (set : Flambda.set_of_closures)
       : Export_info.value_set_of_closures =
@@ -366,6 +371,7 @@ and describe_set_of_closures env (set : Flambda.set_of_closures)
     let initial_value_set_of_closures =
       { Export_info.
         set_of_closures_id = set.function_decls.set_of_closures_id;
+        rec_depth = set.rec_depth;
         bound_vars = Var_within_closure.wrap_map bound_vars_approx;
         free_vars = set.free_vars;
         results =
@@ -395,6 +401,7 @@ and describe_set_of_closures env (set : Flambda.set_of_closures)
     Variable.Map.mapi result_approx set.function_decls.funs
   in
   { set_of_closures_id = set.function_decls.set_of_closures_id;
+    rec_depth = set.rec_depth;
     bound_vars = Var_within_closure.wrap_map bound_vars_approx;
     free_vars = set.free_vars;
     results = Closure_id.wrap_map results;
@@ -442,7 +449,7 @@ let describe_constant_defining_value env export_id symbol
       end;
       let descr =
         Export_info.Value_closure
-          { closure_id = closure_id; set_of_closures; }
+          { closure_id = closure_id; set_of_closures }
       in
       Env.record_descr env export_id descr
     | None ->
@@ -464,6 +471,11 @@ let describe_constant_defining_value env export_id symbol
         Symbol.print sym
         Closure_id.print closure_id
     end
+  | Recursive (sym, depth) ->
+    let descr : Export_info.descr =
+      Value_recursive (Value_symbol sym, depth)
+    in
+    Env.record_descr env export_id descr
 
 let describe_program (env : Env.Global.t) (program : Flambda.program) =
   let rec loop env (program : Flambda.program_body) =
@@ -553,6 +565,7 @@ let build_transient (program : Flambda.program) : Export_info.transient =
       and closure_id_of_descr (descr : Export_info.descr) =
         match descr with
         | Value_closure { closure_id; _ } -> Some closure_id
+        | Value_recursive (Value_symbol sym, _) -> symbol_to_closure_id sym
         | _ -> None
       in
       let invariant_params =
@@ -592,6 +605,7 @@ let build_transient (program : Flambda.program) : Export_info.transient =
           | Value_float _
           | Value_float_array _
           | Value_string _
+          | Value_recursive _
           | Value_unknown_descr ->
             invariant_params)
         unnested_values invariant_params

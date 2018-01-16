@@ -32,7 +32,7 @@ let variables_not_used_as_local_reference (tree:Flambda.t) =
     | Prim(_, _, _)
     | Symbol _ |Const _ | Allocated_const _ | Read_mutable _
     | Read_symbol_field _ | Project_closure _
-    | Move_within_set_of_closures _ | Project_var _ ->
+    | Move_within_set_of_closures _ | Project_var _ | Recursive _ ->
       set := Variable.Set.union !set (Flambda.free_variables_named flam)
     | Set_of_closures set_of_closures ->
       set := Variable.Set.union !set (Flambda.free_variables_named flam);
@@ -190,7 +190,7 @@ let eliminate_ref_of_expr flam =
          | Some (being_assigned,_) ->
            Expr (Assign { being_assigned; new_value }))
       | Prim _ | Symbol _ | Const _ | Allocated_const _ | Read_mutable _
-      | Read_symbol_field _ | Set_of_closures _ | Project_closure _
+      | Read_symbol_field _ | Set_of_closures _ | Project_closure _ | Recursive _
       | Move_within_set_of_closures _ | Project_var _ | Expr _ ->
         named
     in

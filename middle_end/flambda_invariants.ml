@@ -88,6 +88,8 @@ exception Unbound_closure_ids of Closure_id.Set.t
 exception Unbound_vars_within_closures of Var_within_closure.Set.t
 exception Move_to_a_closure_not_in_the_free_variables
   of Variable.t * Variable.Set.t
+exception Relative_recursion_depth_zero
+exception Absolute_recursion_depth_negative of int
 
 exception Flambda_invariants_failed
 
@@ -152,6 +154,14 @@ let variable_and_symbol_invariants (program : Flambda.program) =
     if not (Mutable_variable.Set.mem mut_var mut_var_env) then begin
       raise (Unbound_mutable_variable mut_var)
     end
+  in
+  let check_relative_recursion_depth depth =
+    if depth = 0 then
+      raise Relative_recursion_depth_zero
+  in
+  let check_absolute_recursion_depth depth =
+    if depth < 0 then
+      raise (Absolute_recursion_depth_negative depth)
   in
   let rec loop env (flam : Flambda.t) =
     match flam with
@@ -256,6 +266,9 @@ let variable_and_symbol_invariants (program : Flambda.program) =
       check_variable_is_bound env closure;
       ignore_closure_id closure_id;
       ignore_var_within_closure var
+    | Recursive (var, depth) ->
+      check_variable_is_bound env var;
+      check_relative_recursion_depth depth
     | Prim (prim, args, dbg) ->
       ignore_primitive prim;
       check_variables_are_bound env args;
@@ -263,8 +276,9 @@ let variable_and_symbol_invariants (program : Flambda.program) =
     | Expr expr ->
       loop env expr
   and loop_set_of_closures env
-      ({ Flambda.function_decls; free_vars; specialised_args;
-          direct_call_surrogates = _; } as set_of_closures) =
+      ({ Flambda.function_decls; rec_depth; free_vars; specialised_args;
+         direct_call_surrogates = _; } as set_of_closures) =
+      check_absolute_recursion_depth rec_depth;
       (* CR-soon mshinwell: check [direct_call_surrogates] *)
     let { Flambda. is_classic_mode;
           set_of_closures_id; set_of_closures_origin; funs; } =
@@ -422,6 +436,11 @@ let variable_and_symbol_invariants (program : Flambda.program) =
     | Flambda.Project_closure (symbol,closure_id) ->
       ignore_closure_id closure_id;
       check_symbol_is_bound env symbol
+    | Flambda.Recursive (symbol, depth) ->
+      check_symbol_is_bound env symbol;
+      (* Allow zero here because we can't easily eliminate a symbol if we
+         discover that it cancels another Recursive declaration out. *)
+      ignore_int depth
   in
   let rec loop_program_body env (program : Flambda.program_body) =
     match program with
@@ -565,7 +584,7 @@ let used_closure_ids (program:Flambda.program) =
     | Project_var { closure = _; closure_id; var = _ } ->
       used := Closure_id.Set.add closure_id !used
     | Set_of_closures _ | Symbol _ | Const _ | Allocated_const _
-    | Prim _ | Expr _ | Read_mutable _ | Read_symbol_field _ -> ()
+    | Prim _ | Expr _ | Recursive _ | Read_mutable _ | Read_symbol_field _ -> ()
   in
   (* CR-someday pchambart: check closure_ids of constant_defining_values'
      project_closures *)
@@ -822,6 +841,11 @@ let check_exn ?(kind=Normal) ?(cmxfile=false) (flam:Flambda.program) =
         to closures that are not parts of its free variables: %a"
           Variable.print start_from
           Variable.Set.print move_to
+    | Relative_recursion_depth_zero ->
+      Format.eprintf ">> Relative recursion depth should be non-zero"
+    | Absolute_recursion_depth_negative depth ->
+      Format.eprintf ">> Absolute recursion depth should be non-negative: %i"
+        depth
     | exn -> raise exn
     end;
     Format.eprintf "\n@?";

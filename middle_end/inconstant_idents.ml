@@ -388,6 +388,8 @@ module Inconstants (P:Param) (Backend:Backend_intf.S) = struct
         mark_var closure curr
       else
         mark_curr curr
+    | Recursive (var, _depth) ->
+      mark_var var curr
     | Prim (Lambda.Pfield _, [f1], _) ->
       mark_curr curr;
       mark_var f1 curr
@@ -447,6 +449,7 @@ module Inconstants (P:Param) (Backend:Backend_intf.S) = struct
     match const with
     | Allocated_const _
     | Block _
+    | Recursive _
     | Project_closure _ -> ()
     | Set_of_closures set_of_closure ->
       mark_loop_set_of_closures ~toplevel:true [] set_of_closure

@@ -121,6 +121,11 @@ let transitive_closure state =
    is the current closure.
    The result of [function_variable_alias] will contain
    the association [g -> f]
+
+   The same should happen for:
+     let f x =
+       let g = Recursive f in
+       ..
 *)
 let function_variable_alias
     (function_decls : Flambda.function_declarations)
@@ -153,6 +158,17 @@ let function_variable_alias
                fun_var_bindings :=
                  Variable.Map.add var fun_var !fun_var_bindings
              end
+           | Recursive (tgt_var, _) ->
+             (* CR-someday maurerl: This will break if we start putting
+                Recursive declarations in (non-symbol) let recs, since then we
+                may the Recursive declaration before the target. *)
+             let fun_var =
+               try Variable.Map.find tgt_var !fun_var_bindings with
+               | Not_found -> tgt_var
+             in
+             if Variable.Map.mem fun_var function_decls.funs then
+               fun_var_bindings :=
+                 Variable.Map.add var fun_var !fun_var_bindings
            | _ -> ())
         function_decl.body)
     function_decls.funs;

@@ -1477,7 +1477,8 @@ middle_end/flambda_utils.cmi : middle_end/base_types/variable.cmi \
     bytecomp/switch.cmi middle_end/base_types/static_exception.cmi \
     middle_end/base_types/set_of_closures_id.cmi middle_end/projection.cmi \
     middle_end/parameter.cmi middle_end/internal_variable_names.cmi \
-    middle_end/flambda.cmi middle_end/base_types/closure_id.cmi
+    middle_end/flambda.cmi middle_end/debuginfo.cmi \
+    middle_end/base_types/closure_id.cmi
 middle_end/freshening.cmo : middle_end/base_types/variable.cmi \
     middle_end/base_types/var_within_closure.cmi \
     middle_end/base_types/symbol.cmi \
@@ -1660,23 +1661,25 @@ middle_end/inlining_stats_types.cmx : middle_end/inlining_cost.cmx \
 middle_end/inlining_stats_types.cmi : middle_end/inlining_cost.cmi
 middle_end/inlining_transforms.cmo : middle_end/base_types/variable.cmi \
     middle_end/base_types/var_within_closure.cmi \
-    middle_end/simple_value_approx.cmi middle_end/projection.cmi \
-    middle_end/parameter.cmi bytecomp/lambda.cmi \
+    middle_end/base_types/symbol.cmi middle_end/simple_value_approx.cmi \
+    middle_end/projection.cmi middle_end/parameter.cmi bytecomp/lambda.cmi \
     middle_end/internal_variable_names.cmi \
     middle_end/inlining_decision_intf.cmi middle_end/inlining_cost.cmi \
-    middle_end/inline_and_simplify_aux.cmi middle_end/flambda_utils.cmi \
-    middle_end/flambda_iterators.cmi middle_end/flambda.cmi \
-    middle_end/debuginfo.cmi middle_end/base_types/compilation_unit.cmi \
+    middle_end/inline_and_simplify_aux.cmi middle_end/freshening.cmi \
+    middle_end/flambda_utils.cmi middle_end/flambda_iterators.cmi \
+    middle_end/flambda.cmi middle_end/debuginfo.cmi \
+    middle_end/base_types/compilation_unit.cmi \
     middle_end/base_types/closure_id.cmi middle_end/inlining_transforms.cmi
 middle_end/inlining_transforms.cmx : middle_end/base_types/variable.cmx \
     middle_end/base_types/var_within_closure.cmx \
-    middle_end/simple_value_approx.cmx middle_end/projection.cmx \
-    middle_end/parameter.cmx bytecomp/lambda.cmx \
+    middle_end/base_types/symbol.cmx middle_end/simple_value_approx.cmx \
+    middle_end/projection.cmx middle_end/parameter.cmx bytecomp/lambda.cmx \
     middle_end/internal_variable_names.cmx \
     middle_end/inlining_decision_intf.cmi middle_end/inlining_cost.cmx \
-    middle_end/inline_and_simplify_aux.cmx middle_end/flambda_utils.cmx \
-    middle_end/flambda_iterators.cmx middle_end/flambda.cmx \
-    middle_end/debuginfo.cmx middle_end/base_types/compilation_unit.cmx \
+    middle_end/inline_and_simplify_aux.cmx middle_end/freshening.cmx \
+    middle_end/flambda_utils.cmx middle_end/flambda_iterators.cmx \
+    middle_end/flambda.cmx middle_end/debuginfo.cmx \
+    middle_end/base_types/compilation_unit.cmx \
     middle_end/base_types/closure_id.cmx middle_end/inlining_transforms.cmi
 middle_end/inlining_transforms.cmi : middle_end/base_types/variable.cmi \
     middle_end/simple_value_approx.cmi bytecomp/lambda.cmi \

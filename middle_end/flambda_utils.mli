@@ -68,6 +68,7 @@ val make_closure_declaration
   -> body:Flambda.t
   -> params:Parameter.t list
   -> recursive:bool
+  -> rec_depth:int
   -> stub:bool
   -> Flambda.t
 
@@ -98,6 +99,13 @@ val name_expr_from_var
     : var:Variable.t
    -> Flambda.named
    -> Flambda.t
+
+val make_stub_body
+   : ?dbg:Debuginfo.t
+  -> Variable.t
+  -> Variable.t list
+  -> kind:Flambda.call_kind
+  -> Flambda.t
 
 val compare_const : Flambda.const -> Flambda.const -> int
 
@@ -221,3 +229,10 @@ val parameters_specialised_to_the_same_variable
    : function_decls:Flambda.function_declarations
   -> specialised_args:Flambda.specialised_to Variable.Map.t
   -> specialised_to_same_as list Variable.Map.t
+
+(** Wrap a [named] in a Recursive declaration. The depth can be 0, in which case
+    the original [named] is returned. *)
+val increase_recursion_depth
+   : Flambda.named
+  -> int
+  -> Flambda.named

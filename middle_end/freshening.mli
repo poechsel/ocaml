@@ -84,9 +84,14 @@ val apply_static_exception : t -> Static_exception.t -> Static_exception.t
 *)
 val rewrite_recursive_calls_with_symbols
    : t
-  -> Flambda.function_declarations
-  -> symbol_to_closure_id:(Symbol.t -> Closure_id.t option)
-  -> Flambda.function_declarations
+   -> 'a
+   -> get_funs:('a -> 'b Variable.Map.t)
+   -> get_free_symbols:('b -> Symbol.Set.t)
+   -> update_function_declaration_body:('b -> (Flambda.t -> Flambda.t) -> 'b)
+   -> update_function_declarations:('a -> funs:'b Variable.Map.t -> 'a)
+   -> symbol_to_closure_id:(Symbol.t -> Closure_id.t option)
+   -> 'a
+
 
 (* CR-soon mshinwell for mshinwell: maybe inaccurate module name, it freshens
    closure IDs as well.  Check use points though *)

@@ -50,6 +50,7 @@ type descr =
   | Value_boxed_int : 'a A.boxed_int * 'a -> descr
   | Value_string of value_string
   | Value_closure of value_closure
+  | Value_recursive of approx * int
   | Value_set_of_closures of value_set_of_closures
   | Value_unknown_descr
 
@@ -60,6 +61,7 @@ and value_closure = {
 
 and value_set_of_closures = {
   set_of_closures_id : Set_of_closures_id.t;
+  rec_depth : int;
   bound_vars : approx Var_within_closure.Map.t;
   free_vars : Flambda.specialised_to Variable.Map.t;
   results : approx Closure_id.Map.t;
