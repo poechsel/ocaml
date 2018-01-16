@@ -162,10 +162,6 @@ let rec close t env (lam : Lambda.lambda) : Flambda.t =
   match lam with
   | Lvar id ->
     begin match Env.find_var_exn env id with
-    | var when Env.in_rec_scope env id ->
-      (* CR lmaurer: Don't just make it _rec_rec_rec_rec_rec ... *)
-      let rec_var = Variable.rename ~append:"_rec" var in
-      Flambda.create_let rec_var (Recursive var) (Var rec_var)
     | var -> Var var
     | exception Not_found ->
       match Env.find_mutable_var_exn env id with
@@ -290,8 +286,6 @@ let rec close t env (lam : Lambda.lambda) : Flambda.t =
       in
       let set_of_closures_var = Variable.create name in
       let set_of_closures =
-        let ids = List.map Function_decl.let_rec_ident function_declarations in
-        let env = Env.enter_rec_scopes env ids in
         close_functions t env (Function_decls.create function_declarations)
       in
       let body =

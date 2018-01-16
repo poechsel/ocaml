@@ -43,10 +43,6 @@ module Env : sig
 
   val at_toplevel : t -> bool
   val not_at_toplevel : t -> t
-
-  val enter_rec_scope : t -> Ident.t -> t
-  val enter_rec_scopes : t -> Ident.t list -> t
-  val in_rec_scope : t -> Ident.t -> bool
 end
 
 (** Used to represent information about a set of function declarations
