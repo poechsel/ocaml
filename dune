@@ -116,7 +116,7 @@
    closure closure_middle_end
 
    ;; middle_end/flambda/base_types/
-   closure_element closure_id closure_origin export_id id_types mutable_variable
+   closure_element closure_id export_id id_types mutable_variable
    set_of_closures_id set_of_closures_origin static_exception tag
    var_within_closure
 

@@ -147,7 +147,8 @@ and named =
   | Set_of_closures of set_of_closures
   | Project_closure of project_closure
   | Move_within_set_of_closures of move_within_set_of_closures
-  | Project_var of project_var
+  | Project_var of project_var 
+  | Recursive of Variable.t * int
   | Prim of Clambda_primitives.primitive * Variable.t list * Debuginfo.t
   | Expr of t  (** ANF escape hatch. *)
 
@@ -202,6 +203,10 @@ and let_mutable = {
 *)
 and set_of_closures = private {
   function_decls : function_declarations;
+  rec_depth : int;
+  (** The initial recursion depth for all variables for recursive functions
+      bound by the set of closures. Will be non-zero if this set of closures
+      was created by specialising a recursive call. *)
   (* CR-soon mshinwell: consider renaming [free_vars].  Also, it's still really
      confusing which side of this map to use when.  "Vars bound by the
      closure" is the domain.
@@ -363,6 +368,10 @@ and constant_defining_value =
   | Project_closure of Symbol.t * Closure_id.t
     (** Selection of one closure from a constant set of closures.
         Analogous to the equivalent operation on expressions. *)
+  | Recursive of Symbol.t * int
+    (** A reference to another symbol but at a higher recursion depth. Calls to
+        the function produced by inlining it (or its mutually-recursive sibling)
+        will invoke this version of the symbol instead of the original. *)
 
 and constant_defining_value_block_field =
   | Symbol of Symbol.t
@@ -567,7 +576,7 @@ val update_function_declaration
 (** Change only the code of a function declaration. *)
 val update_function_declaration_body
    : function_declaration
-  -> body:expr
+  -> (expr -> expr)
   -> function_declaration
 
 (** Create a set of function declarations given the individual declarations. *)
@@ -607,6 +616,7 @@ val import_function_declarations_for_pack
     and [specialised_args] are reasonable. *)
 val create_set_of_closures
    : function_decls:function_declarations
+  -> rec_depth:int
   -> free_vars:specialised_to Variable.Map.t
   -> specialised_args:specialised_to Variable.Map.t
   -> direct_call_surrogates:Variable.t Variable.Map.t
@@ -683,6 +693,11 @@ val equal_call_kind
   -> bool
   
 val print_inlining_depth
+   : Format.formatter
+  -> int
+  -> unit
+
+val print_recursion_depth
    : Format.formatter
   -> int
   -> unit

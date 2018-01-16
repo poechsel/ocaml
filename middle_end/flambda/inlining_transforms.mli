@@ -71,9 +71,8 @@ val inline_by_copying_function_body
   -> inline_requested:Lambda.inline_attribute
   -> specialise_requested:Lambda.specialise_attribute
   -> closure_id_being_applied:Closure_id.t
-  -> function_decl:Simple_value_approx.function_declaration
+  -> function_decls:Simple_value_approx.function_declarations
   -> function_body:Simple_value_approx.function_body
-  -> fun_vars:Variable.Set.t
   -> args:Variable.t list
   -> dbg:Debuginfo.t
   -> simplify:Inlining_decision_intf.simplify
@@ -91,6 +90,7 @@ val inline_by_copying_function_declaration
   -> r:Inline_and_simplify_aux.Result.t
   -> function_decls:Simple_value_approx.function_declarations
   -> lhs_of_application:Variable.t
+  -> rec_depth:int
   -> inline_requested:Lambda.inline_attribute
   -> closure_id_being_applied:Closure_id.t
   -> function_decl:Simple_value_approx.function_declaration

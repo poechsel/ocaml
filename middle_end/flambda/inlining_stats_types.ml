@@ -85,7 +85,6 @@ module Not_inlined = struct
     | No_useful_approximations
     | Inlining_depth_exceeded
     | Unrolling_depth_exceeded
-    | Self_call
     | Without_subfunctions of Wsb.t
     | With_subfunctions of Wsb.t * Wsb.t
 
@@ -117,10 +116,6 @@ module Not_inlined = struct
       Format.pp_print_text ppf
         "This function was not inlined because \
          its unrolling depth was exceeded."
-    | Self_call ->
-      Format.pp_print_text ppf
-        "This function was not inlined because \
-         it was a self call."
     | Without_subfunctions _ ->
       Format.pp_print_text ppf
         "This function was not inlined because \
@@ -136,8 +131,7 @@ module Not_inlined = struct
     | Annotation
     | No_useful_approximations
     | Inlining_depth_exceeded
-    | Unrolling_depth_exceeded
-    | Self_call -> ()
+    | Unrolling_depth_exceeded -> ()
     | Without_subfunctions wsb ->
       print_calculation
         ~depth ~title:"Inlining benefit calculation"
@@ -190,7 +184,6 @@ module Not_specialised = struct
     | Not_closed
     | No_invariant_parameters
     | No_useful_approximations
-    | Self_call
     | Not_beneficial of Wsb.t * Wsb.t
 
   let summary ppf = function
@@ -224,10 +217,6 @@ module Not_specialised = struct
         "This function was not specialised because \
          there was no useful information about any of its invariant \
          parameters."
-    | Self_call ->
-      Format.pp_print_text ppf
-        "This function was not specialised because \
-         it was a self call."
     | Not_beneficial _ ->
       Format.pp_print_text ppf
         "This function was not specialised because \
@@ -240,8 +229,7 @@ module Not_specialised = struct
     | Not_recursive
     | Not_closed
     | No_invariant_parameters
-    | No_useful_approximations
-    | Self_call -> ()
+    | No_useful_approximations -> ()
     | Not_beneficial(_, wsb) ->
       print_calculation
         ~depth ~title:"Specialising benefit calculation"

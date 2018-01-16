@@ -26,6 +26,7 @@ val for_call_site
   -> r:Inline_and_simplify_aux.Result.t
   -> function_decls:Simple_value_approx.function_declarations
   -> lhs_of_application:Variable.t
+  -> rec_depth:int
   -> closure_id_being_applied:Closure_id.t
   -> function_decl:Simple_value_approx.function_declaration
   -> value_set_of_closures:Simple_value_approx.value_set_of_closures
