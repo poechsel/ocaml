@@ -82,7 +82,7 @@ and lift_lets_named_with_free_variables
             ~f:(lift_lets_expr ~toplevel) set))
   | Symbol _ | Const _ | Allocated_const _ | Read_mutable _
   | Read_symbol_field (_, _) | Project_closure _ | Move_within_set_of_closures _
-  | Project_var _ | Prim _ | Set_of_closures _ ->
+  | Project_var _ | Prim _ | Set_of_closures _ | Recursive _ ->
     var, named
 
 and lift_lets_named _var (named:Flambda.named) ~toplevel : Flambda.named =
@@ -95,7 +95,7 @@ and lift_lets_named _var (named:Flambda.named) ~toplevel : Flambda.named =
       (Flambda_iterators.map_function_bodies ~f:(lift_lets_expr ~toplevel) set)
   | Symbol _ | Const _ | Allocated_const _ | Read_mutable _
   | Read_symbol_field (_, _) | Project_closure _ | Move_within_set_of_closures _
-  | Project_var _ | Prim _ | Set_of_closures _ ->
+  | Project_var _ | Prim _ | Set_of_closures _ | Recursive _ ->
     named
 
 module Sort_lets = Strongly_connected_components.Make (Variable)

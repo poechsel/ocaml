@@ -85,6 +85,7 @@ and named =
   | Project_closure of project_closure
   | Move_within_set_of_closures of move_within_set_of_closures
   | Project_var of project_var
+  | Recursive of Variable.t * int
   | Prim of Lambda.primitive * Variable.t list * Debuginfo.t
   | Expr of t
 
@@ -105,6 +106,7 @@ and let_mutable = {
 
 and set_of_closures = {
   function_decls : function_declarations;
+  rec_depth : int;
   free_vars : specialised_to Variable.Map.t;
   specialised_args : specialised_to Variable.Map.t;
   direct_call_surrogates : Variable.t Variable.Map.t;
@@ -151,6 +153,7 @@ and constant_defining_value =
   | Block of Tag.t * constant_defining_value_block_field list
   | Set_of_closures of set_of_closures  (* [free_vars] must be empty *)
   | Project_closure of Symbol.t * Closure_id.t
+  | Recursive of Symbol.t * int
 
 and constant_defining_value_block_field =
   | Symbol of Symbol.t
@@ -189,6 +192,11 @@ let print_project_closure = Projection.print_project_closure
 
 let print_inlining_depth ppf inlining_depth =
   fprintf ppf "[%d]" inlining_depth
+
+let print_recursion_depth ppf depth =
+  match depth with
+  | 1 -> ()
+  | depth -> Format.fprintf ppf "^%i" depth
 
 (** CR-someday lwhite: use better name than this *)
 let rec lam ppf (flam : t) =
@@ -351,6 +359,8 @@ and print_named ppf (named : named) =
     print_move_within_set_of_closures ppf move_within_set_of_closures
   | Set_of_closures (set_of_closures) ->
     print_set_of_closures ppf set_of_closures
+  | Recursive (var, depth) ->
+    fprintf ppf "Recursive%a(%a)" print_recursion_depth depth Variable.print var
   | Prim(prim, args, dbg) ->
     fprintf ppf "@[<2>(%a<%s>%a)@]" Printlambda.primitive prim
       (Debuginfo.to_string dbg)
@@ -402,9 +412,13 @@ and print_function_declaration ppf var (f : function_declaration) =
 
 and print_set_of_closures ppf (set_of_closures : set_of_closures) =
   match set_of_closures with
-  | { function_decls; free_vars; specialised_args} ->
+  | { function_decls; rec_depth; free_vars; specialised_args} ->
     let funs ppf =
       Variable.Map.iter (print_function_declaration ppf)
+    in
+    let depth ppf rec_depth =
+      if rec_depth = 0 then ()
+      else fprintf ppf "@ *rec%a*" print_recursion_depth rec_depth
     in
     let vars ppf =
       Variable.Map.iter (fun id v ->
@@ -421,11 +435,12 @@ and print_set_of_closures ppf (set_of_closures : set_of_closures) =
           spec_args
       end
     in
-    fprintf ppf "@[<2>(set_of_closures id=%a@ %a@ @[<2>free_vars={%a@ }@]@ \
+    fprintf ppf "@[<2>(set_of_closures id=%a%a@ %a@ @[<2>free_vars={%a@ }@]@ \
         @[<2>specialised_args={%a})@]@ \
         @[<2>direct_call_surrogates=%a@]@ \
         @[<2>set_of_closures_origin=%a@]@]]"
       Set_of_closures_id.print function_decls.set_of_closures_id
+      depth rec_depth
       funs function_decls.funs
       vars free_vars
       spec specialised_args
@@ -474,6 +489,8 @@ let print_constant_defining_value ppf (const : constant_defining_value) =
   | Project_closure (set_of_closures, closure_id) ->
     fprintf ppf "(Project_closure (%a, %a))" Symbol.print set_of_closures
       Closure_id.print closure_id
+  | Recursive (sym, depth) ->
+    fprintf ppf "(Recursive%a %a)" print_recursion_depth depth Symbol.print sym
 
 let rec print_program_body ppf (program : program_body) =
   let symbol_binding ppf (symbol, constant_defining_value) =
@@ -649,6 +666,7 @@ and variables_usage_named ?ignore_uses_in_project_var
     end
   | Move_within_set_of_closures { closure; start_from = _; move_to = _ } ->
     free_variable closure
+  | Recursive (var, _) -> free_variable var
   | Prim (_, args, _) -> List.iter free_variable args
   | Expr flam ->
     free := Variable.Set.union
@@ -807,7 +825,7 @@ let iter_general ~toplevel f f_named maybe_named =
     f_named named;
     match named with
     | Symbol _ | Const _ | Allocated_const _ | Read_mutable _
-    | Read_symbol_field _
+    | Read_symbol_field _ | Recursive _
     | Project_closure _ | Project_var _ | Move_within_set_of_closures _
     | Prim _ -> ()
     | Set_of_closures ({ function_decls = funcs; free_vars = _;
@@ -969,6 +987,7 @@ let free_symbols_allocated_constant_helper symbols
   | Set_of_closures set_of_closures ->
     symbols := Symbol.Set.union !symbols
       (free_symbols_named (Set_of_closures set_of_closures))
+  | Recursive (s, _)
   | Project_closure (s, _) ->
     symbols := Symbol.Set.add s !symbols
 
@@ -1035,10 +1054,16 @@ let update_function_declaration fun_decl ~params ~body =
   let free_symbols = free_symbols body in
   { fun_decl with params; body; free_variables; free_symbols }
 
-let update_function_declaration_body fun_decl ~body =
-  let free_variables = free_variables body in
-  let free_symbols = free_symbols body in
-  { fun_decl with body; free_variables; free_symbols }
+let update_function_declaration_body (fun_decl : function_declaration) f =
+  let old_body = fun_decl.body in
+  let new_body = f old_body in
+  if old_body == new_body then fun_decl
+  else begin
+    let body = new_body in
+    let free_variables = free_variables body in
+    let free_symbols = free_symbols body in
+    { fun_decl with body; free_variables; free_symbols }
+  end
 
 let create_function_declarations ~is_classic_mode ~funs =
   let compilation_unit = Compilation_unit.get_current_exn () in
@@ -1099,8 +1124,8 @@ let import_function_declarations_for_pack function_decls
     funs;
   }
 
-let create_set_of_closures ~function_decls ~free_vars ~specialised_args
-      ~direct_call_surrogates =
+let create_set_of_closures ~function_decls ~rec_depth ~free_vars
+      ~specialised_args ~direct_call_surrogates =
   if !Clflags.flambda_invariant_checks then begin
     let all_fun_vars = Variable.Map.keys function_decls.funs in
     let expected_free_vars =
@@ -1157,6 +1182,7 @@ let create_set_of_closures ~function_decls ~free_vars ~specialised_args
     end
   end;
   { function_decls;
+    rec_depth;
     free_vars;
     specialised_args;
     direct_call_surrogates;
@@ -1210,18 +1236,30 @@ module Constant_defining_value = struct
         let c = Symbol.compare set1 set2 in
         if c <> 0 then c
         else Closure_id.compare closure_id1 closure_id2
+      | Recursive (sym1, depth1), Recursive (sym2, depth2) ->
+        let c = Symbol.compare sym1 sym2 in
+        if c <> 0 then c
+        else compare depth1 depth2
       | Allocated_const _, Block _ -> -1
       | Allocated_const _, Set_of_closures _ -> -1
       | Allocated_const _, Project_closure _ -> -1
+      | Allocated_const _, Recursive _ -> -1
       | Block _, Allocated_const _ -> 1
       | Block _, Set_of_closures _ -> -1
       | Block _, Project_closure _ -> -1
+      | Block _, Recursive _ -> -1
       | Set_of_closures _, Allocated_const _ -> 1
       | Set_of_closures _, Block _ -> 1
       | Set_of_closures _, Project_closure _ -> -1
+      | Set_of_closures _, Recursive _ -> -1
       | Project_closure _, Allocated_const _ -> 1
       | Project_closure _, Block _ -> 1
       | Project_closure _, Set_of_closures _ -> 1
+      | Project_closure _, Recursive _ -> -1
+      | Recursive _, Allocated_const _ -> 1
+      | Recursive _, Block _ -> 1
+      | Recursive _, Set_of_closures _ -> 1
+      | Recursive _, Project_closure _ -> 1
 
     let equal t1 t2 =
       t1 == t2 || compare t1 t2 = 0

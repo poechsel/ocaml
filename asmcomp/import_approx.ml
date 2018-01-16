@@ -66,7 +66,8 @@ let import_set_of_closures =
   Set_of_closures_id.Tbl.memoize Compilenv.imported_sets_of_closures_table aux
 
 let rec import_ex ex =
-  let import_value_set_of_closures ~set_of_closures_id ~bound_vars ~free_vars
+  let import_value_set_of_closures ~set_of_closures_id ~rec_depth
+        ~bound_vars ~free_vars
         ~(ex_info : Export_info.t) ~what : A.value_set_of_closures option =
     let bound_vars = Var_within_closure.Map.map import_approx bound_vars in
     match import_set_of_closures set_of_closures_id with
@@ -93,6 +94,7 @@ let rec import_ex ex =
       in
       Some (A.create_value_set_of_closures
         ~function_decls
+        ~rec_depth
         ~bound_vars
         ~free_vars
         ~invariant_params:(lazy invariant_params)
@@ -136,22 +138,33 @@ let rec import_ex ex =
       A.value_block tag (Array.map import_approx fields)
     | Value_closure { closure_id;
           set_of_closures =
-            { set_of_closures_id; bound_vars; free_vars; aliased_symbol } } ->
+            { set_of_closures_id; rec_depth;
+              bound_vars; free_vars; aliased_symbol } } ->
       let value_set_of_closures =
         import_value_set_of_closures
-          ~set_of_closures_id ~bound_vars ~free_vars ~ex_info
+          ~set_of_closures_id ~rec_depth ~bound_vars ~free_vars ~ex_info
           ~what:(Format.asprintf "Value_closure %a" Closure_id.print closure_id)
       in
       begin match value_set_of_closures with
       | None -> A.value_unresolved (Set_of_closures_id set_of_closures_id)
       | Some value_set_of_closures ->
         A.value_closure ?set_of_closures_symbol:aliased_symbol
+          ~rec_depth:value_set_of_closures.rec_depth
           value_set_of_closures closure_id
       end
+    | Value_recursive (approx, depth) -> begin
+        match approx with
+        | Value_unknown -> A.value_unknown Other
+        | Value_id ex -> A.value_extern ex
+        | Value_symbol sym ->
+          let approx = import_symbol sym in
+          A.increase_recursion_depth approx depth
+      end
     | Value_set_of_closures
-        { set_of_closures_id; bound_vars; free_vars; aliased_symbol } ->
+        { set_of_closures_id; rec_depth;
+          bound_vars; free_vars; aliased_symbol } ->
       let value_set_of_closures =
-        import_value_set_of_closures ~set_of_closures_id
+        import_value_set_of_closures ~set_of_closures_id ~rec_depth
           ~bound_vars ~free_vars ~ex_info ~what:"Value_set_of_closures"
       in
       match value_set_of_closures with
@@ -169,7 +182,7 @@ and import_approx (ap : Export_info.approx) =
   | Value_id ex -> A.value_extern ex
   | Value_symbol sym -> A.value_symbol sym
 
-let import_symbol sym =
+and import_symbol sym =
   if Compilenv.is_predefined_exception sym then
     A.value_unknown Other
   else begin

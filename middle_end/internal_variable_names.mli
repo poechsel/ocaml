@@ -71,6 +71,7 @@ val project_closure : t
 val raise : t
 val raise_arg : t
 val read_mutable : t
+val recursive : t
 val remove_unused_arguments : t
 val result : t
 val send_arg : t
@@ -83,6 +84,7 @@ val switch : t
 val symbol : t
 val symbol_field : t
 val symbol_field_block : t
+val target : t
 val the_dead_constant : t
 val toplevel_substitution_named : t
 val unbox_free_vars_of_closures : t

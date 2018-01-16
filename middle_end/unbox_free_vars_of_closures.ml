@@ -152,6 +152,7 @@ let run ~env ~(set_of_closures : Flambda.set_of_closures) =
         let set_of_closures =
           Flambda.create_set_of_closures
             ~function_decls:set_of_closures.function_decls
+            ~rec_depth:set_of_closures.rec_depth
             ~free_vars
             ~specialised_args:set_of_closures.specialised_args
             ~direct_call_surrogates:set_of_closures.direct_call_surrogates

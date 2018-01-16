@@ -653,6 +653,7 @@ let prepare_to_simplify_set_of_closures ~env
           Var_within_closure.Map.add (Var_within_closure.wrap id) desc map)
         free_vars Var_within_closure.Map.empty
     in
+    let rec_depth = set_of_closures.rec_depth in
     let free_vars = Variable.Map.map fst free_vars in
     let invariant_params = lazy Variable.Map.empty in
     let is_classic_mode = function_decls.is_classic_mode in
@@ -661,24 +662,31 @@ let prepare_to_simplify_set_of_closures ~env
       A.function_declarations_approx ~keep_body function_decls
     in
     A.create_value_set_of_closures ~function_decls ~bound_vars
-      ~free_vars ~invariant_params ~specialised_args
+      ~rec_depth ~free_vars ~invariant_params ~specialised_args
       ~freshening ~direct_call_surrogates
   in
   (* Populate the environment with the approximation of each closure.
-     This part of the environment is shared between all of the closures in
-     the set of closures. *)
-  let set_of_closures_env =
-    Variable.Map.fold (fun closure _ env ->
+     If [recursive] is true, this part of the environment is shared between all
+     the recursive closures in this set of closures; otherwise, it's shared
+     between the non-recursive ones. *)
+  let closure_env ~recursive =
+    Variable.Map.fold (fun closure (decl : Flambda.function_declaration) env ->
+        let rec_depth =
+          if recursive && decl.recursive then 1 else 0
+        in
         let approx =
-          A.value_closure ~closure_var:closure internal_value_set_of_closures
+          A.value_closure ~closure_var:closure ~rec_depth
+            internal_value_set_of_closures
             (Closure_id.wrap closure)
         in
         E.add env closure approx
       )
       function_decls.funs env
   in
+  let nonrec_closure_env = lazy (closure_env ~recursive:false) in
+  let rec_closure_env = lazy (closure_env ~recursive:true) in
   free_vars, specialised_args, function_decls, parameter_approximations,
-    internal_value_set_of_closures, set_of_closures_env
+    internal_value_set_of_closures, nonrec_closure_env, rec_closure_env
 
 (* This adds only the minimal set of approximations to the closures.
    It is not strictly necessary to have this restriction, but it helps
@@ -687,12 +695,12 @@ let populate_closure_approximations
       ~(function_decl : Flambda.function_declaration)
       ~(free_vars : (_ * A.t) Variable.Map.t)
       ~(parameter_approximations : A.t Variable.Map.t)
-      ~set_of_closures_env =
+      ~env =
   (* Add approximations of free variables *)
   let env =
     Variable.Map.fold (fun id (_, desc) env ->
         E.add_outer_scope env id desc)
-      free_vars set_of_closures_env
+      free_vars env
   in
   (* Add known approximations of function parameters *)
   let env =
@@ -708,10 +716,15 @@ let populate_closure_approximations
 
 let prepare_to_simplify_closure ~(function_decl : Flambda.function_declaration)
       ~free_vars ~specialised_args ~parameter_approximations
-      ~set_of_closures_env =
+      ~nonrec_closure_env ~rec_closure_env =
+  let closure_env =
+    if function_decl.recursive
+    then Lazy.force rec_closure_env
+    else Lazy.force nonrec_closure_env
+  in
   let closure_env =
     populate_closure_approximations ~function_decl ~free_vars
-      ~parameter_approximations ~set_of_closures_env
+      ~parameter_approximations ~env:closure_env
   in
   (* Add definitions of known projections to the environment. *)
   let add_projections ~closure_env ~which_variables ~map =
@@ -734,3 +747,22 @@ let prepare_to_simplify_closure ~(function_decl : Flambda.function_declaration)
   in
   add_projections ~closure_env ~which_variables:free_vars
     ~map:(fun (spec_to, _approx) -> spec_to)
+
+let rewrite_recursive_calls_with_symbols env
+      (function_declarations : Flambda.function_declarations) =
+  let get_funs (decls : Flambda.function_declarations) = decls.funs in
+  let get_free_symbols (decl : Flambda.function_declaration) =
+    decl.free_symbols
+  in
+  let update_function_declaration_body =
+    Flambda.update_function_declaration_body
+  in
+  let update_function_declarations =
+    Flambda.update_function_declarations
+  in
+  let symbol_to_closure_id = E.find_closure_id_for_symbol env in
+  Freshening.rewrite_recursive_calls_with_symbols (E.freshening env)
+    function_declarations
+    ~get_funs ~get_free_symbols
+    ~update_function_declaration_body ~update_function_declarations
+    ~symbol_to_closure_id

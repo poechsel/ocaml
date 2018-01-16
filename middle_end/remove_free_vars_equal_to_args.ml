@@ -43,13 +43,10 @@ let rewrite_one_function_decl ~(function_decl : Flambda.function_declaration)
   if Variable.Map.is_empty params_for_equal_free_vars then
     function_decl
   else
-    let body =
-      Flambda_utils.toplevel_substitution
-        params_for_equal_free_vars
-        function_decl.body
-    in
-    Flambda.update_function_declaration_body
-      function_decl ~body:body
+    Flambda.update_function_declaration_body function_decl
+      (fun body ->
+         Flambda_utils.toplevel_substitution
+           params_for_equal_free_vars body)
 
 let rewrite_one_set_of_closures (set_of_closures : Flambda.set_of_closures) =
   let back_free_vars =
@@ -85,6 +82,7 @@ let rewrite_one_set_of_closures (set_of_closures : Flambda.set_of_closures) =
     let set_of_closures =
       Flambda.create_set_of_closures
         ~function_decls
+        ~rec_depth:set_of_closures.rec_depth
         ~free_vars:set_of_closures.free_vars
         ~specialised_args:set_of_closures.specialised_args
         ~direct_call_surrogates:set_of_closures.direct_call_surrogates

@@ -32,7 +32,7 @@ let remove_unused_closure_variables ~remove_direct_call_surrogates program =
       | Move_within_set_of_closures { closure = _; start_from; move_to } ->
         Closure_id.Tbl.add used_fun start_from ();
         Closure_id.Tbl.add used_fun move_to ()
-      | Symbol _ | Const _ | Set_of_closures _ | Prim _ | Expr _
+      | Symbol _ | Const _ | Set_of_closures _ | Prim _ | Expr _ | Recursive _
       | Allocated_const _ | Read_mutable _ | Read_symbol_field _ -> ()
     in
     Flambda_iterators.iter_named_of_program ~f:aux_named program;
@@ -117,6 +117,7 @@ let remove_unused_closure_variables ~remove_direct_call_surrogates program =
       let set_of_closures =
         Flambda.create_set_of_closures ~function_decls
           ~free_vars ~specialised_args ~direct_call_surrogates
+          ~rec_depth:set_of_closures.rec_depth
       in
       Set_of_closures set_of_closures
     | e -> e

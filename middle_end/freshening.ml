@@ -190,56 +190,56 @@ let apply_mutable_variable t mut_var =
    try Mutable_variable.Map.find mut_var t.sb_mutable_var with
    | Not_found -> mut_var
 
-let rewrite_recursive_calls_with_symbols t
-      (function_declarations : Flambda.function_declarations)
-      ~(symbol_to_closure_id:Symbol.t -> Closure_id.t option) =
+let rewrite_recursive_calls_with_symbols t function_declarations
+      ~get_funs ~get_free_symbols
+      ~update_function_declaration_body ~update_function_declarations
+      ~symbol_to_closure_id =
   match t with
   | Inactive -> function_declarations
   | Active _ ->
-    let all_free_symbols =
-      Variable.Map.fold
-        (fun _ (function_decl : Flambda.function_declaration)
-            syms ->
-          Symbol.Set.union syms function_decl.free_symbols)
-        function_declarations.funs Symbol.Set.empty
-    in
-    let closure_symbols =
-      Symbol.Set.fold (fun sym map ->
-        match symbol_to_closure_id sym with
-        | Some closure_id ->
-          let var = Closure_id.unwrap closure_id in
-          if Variable.Map.mem var function_declarations.funs then
-            Symbol.Map.add sym var map
-          else
-            map
-        | None ->
-          map
-      )
-      all_free_symbols Symbol.Map.empty
-    in
-    if Symbol.Map.is_empty closure_symbols then begin
-      (* Don't waste time rewriting the function declaration(s) if there
-         are no occurrences of any of the closure symbols. *)
-      function_declarations
-    end else begin
-      let funs =
-        Variable.Map.map (fun (ffun : Flambda.function_declaration) ->
-          let body =
-            Flambda_iterators.map_toplevel_named
-              (* CR-someday pchambart: This may be worth deep substituting
-                 below the closures, but that means that we need to take care
-                 of functions' free variables. *)
-              (function
-                | Symbol sym when Symbol.Map.mem sym closure_symbols ->
-                  Expr (Var (Symbol.Map.find sym closure_symbols))
-                | e -> e)
-              ffun.body
-          in
-          Flambda.update_function_declaration_body ffun ~body)
-          function_declarations.funs
+      let funs = get_funs function_declarations in
+      let all_free_symbols =
+        Variable.Map.fold
+          (fun _ function_decl syms ->
+            Symbol.Set.union syms (get_free_symbols function_decl))
+          funs Symbol.Set.empty
       in
-      Flambda.update_function_declarations function_declarations ~funs
-    end
+      let closure_symbols =
+        Symbol.Set.fold (fun sym map ->
+          match symbol_to_closure_id sym with
+          | Some closure_id ->
+            let var = Closure_id.unwrap closure_id in
+            if Variable.Map.mem var funs then
+              Symbol.Map.add sym var map
+            else
+              map
+          | None ->
+            map
+        )
+        all_free_symbols Symbol.Map.empty
+      in
+      if Symbol.Map.is_empty closure_symbols then begin
+        (* Don't waste time rewriting the function declaration(s) if there
+           are no occurrences of any of the closure symbols. *)
+        function_declarations
+      end else begin
+        let funs =
+          Variable.Map.map (fun ffun ->
+            update_function_declaration_body ffun
+              (fun body ->
+                  Flambda_iterators.map_toplevel_named
+                    (* CR-someday pchambart: This may be worth deep
+                       substituting below the closures, but that means that we
+                       need to take care of functions' free variables. *)
+                    (function
+                      | Symbol sym when Symbol.Map.mem sym closure_symbols ->
+                        Expr (Var (Symbol.Map.find sym closure_symbols))
+                      | e -> e)
+                    body))
+            funs
+        in
+        update_function_declarations function_declarations ~funs
+      end
 
 module Project_var = struct
   type t =
