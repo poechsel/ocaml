@@ -49,8 +49,10 @@ let assign_symbols_and_collect_constant_definitions
         let symbol = make_variable_symbol "" var in
         Variable.Tbl.add var_to_symbol_tbl var symbol
       in
-      let assign_existing_symbol = Variable.Tbl.add var_to_symbol_tbl var in
-      let record_definition = Variable.Tbl.add var_to_definition_tbl var in
+      let assign_existing_symbol_to = Variable.Tbl.add var_to_symbol_tbl in
+      let assign_existing_symbol = assign_existing_symbol_to var in
+      let record_definition_of = Variable.Tbl.add var_to_definition_tbl in
+      let record_definition = record_definition_of var in
       match named with
       | Symbol symbol ->
         assign_existing_symbol symbol;
@@ -78,13 +80,20 @@ let assign_symbols_and_collect_constant_definitions
         Variable.Map.iter (fun fun_var _ ->
             let closure_id = Closure_id.wrap fun_var in
             let closure_symbol = closure_symbol ~backend closure_id in
-            Variable.Tbl.add var_to_symbol_tbl fun_var closure_symbol;
-            let project_closure =
+            let rec_tgt_var = Variable.rename ~append:"_rec" fun_var in
+            let rec_symbol = make_variable_symbol "" rec_tgt_var in
+            (* Careful! We're redirecting [fun_var] to [rec_symbol], which is a
+               wrapper for [closure_symbol]. [rec_tgt_var] is a dummy pointing
+               to the actual [closure_symbol]. *)
+            assign_existing_symbol_to fun_var rec_symbol;
+            assign_existing_symbol_to rec_tgt_var closure_symbol;
+            let rec_def = Alias_analysis.Recursive rec_tgt_var in
+            let closure_def =
               Alias_analysis.Project_closure
                 { set_of_closures = var; closure_id }
             in
-            Variable.Tbl.add var_to_definition_tbl fun_var
-              project_closure)
+            record_definition_of fun_var rec_def;
+            record_definition_of rec_tgt_var closure_def)
           funs
       | Move_within_set_of_closures ({ closure = _; start_from = _; move_to; }
           as move) ->
