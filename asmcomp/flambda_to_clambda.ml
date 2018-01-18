@@ -614,7 +614,8 @@ let accumulate_structured_constants t env symbol
       to_clambda_closed_set_of_closures t env symbol set_of_closures
     in
     Symbol.Map.add symbol to_clambda_set_of_closures acc
-  | Project_closure _ -> acc
+  | Project_closure _
+  | Recursive _ -> acc
 
 let to_clambda_program t env constants (program : Flambda.program) =
   let rec loop env constants (program : Flambda.program_body)

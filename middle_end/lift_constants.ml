@@ -111,7 +111,8 @@ let assign_symbols_and_collect_constant_definitions
       | Project_var project_var ->
         record_definition (AA.Project_var project_var)
       | Recursive v ->
-        record_definition (AA.Variable v)
+        assign_symbol ();
+        record_definition (AA.Recursive v)
       | Expr e ->
         match tail_variable e with
         | None -> assert false  (* See [Inconstant_idents]. *)
@@ -239,7 +240,8 @@ let translate_constant_set_of_closures
       match const with
       | Flambda.Allocated_const _
       | Flambda.Block _
-      | Flambda.Project_closure _ ->
+      | Flambda.Project_closure _
+      | Flambda.Recursive _ ->
         const
       | Flambda.Set_of_closures set_of_closures ->
         let set_of_closures =
@@ -298,6 +300,19 @@ let translate_definition_and_resolve_alias inconstants
     (definition : Alias_analysis.constant_defining_value)
     ~(backend : (module Backend_intf.S))
     : Flambda.constant_defining_value option =
+  let resolve_variable_as_symbol v =
+    match Variable.Map.find v aliases with
+    | Symbol s -> s
+    | exception Not_found ->
+      assert false
+    | Variable v ->
+      match Variable.Tbl.find var_to_symbol_tbl v with
+      | s -> s
+      | exception Not_found ->
+        Format.eprintf "var: %a@." Variable.print v;
+        assert false
+  in
+
   let resolve_float_array_involving_variables
         ~(mutability : Asttypes.mutable_flag) ~vars =
     (* Resolve an [Allocated_const] of the form:
@@ -368,7 +383,7 @@ let translate_definition_and_resolve_alias inconstants
         | Allocated_const ((Immutable_float_array _) as const) ->
           Alias_analysis.Allocated_const (Normal const)
         | (Allocated_const _ | Block _ | Set_of_closures _
-            | Project_closure _) as wrong ->
+            | Project_closure _ | Recursive _) as wrong ->
           Misc.fatal_errorf
             "Lift_constants.translate_definition_and_resolve_alias: \
               Duplicate Pfloatarray %a with symbol %a mapping to \
@@ -464,21 +479,13 @@ let translate_definition_and_resolve_alias inconstants
         Array with non-Pfloatarray kind: %a"
       Alias_analysis.print_constant_defining_value definition
   | Project_closure { set_of_closures; closure_id } ->
-    begin match Variable.Map.find set_of_closures aliases with
-    | Symbol s ->
-      Some (Flambda.Project_closure (s, closure_id))
     (* If a closure projection is a constant, the set of closures must
        be assigned to a symbol. *)
-    | exception Not_found ->
-      assert false
-    | Variable v ->
-      match Variable.Tbl.find var_to_symbol_tbl v with
-      | s ->
-        Some (Flambda.Project_closure (s, closure_id))
-      | exception Not_found ->
-        Format.eprintf "var: %a@." Variable.print v;
-        assert false
-    end
+    let s = resolve_variable_as_symbol set_of_closures in
+    Some (Flambda.Project_closure (s, closure_id))
+  | Recursive v ->
+    let s = resolve_variable_as_symbol v in
+    Some (Flambda.Recursive s)
   | Move_within_set_of_closures { closure; move_to } ->
     let set_of_closure_symbol =
       find_original_set_of_closure
@@ -542,7 +549,8 @@ let constant_dependencies ~backend:_
     Symbol.Set.of_list symbol_fields
   | Set_of_closures set_of_closures ->
     Flambda.free_symbols_named (Set_of_closures set_of_closures)
-  | Project_closure (s, _) ->
+  | Project_closure (s, _)
+  | Recursive s ->
     Symbol.Set.singleton s
 
 let program_graph ~backend imported_symbols symbol_to_constant
@@ -739,6 +747,7 @@ let introduce_free_variables_in_sets_of_closures
       match def with
       | Allocated_const _
       | Block _
+      | Recursive _
       | Project_closure _ -> def
       | Set_of_closures set_of_closures ->
         Flambda.Set_of_closures
@@ -786,6 +795,7 @@ let program_symbols ~backend (program : Flambda.program) =
               project_closure)
           funs
     | Project_closure _
+    | Recursive _
     | Allocated_const _
     | Block _ -> ()
   in
@@ -871,6 +881,8 @@ let project_closure_map symbol_definition_map =
       match const with
       | Project_closure (set_of_closures, _) ->
         Symbol.Map.add sym set_of_closures acc
+      | Recursive tgt_sym ->
+        Symbol.Map.add sym tgt_sym acc
       | Set_of_closures _ ->
         Symbol.Map.add sym sym acc
       | Allocated_const _
@@ -1006,7 +1018,7 @@ let lift_constants (program : Flambda.program) ~backend =
   let constant_definitions =
     Symbol.Map.map (fun (const : Flambda.constant_defining_value) ->
         match const with
-        | Allocated_const _ | Block _ | Project_closure _ -> const
+        | Allocated_const _ | Block _ | Project_closure _ | Recursive _ -> const
         | Set_of_closures set_of_closures ->
           let set_of_closures =
             Flambda_iterators.map_function_bodies set_of_closures

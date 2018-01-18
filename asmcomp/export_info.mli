@@ -48,12 +48,12 @@ type descr =
   | Value_boxed_int : 'a Simple_value_approx.boxed_int * 'a -> descr
   | Value_string of value_string
   | Value_closure of value_closure
+  | Value_recursive of approx
   | Value_set_of_closures of value_set_of_closures
 
 and value_closure = {
   closure_id : Closure_id.t;
   set_of_closures : value_set_of_closures;
-  rec_info : recursion_info;
 }
 
 and value_set_of_closures = {
@@ -62,10 +62,6 @@ and value_set_of_closures = {
   results : approx Closure_id.Map.t;
   aliased_symbol : Symbol.t option;
 }
-
-and recursion_info =
-  | Non_recursive_occ
-  | Recursive_occ of { depth : int }
 
 (* CR-soon mshinwell: Fix the export information so we can correctly
    propagate "unresolved due to..." in the manner of [Simple_value_approx].

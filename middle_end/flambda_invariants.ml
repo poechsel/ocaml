@@ -423,6 +423,8 @@ let variable_and_symbol_invariants (program : Flambda.program) =
     | Flambda.Project_closure (symbol,closure_id) ->
       ignore_closure_id closure_id;
       check_symbol_is_bound env symbol
+    | Flambda.Recursive symbol ->
+      check_symbol_is_bound env symbol
   in
   let rec loop_program_body env (program : Flambda.program_body) =
     match program with

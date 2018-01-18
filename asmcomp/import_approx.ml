@@ -139,6 +139,14 @@ let rec import_ex ex =
       A.value_closure ?set_of_closures_symbol:aliased_symbol
         value_set_of_closures closure_id
     end
+  | Value_recursive approx ->
+    begin match approx with
+    | Value_unknown -> A.value_unknown Other
+    | Value_id ex -> A.value_extern ex
+    | Value_symbol sym ->
+      let approx = import_symbol sym in
+      A.increase_recursiveness approx
+    end
   | Value_set_of_closures { set_of_closures_id; bound_vars; aliased_symbol } ->
     let value_set_of_closures =
       import_value_set_of_closures ~set_of_closures_id ~bound_vars ~ex_info
@@ -159,7 +167,7 @@ and import_approx (ap : Export_info.approx) =
   | Value_id ex -> A.value_extern ex
   | Value_symbol sym -> A.value_symbol sym
 
-let import_symbol sym =
+and import_symbol sym =
   if Compilenv.is_predefined_exception sym then
     A.value_unknown Other
   else

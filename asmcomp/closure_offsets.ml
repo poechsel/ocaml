@@ -134,5 +134,5 @@ let compute_reexported_offsets program
     ~f:(fun (const : Flambda.constant_defining_value) ->
       match const with
       | Project_closure (_, closure_id) -> used_closure_id closure_id
-      | Allocated_const _ | Block _ | Set_of_closures _ -> ());
+      | Allocated_const _ | Block _ | Set_of_closures _ | Recursive _ -> ());
   !offset_fun, !offset_fv

@@ -104,11 +104,13 @@ let import_descr_for_pack units pack (descr : Export_info.descr)
   | Value_mutable_block _ as desc -> desc
   | Value_block (tag, fields) ->
     Value_block (tag, Array.map (import_approx_for_pack units pack) fields)
-  | Value_closure { closure_id; set_of_closures; rec_info } ->
+  | Value_closure { closure_id; set_of_closures } ->
     Value_closure {
-      closure_id; rec_info;
+      closure_id;
       set_of_closures = import_set_of_closures units pack set_of_closures;
     }
+  | Value_recursive approx ->
+    Value_recursive (import_approx_for_pack units pack approx)
   | Value_set_of_closures set_of_closures ->
     Value_set_of_closures (import_set_of_closures units pack set_of_closures)
 

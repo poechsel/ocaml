@@ -168,13 +168,18 @@ let inline_by_copying_function_body ~env ~r
            function_decl.free_variables
       in
       if used then
-        Flambda.create_let another_closure_in_the_same_set
-          (Move_within_set_of_closures {
+        let worker_var = Variable.rename another_closure_in_the_same_set in
+        let worker_body : Flambda.named =
+          Move_within_set_of_closures {
             closure = lhs_of_application;
             start_from = closure_id_being_applied;
             move_to = Closure_id.wrap another_closure_in_the_same_set;
-          })
-          expr
+          }
+        in
+        let wrapper_body : Flambda.named = Flambda.Recursive worker_var in
+        Flambda.create_let worker_var worker_body
+          (Flambda.create_let another_closure_in_the_same_set wrapper_body
+            expr)
       else expr)
       function_decls.funs
       bindings_for_vars_bound_by_closure_and_params_to_args
@@ -304,7 +309,7 @@ let inline_by_copying_function_declaration ~env ~r
          detailed comment below. *)
       Variable.Map.fold (fun fun_var _fun_decl
                 (free_vars, free_vars_for_lets, original_vars) ->
-          let var = Variable.create "closure" in
+          let worker_var = Variable.create "closure" in
           let original_closure : Flambda.named =
             Move_within_set_of_closures
               { closure = lhs_of_application;
@@ -312,14 +317,18 @@ let inline_by_copying_function_declaration ~env ~r
                 move_to = Closure_id.wrap fun_var;
               }
           in
+          let wrapper_var = Variable.rename ~append:"_rec" fun_var in
+          let wrapper_body : Flambda.named = Recursive worker_var in
           let internal_var = Variable.rename ~append:"_original" fun_var in
           let free_vars =
-            Variable.Map.add internal_var { Flambda. var; projection = None }
+            Variable.Map.add internal_var
+              { Flambda. var = wrapper_var; projection = None }
               free_vars
           in
           free_vars,
-            (var, original_closure) :: free_vars_for_lets,
-            Variable.Map.add fun_var internal_var original_vars)
+          (wrapper_var, wrapper_body) :: (worker_var, original_closure)
+          :: free_vars_for_lets,
+          Variable.Map.add fun_var internal_var original_vars)
         funs
         (free_vars, free_vars_for_lets, Variable.Map.empty)
     in

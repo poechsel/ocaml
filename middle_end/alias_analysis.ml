@@ -31,6 +31,7 @@ type constant_defining_value =
   | Set_of_closures of Flambda.set_of_closures
   | Project_closure of Flambda.project_closure
   | Move_within_set_of_closures of Flambda.move_within_set_of_closures
+  | Recursive of Variable.t
   | Project_var of Flambda.project_var
   | Field of Variable.t * int
   | Symbol_field of Symbol.t * int
@@ -61,6 +62,7 @@ let print_constant_defining_value ppf = function
   | Project_closure project -> Flambda.print_project_closure ppf project
   | Move_within_set_of_closures move ->
     Flambda.print_move_within_set_of_closures ppf move
+  | Recursive var -> Format.fprintf ppf "Recursive(%a)" Variable.print var
   | Project_var project -> Flambda.print_project_var ppf project
   | Field (var, field) -> Format.fprintf ppf "%a.(%d)" Variable.print var field
   | Symbol_field (sym, field) ->
@@ -79,6 +81,7 @@ let rec resolve_definition
   | Block _
   | Set_of_closures _
   | Project_closure _
+  | Recursive _
   | Const _
   | Move_within_set_of_closures _ ->
     Variable var
@@ -124,7 +127,8 @@ and fetch_variable_field
     (* Must have been resolved *)
     assert false
   | Const _ | Allocated_const _
-  | Set_of_closures _ | Project_closure _ | Move_within_set_of_closures _ ->
+  | Set_of_closures _ | Project_closure _ | Move_within_set_of_closures _
+  | Recursive _ ->
     Symbol the_dead_constant
 
 and fetch_symbol_field
@@ -153,7 +157,7 @@ and fetch_symbol_field
         Misc.fatal_errorf "No definition for field access to %a"
           Symbol.print sym
     end
-  | Allocated_const _ | Set_of_closures _ | Project_closure _ ->
+  | Allocated_const _ | Set_of_closures _ | Project_closure _ | Recursive _ ->
     Symbol the_dead_constant
 
 let run variable initialize_symbol symbol ~the_dead_constant =

@@ -1499,6 +1499,13 @@ let constant_defining_value_approx
                              when being used as a [constant_defining_value]: %a"
             Flambda.print_constant_defining_value constant_defining_value
     end
+  | Recursive target_symbol -> begin
+      match E.find_symbol_opt env target_symbol with
+      | None ->
+        A.value_unresolved (Symbol target_symbol)
+      | Some target_approx ->
+        A.increase_recursiveness target_approx
+    end
 
 (* See documentation on [Let_rec_symbol] in flambda.mli. *)
 let define_let_rec_symbol_approx env defs =
@@ -1574,6 +1581,12 @@ let simplify_constant_defining_value
             Flambda.print_constant_defining_value constant_defining_value
       in
       r, constant_defining_value, closure_approx
+    | Recursive target_symbol ->
+      let target_approx =
+        E.find_symbol_exn env target_symbol
+      in
+      let rec_approx = A.increase_recursiveness target_approx in
+      r, constant_defining_value, rec_approx
   in
   let approx = A.augment_with_symbol approx symbol in
   let r = ret r approx in

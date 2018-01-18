@@ -290,6 +290,8 @@ let value_set_of_closures ?set_of_closures_var value_set_of_closures =
   }
 
 let increase_recursiveness approx =
+  (* This value is no longer equivalent to either the var or the symbol *)
+  let approx = { approx with var = None; symbol = None } in
   match approx.descr with
   | Value_closure value_closure ->
     let rec_info = match value_closure.rec_info with
@@ -301,7 +303,7 @@ let increase_recursiveness approx =
   | Value_float _ | Value_boxed_int _ | Value_set_of_closures _
   | Value_string _ | Value_float_array _ | Value_unknown _ | Value_bottom
   | Value_extern _ | Value_symbol _ | Value_unresolved _ ->
-    assert false
+    { approx with descr = Value_bottom }
 
 let value_block t b = approx (Value_block (t, b))
 let value_extern ex = approx (Value_extern ex)

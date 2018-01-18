@@ -380,6 +380,10 @@ and constant_defining_value =
   | Project_closure of Symbol.t * Closure_id.t
     (** Selection of one closure from a constant set of closures.
         Analogous to the equivalent operation on expressions. *)
+  | Recursive of Symbol.t
+    (** A reference to another symbol but at a higher recursion depth. Calls to
+        the function produced by inlining it (or its mutually-recursive sibling)
+        will invoke this version of the symbol instead of the original. *)
 
 and constant_defining_value_block_field =
   | Symbol of Symbol.t

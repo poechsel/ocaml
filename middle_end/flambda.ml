@@ -166,6 +166,7 @@ and constant_defining_value =
   | Block of Tag.t * constant_defining_value_block_field list
   | Set_of_closures of set_of_closures  (* [free_vars] must be empty *)
   | Project_closure of Symbol.t * Closure_id.t
+  | Recursive of Symbol.t
 
 and constant_defining_value_block_field =
   | Symbol of Symbol.t
@@ -496,6 +497,8 @@ let print_constant_defining_value ppf (const : constant_defining_value) =
   | Project_closure (set_of_closures, closure_id) ->
     fprintf ppf "(Project_closure (%a, %a))" Symbol.print set_of_closures
       Closure_id.print closure_id
+  | Recursive sym ->
+    fprintf ppf "(Recursive %a)" Symbol.print sym
 
 let rec print_program_body ppf (program : program_body) =
   let symbol_binding ppf (symbol, constant_defining_value) =
@@ -992,6 +995,7 @@ let free_symbols_allocated_constant_helper symbols
   | Set_of_closures set_of_closures ->
     symbols := Symbol.Set.union !symbols
       (free_symbols_named (Set_of_closures set_of_closures))
+  | Recursive s
   | Project_closure (s, _) ->
     symbols := Symbol.Set.add s !symbols
 
@@ -1192,18 +1196,28 @@ module Constant_defining_value = struct
         let c = Symbol.compare set1 set2 in
         if c <> 0 then c
         else Closure_id.compare closure_id1 closure_id2
+      | Recursive sym1, Recursive sym2 ->
+        Symbol.compare sym1 sym2
       | Allocated_const _, Block _ -> -1
       | Allocated_const _, Set_of_closures _ -> -1
       | Allocated_const _, Project_closure _ -> -1
+      | Allocated_const _, Recursive _ -> -1
       | Block _, Allocated_const _ -> 1
       | Block _, Set_of_closures _ -> -1
       | Block _, Project_closure _ -> -1
+      | Block _, Recursive _ -> -1
       | Set_of_closures _, Allocated_const _ -> 1
       | Set_of_closures _, Block _ -> 1
       | Set_of_closures _, Project_closure _ -> -1
+      | Set_of_closures _, Recursive _ -> -1
       | Project_closure _, Allocated_const _ -> 1
       | Project_closure _, Block _ -> 1
       | Project_closure _, Set_of_closures _ -> 1
+      | Project_closure _, Recursive _ -> -1
+      | Recursive _, Allocated_const _ -> 1
+      | Recursive _, Block _ -> 1
+      | Recursive _, Set_of_closures _ -> 1
+      | Recursive _, Project_closure _ -> 1
 
     let equal t1 t2 =
       t1 == t2 || compare t1 t2 = 0
