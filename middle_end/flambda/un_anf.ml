@@ -655,7 +655,7 @@ let rec un_anf_and_moveable var_info env (clam : Clambda.ulambda)
         if V.Set.mem var var_info.assigned then
           Fixed
         else
-          Moveable
+          Constant
       in
       clam, moveable
     end
