@@ -1081,11 +1081,11 @@ and simplify_named env r (tree : Flambda.named) : Flambda.named * R.t =
         in
         expr, ret r approx
       end)
-  | Recursive var ->
+  | Recursive (var, depth) ->
     let var = Freshening.apply_variable (E.freshening env) var in
     let approx = E.find_exn env var in
-    let approx = A.increase_recursiveness approx in
-    Recursive var, ret r approx
+    let approx = A.increase_recursion_depth approx depth in
+    Recursive (var, depth), ret r approx
   | Expr expr ->
     let expr, r = simplify env r expr in
     Expr expr, r
@@ -1499,38 +1499,38 @@ let constant_defining_value_approx
                              when being used as a [constant_defining_value]: %a"
             Flambda.print_constant_defining_value constant_defining_value
     end
-  | Recursive target_symbol -> begin
+  | Recursive (target_symbol, depth) -> begin
       match E.find_symbol_opt env target_symbol with
       | None ->
         A.value_unresolved (Symbol target_symbol)
       | Some target_approx ->
-        A.increase_recursiveness target_approx
+        A.increase_recursion_depth target_approx depth
     end
 
 (* See documentation on [Let_rec_symbol] in flambda.mli. *)
-let define_let_rec_symbol_approx env defs =
+let define_let_rec_symbol_approx orig_env defs =
   (* First declare an empty version of the symbols *)
-  let env =
-    List.fold_left (fun env (symbol, _) ->
-        E.add_symbol env symbol (A.value_unresolved (Symbol symbol)))
-      env defs
+  let init_env =
+    List.fold_left (fun building_env (symbol, _) ->
+        E.add_symbol building_env symbol (A.value_unresolved (Symbol symbol)))
+      orig_env defs
   in
-  let rec loop times env =
+  let rec loop times lookup_env =
     if times <= 0 then
-      env
+      lookup_env
     else
       let env =
-        List.fold_left (fun newenv (symbol, constant_defining_value) ->
+        List.fold_left (fun building_env (symbol, constant_defining_value) ->
             let approx =
-              constant_defining_value_approx env constant_defining_value
+              constant_defining_value_approx lookup_env constant_defining_value
             in
             let approx = A.augment_with_symbol approx symbol in
-            E.redefine_symbol newenv symbol approx)
-          env defs
+            E.add_symbol building_env symbol approx)
+          orig_env defs
       in
       loop (times-1) env
   in
-  loop 2 env
+  loop 2 init_env
 
 let simplify_constant_defining_value
     env r symbol
@@ -1581,11 +1581,11 @@ let simplify_constant_defining_value
             Flambda.print_constant_defining_value constant_defining_value
       in
       r, constant_defining_value, closure_approx
-    | Recursive target_symbol ->
+    | Recursive (target_symbol, depth) ->
       let target_approx =
         E.find_symbol_exn env target_symbol
       in
-      let rec_approx = A.increase_recursiveness target_approx in
+      let rec_approx = A.increase_recursion_depth target_approx depth in
       r, constant_defining_value, rec_approx
   in
   let approx = A.augment_with_symbol approx symbol in
@@ -1596,19 +1596,42 @@ let rec simplify_program_body env r (program : Flambda.program_body)
   : Flambda.program_body * R.t =
   match program with
   | Let_rec_symbol (defs, program) ->
-    let env = define_let_rec_symbol_approx env defs in
-    let env, r, defs =
-      List.fold_left (fun (newenv, r, defs) (symbol, def) ->
-          let r, def, approx =
-            simplify_constant_defining_value env r symbol def
-          in
-          let approx = A.augment_with_symbol approx symbol in
-          let newenv = E.redefine_symbol newenv symbol approx in
-          (newenv, r, (symbol, def) :: defs))
+    let set_of_closures_defs, other_defs =
+      List.partition
+        (function
+          | (_, Flambda.Set_of_closures _) -> true
+          | _ -> false)
+        defs
+    in
+    let recursive_defs, other_defs =
+      List.partition
+        (function
+          | (_, Flambda.Recursive _) -> true
+          | _ -> false)
+        other_defs
+    in
+    let process_defs env r defs defs_to_approximate =
+      let lookup_env = define_let_rec_symbol_approx env defs_to_approximate in
+      List.fold_left (fun (building_env, r, defs) (symbol, def) ->
+        let r, def, approx =
+          simplify_constant_defining_value lookup_env r symbol def
+        in
+        let approx = A.augment_with_symbol approx symbol in
+        let building_env = E.add_symbol building_env symbol approx in
+        (building_env, r, (symbol, def) :: defs))
         (env, r, []) defs
     in
+    let env, r, set_of_closures_defs =
+      process_defs env r set_of_closures_defs defs
+    in
+    let env, r, other_defs =
+      process_defs env r other_defs (other_defs @ recursive_defs)
+    in
+    let env, r, recursive_defs =
+      process_defs env r recursive_defs recursive_defs
+    in
     let program, r = simplify_program_body env r program in
-    Let_rec_symbol (defs, program), r
+    Let_rec_symbol (set_of_closures_defs @ other_defs @ recursive_defs, program), r
   | Let_symbol (symbol, constant_defining_value, program) ->
     let r, constant_defining_value, approx =
       simplify_constant_defining_value env r symbol constant_defining_value

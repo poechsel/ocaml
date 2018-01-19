@@ -87,7 +87,7 @@ let assign_symbols_and_collect_constant_definitions
                to the actual [closure_symbol]. *)
             assign_existing_symbol_to fun_var rec_symbol;
             assign_existing_symbol_to rec_tgt_var closure_symbol;
-            let rec_def = Alias_analysis.Recursive rec_tgt_var in
+            let rec_def = Alias_analysis.Recursive (rec_tgt_var, 1) in
             let closure_def =
               Alias_analysis.Project_closure
                 { set_of_closures = var; closure_id }
@@ -119,9 +119,9 @@ let assign_symbols_and_collect_constant_definitions
           Flambda.print_named named
       | Project_var project_var ->
         record_definition (AA.Project_var project_var)
-      | Recursive v ->
+      | Recursive (v, depth) ->
         assign_symbol ();
-        record_definition (AA.Recursive v)
+        record_definition (AA.Recursive (v, depth))
       | Expr e ->
         match tail_variable e with
         | None -> assert false  (* See [Inconstant_idents]. *)
@@ -492,9 +492,9 @@ let translate_definition_and_resolve_alias inconstants
        be assigned to a symbol. *)
     let s = resolve_variable_as_symbol set_of_closures in
     Some (Flambda.Project_closure (s, closure_id))
-  | Recursive v ->
+  | Recursive (v, depth) ->
     let s = resolve_variable_as_symbol v in
-    Some (Flambda.Recursive s)
+    Some (Flambda.Recursive (s, depth))
   | Move_within_set_of_closures { closure; move_to } ->
     let set_of_closure_symbol =
       find_original_set_of_closure
@@ -559,7 +559,7 @@ let constant_dependencies ~backend:_
   | Set_of_closures set_of_closures ->
     Flambda.free_symbols_named (Set_of_closures set_of_closures)
   | Project_closure (s, _)
-  | Recursive s ->
+  | Recursive (s, _) ->
     Symbol.Set.singleton s
 
 let program_graph ~backend imported_symbols symbol_to_constant
@@ -890,7 +890,7 @@ let project_closure_map symbol_definition_map =
       match const with
       | Project_closure (set_of_closures, _) ->
         Symbol.Map.add sym set_of_closures acc
-      | Recursive tgt_sym ->
+      | Recursive (tgt_sym, _) ->
         Symbol.Map.add sym tgt_sym acc
       | Set_of_closures _ ->
         Symbol.Map.add sym sym acc

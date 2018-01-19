@@ -139,13 +139,13 @@ let rec import_ex ex =
       A.value_closure ?set_of_closures_symbol:aliased_symbol
         value_set_of_closures closure_id
     end
-  | Value_recursive approx ->
+  | Value_recursive (approx, depth) ->
     begin match approx with
     | Value_unknown -> A.value_unknown Other
     | Value_id ex -> A.value_extern ex
     | Value_symbol sym ->
       let approx = import_symbol sym in
-      A.increase_recursiveness approx
+      A.increase_recursion_depth approx depth
     end
   | Value_set_of_closures { set_of_closures_id; bound_vars; aliased_symbol } ->
     let value_set_of_closures =

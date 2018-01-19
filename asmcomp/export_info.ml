@@ -45,7 +45,7 @@ type descr =
   | Value_boxed_int : 'a Simple_value_approx.boxed_int * 'a -> descr
   | Value_string of value_string
   | Value_closure of value_closure
-  | Value_recursive of approx
+  | Value_recursive of approx * int
   | Value_set_of_closures of value_set_of_closures
 
 and value_closure = {
@@ -121,8 +121,8 @@ let equal_descr (d1:descr) (d2:descr) : bool =
   | Value_closure c1, Value_closure c2 ->
     Closure_id.equal c1.closure_id c2.closure_id &&
     equal_set_of_closures c1.set_of_closures c2.set_of_closures
-  | Value_recursive a1, Value_recursive a2 ->
-    equal_approx a1 a2
+  | Value_recursive (a1, d1), Value_recursive (a2, d2) ->
+    equal_approx a1 a2 && d1 = d2
   | Value_set_of_closures s1, Value_set_of_closures s2 ->
     equal_set_of_closures s1 s2
   | ( Value_block (_, _) | Value_mutable_block (_, _) | Value_int _
@@ -268,8 +268,10 @@ let print_approx ppf ((t,root_symbols) : t * Symbol.t list) =
     | Value_closure {closure_id; set_of_closures} ->
       fprintf ppf "(closure %a, %a)" Closure_id.print closure_id
         print_set_of_closures set_of_closures
-    | Value_recursive approx ->
-      fprintf ppf "(recursive %a)" print_approx approx
+    | Value_recursive (approx, depth) ->
+      fprintf ppf "(recursive%a %a)"
+        Flambda.print_recursion_depth depth
+        print_approx approx
     | Value_set_of_closures set_of_closures ->
       fprintf ppf "(set_of_closures %a)" print_set_of_closures set_of_closures
     | Value_string { contents; size } ->

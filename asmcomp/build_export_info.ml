@@ -315,9 +315,9 @@ and descr_of_named (env : Env.t) (named : Flambda.named)
       Var_within_closure.Map.find var bound_vars
     | _ -> Value_unknown
     end
-  | Recursive var ->
+  | Recursive (var, depth) ->
     let descr : Export_info.descr =
-      Value_recursive (Env.find_approx env var)
+      Value_recursive (Env.find_approx env var, depth)
     in
     Value_id (Env.new_descr env descr)
 
@@ -444,9 +444,9 @@ let describe_constant_defining_value env export_id symbol
         Symbol.print sym
         Closure_id.print closure_id
     end
-  | Recursive sym ->
+  | Recursive (sym, depth) ->
     let descr : Export_info.descr =
-      Value_recursive (Value_symbol sym)
+      Value_recursive (Value_symbol sym, depth)
     in
     Env.record_descr env export_id descr
 

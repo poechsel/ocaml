@@ -417,7 +417,7 @@ and to_clambda_named t env var (named : Flambda.named) : Clambda.ulambda =
     Uprim (Pidentity, subst_vars env args, dbg)
   | Prim (p, args, dbg) ->
     Uprim (p, subst_vars env args, dbg)
-  | Recursive v -> subst_var env v (* same as Var case of to_clambda *)
+  | Recursive (v, _) -> subst_var env v (* same as Var case of to_clambda *)
   | Expr expr -> to_clambda t env expr
 
 and to_clambda_switch t env cases num_keys default =
@@ -634,7 +634,7 @@ let accumulate_symbol_substitutions env
       (defs : (Symbol.t * Flambda.constant_defining_value) list) =
   let process_def env (symbol, def) =
     match def with
-    | Flambda.Recursive target_symbol ->
+    | Flambda.Recursive (target_symbol, _depth) ->
       Env.add_symbol_subst env symbol target_symbol
     | _ -> env
   in

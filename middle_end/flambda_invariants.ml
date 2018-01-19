@@ -89,6 +89,7 @@ exception Unbound_closure_ids of Closure_id.Set.t
 exception Unbound_vars_within_closures of Var_within_closure.Set.t
 exception Move_to_a_closure_not_in_the_free_variables
   of Variable.t * Variable.Set.t
+exception Recursion_depth_not_positive_integer of int
 
 exception Flambda_invariants_failed
 
@@ -153,6 +154,10 @@ let variable_and_symbol_invariants (program : Flambda.program) =
     if not (Mutable_variable.Set.mem mut_var mut_var_env) then begin
       raise (Unbound_mutable_variable mut_var)
     end
+  in
+  let check_recursion_depth depth =
+    if depth < 1 then
+      raise (Recursion_depth_not_positive_integer depth)
   in
   let rec loop env (flam : Flambda.t) =
     match flam with
@@ -257,8 +262,9 @@ let variable_and_symbol_invariants (program : Flambda.program) =
       check_variable_is_bound env closure;
       ignore_closure_id closure_id;
       ignore_var_within_closure var
-    | Recursive var ->
-      check_variable_is_bound env var
+    | Recursive (var, depth) ->
+      check_variable_is_bound env var;
+      check_recursion_depth depth
     | Prim (prim, args, dbg) ->
       ignore_primitive prim;
       check_variables_are_bound env args;
@@ -423,8 +429,9 @@ let variable_and_symbol_invariants (program : Flambda.program) =
     | Flambda.Project_closure (symbol,closure_id) ->
       ignore_closure_id closure_id;
       check_symbol_is_bound env symbol
-    | Flambda.Recursive symbol ->
-      check_symbol_is_bound env symbol
+    | Flambda.Recursive (symbol, depth) ->
+      check_symbol_is_bound env symbol;
+      check_recursion_depth depth
   in
   let rec loop_program_body env (program : Flambda.program_body) =
     match program with
@@ -829,6 +836,8 @@ let check_exn ?(kind=Normal) ?(cmxfile=false) (flam:Flambda.program) =
         to closures that are not parts of its free variables: %a"
           Variable.print start_from
           Variable.Set.print move_to
+    | Recursion_depth_not_positive_integer depth ->
+      Format.eprintf ">> Recursion depth should be a positive integer: %i" depth
     | exn -> raise exn
     end;
     Format.eprintf "\n@?";

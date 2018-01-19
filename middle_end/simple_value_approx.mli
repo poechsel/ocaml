@@ -141,7 +141,7 @@ and descr = private
 and value_closure = {
   set_of_closures : t;
   closure_id : Closure_id.t;
-  rec_info : recursion_info;
+  rec_depth : int;
 }
 
 (* CR-soon mshinwell: add support for the approximations of the results, so we
@@ -167,10 +167,6 @@ and value_float_array = {
   contents : value_float_array_contents;
   size : int;
 }
-
-and recursion_info =
-  | Non_recursive_occ
-  | Recursive_occ of { depth : int }
 
 (** Extraction of the description of approximation(s). *)
 val descr : t -> descr
@@ -225,7 +221,7 @@ val value_closure
    : ?closure_var:Variable.t
   -> ?set_of_closures_var:Variable.t
   -> ?set_of_closures_symbol:Symbol.t
-  -> ?rec_info:recursion_info
+  -> ?rec_depth:int
   -> value_set_of_closures
   -> Closure_id.t
   -> t
@@ -273,9 +269,8 @@ val augment_with_kind : t -> Lambda.value_kind -> t
 (** Improve the kind by taking the description into account *)
 val augment_kind_with_approx : t -> Lambda.value_kind -> Lambda.value_kind
 
-(** Make a closure a recursive occurrence with depth 0 or increase its depth if
-    already recursive *)
-val increase_recursiveness : t -> t
+(** Make a closure a recursive occurrence or increase its depth *)
+val increase_recursion_depth : t -> int -> t
 
 val equal_boxed_int : 'a boxed_int -> 'a -> 'b boxed_int -> 'b -> bool
 

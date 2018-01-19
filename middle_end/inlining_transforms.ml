@@ -168,7 +168,9 @@ let inline_by_copying_function_body ~env ~r
            function_decl.free_variables
       in
       if used then
-        let worker_var = Variable.rename another_closure_in_the_same_set in
+        let worker_var =
+          Variable.rename ~append:"_rec" another_closure_in_the_same_set
+        in
         let worker_body : Flambda.named =
           Move_within_set_of_closures {
             closure = lhs_of_application;
@@ -176,7 +178,7 @@ let inline_by_copying_function_body ~env ~r
             move_to = Closure_id.wrap another_closure_in_the_same_set;
           }
         in
-        let wrapper_body : Flambda.named = Flambda.Recursive worker_var in
+        let wrapper_body : Flambda.named = Flambda.Recursive (worker_var, 1) in
         Flambda.create_let worker_var worker_body
           (Flambda.create_let another_closure_in_the_same_set wrapper_body
             expr)
@@ -309,7 +311,7 @@ let inline_by_copying_function_declaration ~env ~r
          detailed comment below. *)
       Variable.Map.fold (fun fun_var _fun_decl
                 (free_vars, free_vars_for_lets, original_vars) ->
-          let worker_var = Variable.create "closure" in
+          let worker_var = Variable.rename ~append:"_rec" fun_var in
           let original_closure : Flambda.named =
             Move_within_set_of_closures
               { closure = lhs_of_application;
@@ -317,8 +319,8 @@ let inline_by_copying_function_declaration ~env ~r
                 move_to = Closure_id.wrap fun_var;
               }
           in
-          let wrapper_var = Variable.rename ~append:"_rec" fun_var in
-          let wrapper_body : Flambda.named = Recursive worker_var in
+          let wrapper_var = Variable.rename fun_var in
+          let wrapper_body : Flambda.named = Recursive (worker_var, 1) in
           let internal_var = Variable.rename ~append:"_original" fun_var in
           let free_vars =
             Variable.Map.add internal_var

@@ -48,7 +48,7 @@ type descr =
   | Value_boxed_int : 'a Simple_value_approx.boxed_int * 'a -> descr
   | Value_string of value_string
   | Value_closure of value_closure
-  | Value_recursive of approx
+  | Value_recursive of approx * int
   | Value_set_of_closures of value_set_of_closures
 
 and value_closure = {

@@ -168,7 +168,7 @@ and named =
   | Project_closure of project_closure
   | Move_within_set_of_closures of move_within_set_of_closures
   | Project_var of project_var
-  | Recursive of Variable.t
+  | Recursive of Variable.t * int
   | Prim of Lambda.primitive * Variable.t list * Debuginfo.t
   | Expr of t  (** ANF escape hatch. *)
 
@@ -380,7 +380,7 @@ and constant_defining_value =
   | Project_closure of Symbol.t * Closure_id.t
     (** Selection of one closure from a constant set of closures.
         Analogous to the equivalent operation on expressions. *)
-  | Recursive of Symbol.t
+  | Recursive of Symbol.t * int
     (** A reference to another symbol but at a higher recursion depth. Calls to
         the function produced by inlining it (or its mutually-recursive sibling)
         will invoke this version of the symbol instead of the original. *)
@@ -672,6 +672,11 @@ val print_specialised_to
 val print_inlining_stack
    : Format.formatter
   -> inlining_stack
+  -> unit
+
+val print_recursion_depth
+   : Format.formatter
+  -> int
   -> unit
 
 val equal_specialised_to

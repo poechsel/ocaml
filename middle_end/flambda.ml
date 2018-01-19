@@ -101,7 +101,7 @@ and named =
   | Project_closure of project_closure
   | Move_within_set_of_closures of move_within_set_of_closures
   | Project_var of project_var
-  | Recursive of Variable.t
+  | Recursive of Variable.t * int
   | Prim of Lambda.primitive * Variable.t list * Debuginfo.t
   | Expr of t
 
@@ -166,7 +166,7 @@ and constant_defining_value =
   | Block of Tag.t * constant_defining_value_block_field list
   | Set_of_closures of set_of_closures  (* [free_vars] must be empty *)
   | Project_closure of Symbol.t * Closure_id.t
-  | Recursive of Symbol.t
+  | Recursive of Symbol.t * int
 
 and constant_defining_value_block_field =
   | Symbol of Symbol.t
@@ -220,6 +220,11 @@ let print_inlining_stack ppf stack =
     ignore (List.fold_left (frame ppf) true stack)
   in
   fprintf ppf "[%a]" frames ()
+
+let print_recursion_depth ppf depth =
+  match depth with
+  | 1 -> ()
+  | depth -> Format.fprintf ppf "^%i" depth
 
 (** CR-someday lwhite: use better name than this *)
 let rec lam ppf (flam : t) =
@@ -382,7 +387,8 @@ and print_named ppf (named : named) =
     print_move_within_set_of_closures ppf move_within_set_of_closures
   | Set_of_closures (set_of_closures) ->
     print_set_of_closures ppf set_of_closures
-  | Recursive (var) -> fprintf ppf "Recursive(%a)" Variable.print var
+  | Recursive (var, depth) ->
+    fprintf ppf "Recursive%a(%a)" print_recursion_depth depth Variable.print var
   | Prim(prim, args, dbg) ->
     fprintf ppf "@[<2>(%a<%s>%a)@]" Printlambda.primitive prim
       (Debuginfo.to_string dbg)
@@ -497,8 +503,8 @@ let print_constant_defining_value ppf (const : constant_defining_value) =
   | Project_closure (set_of_closures, closure_id) ->
     fprintf ppf "(Project_closure (%a, %a))" Symbol.print set_of_closures
       Closure_id.print closure_id
-  | Recursive sym ->
-    fprintf ppf "(Recursive %a)" Symbol.print sym
+  | Recursive (sym, depth) ->
+    fprintf ppf "(Recursive%a %a)" print_recursion_depth depth Symbol.print sym
 
 let rec print_program_body ppf (program : program_body) =
   let symbol_binding ppf (symbol, constant_defining_value) =
@@ -674,7 +680,7 @@ and variables_usage_named ?ignore_uses_in_project_var
     end
   | Move_within_set_of_closures { closure; start_from = _; move_to = _ } ->
     free_variable closure
-  | Recursive var -> free_variable var
+  | Recursive (var, _) -> free_variable var
   | Prim (_, args, _) -> List.iter free_variable args
   | Expr flam ->
     free := Variable.Set.union
@@ -995,7 +1001,7 @@ let free_symbols_allocated_constant_helper symbols
   | Set_of_closures set_of_closures ->
     symbols := Symbol.Set.union !symbols
       (free_symbols_named (Set_of_closures set_of_closures))
-  | Recursive s
+  | Recursive (s, _)
   | Project_closure (s, _) ->
     symbols := Symbol.Set.add s !symbols
 
@@ -1196,8 +1202,10 @@ module Constant_defining_value = struct
         let c = Symbol.compare set1 set2 in
         if c <> 0 then c
         else Closure_id.compare closure_id1 closure_id2
-      | Recursive sym1, Recursive sym2 ->
-        Symbol.compare sym1 sym2
+      | Recursive (sym1, depth1), Recursive (sym2, depth2) ->
+        let c = Symbol.compare sym1 sym2 in
+        if c <> 0 then c
+        else compare depth1 depth2
       | Allocated_const _, Block _ -> -1
       | Allocated_const _, Set_of_closures _ -> -1
       | Allocated_const _, Project_closure _ -> -1

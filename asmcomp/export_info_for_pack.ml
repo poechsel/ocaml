@@ -109,8 +109,8 @@ let import_descr_for_pack units pack (descr : Export_info.descr)
       closure_id;
       set_of_closures = import_set_of_closures units pack set_of_closures;
     }
-  | Value_recursive approx ->
-    Value_recursive (import_approx_for_pack units pack approx)
+  | Value_recursive (approx, depth) ->
+    Value_recursive (import_approx_for_pack units pack approx, depth)
   | Value_set_of_closures set_of_closures ->
     Value_set_of_closures (import_set_of_closures units pack set_of_closures)
 
