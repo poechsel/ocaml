@@ -580,7 +580,7 @@ let rec un_anf_and_moveable ident_info env (clam : Clambda.ulambda)
         if Ident.Set.mem id ident_info.assigned then
           Fixed
         else
-          Moveable
+          Constant
       in
       clam, moveable
     end
