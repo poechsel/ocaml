@@ -121,6 +121,9 @@ module Env : sig
   val add_subst : t -> Variable.t -> Clambda.ulambda -> t
   val find_subst_exn : t -> Variable.t -> Clambda.ulambda
 
+  val add_symbol_subst : t -> Symbol.t -> Symbol.t -> t
+  val find_symbol_subst_opt : t -> Symbol.t -> Symbol.t option
+
   val add_fresh_ident : t -> Variable.t -> Ident.t * t
   val ident_for_var_exn : t -> Variable.t -> Ident.t
 
@@ -134,6 +137,7 @@ module Env : sig
 end = struct
   type t =
     { subst : Clambda.ulambda Variable.Map.t;
+      sym_subst : Symbol.t Symbol.Map.t;
       var : Ident.t Variable.Map.t;
       mutable_var : Ident.t Mutable_variable.Map.t;
       toplevel : bool;
@@ -142,6 +146,7 @@ end = struct
 
   let empty =
     { subst = Variable.Map.empty;
+      sym_subst = Symbol.Map.empty;
       var = Variable.Map.empty;
       mutable_var = Mutable_variable.Map.empty;
       toplevel = false;
@@ -152,6 +157,11 @@ end = struct
     { t with subst = Variable.Map.add id subst t.subst }
 
   let find_subst_exn t id = Variable.Map.find id t.subst
+
+  let add_symbol_subst t sym subst =
+    { t with sym_subst = Symbol.Map.add sym subst t.sym_subst }
+
+  let find_symbol_subst_opt t sym = Symbol.Map.find_opt sym t.sym_subst
 
   let ident_for_var_exn t id = Variable.Map.find id t.var
 
@@ -180,6 +190,7 @@ end = struct
 
   let keep_only_symbols t =
     { empty with
+      sym_subst = t.sym_subst;
       allocated_constant_for_symbol = t.allocated_constant_for_symbol;
     }
 end
@@ -219,8 +230,10 @@ let to_clambda_symbol' env sym : Clambda.uconstant =
   let lbl = Linkage_name.to_string (Symbol.label sym) in
   Uconst_ref (lbl, to_uconst_symbol env sym)
 
-let to_clambda_symbol env sym : Clambda.ulambda =
-  Uconst (to_clambda_symbol' env sym)
+let rec to_clambda_symbol env sym : Clambda.ulambda =
+  match Env.find_symbol_subst_opt env sym with
+  | Some sym -> to_clambda_symbol env sym
+  | None -> Uconst (to_clambda_symbol' env sym)
 
 let to_clambda_const env (const : Flambda.constant_defining_value_block_field)
       : Clambda.uconstant =
@@ -617,6 +630,16 @@ let accumulate_structured_constants t env symbol
   | Project_closure _
   | Recursive _ -> acc
 
+let accumulate_symbol_substitutions env
+      (defs : (Symbol.t * Flambda.constant_defining_value) list) =
+  let process_def env (symbol, def) =
+    match def with
+    | Flambda.Recursive target_symbol ->
+      Env.add_symbol_subst env symbol target_symbol
+    | _ -> env
+  in
+  List.fold_left process_def env defs
+
 let to_clambda_program t env constants (program : Flambda.program) =
   let rec loop env constants (program : Flambda.program_body)
         : Clambda.ulambda * Clambda.ustructured_constant Symbol.Map.t =
@@ -630,11 +653,13 @@ let to_clambda_program t env constants (program : Flambda.program) =
         | Allocated_const const -> Env.add_allocated_const env symbol const
         | _ -> env
       in
+      let env = accumulate_symbol_substitutions env [(symbol, alloc)] in
       let constants =
         accumulate_structured_constants t env symbol alloc constants
       in
       loop env constants program
     | Let_rec_symbol (defs, program) ->
+      let env = accumulate_symbol_substitutions env defs in
       let constants =
         List.fold_left (fun constants (symbol, alloc) ->
             accumulate_structured_constants t env symbol alloc constants)
