@@ -66,6 +66,7 @@ val make_closure_declaration
    : id:Variable.t
   -> body:Flambda.t
   -> params:Parameter.t list
+  -> recursive:bool
   -> stub:bool
   -> Flambda.t
 

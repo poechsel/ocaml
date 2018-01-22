@@ -320,6 +320,7 @@ and function_declarations = private {
 and function_declaration = private {
   params : Parameter.t list;
   body : t;
+  recursive : bool;
   (* CR-soon mshinwell: inconsistent naming free_variables/free_vars here and
      above *)
   free_variables : Variable.Set.t;
@@ -568,7 +569,8 @@ end
 (** Create a function declaration.  This calculates the free variables and
     symbols occurring in the specified [body]. *)
 val create_function_declaration
-   : params:Parameter.t list
+   : recursive:bool
+  -> params:Parameter.t list
   -> body:t
   -> stub:bool
   -> dbg:Debuginfo.t
@@ -576,6 +578,9 @@ val create_function_declaration
   -> specialise:Lambda.specialise_attribute
   -> is_a_functor:bool
   -> function_declaration
+
+(** Change the body of a function declaration. *)
+val update_function_body : function_declaration -> t -> function_declaration
 
 (** Create a set of function declarations given the individual declarations. *)
 val create_function_declarations

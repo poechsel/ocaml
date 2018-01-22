@@ -497,6 +497,7 @@ let inline_by_copying_function_declaration ~env ~r
           body_substituted
       in
       Flambda.create_function_declaration
+        ~recursive:fun_decl.recursive
         ~params:fun_decl.params
         ~stub:fun_decl.stub
         ~dbg:fun_decl.dbg

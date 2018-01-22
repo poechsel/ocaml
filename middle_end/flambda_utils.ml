@@ -323,7 +323,7 @@ let toplevel_substitution_named sb named =
   | Let let_expr -> let_expr.defining_expr
   | _ -> assert false
 
-let make_closure_declaration ~id ~body ~params ~stub : Flambda.t =
+let make_closure_declaration ~id ~body ~params ~recursive ~stub : Flambda.t =
   let free_variables = Flambda.free_variables body in
   let param_set = Parameter.Set.vars params in
   if not (Variable.Set.subset param_set free_variables) then begin
@@ -342,7 +342,7 @@ let make_closure_declaration ~id ~body ~params ~stub : Flambda.t =
   let subst_param param = Parameter.map_var subst param in
   let function_declaration =
     Flambda.create_function_declaration ~params:(List.map subst_param params)
-      ~body ~stub ~dbg:Debuginfo.none ~inline:Default_inline
+      ~body ~recursive ~stub ~dbg:Debuginfo.none ~inline:Default_inline
       ~specialise:Default_specialise ~is_a_functor:false
   in
   assert (Variable.Set.equal (Variable.Set.map subst free_variables)

@@ -36,7 +36,7 @@ type 'b good_idea =
 let inline env r ~lhs_of_application
     ~(function_decls : Flambda.function_declarations)
     ~closure_id_being_applied ~(function_decl : Flambda.function_declaration)
-    ~value_set_of_closures ~only_use_of_function ~original ~recursive
+    ~value_set_of_closures ~only_use_of_function ~original
     ~(args : Variable.t list) ~size_from_approximation ~dbg ~simplify
     ~(inline_requested : Lambda.inline_attribute)
     ~(specialise_requested : Lambda.specialise_attribute)
@@ -96,7 +96,7 @@ let inline env r ~lhs_of_application
     else if !Clflags.classic_inlining then
       Don't_try_it S.Not_inlined.Classic_mode
     else if not (E.unrolling_allowed env function_decls.set_of_closures_origin)
-         && (Lazy.force recursive) then
+         && function_decl.recursive then
       Don't_try_it S.Not_inlined.Unrolling_depth_exceeded
     else if remaining_inlining_threshold = T.Never_inline then
       let threshold =
@@ -220,6 +220,8 @@ let inline env r ~lhs_of_application
       let env =
         (* We decrement the unrolling count even if the function is not
            recursive to avoid having to check whether or not it is recursive *)
+        (* CR-soon lmaurer: No longer necessary; checking for recursiveness
+            is quick *)
         E.inside_unrolled_function env function_decls.set_of_closures_origin
       in
       let env = E.inside_inlined_function env closure_id_being_applied in
@@ -261,6 +263,8 @@ let inline env r ~lhs_of_application
         let env =
           (* We decrement the unrolling count even if the function is recursive
              to avoid having to check whether or not it is recursive *)
+          (* CR-soon lmaurer: No longer necessary; checking for recursiveness
+             is quick *)
           E.inside_unrolled_function env function_decls.set_of_closures_origin
         in
         let body, r_inlined = simplify env r_inlined body in
@@ -302,7 +306,7 @@ let specialise env r ~lhs_of_application
       ~(function_decl : Flambda.function_declaration)
       ~closure_id_being_applied
       ~(value_set_of_closures : Simple_value_approx.value_set_of_closures)
-      ~args ~args_approxs ~dbg ~simplify ~original ~recursive ~self_call
+      ~args ~args_approxs ~dbg ~simplify ~original ~self_call
       ~inlining_threshold ~fun_cost
       ~inline_requested ~specialise_requested =
   let bound_vars =
@@ -377,7 +381,7 @@ let specialise env r ~lhs_of_application
       Don't_try_it (S.Not_specialised.Above_threshold threshold)
     else if not (Var_within_closure.Map.is_empty (Lazy.force bound_vars)) then
       Don't_try_it S.Not_specialised.Not_closed
-    else if not (Lazy.force recursive) then
+    else if not function_decl.recursive then
       Don't_try_it S.Not_specialised.Not_recursive
     else if Variable.Map.is_empty (Lazy.force invariant_params) then
       Don't_try_it S.Not_specialised.No_invariant_parameters
@@ -603,15 +607,8 @@ let for_call_site ~env ~r ~(function_decls : Flambda.function_declarations)
         let fun_var =
           U.find_declaration_variable closure_id_being_applied function_decls
         in
-        let recursive =
-          lazy
-            (Variable.Set.mem fun_var
-               ((Find_recursive_functions.in_function_declarations
-                  function_decls
-                  ~backend:(E.backend env))))
-        in
         let specialise_result =
-          specialise env r ~lhs_of_application ~function_decls ~recursive
+          specialise env r ~lhs_of_application ~function_decls
             ~closure_id_being_applied ~function_decl ~value_set_of_closures
             ~args ~args_approxs ~dbg ~simplify ~original ~inline_requested
             ~specialise_requested ~fun_cost ~self_call ~inlining_threshold
@@ -636,7 +633,7 @@ let for_call_site ~env ~r ~(function_decls : Flambda.function_declarations)
           let inline_result =
             inline env r ~function_decls ~lhs_of_application
               ~closure_id_being_applied ~function_decl ~value_set_of_closures
-              ~only_use_of_function ~original ~recursive
+              ~only_use_of_function ~original
               ~inline_requested ~specialise_requested ~args
               ~size_from_approximation ~dbg ~simplify ~fun_cost ~self_call
               ~inlining_threshold

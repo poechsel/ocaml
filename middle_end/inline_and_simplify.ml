@@ -622,7 +622,8 @@ and simplify_set_of_closures original_env r
         inline
     in
     let function_decl =
-      Flambda.create_function_declaration ~params:function_decl.params
+      Flambda.create_function_declaration ~recursive:function_decl.recursive
+        ~params:function_decl.params
         ~body ~stub:function_decl.stub ~dbg:function_decl.dbg
         ~inline ~specialise:function_decl.specialise
         ~is_a_functor:function_decl.is_a_functor
@@ -836,6 +837,7 @@ and simplify_partial_application env r ~lhs_of_application
     Flambda_utils.make_closure_declaration ~id:closure_variable
       ~body
       ~params:remaining_args
+      ~recursive:false
       ~stub:true
   in
   let with_known_args =
@@ -1429,12 +1431,7 @@ and duplicate_function ~env ~(set_of_closures : Flambda.set_of_closures)
       ~f:(fun body_env ->
         simplify body_env (R.create ()) function_decl.body)
   in
-  let function_decl =
-    Flambda.create_function_declaration ~params:function_decl.params
-      ~body ~stub:function_decl.stub ~dbg:function_decl.dbg
-      ~inline:function_decl.inline ~specialise:function_decl.specialise
-      ~is_a_functor:function_decl.is_a_functor
-  in
+  let function_decl = Flambda.update_function_body function_decl body in
   function_decl, specialised_args
 
 let constant_defining_value_approx

@@ -136,6 +136,7 @@ and function_declarations = {
 and function_declaration = {
   params : Parameter.t list;
   body : t;
+  recursive : bool;
   free_variables : Variable.Set.t;
   free_symbols : Symbol.Set.t;
   stub : bool;
@@ -409,6 +410,12 @@ and print_function_declaration ppf var (f : function_declaration) =
     else
       ""
   in
+  let recursive =
+    if f.recursive then
+      " *rec*"
+    else
+      ""
+  in
   let is_a_functor =
     if f.is_a_functor then
       " *functor*"
@@ -428,8 +435,8 @@ and print_function_declaration ppf var (f : function_declaration) =
     | Never_specialise -> " *never_specialise*"
     | Default_specialise -> ""
   in
-  fprintf ppf "@[<2>(%a%s%s%s%s@ =@ fun@[<2>%a@] ->@ @[<2>%a@])@]@ "
-    Variable.print var stub is_a_functor inline specialise
+  fprintf ppf "@[<2>(%a%s%s%s%s%s@ =@ fun@[<2>%a@] ->@ @[<2>%a@])@]@ "
+    Variable.print var recursive stub is_a_functor inline specialise
     params f.params lam f.body
 
 and print_set_of_closures ppf (set_of_closures : set_of_closures) =
@@ -1031,7 +1038,7 @@ let free_symbols_program (program : program) =
   loop program.program_body;
   !symbols
 
-let create_function_declaration ~params ~body ~stub ~dbg
+let create_function_declaration ~recursive ~params ~body ~stub ~dbg
       ~(inline : Lambda.inline_attribute)
       ~(specialise : Lambda.specialise_attribute) ~is_a_functor
       : function_declaration =
@@ -1053,6 +1060,7 @@ let create_function_declaration ~params ~body ~stub ~dbg
   end;
   { params;
     body;
+    recursive;
     free_variables = free_variables body;
     free_symbols = free_symbols body;
     stub;
@@ -1061,6 +1069,16 @@ let create_function_declaration ~params ~body ~stub ~dbg
     specialise;
     is_a_functor;
   }
+
+let update_function_body func_decl body =
+  create_function_declaration ~body
+    ~recursive:func_decl.recursive
+    ~params:func_decl.params
+    ~stub:func_decl.stub
+    ~dbg:func_decl.dbg
+    ~inline:func_decl.inline
+    ~specialise:func_decl.specialise
+    ~is_a_functor:func_decl.is_a_functor
 
 let create_function_declarations ~funs =
   let compilation_unit = Compilation_unit.get_current_exn () in
