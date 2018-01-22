@@ -1525,12 +1525,12 @@ let define_let_rec_symbol_approx orig_env defs =
               constant_defining_value_approx lookup_env constant_defining_value
             in
             let approx = A.augment_with_symbol approx symbol in
-            E.add_symbol building_env symbol approx)
-          orig_env defs
+            E.redefine_symbol building_env symbol approx)
+          lookup_env defs
       in
       loop (times-1) env
   in
-  loop 2 init_env
+  loop 3 init_env
 
 let simplify_constant_defining_value
     env r symbol
