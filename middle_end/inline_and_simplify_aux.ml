@@ -512,9 +512,9 @@ end
 module A = Simple_value_approx
 module E = Env
 
-let keep_body_check ~is_classic_mode ~recursive =
+let keep_body_check ~is_classic_mode =
   if not is_classic_mode then begin
-      fun _ _ -> true
+      fun _ -> true
   end else begin
     let can_inline_non_rec_function (fun_decl : Flambda.function_declaration) =
       (* In classic-inlining mode, the inlining decision is taken at
@@ -530,10 +530,10 @@ let keep_body_check ~is_classic_mode ~recursive =
       let bonus = Flambda_utils.function_arity fun_decl in
       Inlining_cost.can_inline fun_decl.body inlining_threshold ~bonus
     in
-    fun (var : Variable.t) (fun_decl : Flambda.function_declaration) ->
+    fun (fun_decl : Flambda.function_declaration) ->
       if fun_decl.stub then begin
         true
-      end else if Variable.Set.mem var (Lazy.force recursive) then begin
+      end else if fun_decl.recursive then begin
         false
       end else begin
         match fun_decl.inline with
@@ -652,14 +652,13 @@ let prepare_to_simplify_set_of_closures ~env
     in
     let free_vars = Variable.Map.map fst free_vars in
     let invariant_params = lazy Variable.Map.empty in
-    let recursive = lazy (Variable.Map.keys function_decls.funs) in
     let is_classic_mode = function_decls.is_classic_mode in
-    let keep_body = keep_body_check ~is_classic_mode ~recursive in
+    let keep_body = keep_body_check ~is_classic_mode in
     let function_decls =
       A.function_declarations_approx ~keep_body function_decls
     in
     A.create_value_set_of_closures ~function_decls ~bound_vars
-      ~free_vars ~invariant_params ~recursive ~specialised_args
+      ~free_vars ~invariant_params ~specialised_args
       ~freshening ~direct_call_surrogates
   in
   (* Populate the environment with the approximation of each closure.

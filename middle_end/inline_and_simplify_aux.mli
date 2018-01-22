@@ -358,7 +358,5 @@ val prepare_to_simplify_closure
 
 val keep_body_check
    : is_classic_mode:bool
-  -> recursive:Variable.Set.t Lazy.t
-  -> Variable.t
   -> Flambda.function_declaration
   -> bool

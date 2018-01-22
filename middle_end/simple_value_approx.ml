@@ -82,6 +82,7 @@ and function_body = {
   specialise : Lambda.specialise_attribute;
   is_a_functor : bool;
   body : Flambda.t;
+  recursive : bool;
 }
 
 and function_declaration = {
@@ -95,7 +96,6 @@ and value_set_of_closures = {
   bound_vars : t Var_within_closure.Map.t;
   free_vars  : Flambda.specialised_to Variable.Map.t;
   invariant_params : Variable.Set.t Variable.Map.t Lazy.t;
-  recursive : Variable.Set.t Lazy.t;
   size : int option Variable.Map.t Lazy.t;
   specialised_args : Flambda.specialised_to Variable.Map.t;
   freshening : Freshening.Project_var.t;
@@ -303,7 +303,7 @@ let value_closure ?closure_var ?set_of_closures_var ?set_of_closures_symbol
 
 let create_value_set_of_closures
       ~(function_decls : function_declarations) ~bound_vars ~free_vars
-      ~invariant_params ~recursive ~specialised_args ~freshening
+      ~invariant_params ~specialised_args ~freshening
       ~direct_call_surrogates =
   let size =
     lazy (
@@ -334,7 +334,6 @@ let create_value_set_of_closures
     bound_vars;
     free_vars;
     invariant_params;
-    recursive;
     size;
     specialised_args;
     freshening;
@@ -953,10 +952,10 @@ let potentially_taken_block_switch_branch t tag =
 let function_arity (fun_decl : function_declaration) =
   List.length fun_decl.params
 
-let function_declaration_approx ~keep_body fun_var
+let function_declaration_approx ~keep_body
       (fun_decl : Flambda.function_declaration) =
   let function_body =
-    if not (keep_body fun_var fun_decl) then None
+    if not (keep_body fun_decl) then None
     else begin
       Some { body = fun_decl.body;
              stub = fun_decl.stub;
@@ -965,7 +964,8 @@ let function_declaration_approx ~keep_body fun_var
              specialise = fun_decl.specialise;
              is_a_functor = fun_decl.is_a_functor;
              free_variables = fun_decl.free_variables;
-             free_symbols = fun_decl.free_symbols; }
+             free_symbols = fun_decl.free_symbols;
+             recursive = fun_decl.recursive; }
     end
   in
   { function_body;
@@ -975,7 +975,7 @@ let function_declaration_approx ~keep_body fun_var
 let function_declarations_approx ~keep_body
   (fun_decls : Flambda.function_declarations) =
   let funs =
-    Variable.Map.mapi (function_declaration_approx ~keep_body) fun_decls.funs
+    Variable.Map.map (function_declaration_approx ~keep_body) fun_decls.funs
   in
   { funs;
     is_classic_mode = fun_decls.is_classic_mode;

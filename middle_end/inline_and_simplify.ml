@@ -610,7 +610,8 @@ and simplify_set_of_closures original_env r
           simplify body_env r function_decl.body)
     in
     let function_decl =
-      Flambda.create_function_declaration ~params:function_decl.params
+      Flambda.create_function_declaration ~recursive:function_decl.recursive
+        ~params:function_decl.params
         ~body ~stub:function_decl.stub ~dbg:function_decl.dbg
         ~inline:function_decl.inline ~specialise:function_decl.specialise
         ~is_a_functor:function_decl.is_a_functor
@@ -631,13 +632,9 @@ and simplify_set_of_closures original_env r
     lazy (Invariant_params.invariant_params_in_recursion function_decls
       ~backend:(E.backend env))
   in
-  let recursive =
-    lazy (Find_recursive_functions.in_function_declarations function_decls
-      ~backend:(E.backend env))
-  in
   let keep_body =
     Inline_and_simplify_aux.keep_body_check
-      ~is_classic_mode:function_decls.is_classic_mode ~recursive
+      ~is_classic_mode:function_decls.is_classic_mode
   in
   let function_decls_approx =
     A.function_declarations_approx ~keep_body function_decls
@@ -647,7 +644,6 @@ and simplify_set_of_closures original_env r
       ~function_decls:function_decls_approx
       ~bound_vars:internal_value_set_of_closures.bound_vars
       ~invariant_params
-      ~recursive
       ~specialised_args:internal_value_set_of_closures.specialised_args
       ~free_vars:internal_value_set_of_closures.free_vars
       ~freshening:internal_value_set_of_closures.freshening
@@ -834,6 +830,7 @@ and simplify_partial_application env r ~lhs_of_application
       ~is_classic_mode:false
       ~body
       ~params:remaining_args
+      ~recursive:false
       ~stub:true
   in
   let with_known_args =
@@ -1427,7 +1424,7 @@ and duplicate_function ~env ~(set_of_closures : Flambda.set_of_closures)
     Flambda.create_function_declaration ~params:function_decl.params
       ~body ~stub:function_decl.stub ~dbg:function_decl.dbg
       ~inline:function_decl.inline ~specialise:function_decl.specialise
-      ~is_a_functor:function_decl.is_a_functor
+      ~is_a_functor:function_decl.is_a_functor ~recursive:function_decl.recursive
       ~closure_origin:(Closure_origin.create (Closure_id.wrap new_fun_var))
   in
   function_decl, specialised_args
@@ -1462,14 +1459,10 @@ let constant_defining_value_approx
       lazy (Invariant_params.invariant_params_in_recursion function_decls
         ~backend:(E.backend env))
     in
-    let recursive =
-      lazy (Find_recursive_functions.in_function_declarations function_decls
-        ~backend:(E.backend env))
-    in
     let value_set_of_closures =
       let keep_body =
         Inline_and_simplify_aux.keep_body_check
-          ~is_classic_mode:function_decls.is_classic_mode ~recursive
+          ~is_classic_mode:function_decls.is_classic_mode
       in
       let function_decls =
         A.function_declarations_approx ~keep_body function_decls
@@ -1477,7 +1470,6 @@ let constant_defining_value_approx
       A.create_value_set_of_closures ~function_decls
         ~bound_vars:Var_within_closure.Map.empty
         ~invariant_params
-        ~recursive
         ~specialised_args:Variable.Map.empty
         ~free_vars:Variable.Map.empty
         ~freshening:Freshening.Project_var.empty

@@ -138,15 +138,9 @@ let rec import_code_for_pack units pack expr =
 and import_function_declarations_for_pack_aux units pack
       (function_decls : Flambda.function_declarations) =
   let funs =
-    Variable.Map.map
-      (fun (function_decl : Flambda.function_declaration) ->
-        Flambda.create_function_declaration ~params:function_decl.params
-          ~body:(import_code_for_pack units pack function_decl.body)
-          ~stub:function_decl.stub ~dbg:function_decl.dbg
-          ~inline:function_decl.inline
-          ~specialise:function_decl.specialise
-          ~is_a_functor:function_decl.is_a_functor
-          ~closure_origin:function_decl.closure_origin)
+    Variable.Map.map (fun (function_decl : Flambda.function_declaration) ->
+      Flambda.update_function_declaration_body function_decl
+        ~body:(import_code_for_pack units pack function_decl.body))
       function_decls.funs
   in
   Flambda.import_function_declarations_for_pack
@@ -221,9 +215,6 @@ let import_for_pack ~pack_units ~pack (exp : Export_info.t) =
     ~invariant_params:
       (Set_of_closures_id.Map.map_keys import_set_of_closures_id
          exp.invariant_params)
-    ~recursive:
-      (Set_of_closures_id.Map.map_keys import_set_of_closures_id
-         exp.recursive)
 
 let clear_import_state () =
   Set_of_closures_id.Tbl.clear imported_function_declarations_table;

@@ -41,7 +41,7 @@ let inline env r ~lhs_of_application
     ~closure_id_being_applied
     ~(function_decl : A.function_declaration)
     ~(function_body : A.function_body)
-    ~value_set_of_closures ~only_use_of_function ~original ~recursive
+    ~value_set_of_closures ~only_use_of_function ~original
     ~(args : Variable.t list) ~size_from_approximation ~dbg ~simplify
     ~(inline_requested : Lambda.inline_attribute)
     ~(specialise_requested : Lambda.specialise_attribute)
@@ -95,7 +95,7 @@ let inline env r ~lhs_of_application
     else if never_inline then
       Don't_try_it S.Not_inlined.Annotation
     else if not (E.unrolling_allowed env set_of_closures_origin)
-         && (Lazy.force recursive) then
+         && function_body.recursive then
       Don't_try_it S.Not_inlined.Unrolling_depth_exceeded
     else if remaining_inlining_threshold = T.Never_inline then
       let threshold =
@@ -219,6 +219,8 @@ let inline env r ~lhs_of_application
       let env =
         (* We decrement the unrolling count even if the function is not
            recursive to avoid having to check whether or not it is recursive *)
+        (* CR-soon lmaurer: No longer necessary; checking for recursiveness
+            is quick *)
         E.inside_unrolled_function env set_of_closures_origin
       in
       let env = E.inside_inlined_function env function_decl.closure_origin in
@@ -260,6 +262,8 @@ let inline env r ~lhs_of_application
         let env =
           (* We decrement the unrolling count even if the function is recursive
              to avoid having to check whether or not it is recursive *)
+          (* CR-soon lmaurer: No longer necessary; checking for recursiveness
+             is quick *)
           E.inside_unrolled_function env set_of_closures_origin
         in
         let body, r_inlined = simplify env r_inlined body in
@@ -299,9 +303,10 @@ let inline env r ~lhs_of_application
 let specialise env r ~lhs_of_application
       ~(function_decls : A.function_declarations)
       ~(function_decl : A.function_declaration)
+      ~(function_body : A.function_body)
       ~closure_id_being_applied
       ~(value_set_of_closures : A.value_set_of_closures)
-      ~args ~args_approxs ~dbg ~simplify ~original ~recursive ~self_call
+      ~args ~args_approxs ~dbg ~simplify ~original ~self_call
       ~inlining_threshold ~fun_cost
       ~inline_requested ~specialise_requested =
   let invariant_params = value_set_of_closures.invariant_params in
@@ -357,7 +362,7 @@ let specialise env r ~lhs_of_application
       Don't_try_it (S.Not_specialised.Above_threshold threshold)
     else if not (Variable.Map.is_empty free_vars) then
       Don't_try_it S.Not_specialised.Not_closed
-    else if not (Lazy.force recursive) then
+    else if not function_body.recursive then
       Don't_try_it S.Not_specialised.Not_recursive
     else if Variable.Map.is_empty (Lazy.force invariant_params) then
       Don't_try_it S.Not_specialised.No_invariant_parameters
@@ -509,8 +514,8 @@ let for_call_site ~env ~r ~(function_decls : A.function_declarations)
   in
   match function_decl.function_body with
   | None -> original, original_r
-  | Some { stub; _ } ->
-    if stub then begin
+  | Some function_body ->
+    if function_body.stub then begin
       let fun_vars = Variable.Map.keys function_decls.funs in
       let function_body = get_function_body function_decl in
       let body, r =
@@ -657,16 +662,10 @@ let for_call_site ~env ~r ~(function_decls : A.function_declarations)
                     inlining threshold---this seems to take too long. *)
                  ~size_from_approximation:None)
           in
-          let recursive =
-            lazy
-              (let fun_var = Closure_id.unwrap closure_id_being_applied in
-               Variable.Set.mem fun_var
-                 (Lazy.force value_set_of_closures.recursive))
-          in
           let specialise_result =
             specialise env r
-              ~function_decls ~function_decl
-              ~lhs_of_application ~recursive ~closure_id_being_applied
+              ~function_decls ~function_decl ~function_body
+              ~lhs_of_application ~closure_id_being_applied
               ~value_set_of_closures ~args ~args_approxs ~dbg ~simplify
               ~original ~inline_requested ~specialise_requested ~fun_cost
               ~self_call ~inlining_threshold
@@ -696,7 +695,7 @@ let for_call_site ~env ~r ~(function_decls : A.function_declarations)
             let inline_result =
               inline env r ~lhs_of_application
                 ~closure_id_being_applied ~function_decl ~value_set_of_closures
-                ~only_use_of_function ~original ~recursive
+                ~only_use_of_function ~original
                 ~inline_requested ~specialise_requested
                 ~fun_vars ~set_of_closures_origin ~args
                 ~size_from_approximation ~dbg ~simplify ~fun_cost ~self_call

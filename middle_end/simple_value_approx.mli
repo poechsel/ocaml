@@ -159,6 +159,7 @@ and function_body = private {
   specialise : Lambda.specialise_attribute;
   is_a_functor : bool;
   body : Flambda.t;
+  recursive : bool;
 }
 
 and function_declaration = private {
@@ -182,7 +183,6 @@ and value_set_of_closures = private {
   bound_vars : t Var_within_closure.Map.t;
   free_vars : Flambda.specialised_to Variable.Map.t;
   invariant_params : Variable.Set.t Variable.Map.t Lazy.t;
-  recursive : Variable.Set.t Lazy.t;
   size : int option Variable.Map.t Lazy.t;
   (** For functions that are very likely to be inlined, the size of the
       function's body. *)
@@ -218,7 +218,7 @@ val print_function_declarations
   -> unit
 
 val function_declarations_approx
-   : keep_body:(Variable.t -> Flambda.function_declaration -> bool)
+   : keep_body:(Flambda.function_declaration -> bool)
   -> Flambda.function_declarations
   -> function_declarations
 
@@ -227,7 +227,6 @@ val create_value_set_of_closures
   -> bound_vars:t Var_within_closure.Map.t
   -> free_vars:Flambda.specialised_to Variable.Map.t
   -> invariant_params:Variable.Set.t Variable.Map.t lazy_t
-  -> recursive:Variable.Set.t Lazy.t
   -> specialised_args:Flambda.specialised_to Variable.Map.t
   -> freshening:Freshening.Project_var.t
   -> direct_call_surrogates:Closure_id.t Closure_id.Map.t

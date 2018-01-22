@@ -524,7 +524,7 @@ let rewrite_function ~lhs_of_application ~closure_id_being_applied
   in
   let new_function_decl =
     Flambda.create_function_declaration
-      ~params ~body
+      ~params ~body ~recursive:function_body.recursive
       ~stub:function_body.stub
       ~dbg:function_body.dbg
       ~inline:function_body.inline

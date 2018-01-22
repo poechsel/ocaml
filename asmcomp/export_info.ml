@@ -148,7 +148,6 @@ type t = {
   offset_fv : int Var_within_closure.Map.t;
   constant_closures : Closure_id.Set.t;
   invariant_params : Variable.Set.t Variable.Map.t Set_of_closures_id.Map.t;
-  recursive : Variable.Set.t Set_of_closures_id.Map.t;
 }
 
 type transient = {
@@ -156,7 +155,6 @@ type transient = {
   values : descr Export_id.Map.t Compilation_unit.Map.t;
   symbol_id : Export_id.t Symbol.Map.t;
   invariant_params : Variable.Set.t Variable.Map.t Set_of_closures_id.Map.t;
-  recursive : Variable.Set.t Set_of_closures_id.Map.t;
   relevant_local_closure_ids : Closure_id.Set.t;
   relevant_imported_closure_ids : Closure_id.Set.t;
   relevant_local_vars_within_closure  : Var_within_closure.Set.t;
@@ -171,7 +169,6 @@ let empty : t = {
   offset_fv = Var_within_closure.Map.empty;
   constant_closures = Closure_id.Set.empty;
   invariant_params = Set_of_closures_id.Map.empty;
-  recursive = Set_of_closures_id.Map.empty;
 }
 
 let opaque_transient ~compilation_unit ~root_symbol : transient =
@@ -185,7 +182,6 @@ let opaque_transient ~compilation_unit ~root_symbol : transient =
     values;
     symbol_id;
     invariant_params = Set_of_closures_id.Map.empty;
-    recursive = Set_of_closures_id.Map.empty;
     relevant_local_closure_ids = Closure_id.Set.empty;
     relevant_imported_closure_ids = Closure_id.Set.empty;
     relevant_local_vars_within_closure = Var_within_closure.Set.empty;
@@ -194,7 +190,7 @@ let opaque_transient ~compilation_unit ~root_symbol : transient =
 
 let create ~sets_of_closures ~values ~symbol_id
       ~offset_fun ~offset_fv ~constant_closures
-      ~invariant_params ~recursive =
+      ~invariant_params =
   { sets_of_closures;
     values;
     symbol_id;
@@ -202,11 +198,10 @@ let create ~sets_of_closures ~values ~symbol_id
     offset_fv;
     constant_closures;
     invariant_params;
-    recursive;
   }
 
 let create_transient
-      ~sets_of_closures ~values ~symbol_id ~invariant_params ~recursive
+      ~sets_of_closures ~values ~symbol_id ~invariant_params
       ~relevant_local_closure_ids ~relevant_imported_closure_ids
       ~relevant_local_vars_within_closure
       ~relevant_imported_vars_within_closure =
@@ -214,7 +209,6 @@ let create_transient
     values;
     symbol_id;
     invariant_params;
-    recursive;
     relevant_local_closure_ids;
     relevant_imported_closure_ids;
     relevant_local_vars_within_closure;
@@ -255,7 +249,6 @@ let t_of_transient transient
     values = transient.values;
     symbol_id = transient.symbol_id;
     invariant_params = transient.invariant_params;
-    recursive = transient.recursive;
     offset_fun;
     offset_fv;
     constant_closures;
@@ -289,11 +282,6 @@ let merge (t1 : t) (t2 : t) : t =
         ~print:(Variable.Map.print Variable.Set.print)
         ~eq:(Variable.Map.equal Variable.Set.equal)
         t1.invariant_params t2.invariant_params;
-    recursive =
-      Set_of_closures_id.Map.disjoint_union
-        ~print:Variable.Set.print
-        ~eq:Variable.Set.equal
-        t1.recursive t2.recursive;
   }
 
 let find_value eid map =

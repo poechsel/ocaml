@@ -96,7 +96,7 @@ let tupled_function_call_stub original_params unboxed_version ~closure_bound_var
       (0, call) params
   in
   let tuple_param = Parameter.wrap tuple_param_var in
-  Flambda.create_function_declaration ~params:[tuple_param]
+  Flambda.create_function_declaration ~recursive:false ~params:[tuple_param]
     ~body ~stub:true ~dbg:Debuginfo.none ~inline:Default_inline
     ~specialise:Default_specialise ~is_a_functor:false
     ~closure_origin:(Closure_origin.create (Closure_id.wrap closure_bound_var))
@@ -536,6 +536,30 @@ and close_functions t external_env function_declarations : Flambda.named =
       external_env function_declarations
   in
   let all_free_idents = Function_decls.all_free_idents function_declarations in
+  let recursive_ids =
+    let module SCC = Strongly_connected_components.Make (Ident) in
+    let fun_ids : Ident.Set.t =
+      Ident.Set.of_list
+        (List.map Function_decl.let_rec_ident
+           (Function_decls.to_list function_declarations))
+    in
+    let directed_graph : Ident.Set.t Ident.Map.t =
+      List.fold_left (fun graph decl ->
+        let free_fun_ids =
+          Ident.Set.inter fun_ids (Function_decl.free_idents decl)
+        in
+        Ident.Map.add (Function_decl.let_rec_ident decl) free_fun_ids graph
+      ) Ident.Map.empty (Function_decls.to_list function_declarations)
+    in
+    let connected_components =
+      SCC.connected_components_sorted_from_roots_to_leaf directed_graph
+    in
+    Array.fold_left (fun rec_ids component ->
+      match component with
+      | SCC.No_loop _ -> rec_ids
+      | SCC.Has_loop elts -> List.fold_right Ident.Set.add elts rec_ids)
+      Ident.Set.empty connected_components
+  in
   let close_one_function map decl =
     let body = Function_decl.body decl in
     let loc = Function_decl.loc decl in
@@ -554,6 +578,8 @@ and close_functions t external_env function_declarations : Flambda.named =
        argument with a default value, make sure it always gets inlined.
        CR-someday pchambart: eta-expansion wrapper for a primitive are
        not marked as stub but certainly should *)
+    let let_rec_ident = Function_decl.let_rec_ident decl in
+    let recursive = Ident.Set.mem let_rec_ident recursive_ids in
     let stub = Function_decl.stub decl in
     let param_vars = List.map (Env.find_var closure_env) params in
     let params = List.map Parameter.wrap param_vars in
@@ -565,6 +591,7 @@ and close_functions t external_env function_declarations : Flambda.named =
     in
     let fun_decl =
       Flambda.create_function_declaration ~params ~body ~stub ~dbg
+        ~recursive
         ~inline:(Function_decl.inline decl)
         ~specialise:(Function_decl.specialise decl)
         ~is_a_functor:(Function_decl.is_a_functor decl)

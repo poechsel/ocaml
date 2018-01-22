@@ -535,14 +535,9 @@ let build_transient ~(backend : (module Backend_intf.S))
     in
     let function_declarations_map =
       let set_of_closures_approx { Flambda. function_decls; _ } =
-        let recursive =
-          lazy
-            (Find_recursive_functions.in_function_declarations
-               function_decls ~backend)
-        in
         let keep_body =
           Inline_and_simplify_aux.keep_body_check
-            ~is_classic_mode:function_decls.is_classic_mode ~recursive
+            ~is_classic_mode:function_decls.is_classic_mode
         in
         Simple_value_approx.function_declarations_approx
           ~keep_body function_decls
@@ -593,48 +588,6 @@ let build_transient ~(backend : (module Backend_intf.S))
           | Value_unknown_descr ->
             invariant_params)
         unnested_values invariant_params
-    in
-    let recursive =
-      let recursive =
-        Set_of_closures_id.Map.map
-          (fun { Flambda. function_decls; _ } ->
-             if function_decls.is_classic_mode then begin
-               Variable.Set.empty
-             end else begin
-               Find_recursive_functions.in_function_declarations
-                 ~backend function_decls
-             end)
-          (Flambda_utils.all_sets_of_closures_map program)
-      in
-      let export = Compilenv.approx_env () in
-      Export_id.Map.fold
-        (fun _eid (descr:Export_info.descr) recursive ->
-          match (descr : Export_info.descr) with
-          | Value_closure { set_of_closures }
-          | Value_set_of_closures set_of_closures ->
-            let { Export_info.set_of_closures_id } = set_of_closures in
-            begin match
-              Set_of_closures_id.Map.find set_of_closures_id
-                export.recursive
-            with
-            | exception Not_found ->
-              recursive
-            | (set : Variable.Set.t) ->
-              Set_of_closures_id.Map.add
-                set_of_closures_id set recursive
-            end
-          | Export_info.Value_boxed_int (_, _)
-          | Value_block _
-          | Value_mutable_block _
-          | Value_int _
-          | Value_char _
-          | Value_constptr _
-          | Value_float _
-          | Value_float_array _
-          | Value_string _
-          | Value_unknown_descr ->
-            recursive)
-        unnested_values recursive
     in
     let values = Export_info.nest_eid_map unnested_values in
     let symbol_id = Env.Global.symbol_to_export_id_map env in
@@ -705,7 +658,6 @@ let build_transient ~(backend : (module Backend_intf.S))
       ~symbol_id
       ~sets_of_closures
       ~invariant_params
-      ~recursive
       ~relevant_local_closure_ids
       ~relevant_imported_closure_ids
       ~relevant_local_vars_within_closure

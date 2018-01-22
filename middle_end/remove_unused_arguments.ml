@@ -38,7 +38,8 @@ let remove_params unused (fun_decl: Flambda.function_declaration)
       fun_decl.body
       unused_params
   in
-  Flambda.create_function_declaration ~params:used_params ~body
+  Flambda.create_function_declaration ~recursive:fun_decl.recursive
+    ~params:used_params ~body
     ~stub:fun_decl.stub ~dbg:fun_decl.dbg ~inline:fun_decl.inline
     ~specialise:fun_decl.specialise ~is_a_functor:fun_decl.is_a_functor
     ~closure_origin:(Closure_origin.create (Closure_id.wrap new_fun_var))
@@ -96,7 +97,8 @@ let make_stub unused var (fun_decl : Flambda.function_declaration)
     }
   in
   let function_decl =
-    Flambda.create_function_declaration ~params:(List.map snd args') ~body
+    Flambda.create_function_declaration ~recursive:false
+      ~params:(List.map snd args') ~body
       ~stub:true ~dbg:fun_decl.dbg ~inline:Default_inline
       ~specialise:Default_specialise ~is_a_functor:fun_decl.is_a_functor
       ~closure_origin:fun_decl.closure_origin
@@ -176,14 +178,14 @@ let separate_unused_arguments ~only_specialised
    args should always be beneficial since they should not be used in
    indirect calls. *)
 let should_split_only_specialised_args
-    (fun_decls : Flambda.function_declarations)
-    ~backend =
+    (fun_decls : Flambda.function_declarations) =
   if not !Clflags.remove_unused_arguments then begin
     true
   end else begin
     let no_recursive_functions =
-      Variable.Set.is_empty
-        (Find_recursive_functions.in_function_declarations fun_decls ~backend)
+      Variable.Map.for_all
+        (fun _ fun_decl -> not fun_decl.Flambda.recursive)
+        fun_decls.funs
     in
     let number_of_non_stub_functions =
       Variable.Map.cardinal
@@ -201,7 +203,6 @@ let separate_unused_arguments_in_set_of_closures set_of_closures ~backend =
   let only_specialised =
     should_split_only_specialised_args
        set_of_closures.Flambda.function_decls
-       ~backend
   in
   match separate_unused_arguments
           ~only_specialised ~backend ~set_of_closures with
@@ -225,7 +226,6 @@ let separate_unused_arguments_in_closures_expr tree ~backend =
         let only_specialised =
           should_split_only_specialised_args
             set_of_closures.function_decls
-            ~backend
         in
         match separate_unused_arguments
                 ~only_specialised ~backend ~set_of_closures with
