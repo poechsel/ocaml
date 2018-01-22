@@ -91,27 +91,11 @@ let rec import_ex ex =
               what
         | found -> found
       in
-      let recursive =
-        match
-          Set_of_closures_id.Map.find set_of_closures_id ex_info.recursive
-        with
-        | exception Not_found ->
-          if is_classic_mode then
-            Variable.Set.empty
-          else
-            Misc.fatal_errorf "Set of closures ID %a not found in \
-                               recursive (when importing [%a: %s])"
-              Set_of_closures_id.print set_of_closures_id
-              Export_id.print ex
-              what
-        | found -> found
-      in
       Some (A.create_value_set_of_closures
         ~function_decls
         ~bound_vars
         ~free_vars
         ~invariant_params:(lazy invariant_params)
-        ~recursive:(lazy recursive)
         ~specialised_args:Variable.Map.empty
         ~freshening:Freshening.Project_var.empty
         ~direct_call_surrogates:Closure_id.Map.empty)

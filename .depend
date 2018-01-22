@@ -3889,7 +3889,6 @@ middle_end/flambda/build_export_info.cmo : \
     middle_end/flambda/inline_and_simplify_aux.cmi \
     middle_end/flambda/flambda_utils.cmi \
     middle_end/flambda/flambda.cmi \
-    middle_end/flambda/find_recursive_functions.cmi \
     middle_end/flambda/export_info.cmi \
     middle_end/flambda/base_types/export_id.cmi \
     middle_end/compilenv.cmi \
@@ -3912,7 +3911,6 @@ middle_end/flambda/build_export_info.cmx : \
     middle_end/flambda/inline_and_simplify_aux.cmx \
     middle_end/flambda/flambda_utils.cmx \
     middle_end/flambda/flambda.cmx \
-    middle_end/flambda/find_recursive_functions.cmx \
     middle_end/flambda/export_info.cmx \
     middle_end/flambda/base_types/export_id.cmx \
     middle_end/compilenv.cmx \
@@ -4147,26 +4145,6 @@ middle_end/flambda/extract_projections.cmi : \
     middle_end/flambda/projection.cmi \
     middle_end/flambda/inline_and_simplify_aux.cmi \
     middle_end/flambda/flambda.cmi
-middle_end/flambda/find_recursive_functions.cmo : \
-    middle_end/variable.cmi \
-    utils/strongly_connected_components.cmi \
-    utils/int_replace_polymorphic_compare.cmi \
-    middle_end/flambda/flambda_utils.cmi \
-    middle_end/flambda/flambda.cmi \
-    middle_end/backend_intf.cmi \
-    middle_end/flambda/find_recursive_functions.cmi
-middle_end/flambda/find_recursive_functions.cmx : \
-    middle_end/variable.cmx \
-    utils/strongly_connected_components.cmx \
-    utils/int_replace_polymorphic_compare.cmx \
-    middle_end/flambda/flambda_utils.cmx \
-    middle_end/flambda/flambda.cmx \
-    middle_end/backend_intf.cmi \
-    middle_end/flambda/find_recursive_functions.cmi
-middle_end/flambda/find_recursive_functions.cmi : \
-    middle_end/variable.cmi \
-    middle_end/flambda/flambda.cmi \
-    middle_end/backend_intf.cmi
 middle_end/flambda/flambda.cmo : \
     middle_end/variable.cmi \
     middle_end/flambda/base_types/tag.cmi \
@@ -4661,7 +4639,6 @@ middle_end/flambda/inline_and_simplify.cmo : \
     middle_end/flambda/freshening.cmi \
     middle_end/flambda/flambda_utils.cmi \
     middle_end/flambda/flambda.cmi \
-    middle_end/flambda/find_recursive_functions.cmi \
     middle_end/flambda/effect_analysis.cmi \
     lambda/debuginfo.cmi \
     utils/config.cmi \
@@ -4704,7 +4681,6 @@ middle_end/flambda/inline_and_simplify.cmx : \
     middle_end/flambda/freshening.cmx \
     middle_end/flambda/flambda_utils.cmx \
     middle_end/flambda/flambda.cmx \
-    middle_end/flambda/find_recursive_functions.cmx \
     middle_end/flambda/effect_analysis.cmx \
     lambda/debuginfo.cmx \
     utils/config.cmx \
@@ -5149,7 +5125,6 @@ middle_end/flambda/remove_unused_arguments.cmo : \
     middle_end/flambda/flambda_utils.cmi \
     middle_end/flambda/flambda_iterators.cmi \
     middle_end/flambda/flambda.cmi \
-    middle_end/flambda/find_recursive_functions.cmi \
     middle_end/compilation_unit.cmi \
     middle_end/flambda/base_types/closure_origin.cmi \
     middle_end/flambda/base_types/closure_id.cmi \
@@ -5164,7 +5139,6 @@ middle_end/flambda/remove_unused_arguments.cmx : \
     middle_end/flambda/flambda_utils.cmx \
     middle_end/flambda/flambda_iterators.cmx \
     middle_end/flambda/flambda.cmx \
-    middle_end/flambda/find_recursive_functions.cmx \
     middle_end/compilation_unit.cmx \
     middle_end/flambda/base_types/closure_origin.cmx \
     middle_end/flambda/base_types/closure_id.cmx \

@@ -529,6 +529,7 @@ module Make (T : S) = struct
     in
     let new_function_decl =
       Flambda.create_function_declaration
+        ~recursive:false
         ~params:wrapper_params
         ~body:wrapper_body
         ~stub:true
@@ -618,6 +619,7 @@ module Make (T : S) = struct
       let rewritten_function_decl =
         Flambda.create_function_declaration
           ~params:all_params
+          ~recursive:function_decl.recursive
           ~body:function_decl.body
           ~stub:function_decl.stub
           ~dbg:function_decl.dbg

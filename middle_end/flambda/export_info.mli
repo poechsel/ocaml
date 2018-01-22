@@ -94,7 +94,6 @@ type t = private {
   invariant_params : Variable.Set.t Variable.Map.t Set_of_closures_id.Map.t;
   (* Function parameters known to be invariant (see [Invariant_params])
      indexed by set of closures ID. *)
-  recursive : Variable.Set.t Set_of_closures_id.Map.t;
 }
 
 type transient = private {
@@ -102,7 +101,6 @@ type transient = private {
   values : descr Export_id.Map.t Compilation_unit.Map.t;
   symbol_id : Export_id.t Symbol.Map.t;
   invariant_params : Variable.Set.t Variable.Map.t Set_of_closures_id.Map.t;
-  recursive : Variable.Set.t Set_of_closures_id.Map.t;
   relevant_local_closure_ids : Closure_id.Set.t;
   relevant_imported_closure_ids : Closure_id.Set.t;
   relevant_local_vars_within_closure  : Var_within_closure.Set.t;
@@ -126,7 +124,6 @@ val create
   -> offset_fv:int Var_within_closure.Map.t
   -> constant_closures:Closure_id.Set.t
   -> invariant_params:Variable.Set.t Variable.Map.t Set_of_closures_id.Map.t
-  -> recursive:Variable.Set.t Set_of_closures_id.Map.t
   -> t
 
 val create_transient
@@ -134,7 +131,6 @@ val create_transient
   -> values:descr Export_id.Map.t Compilation_unit.Map.t
   -> symbol_id:Export_id.t Symbol.Map.t
   -> invariant_params:Variable.Set.t Variable.Map.t Set_of_closures_id.Map.t
-  -> recursive:Variable.Set.t Set_of_closures_id.Map.t
   -> relevant_local_closure_ids: Closure_id.Set.t
   -> relevant_imported_closure_ids : Closure_id.Set.t
   -> relevant_local_vars_within_closure : Var_within_closure.Set.t

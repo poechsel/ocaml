@@ -175,7 +175,6 @@ MIDDLE_END_FLAMBDA=\
   middle_end/flambda/closure_conversion.cmo \
   middle_end/flambda/initialize_symbol_to_let_symbol.cmo \
   middle_end/flambda/lift_let_to_initialize_symbol.cmo \
-  middle_end/flambda/find_recursive_functions.cmo \
   middle_end/flambda/invariant_params.cmo \
   middle_end/flambda/inconstant_idents.cmo \
   middle_end/flambda/alias_analysis.cmo \
