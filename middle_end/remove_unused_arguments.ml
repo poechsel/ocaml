@@ -106,9 +106,11 @@ let make_stub unused var (fun_decl : Flambda.function_declaration)
   function_decl, renamed, additional_specialised_args
 
 let separate_unused_arguments ~only_specialised
-      ~backend ~(set_of_closures : Flambda.set_of_closures) =
+      ~(set_of_closures : Flambda.set_of_closures) ~symbol_to_closure_id =
   let function_decls = set_of_closures.function_decls in
-  let unused = Invariant_params.unused_arguments ~backend function_decls in
+  let unused =
+    Invariant_params.unused_arguments ~symbol_to_closure_id function_decls
+  in
   let non_stub_arguments =
     Variable.Map.fold (fun _ (decl : Flambda.function_declaration) acc ->
         if decl.stub then
@@ -198,14 +200,15 @@ let should_split_only_specialised_args
     no_recursive_functions && (number_of_non_stub_functions <= 1)
   end
 
-let separate_unused_arguments_in_set_of_closures set_of_closures ~backend =
+let separate_unused_arguments_in_set_of_closures set_of_closures
+      ~symbol_to_closure_id =
   let dump = Clflags.dumped_pass pass_name in
   let only_specialised =
     should_split_only_specialised_args
        set_of_closures.Flambda.function_decls
   in
   match separate_unused_arguments
-          ~only_specialised ~backend ~set_of_closures with
+          ~only_specialised ~symbol_to_closure_id ~set_of_closures with
   | None ->
     if dump then
       Format.eprintf "No change for Remove_unused_arguments:@ %a@.@."
@@ -219,7 +222,7 @@ let separate_unused_arguments_in_set_of_closures set_of_closures ~backend =
         Flambda.print_set_of_closures result;
     Some result
 
-let separate_unused_arguments_in_closures_expr tree ~backend =
+let separate_unused_arguments_in_closures_expr tree ~symbol_to_closure_id =
   let aux_named (named : Flambda.named) : Flambda.named =
     match named with
     | Set_of_closures set_of_closures -> begin
@@ -228,7 +231,7 @@ let separate_unused_arguments_in_closures_expr tree ~backend =
             set_of_closures.function_decls
         in
         match separate_unused_arguments
-                ~only_specialised ~backend ~set_of_closures with
+                ~only_specialised ~symbol_to_closure_id ~set_of_closures with
         | None -> named
         | Some set_of_closures -> Set_of_closures set_of_closures
       end
@@ -236,6 +239,6 @@ let separate_unused_arguments_in_closures_expr tree ~backend =
   in
   Flambda_iterators.map_named aux_named tree
 
-let separate_unused_arguments_in_closures program ~backend =
+let separate_unused_arguments_in_closures program ~symbol_to_closure_id =
   Flambda_iterators.map_exprs_at_toplevel_of_program program ~f:(fun expr ->
-    separate_unused_arguments_in_closures_expr expr ~backend)
+    separate_unused_arguments_in_closures_expr expr ~symbol_to_closure_id)

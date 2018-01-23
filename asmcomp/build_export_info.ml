@@ -514,9 +514,7 @@ let describe_program (env : Env.Global.t) (program : Flambda.program) =
   in
   loop env program.program_body
 
-
-let build_transient ~(backend : (module Backend_intf.S))
-      (program : Flambda.program) : Export_info.transient =
+let build_transient (program : Flambda.program) : Export_info.transient =
   if !Clflags.opaque then
     let compilation_unit = Compilenv.current_unit () in
     let root_symbol = Compilenv.current_unit_symbol () in
@@ -548,6 +546,16 @@ let build_transient ~(backend : (module Backend_intf.S))
       Env.Global.export_id_to_descr_map env
     in
     let invariant_params =
+      let rec symbol_to_closure_id sym =
+        match Env.get_symbol_descr (Env.empty_of_global env) sym with
+        | Some descr -> closure_id_of_descr descr
+        | _ -> None
+      and closure_id_of_descr (descr : Export_info.descr) =
+        match descr with
+        | Value_closure { closure_id; _ } -> Some closure_id
+        | Value_recursive (Value_symbol sym, _) -> symbol_to_closure_id sym
+        | _ -> None
+      in
       let invariant_params =
         Set_of_closures_id.Map.map
           (fun { Flambda. function_decls; _ } ->
@@ -555,7 +563,7 @@ let build_transient ~(backend : (module Backend_intf.S))
                Variable.Map.empty
              end else begin
                Invariant_params.invariant_params_in_recursion
-                 ~backend function_decls
+                 ~symbol_to_closure_id function_decls
              end)
           (Flambda_utils.all_sets_of_closures_map program)
       in

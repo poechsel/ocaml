@@ -575,14 +575,14 @@ and simplify_set_of_closures original_env r
       (set_of_closures : Flambda.set_of_closures)
       : Flambda.set_of_closures * R.t * Freshening.Project_var.t =
   let function_decls =
-    let module Backend = (val (E.backend original_env) : Backend_intf.S) in
+    let symbol_to_closure_id = E.find_closure_id_for_symbol original_env in
     (* CR-soon mshinwell: Does this affect
        [reference_recursive_function_directly]?
        mshinwell: This should be thought about as part of the wider issue of
        references to functions via symbols or variables. *)
     Freshening.rewrite_recursive_calls_with_symbols (E.freshening original_env)
       set_of_closures.function_decls
-      ~make_closure_symbol:Backend.closure_symbol
+      ~symbol_to_closure_id
   in
   let env = E.increase_closure_depth original_env in
   let free_vars, specialised_args, function_decls, parameter_approximations,
@@ -630,7 +630,7 @@ and simplify_set_of_closures original_env r
   in
   let invariant_params =
     lazy (Invariant_params.invariant_params_in_recursion function_decls
-      ~backend:(E.backend env))
+      ~symbol_to_closure_id:(E.find_closure_id_for_symbol env))
   in
   let keep_body =
     Inline_and_simplify_aux.keep_body_check
@@ -894,7 +894,7 @@ and simplify_named env r (tree : Flambda.named) : Flambda.named * R.t =
       simplify_named_using_approx_and_env env r tree approx
     end
   | Set_of_closures set_of_closures -> begin
-    let backend = E.backend env in
+    let symbol_to_closure_id = E.find_closure_id_for_symbol env in
     let set_of_closures, r, first_freshening =
       simplify_set_of_closures env r set_of_closures
     in
@@ -963,9 +963,8 @@ and simplify_named env r (tree : Flambda.named) : Flambda.named * R.t =
           simplify env r expr ~pass_name:"Unbox_specialised_args"
         | None ->
           match
-            Remove_unused_arguments.
-                separate_unused_arguments_in_set_of_closures
-              set_of_closures ~backend
+            Remove_unused_arguments.separate_unused_arguments_in_set_of_closures
+              set_of_closures ~symbol_to_closure_id
           with
           | Some set_of_closures ->
             let expr =
@@ -1457,7 +1456,7 @@ let constant_defining_value_approx
     assert(Variable.Map.is_empty specialised_args);
     let invariant_params =
       lazy (Invariant_params.invariant_params_in_recursion function_decls
-        ~backend:(E.backend env))
+        ~symbol_to_closure_id:(E.find_closure_id_for_symbol env))
     in
     let value_set_of_closures =
       let keep_body =
