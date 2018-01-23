@@ -30,10 +30,10 @@
 *)
 val separate_unused_arguments_in_closures
    : Flambda.program
-  -> backend:(module Backend_intf.S)
+  -> symbol_to_closure_id:(Symbol.t -> Closure_id.t option)
   -> Flambda.program
 
 val separate_unused_arguments_in_set_of_closures
    : Flambda.set_of_closures
-  -> backend:(module Backend_intf.S)
+  -> symbol_to_closure_id:(Symbol.t -> Closure_id.t option)
   -> Flambda.set_of_closures option

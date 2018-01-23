@@ -179,14 +179,14 @@ end
 *)
 val fun_vars_referenced_in_decls
    : Flambda.function_declarations
-  -> closure_symbol:(Closure_id.t -> Symbol.t)
+  -> symbol_to_closure_id:(Symbol.t -> Closure_id.t option)
   -> Variable.Set.t Variable.Map.t
 
 (** Computes the set of closure_id in the set of closures that are
     required used (transitively) the entry_point *)
 val closures_required_by_entry_point
    : entry_point:Closure_id.t
-  -> closure_symbol:(Closure_id.t -> Symbol.t)
+  -> symbol_to_closure_id:(Symbol.t -> Closure_id.t option)
   -> Flambda.function_declarations
   -> Variable.Set.t
 
