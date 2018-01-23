@@ -499,8 +499,7 @@ let describe_program (env : Env.Global.t) (program : Flambda.program) =
   in
   loop env program.program_body
 
-let build_export_info ~(backend : (module Backend_intf.S))
-      (program : Flambda.program) : Export_info.t =
+let build_export_info (program : Flambda.program) : Export_info.t =
   if !Clflags.opaque then
     Export_info.empty
   else
@@ -518,11 +517,21 @@ let build_export_info ~(backend : (module Backend_intf.S))
     let closures =
       Flambda_utils.all_function_decls_indexed_by_closure_id program
     in
+    let rec symbol_to_closure_id sym =
+      match Env.get_symbol_descr (Env.empty_of_global env) sym with
+      | Some descr -> closure_id_of_descr descr
+      | _ -> None
+    and closure_id_of_descr (descr : Export_info.descr) =
+      match descr with
+      | Value_closure { closure_id; _ } -> Some closure_id
+      | Value_recursive (Value_symbol sym, _) -> symbol_to_closure_id sym
+      | _ -> None
+    in
     let invariant_params =
       Set_of_closures_id.Map.map
         (fun { Flambda. function_decls; _ } ->
            Invariant_params.invariant_params_in_recursion
-             ~backend function_decls)
+             ~symbol_to_closure_id function_decls)
         (Flambda_utils.all_sets_of_closures_map program)
     in
     let unnested_values =

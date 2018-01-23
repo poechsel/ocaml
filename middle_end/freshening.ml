@@ -192,27 +192,28 @@ let apply_mutable_variable t mut_var =
 
 let rewrite_recursive_calls_with_symbols t
       (function_declarations : Flambda.function_declarations)
-      ~make_closure_symbol =
+      ~(symbol_to_closure_id:Symbol.t -> Closure_id.t option) =
   match t with
   | Inactive -> function_declarations
   | Active _ ->
     let all_free_symbols =
       Flambda_utils.all_free_symbols function_declarations
     in
-    let closure_symbols_used = ref false in
     let closure_symbols =
-      Variable.Map.fold (fun var _ map ->
-        let closure_id = Closure_id.wrap var in
-        let sym = make_closure_symbol closure_id in
-        if Symbol.Set.mem sym all_free_symbols then begin
-          closure_symbols_used := true;
-          Symbol.Map.add sym var map
-        end else begin
+      Symbol.Set.fold (fun sym map ->
+        match symbol_to_closure_id sym with
+        | Some closure_id ->
+          let var = Closure_id.unwrap closure_id in
+          if Variable.Map.mem var function_declarations.funs then
+            Symbol.Map.add sym var map
+          else
+            map
+        | None ->
           map
-        end)
-      function_declarations.funs Symbol.Map.empty
+      )
+      all_free_symbols Symbol.Map.empty
     in
-    if not !closure_symbols_used then begin
+    if Symbol.Map.is_empty closure_symbols then begin
       (* Don't waste time rewriting the function declaration(s) if there
          are no occurrences of any of the closure symbols. *)
       function_declarations

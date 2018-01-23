@@ -152,6 +152,15 @@ module Env = struct
       Backend.import_symbol symbol
     | approx -> approx
 
+  let find_closure_id_for_symbol t symbol =
+    match find_symbol_opt t symbol with
+    | None -> None
+    | Some approx ->
+      begin match Simple_value_approx.check_approx_for_closure approx with
+      | Ok (value_closure, _, _, _) -> Some value_closure.closure_id
+      | Wrong -> None
+      end
+
   let add_projection t ~projection ~bound_to =
     { t with
       projections =

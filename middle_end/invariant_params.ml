@@ -124,15 +124,18 @@ let transitive_closure state =
 *)
 let function_variable_alias
     (function_decls : Flambda.function_declarations)
-    ~backend =
-  let fun_vars = Variable.Map.keys function_decls.funs in
+    ~(symbol_to_closure_id:Symbol.t -> Closure_id.t option) =
+  let free_syms = Flambda_utils.all_free_symbols function_decls in
   let symbols_to_fun_vars =
-    let module Backend = (val backend : Backend_intf.S) in
-    Variable.Set.fold (fun fun_var symbols_to_fun_vars ->
-        let closure_id = Closure_id.wrap fun_var in
-        let symbol = Backend.closure_symbol closure_id in
-        Symbol.Map.add symbol fun_var symbols_to_fun_vars)
-      fun_vars
+    Symbol.Set.fold (fun symbol symbols_to_fun_vars ->
+      match symbol_to_closure_id symbol with
+      | Some closure_id ->
+        let fun_var = Closure_id.unwrap closure_id in
+        if Variable.Map.mem fun_var function_decls.funs
+        then Symbol.Map.add symbol fun_var symbols_to_fun_vars
+        else symbols_to_fun_vars
+      | None -> symbols_to_fun_vars)
+      free_syms
       Symbol.Map.empty
   in
   let fun_var_bindings = ref Variable.Map.empty in
@@ -155,10 +158,12 @@ let function_variable_alias
     function_decls.funs;
   !fun_var_bindings
 
-let analyse_functions ~backend ~param_to_param
+let analyse_functions ~symbol_to_closure_id ~param_to_param
       ~anything_to_param ~param_to_anywhere
       (decls : Flambda.function_declarations) =
-  let function_variable_alias = function_variable_alias ~backend decls in
+  let function_variable_alias =
+    function_variable_alias ~symbol_to_closure_id decls
+  in
   let param_indexes_by_fun_vars =
     Variable.Map.map (fun (decl : Flambda.function_declaration) ->
       Array.of_list (Parameter.List.vars decl.params))
@@ -307,7 +312,7 @@ let analyse_functions ~backend ~param_to_param
  *)
 
 let invariant_params_in_recursion (decls : Flambda.function_declarations)
-      ~backend =
+      ~symbol_to_closure_id =
   let param_to_param ~caller ~caller_arg ~callee ~callee_arg relation =
     implies relation (caller, caller_arg) (callee, callee_arg)
   in
@@ -316,7 +321,7 @@ let invariant_params_in_recursion (decls : Flambda.function_declarations)
   in
   let param_to_anywhere ~caller:_ ~caller_arg:_ relation = relation in
   let relation =
-    analyse_functions ~backend ~param_to_param
+    analyse_functions ~symbol_to_closure_id ~param_to_param
       ~anything_to_param ~param_to_anywhere
       decls
   in
@@ -367,14 +372,14 @@ let invariant_params_in_recursion (decls : Flambda.function_declarations)
       | set -> set)
     unchanging
 
-let invariant_param_sources decls ~backend =
+let invariant_param_sources decls ~symbol_to_closure_id =
   let param_to_param ~caller ~caller_arg ~callee ~callee_arg relation =
     implies relation (caller, caller_arg) (callee, callee_arg)
   in
   let anything_to_param ~callee:_ ~callee_arg:_ relation = relation in
   let param_to_anywhere ~caller:_ ~caller_arg:_ relation = relation in
   let relation =
-    analyse_functions ~backend ~param_to_param
+    analyse_functions ~symbol_to_closure_id ~param_to_param
       ~anything_to_param ~param_to_anywhere
       decls
   in
@@ -387,7 +392,8 @@ let invariant_param_sources decls ~backend =
 let pass_name = "unused-arguments"
 let () = Clflags.all_passes := pass_name :: !Clflags.all_passes
 
-let unused_arguments (decls : Flambda.function_declarations) ~backend =
+let unused_arguments (decls : Flambda.function_declarations)
+      ~symbol_to_closure_id =
   let dump = Clflags.dumped_pass pass_name in
   let param_to_param ~caller ~caller_arg ~callee ~callee_arg relation =
     implies relation (callee, callee_arg) (caller, caller_arg)
@@ -397,7 +403,7 @@ let unused_arguments (decls : Flambda.function_declarations) ~backend =
     top relation (caller, caller_arg)
   in
   let relation =
-    analyse_functions ~backend ~param_to_param
+    analyse_functions ~symbol_to_closure_id ~param_to_param
       ~anything_to_param ~param_to_anywhere
       decls
   in

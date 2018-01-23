@@ -85,7 +85,7 @@ val apply_static_exception : t -> Static_exception.t -> Static_exception.t
 val rewrite_recursive_calls_with_symbols
    : t
   -> Flambda.function_declarations
-  -> make_closure_symbol:(Closure_id.t -> Symbol.t)
+  -> symbol_to_closure_id:(Symbol.t -> Closure_id.t option)
   -> Flambda.function_declarations
 
 (* CR-soon mshinwell for mshinwell: maybe inaccurate module name, it freshens

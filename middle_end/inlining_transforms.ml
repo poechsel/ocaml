@@ -207,13 +207,10 @@ let inline_by_copying_function_declaration ~env ~r
     (* To simplify a substitution (see comment below), rewrite any references
        to closures in the set being defined that go via symbols, so they go
        via closure variables instead. *)
-    let make_closure_symbol =
-      let module Backend = (val (E.backend env) : Backend_intf.S) in
-      Backend.closure_symbol
-    in
+    let symbol_to_closure_id = E.find_closure_id_for_symbol env in
     Freshening.rewrite_recursive_calls_with_symbols
       (Freshening.activate Freshening.empty)
-      ~make_closure_symbol
+      ~symbol_to_closure_id
       function_decls
   in
   let original_function_decls = function_decls in
