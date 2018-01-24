@@ -122,6 +122,7 @@ and let_mutable = {
 
 and set_of_closures = {
   function_decls : function_declarations;
+  rec_depth : int;
   free_vars : specialised_to Variable.Map.t;
   specialised_args : specialised_to Variable.Map.t;
   direct_call_surrogates : Variable.t Variable.Map.t;
@@ -441,9 +442,13 @@ and print_function_declaration ppf var (f : function_declaration) =
 
 and print_set_of_closures ppf (set_of_closures : set_of_closures) =
   match set_of_closures with
-  | { function_decls; free_vars; specialised_args} ->
+  | { function_decls; rec_depth; free_vars; specialised_args} ->
     let funs ppf =
       Variable.Map.iter (print_function_declaration ppf)
+    in
+    let depth ppf rec_depth =
+      if rec_depth = 0 then ()
+      else fprintf ppf "@ *rec%a*" print_recursion_depth rec_depth
     in
     let vars ppf =
       Variable.Map.iter (fun id v ->
@@ -460,10 +465,11 @@ and print_set_of_closures ppf (set_of_closures : set_of_closures) =
           spec_args
       end
     in
-    fprintf ppf "@[<2>(set_of_closures id=%a@ %a@ @[<2>free_vars={%a@ }@]@ \
+    fprintf ppf "@[<2>(set_of_closures id=%a%a@ %a@ @[<2>free_vars={%a@ }@]@ \
         @[<2>specialised_args={%a})@]@ \
         @[<2>direct_call_surrogates=%a@]@]"
       Set_of_closures_id.print function_decls.set_of_closures_id
+      depth rec_depth
       funs function_decls.funs
       vars free_vars
       spec specialised_args
@@ -1109,8 +1115,8 @@ let import_function_declarations_for_pack function_decls
     funs = function_decls.funs;
   }
 
-let create_set_of_closures ~function_decls ~free_vars ~specialised_args
-      ~direct_call_surrogates =
+let create_set_of_closures ~function_decls ~rec_depth ~free_vars
+      ~specialised_args ~direct_call_surrogates =
   if !Clflags.flambda_invariant_checks then begin
     let all_fun_vars = Variable.Map.keys function_decls.funs in
     let expected_free_vars =
@@ -1167,6 +1173,7 @@ let create_set_of_closures ~function_decls ~free_vars ~specialised_args
     end
   end;
   { function_decls;
+    rec_depth;
     free_vars;
     specialised_args;
     direct_call_surrogates;

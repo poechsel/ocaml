@@ -398,7 +398,7 @@ let map_general ~toplevel f f_named tree =
       | Project_closure _ | Move_within_set_of_closures _ | Project_var _
       | Prim _ | Read_symbol_field _ | Recursive _ -> named
       | Set_of_closures ({ function_decls; free_vars; specialised_args;
-          direct_call_surrogates }) ->
+          direct_call_surrogates; rec_depth }) ->
         if toplevel then named
         else begin
           let done_something = ref false in
@@ -421,7 +421,7 @@ let map_general ~toplevel f f_named tree =
             in
             let set_of_closures =
               Flambda.create_set_of_closures ~function_decls ~free_vars
-                ~specialised_args ~direct_call_surrogates
+                ~specialised_args ~direct_call_surrogates ~rec_depth
             in
             Set_of_closures set_of_closures
         end
@@ -482,7 +482,7 @@ let map_symbols tree ~f =
 
 let map_symbols_on_set_of_closures
     ({ Flambda.function_decls; free_vars; specialised_args;
-        direct_call_surrogates; } as
+        direct_call_surrogates; rec_depth; } as
       set_of_closures)
     ~f =
   let done_something = ref false in
@@ -502,7 +502,7 @@ let map_symbols_on_set_of_closures
       Flambda.update_function_declarations function_decls ~funs
     in
     Flambda.create_set_of_closures ~function_decls ~free_vars
-      ~specialised_args ~direct_call_surrogates
+      ~specialised_args ~direct_call_surrogates ~rec_depth
 
 let map_toplevel_sets_of_closures tree ~f =
   map_toplevel_named (function
@@ -591,6 +591,7 @@ let map_function_bodies (set_of_closures : Flambda.set_of_closures) ~f =
     in
     Flambda.create_set_of_closures
       ~function_decls
+      ~rec_depth:set_of_closures.rec_depth
       ~free_vars:set_of_closures.free_vars
       ~specialised_args:set_of_closures.specialised_args
       ~direct_call_surrogates:set_of_closures.direct_call_surrogates
@@ -624,6 +625,7 @@ let map_sets_of_closures_of_program (program : Flambda.program)
         set_of_closures
       else
         Flambda.create_set_of_closures ~function_decls
+          ~rec_depth:set_of_closures.rec_depth
           ~free_vars:set_of_closures.free_vars
           ~specialised_args:set_of_closures.specialised_args
           ~direct_call_surrogates:set_of_closures.direct_call_surrogates
@@ -716,6 +718,7 @@ let map_exprs_at_toplevel_of_program (program : Flambda.program)
             ~funs
         in
         Flambda.create_set_of_closures ~function_decls
+          ~rec_depth:set_of_closures.rec_depth
           ~free_vars:set_of_closures.free_vars
           ~specialised_args:set_of_closures.specialised_args
           ~direct_call_surrogates:set_of_closures.direct_call_surrogates

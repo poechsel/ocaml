@@ -283,6 +283,7 @@ let toplevel_substitution sb tree =
       let set_of_closures =
         Flambda.create_set_of_closures
           ~function_decls:set_of_closures.function_decls
+          ~rec_depth:set_of_closures.rec_depth
           ~free_vars:
             (Variable.Map.map (fun (spec_to : Flambda.specialised_to) ->
                 { spec_to with var = sb spec_to.var; })
@@ -323,7 +324,8 @@ let toplevel_substitution_named sb named =
   | Let let_expr -> let_expr.defining_expr
   | _ -> assert false
 
-let make_closure_declaration ~id ~body ~params ~recursive ~stub : Flambda.t =
+let make_closure_declaration ~id ~body ~params ~recursive ~rec_depth ~stub
+    : Flambda.t =
   let free_variables = Flambda.free_variables body in
   let param_set = Parameter.Set.vars params in
   if not (Variable.Set.subset param_set free_variables) then begin
@@ -370,7 +372,7 @@ let make_closure_declaration ~id ~body ~params ~recursive ~stub : Flambda.t =
       Flambda.create_function_declarations
         ~funs:(Variable.Map.singleton id function_declaration)
     in
-    Flambda.create_set_of_closures ~function_decls ~free_vars
+    Flambda.create_set_of_closures ~function_decls ~rec_depth ~free_vars
       ~specialised_args:Variable.Map.empty
       ~direct_call_surrogates:Variable.Map.empty
   in
@@ -579,6 +581,7 @@ let substitute_read_symbol_field_for_variables
       let set_of_closures =
         Flambda.create_set_of_closures
           ~function_decls:set_of_closures.function_decls
+          ~rec_depth:set_of_closures.rec_depth
           ~free_vars:
             (Variable.Map.map (fun (spec_to : Flambda.specialised_to) ->
                 { spec_to with var = sb spec_to.var; })

@@ -679,6 +679,7 @@ and simplify_set_of_closures original_env r
   in
   let set_of_closures =
     Flambda.create_set_of_closures ~function_decls
+      ~rec_depth:set_of_closures.rec_depth
       ~free_vars:(Variable.Map.map fst free_vars)
       ~specialised_args
       ~direct_call_surrogates
@@ -757,6 +758,7 @@ and simplify_apply env r ~(apply : Flambda.apply) : Flambda.t * R.t =
                   approximation references non-existent closure %a@."
                 Closure_id.print closure_id_being_applied
           in
+          let rec_depth = value_closure.rec_depth in
           let r =
             match apply.kind with
             | Indirect ->
@@ -767,12 +769,12 @@ and simplify_apply env r ~(apply : Flambda.apply) : Flambda.t * R.t =
           let arity = Flambda_utils.function_arity function_decl in
           let result, r =
             if nargs = arity then
-              simplify_full_application env r ~function_decls
+              simplify_full_application env r ~function_decls ~rec_depth
                 ~lhs_of_application ~closure_id_being_applied ~function_decl
                 ~value_set_of_closures ~args ~args_approxs ~dbg
                 ~inline_requested ~specialise_requested
             else if nargs > arity then
-              simplify_over_application env r ~args ~args_approxs
+              simplify_over_application env r ~args ~args_approxs ~rec_depth
                 ~function_decls ~lhs_of_application ~closure_id_being_applied
                 ~function_decl ~value_set_of_closures ~dbg ~inline_requested
                 ~specialise_requested
@@ -793,10 +795,10 @@ and simplify_apply env r ~(apply : Flambda.apply) : Flambda.t * R.t =
             ret r (A.value_unknown Other)))
 
 and simplify_full_application env r ~function_decls ~lhs_of_application
-      ~closure_id_being_applied ~function_decl ~value_set_of_closures ~args
+      ~rec_depth ~closure_id_being_applied ~function_decl ~value_set_of_closures ~args
       ~args_approxs ~dbg ~inline_requested ~specialise_requested =
   Inlining_decision.for_call_site ~env ~r ~function_decls
-    ~lhs_of_application ~closure_id_being_applied ~function_decl
+    ~lhs_of_application ~rec_depth ~closure_id_being_applied ~function_decl
     ~value_set_of_closures ~args ~args_approxs ~dbg ~simplify
     ~inline_requested ~specialise_requested
 
@@ -857,6 +859,7 @@ and simplify_partial_application env r ~lhs_of_application
       ~body
       ~params:remaining_args
       ~recursive:false
+      ~rec_depth:0
       ~stub:true
   in
   let with_known_args =
@@ -868,7 +871,7 @@ and simplify_partial_application env r ~lhs_of_application
   simplify env r with_known_args
 
 and simplify_over_application env r ~args ~args_approxs ~function_decls
-      ~lhs_of_application ~closure_id_being_applied ~function_decl
+      ~lhs_of_application ~rec_depth ~closure_id_being_applied ~function_decl
       ~value_set_of_closures ~dbg ~inline_requested ~specialise_requested =
   let arity = Flambda_utils.function_arity function_decl in
   assert (arity < List.length args);
@@ -883,7 +886,7 @@ and simplify_over_application env r ~args ~args_approxs ~function_decls
     simplify_full_application env r ~function_decls ~lhs_of_application
       ~closure_id_being_applied ~function_decl ~value_set_of_closures
       ~args:full_app_args ~args_approxs:full_app_approxs ~dbg
-      ~inline_requested ~specialise_requested
+      ~inline_requested ~specialise_requested ~rec_depth
   in
   let func_var = Variable.create "full_apply" in
   let expr : Flambda.t =

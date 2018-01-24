@@ -196,6 +196,7 @@ let inline_by_copying_function_body ~env ~r
 let inline_by_copying_function_declaration ~env ~r
     ~(function_decls : Flambda.function_declarations)
     ~lhs_of_application
+    ~rec_depth
     ~(inline_requested : Lambda.inline_attribute)
     ~closure_id_being_applied
     ~(function_decl : Flambda.function_declaration)
@@ -512,7 +513,7 @@ let inline_by_copying_function_declaration ~env ~r
     let set_of_closures =
       (* This is the new set of closures, with more precise specialisation
          information than the one being copied. *)
-      Flambda.create_set_of_closures ~function_decls ~free_vars
+      Flambda.create_set_of_closures ~function_decls ~rec_depth ~free_vars
         ~specialised_args:specialisable_args
         ~direct_call_surrogates
     in

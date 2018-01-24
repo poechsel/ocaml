@@ -742,6 +742,7 @@ module Make (T : S) = struct
           ~free_vars
           ~specialised_args
           ~direct_call_surrogates
+          ~rec_depth:original_set_of_closures.rec_depth
       in
       if !Clflags.flambda_invariant_checks then begin
         check_invariants ~set_of_closures ~original_set_of_closures

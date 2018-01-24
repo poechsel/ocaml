@@ -223,6 +223,10 @@ and let_mutable = {
 *)
 and set_of_closures = private {
   function_decls : function_declarations;
+  rec_depth : int;
+  (** The initial recursion depth for all variables for recursive functions
+      bound by the set of closures. Will be non-zero if this set of closures
+      was created by specialising a recursive call. *)
   (* CR-soon mshinwell: consider renaming [free_vars].  Also, it's still really
      confusing which side of this map to use when.  "Vars bound by the
      closure" is the domain.
@@ -604,6 +608,7 @@ val import_function_declarations_for_pack
     and [specialised_args] are reasonable. *)
 val create_set_of_closures
    : function_decls:function_declarations
+  -> rec_depth:int
   -> free_vars:specialised_to Variable.Map.t
   -> specialised_args:specialised_to Variable.Map.t
   -> direct_call_surrogates:Variable.t Variable.Map.t

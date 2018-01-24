@@ -306,7 +306,7 @@ let specialise env r ~lhs_of_application
       ~(function_decl : Flambda.function_declaration)
       ~closure_id_being_applied
       ~(value_set_of_closures : Simple_value_approx.value_set_of_closures)
-      ~args ~args_approxs ~dbg ~simplify ~original ~self_call
+      ~args ~args_approxs ~dbg ~simplify ~original ~self_call ~rec_depth
       ~inlining_threshold ~fun_cost
       ~inline_requested ~specialise_requested =
   let bound_vars =
@@ -397,7 +397,7 @@ let specialise env r ~lhs_of_application
       in
       let copied_function_declaration =
         Inlining_transforms.inline_by_copying_function_declaration ~env
-          ~r:(R.reset_benefit r) ~lhs_of_application
+          ~r:(R.reset_benefit r) ~lhs_of_application ~rec_depth
           ~function_decls ~closure_id_being_applied ~function_decl
           ~args ~args_approxs
           ~invariant_params:value_set_of_closures.invariant_params
@@ -498,7 +498,7 @@ let specialise env r ~lhs_of_application
     end
 
 let for_call_site ~env ~r ~(function_decls : Flambda.function_declarations)
-      ~lhs_of_application ~closure_id_being_applied
+      ~lhs_of_application ~rec_depth ~closure_id_being_applied
       ~(function_decl : Flambda.function_declaration)
       ~(value_set_of_closures : Simple_value_approx.value_set_of_closures)
       ~args ~args_approxs ~dbg ~simplify ~inline_requested
@@ -608,7 +608,7 @@ let for_call_site ~env ~r ~(function_decls : Flambda.function_declarations)
           U.find_declaration_variable closure_id_being_applied function_decls
         in
         let specialise_result =
-          specialise env r ~lhs_of_application ~function_decls
+          specialise env r ~lhs_of_application ~function_decls ~rec_depth
             ~closure_id_being_applied ~function_decl ~value_set_of_closures
             ~args ~args_approxs ~dbg ~simplify ~original ~inline_requested
             ~specialise_requested ~fun_cost ~self_call ~inlining_threshold
