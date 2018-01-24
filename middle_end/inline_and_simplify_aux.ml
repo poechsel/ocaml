@@ -647,9 +647,12 @@ let prepare_to_simplify_set_of_closures ~env
      This part of the environment is shared between all of the closures in
      the set of closures. *)
   let set_of_closures_env =
-    Variable.Map.fold (fun closure _ env ->
+    Variable.Map.fold (fun closure (decl : Flambda.function_declaration) env ->
+        let rec_depth =
+          if decl.recursive then 1 else 0
+        in
         let approx =
-          A.value_closure ~closure_var:closure ~rec_depth:1
+          A.value_closure ~closure_var:closure ~rec_depth
             internal_value_set_of_closures
             (Closure_id.wrap closure)
         in
