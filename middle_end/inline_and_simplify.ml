@@ -1085,6 +1085,10 @@ and simplify_named env r (tree : Flambda.named) : Flambda.named * R.t =
   | Recursive (var, depth) ->
     let var = Freshening.apply_variable (E.freshening env) var in
     let approx = E.find_exn env var in
+    let var = match approx.var with
+      | Some var -> var
+      | None -> var
+    in
     let approx = A.increase_recursion_depth approx depth in
     Recursive (var, depth), ret r approx
   | Expr expr ->
