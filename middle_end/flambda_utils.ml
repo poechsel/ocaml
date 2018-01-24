@@ -950,3 +950,14 @@ let empty_inlining_stack : Flambda.inlining_stack = []
 let stub_inlining_stack : Flambda.inlining_stack = []
 
 let augment_inlining_stack ~orig ~new_ = new_ @ orig
+
+let increase_recursion_depth named depth =
+  match depth with
+  | 0 ->
+    named
+  | _ ->
+    let tgt_var = Variable.create "tgt" in
+    let rec_var = Variable.create "rec" in
+    Flambda.Expr (Flambda.create_let tgt_var named (
+      Flambda.create_let rec_var (Recursive (tgt_var, depth))
+        (Var rec_var)))

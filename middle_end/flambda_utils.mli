@@ -239,3 +239,10 @@ val augment_inlining_stack
    : orig:Flambda.inlining_stack
   -> new_:Flambda.inlining_stack
   -> Flambda.inlining_stack
+
+(** Wrap a [named] in a Recursive declaration. The depth can be 0, in which case
+    the original [named] is returned. *)
+val increase_recursion_depth
+   : Flambda.named
+  -> int
+  -> Flambda.named

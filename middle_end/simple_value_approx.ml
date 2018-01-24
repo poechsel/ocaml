@@ -226,7 +226,7 @@ let value_any_float = approx (Value_float None)
 let value_boxed_int bi i = approx (Value_boxed_int (bi,i))
 
 let value_closure ?closure_var ?set_of_closures_var ?set_of_closures_symbol
-      ?(rec_depth=0) value_set_of_closures closure_id =
+      ~rec_depth value_set_of_closures closure_id =
   let approx_set_of_closures =
     { descr = Value_set_of_closures value_set_of_closures;
       var = set_of_closures_var;

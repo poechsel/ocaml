@@ -132,7 +132,7 @@ let rec import_ex ex =
     begin match value_set_of_closures with
     | None -> A.value_unresolved (Set_of_closures_id set_of_closures_id)
     | Some value_set_of_closures ->
-      A.value_closure ?set_of_closures_symbol:aliased_symbol
+      A.value_closure ?set_of_closures_symbol:aliased_symbol ~rec_depth:0
         value_set_of_closures closure_id
     end
   | Value_recursive (approx, depth) ->

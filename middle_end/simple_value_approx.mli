@@ -221,7 +221,7 @@ val value_closure
    : ?closure_var:Variable.t
   -> ?set_of_closures_var:Variable.t
   -> ?set_of_closures_symbol:Symbol.t
-  -> ?rec_depth:int
+  -> rec_depth:int
   -> value_set_of_closures
   -> Closure_id.t
   -> t

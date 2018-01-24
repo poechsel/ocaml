@@ -267,8 +267,8 @@ let simplify_project_closure env r ~(project_closure : Flambda.project_closure)
             | Some _ | None -> None
           in
           let approx =
-            A.value_closure ?set_of_closures_var value_set_of_closures
-              closure_id
+            A.value_closure ?set_of_closures_var ~rec_depth:0
+              value_set_of_closures closure_id
           in
           Project_closure { set_of_closures; closure_id; }, ret r approx)
 
@@ -309,7 +309,7 @@ let simplify_move_within_set_of_closures env r
           move_to = move_within_set_of_closures.move_to;
         },
         ret r (A.value_unknown (Unresolved_value value))
-    | Ok (_value_closure, set_of_closures_var, set_of_closures_symbol,
+    | Ok (value_closure, set_of_closures_var, set_of_closures_symbol,
           value_set_of_closures) ->
       let freshen =
         (* CR-soon mshinwell: potentially misleading name---not freshening with
@@ -332,7 +332,13 @@ let simplify_move_within_set_of_closures env r
           Expr (Var var), ret r var_approx)
       | None ->
         match reference_recursive_function_directly env move_to with
-        | Some (flam, approx) -> flam, ret r approx
+        | Some (flam, approx) ->
+          let rec_depth = value_closure.rec_depth in
+          let flam = Flambda_utils.increase_recursion_depth flam rec_depth in
+          let approx =
+            Simple_value_approx.increase_recursion_depth approx rec_depth
+          in
+          flam, ret r approx
         | None ->
           if Closure_id.equal start_from move_to then
             (* Moving from one closure to itself is a no-op.  We can return an
@@ -349,11 +355,16 @@ let simplify_move_within_set_of_closures env r
                   closure_id = move_to;
                 }
               in
+              let rec_depth = value_closure.rec_depth in
               let approx =
-                A.value_closure ~set_of_closures_var value_set_of_closures
-                  move_to
+                A.value_closure ~set_of_closures_var ~rec_depth
+                  value_set_of_closures move_to
               in
-              Project_closure project_closure, ret r approx
+              let named : Flambda.named = Project_closure project_closure in
+              let named =
+                Flambda_utils.increase_recursion_depth named rec_depth
+              in
+              named, ret r approx
             | Some _ | None ->
               match set_of_closures_symbol with
               | Some set_of_closures_symbol ->
@@ -374,18 +385,25 @@ let simplify_move_within_set_of_closures env r
                     (Symbol set_of_closures_symbol)
                     let1
                 in
+                let rec_depth = value_closure.rec_depth in
                 let approx =
                   A.value_closure ~set_of_closures_var ~set_of_closures_symbol
-                    value_set_of_closures move_to
+                    ~rec_depth value_set_of_closures move_to
                 in
-                Expr expr, ret r approx
+                let named =
+                  Flambda_utils.increase_recursion_depth (Expr expr) rec_depth
+                in
+                named, ret r approx
               | None ->
                 (* The set of closures is not available in scope, and we
                    have no other information by which to simplify the move. *)
                 let move_within : Flambda.move_within_set_of_closures =
                   { closure; start_from; move_to; }
                 in
-                let approx = A.value_closure value_set_of_closures move_to in
+                let approx =
+                  A.value_closure ~rec_depth:value_closure.rec_depth
+                    value_set_of_closures move_to
+                in
                 Move_within_set_of_closures move_within, ret r approx)
 
 (* Transform an expression denoting an access to a variable bound in
@@ -716,6 +734,7 @@ and simplify_apply env r ~(apply : Flambda.apply) : Flambda.t * R.t =
               in
               let approx_for_surrogate =
                 A.value_closure ~closure_var:surrogate_var
+                  ~rec_depth:value_closure.rec_depth
                   ?set_of_closures_var ?set_of_closures_symbol
                   value_set_of_closures surrogate
               in
@@ -1489,7 +1508,7 @@ let constant_defining_value_approx
           let closure_id =
             A.freshen_and_check_closure_id value_set_of_closures closure_id
           in
-          A.value_closure value_set_of_closures closure_id
+          A.value_closure ~rec_depth:0 value_set_of_closures closure_id
         | Unresolved sym -> A.value_unresolved sym
         | Unknown -> A.value_unknown Other
         | Unknown_because_of_unresolved_value value ->
@@ -1570,7 +1589,7 @@ let simplify_constant_defining_value
           let closure_id =
             A.freshen_and_check_closure_id value_set_of_closures closure_id
           in
-          A.value_closure value_set_of_closures closure_id
+          A.value_closure ~rec_depth:0 value_set_of_closures closure_id
         | Unresolved sym -> A.value_unresolved sym
         | Unknown -> A.value_unknown Other
         | Unknown_because_of_unresolved_value value ->
