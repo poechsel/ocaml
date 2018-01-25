@@ -40,7 +40,7 @@ let inline env r ~lhs_of_application
     ~(args : Variable.t list) ~size_from_approximation ~dbg ~simplify
     ~(inline_requested : Lambda.inline_attribute)
     ~(specialise_requested : Lambda.specialise_attribute)
-    ~self_call ~fun_cost ~inlining_threshold =
+    ~rec_depth ~fun_cost ~inlining_threshold =
   let toplevel = E.at_toplevel env in
   let branch_depth = E.branch_depth env in
   let unrolling, always_inline, never_inline, env =
@@ -78,6 +78,9 @@ let inline env r ~lhs_of_application
           else false, false, true, env
       end
   in
+  let unrolling_limit =
+    Clflags.Int_arg_helper.get ~key:(E.round env) !Clflags.inline_max_unroll
+  in
   let remaining_inlining_threshold : Inlining_cost.Threshold.t =
     if always_inline then inlining_threshold
     else Lazy.force fun_cost
@@ -85,8 +88,6 @@ let inline env r ~lhs_of_application
   let try_inlining =
     if unrolling then
       Try_it
-    else if self_call then
-      Don't_try_it S.Not_inlined.Self_call
     else if not (E.inlining_allowed env closure_id_being_applied) then
       Don't_try_it S.Not_inlined.Unrolling_depth_exceeded
     else if only_use_of_function || always_inline then
@@ -95,8 +96,7 @@ let inline env r ~lhs_of_application
       Don't_try_it S.Not_inlined.Annotation
     else if !Clflags.classic_inlining then
       Don't_try_it S.Not_inlined.Classic_mode
-    else if not (E.unrolling_allowed env function_decls.set_of_closures_origin)
-         && function_decl.recursive then
+    else if rec_depth >= unrolling_limit && function_decl.recursive then
       Don't_try_it S.Not_inlined.Unrolling_depth_exceeded
     else if remaining_inlining_threshold = T.Never_inline then
       let threshold =
@@ -306,7 +306,7 @@ let specialise env r ~lhs_of_application
       ~(function_decl : Flambda.function_declaration)
       ~closure_id_being_applied
       ~(value_set_of_closures : Simple_value_approx.value_set_of_closures)
-      ~args ~args_approxs ~dbg ~simplify ~original ~self_call ~rec_depth
+      ~args ~args_approxs ~dbg ~simplify ~original ~rec_depth
       ~inlining_threshold ~fun_cost
       ~inline_requested ~specialise_requested =
   let bound_vars =
@@ -366,8 +366,6 @@ let specialise env r ~lhs_of_application
        - has useful approximations for some invariant parameters. *)
     if !Clflags.classic_inlining then
       Don't_try_it S.Not_specialised.Classic_mode
-    else if self_call then
-      Don't_try_it S.Not_specialised.Self_call
     else if always_specialise && not (Lazy.force has_no_useful_approxes) then
       Try_it
     else if never_specialise then
@@ -590,10 +588,6 @@ let for_call_site ~env ~r ~(function_decls : Flambda.function_declarations)
       else if E.speculation_depth env >= max_level then
         Original (D.Prevented Level_exceeded)
       else begin
-        let self_call =
-          E.inside_set_of_closures_declaration
-            function_decls.set_of_closures_origin env
-        in
         let fun_cost =
           lazy
             (Inlining_cost.can_try_inlining function_decl.body
@@ -611,7 +605,7 @@ let for_call_site ~env ~r ~(function_decls : Flambda.function_declarations)
           specialise env r ~lhs_of_application ~function_decls ~rec_depth
             ~closure_id_being_applied ~function_decl ~value_set_of_closures
             ~args ~args_approxs ~dbg ~simplify ~original ~inline_requested
-            ~specialise_requested ~fun_cost ~self_call ~inlining_threshold
+            ~specialise_requested ~fun_cost ~inlining_threshold
         in
         match specialise_result with
         | Changed (res, spec_reason) ->
@@ -631,11 +625,11 @@ let for_call_site ~env ~r ~(function_decls : Flambda.function_declarations)
                   A.print_value_set_of_closures value_set_of_closures
           in
           let inline_result =
-            inline env r ~function_decls ~lhs_of_application
+            inline env r ~function_decls ~lhs_of_application ~rec_depth
               ~closure_id_being_applied ~function_decl ~value_set_of_closures
               ~only_use_of_function ~original
               ~inline_requested ~specialise_requested ~args
-              ~size_from_approximation ~dbg ~simplify ~fun_cost ~self_call
+              ~size_from_approximation ~dbg ~simplify ~fun_cost
               ~inlining_threshold
           in
           match inline_result with
