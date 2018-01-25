@@ -314,7 +314,7 @@ let specialise env r ~lhs_of_application
       (let closures_required =
          Flambda_utils.closures_required_by_entry_point
            ~entry_point:closure_id_being_applied
-           ~backend:(E.backend env)
+           ~symbol_to_closure_id:(E.find_closure_id_for_symbol env)
            function_decls
        in
        let bound_vars_required =

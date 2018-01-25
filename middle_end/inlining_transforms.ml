@@ -293,7 +293,8 @@ let inline_by_copying_function_declaration ~env ~r
             (from_closure.var, expr)::for_lets)
     in
     let required_functions =
-      Flambda_utils.closures_required_by_entry_point ~backend:(E.backend env)
+      Flambda_utils.closures_required_by_entry_point
+        ~symbol_to_closure_id:(E.find_closure_id_for_symbol env)
         ~entry_point:closure_id_being_applied
         function_decls
     in
