@@ -325,19 +325,39 @@ let simplify_move_within_set_of_closures env r
           move_to;
         }
       in
+      let adjust_rec_depth flam approx =
+        let direct_closure =
+          match Simple_value_approx.check_approx_for_closure approx with
+          | Ok (direct_closure, _, _, _) -> direct_closure
+          | Wrong -> assert false
+        in
+        let rec_depth = value_closure.rec_depth - direct_closure.rec_depth in
+        if rec_depth < 0 then begin
+          (* Safe but potentially costly to overestimate recursion depth;
+             besides, this seems unlikely to happen on purpose *)
+          Format.eprintf
+            "warning: changing indirect reference through %a to \
+              direct reference %a increases recursion depth by %i\n"
+            Closure_id.print value_closure.closure_id
+            Closure_id.print direct_closure.closure_id
+            (-rec_depth);
+          flam, approx
+        end else
+          Flambda_utils.increase_recursion_depth flam rec_depth,
+          Simple_value_approx.increase_recursion_depth approx rec_depth
+      in
       match E.find_projection env ~projection with
       | Some var ->
         simplify_free_variable_named env var ~f:(fun _env var var_approx ->
           let r = R.map_benefit r (B.remove_projection projection) in
-          Expr (Var var), ret r var_approx)
+          let flam = Flambda.Expr (Var var) in
+          let approx = var_approx in
+          let flam, approx = adjust_rec_depth flam approx in
+          flam, ret r approx)
       | None ->
         match reference_recursive_function_directly env move_to with
         | Some (flam, approx) ->
-          let rec_depth = value_closure.rec_depth in
-          let flam = Flambda_utils.increase_recursion_depth flam rec_depth in
-          let approx =
-            Simple_value_approx.increase_recursion_depth approx rec_depth
-          in
+          let flam, approx = adjust_rec_depth flam approx in
           flam, ret r approx
         | None ->
           if Closure_id.equal start_from move_to then
@@ -355,16 +375,14 @@ let simplify_move_within_set_of_closures env r
                   closure_id = move_to;
                 }
               in
-              let rec_depth = value_closure.rec_depth in
+              let flam : Flambda.named = Project_closure project_closure in
               let approx =
-                A.value_closure ~set_of_closures_var ~rec_depth
+                A.value_closure ~set_of_closures_var
+                  ~rec_depth:value_set_of_closures.rec_depth
                   value_set_of_closures move_to
               in
-              let named : Flambda.named = Project_closure project_closure in
-              let named =
-                Flambda_utils.increase_recursion_depth named rec_depth
-              in
-              named, ret r approx
+              let flam, approx = adjust_rec_depth flam approx in
+              flam, ret r approx
             | Some _ | None ->
               match set_of_closures_symbol with
               | Some set_of_closures_symbol ->
@@ -380,20 +398,18 @@ let simplify_move_within_set_of_closures env r
                     (Project_closure project_closure)
                     (Var project_closure_var)
                 in
-                let expr =
-                  Flambda.create_let set_of_closures_var
-                    (Symbol set_of_closures_symbol)
-                    let1
+                let flam =
+                  Flambda.Expr (Flambda.create_let set_of_closures_var
+                     (Symbol set_of_closures_symbol)
+                     let1)
                 in
-                let rec_depth = value_closure.rec_depth in
                 let approx =
                   A.value_closure ~set_of_closures_var ~set_of_closures_symbol
-                    ~rec_depth value_set_of_closures move_to
+                    ~rec_depth:value_set_of_closures.rec_depth
+                    value_set_of_closures move_to
                 in
-                let named =
-                  Flambda_utils.increase_recursion_depth (Expr expr) rec_depth
-                in
-                named, ret r approx
+                let flam, approx = adjust_rec_depth flam approx in
+                flam, ret r approx
               | None ->
                 (* The set of closures is not available in scope, and we
                    have no other information by which to simplify the move. *)
@@ -663,6 +679,7 @@ and simplify_set_of_closures original_env r
   in
   let value_set_of_closures =
     A.create_value_set_of_closures ~function_decls
+      ~rec_depth:set_of_closures.rec_depth
       ~bound_vars:internal_value_set_of_closures.bound_vars
       ~invariant_params
       ~specialised_args:internal_value_set_of_closures.specialised_args
@@ -1478,7 +1495,8 @@ let constant_defining_value_approx
         fields
     in
     A.value_block tag (Array.of_list fields)
-  | Set_of_closures { function_decls; free_vars; specialised_args } ->
+  | Set_of_closures
+      { function_decls; rec_depth; free_vars; specialised_args } ->
     (* At toplevel, there is no freshening currently happening (this
        cannot be the body of a currently inlined function), so we can
        keep the original set_of_closures in the approximation. *)
@@ -1491,6 +1509,7 @@ let constant_defining_value_approx
     in
     let value_set_of_closures =
       A.create_value_set_of_closures ~function_decls
+        ~rec_depth
         ~bound_vars:Var_within_closure.Map.empty
         ~invariant_params
         ~specialised_args:Variable.Map.empty

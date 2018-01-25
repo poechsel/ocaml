@@ -79,6 +79,7 @@ let import_set_of_closures units pack
   { set_of_closures_id =
       import_set_of_closures_id_for_pack units pack
         set_of_closures.set_of_closures_id;
+    rec_depth = set_of_closures.rec_depth;
     bound_vars =
       Var_within_closure.Map.map (import_approx_for_pack units pack)
         set_of_closures.bound_vars;

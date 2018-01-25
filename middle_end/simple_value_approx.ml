@@ -69,6 +69,7 @@ and value_closure = {
 
 and value_set_of_closures = {
   function_decls : Flambda.function_declarations;
+  rec_depth : int;
   bound_vars : t Var_within_closure.Map.t;
   invariant_params : Variable.Set.t Variable.Map.t lazy_t;
   size : int option Variable.Map.t lazy_t;
@@ -88,10 +89,19 @@ and value_float_array = {
 
 let descr t = t.descr
 
+let print_recursion_depth ppf = function
+  | 0 -> ()
+  | depth ->
+    Format.fprintf ppf "@ <rec%a>"
+      Flambda.print_recursion_depth depth
+
 let print_value_set_of_closures ppf
-      { function_decls = { funs }; invariant_params; freshening; _ } =
-  Format.fprintf ppf "(set_of_closures:@ %a invariant_params=%a freshening=%a)"
+      { function_decls = { funs }; rec_depth; invariant_params; freshening;
+        size = _; specialised_args = _; direct_call_surrogates = _;
+        bound_vars = _ } =
+  Format.fprintf ppf "(set_of_closures:@ %a%a invariant_params=%a freshening=%a)"
     (fun ppf -> Variable.Map.iter (fun id _ -> Variable.print ppf id)) funs
+    print_recursion_depth rec_depth
     (Variable.Map.print Variable.Set.print) (Lazy.force invariant_params)
     Freshening.Project_var.print freshening
 
@@ -119,14 +129,8 @@ let rec print_descr ppf = function
   | Value_extern id -> Format.fprintf ppf "_%a_" Export_id.print id
   | Value_symbol sym -> Format.fprintf ppf "%a" Symbol.print sym
   | Value_closure { set_of_closures; closure_id; rec_depth; } ->
-    let print_rec_depth ppf = function
-      | 0 -> ()
-      | depth ->
-        Format.fprintf ppf " <rec%a>"
-          Flambda.print_recursion_depth depth
-    in
     Format.fprintf ppf "(closure:@ %a%a from@ %a)" Closure_id.print closure_id
-      print_rec_depth rec_depth
+      print_recursion_depth rec_depth
       print set_of_closures
   | Value_set_of_closures set_of_closures ->
     print_value_set_of_closures ppf set_of_closures
@@ -245,7 +249,7 @@ let value_closure ?closure_var ?set_of_closures_var ?set_of_closures_symbol
   }
 
 let create_value_set_of_closures
-      ~(function_decls : Flambda.function_declarations) ~bound_vars
+      ~(function_decls : Flambda.function_declarations) ~rec_depth ~bound_vars
       ~invariant_params ~specialised_args ~freshening
       ~direct_call_surrogates =
   let size =
@@ -267,6 +271,7 @@ let create_value_set_of_closures
         function_decls.funs)
   in
   { function_decls;
+    rec_depth;
     bound_vars;
     invariant_params;
     size;
@@ -294,10 +299,14 @@ let increase_recursion_depth approx depth =
   | Value_closure value_closure ->
     let rec_depth = value_closure.rec_depth + depth in
     { approx with descr = Value_closure { value_closure with rec_depth; } }
+  | Value_set_of_closures value_set_of_closures ->
+    let rec_depth = value_set_of_closures.rec_depth + depth in
+    { approx with descr = Value_set_of_closures
+        { value_set_of_closures with rec_depth; } }
   | Value_unknown _ | Value_unresolved _ | Value_bottom ->
     approx
   | Value_block _ | Value_int _ | Value_char _ | Value_constptr _
-  | Value_float _ | Value_boxed_int _ | Value_set_of_closures _
+  | Value_float _ | Value_boxed_int _
   | Value_string _ | Value_float_array _ | Value_extern _ | Value_symbol _ ->
     { approx with descr = Value_bottom }
 

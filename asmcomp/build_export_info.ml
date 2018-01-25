@@ -347,6 +347,7 @@ and describe_set_of_closures env (set : Flambda.set_of_closures)
     let initial_value_set_of_closures =
       { Export_info.
         set_of_closures_id = set.function_decls.set_of_closures_id;
+        rec_depth = set.rec_depth;
         bound_vars = Var_within_closure.wrap_map bound_vars_approx;
         results =
           Closure_id.wrap_map
@@ -376,6 +377,7 @@ and describe_set_of_closures env (set : Flambda.set_of_closures)
     Variable.Map.mapi result_approx set.function_decls.funs
   in
   { set_of_closures_id = set.function_decls.set_of_closures_id;
+    rec_depth = set.rec_depth;
     bound_vars = Var_within_closure.wrap_map bound_vars_approx;
     results = Closure_id.wrap_map results;
     aliased_symbol = None;

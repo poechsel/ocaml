@@ -637,6 +637,7 @@ let prepare_to_simplify_set_of_closures ~env
         free_vars Var_within_closure.Map.empty
     in
     A.create_value_set_of_closures ~function_decls ~bound_vars
+      ~rec_depth:set_of_closures.rec_depth
       ~invariant_params:(lazy Variable.Map.empty) ~specialised_args
       ~freshening ~direct_call_surrogates
   in

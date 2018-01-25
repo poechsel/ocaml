@@ -148,6 +148,7 @@ and value_closure = {
    can do all of the tricky higher-order cases. *)
 and value_set_of_closures = private {
   function_decls : Flambda.function_declarations;
+  rec_depth : int;
   bound_vars : t Var_within_closure.Map.t;
   invariant_params : Variable.Set.t Variable.Map.t lazy_t;
   size : int option Variable.Map.t lazy_t;
@@ -182,6 +183,7 @@ val print_value_set_of_closures
 
 val create_value_set_of_closures
    : function_decls:Flambda.function_declarations
+  -> rec_depth:int
   -> bound_vars:t Var_within_closure.Map.t
   -> invariant_params:Variable.Set.t Variable.Map.t lazy_t
   -> specialised_args:Flambda.specialised_to Variable.Map.t
