@@ -231,6 +231,7 @@ let value_boxed_int bi i = approx (Value_boxed_int (bi,i))
 
 let value_closure ?closure_var ?set_of_closures_var ?set_of_closures_symbol
       ~rec_depth value_set_of_closures closure_id =
+  assert (rec_depth >= 0);
   let approx_set_of_closures =
     { descr = Value_set_of_closures value_set_of_closures;
       var = set_of_closures_var;
@@ -252,6 +253,7 @@ let create_value_set_of_closures
       ~(function_decls : Flambda.function_declarations) ~rec_depth ~bound_vars
       ~invariant_params ~specialised_args ~freshening
       ~direct_call_surrogates =
+  assert (rec_depth >= 0);
   let size =
     lazy (
       let functions = Variable.Map.keys function_decls.funs in

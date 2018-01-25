@@ -331,20 +331,10 @@ let simplify_move_within_set_of_closures env r
           | Ok (direct_closure, _, _, _) -> direct_closure
           | Wrong -> assert false
         in
+        (* This can be negative, in weird but legit cases *)
         let rec_depth = value_closure.rec_depth - direct_closure.rec_depth in
-        if rec_depth < 0 then begin
-          (* Safe but potentially costly to overestimate recursion depth;
-             besides, this seems unlikely to happen on purpose *)
-          Format.eprintf
-            "warning: changing indirect reference through %a to \
-              direct reference %a increases recursion depth by %i\n"
-            Closure_id.print value_closure.closure_id
-            Closure_id.print direct_closure.closure_id
-            (-rec_depth);
-          flam, approx
-        end else
-          Flambda_utils.increase_recursion_depth flam rec_depth,
-          Simple_value_approx.increase_recursion_depth approx rec_depth
+        Flambda_utils.increase_recursion_depth flam rec_depth,
+        Simple_value_approx.increase_recursion_depth approx rec_depth
       in
       match E.find_projection env ~projection with
       | Some var ->
