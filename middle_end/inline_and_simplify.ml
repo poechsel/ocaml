@@ -847,15 +847,10 @@ and simplify_partial_application env r ~lhs_of_application
   in
   let wrapper_accepting_remaining_args =
     let body : Flambda.t =
-      Apply {
-        func = lhs_of_application;
-        args = Parameter.List.vars freshened_params;
-        kind = Direct closure_id_being_applied;
-        dbg;
-        inline = Default_inline;
-        specialise = Default_specialise;
-        stack = Flambda_utils.stub_inlining_stack;
-      }
+      Flambda_utils.make_stub_body lhs_of_application
+        (Parameter.List.vars freshened_params)
+        ~dbg
+        ~kind:(Direct closure_id_being_applied)
     in
     let closure_variable =
       Variable.rename
@@ -865,7 +860,7 @@ and simplify_partial_application env r ~lhs_of_application
     Flambda_utils.make_closure_declaration ~id:closure_variable
       ~body
       ~params:remaining_args
-      ~recursive:false
+      ~recursive:(Flambda.(function_decl.recursive))
       ~rec_depth:0
       ~stub:true
   in

@@ -959,3 +959,11 @@ let increase_recursion_depth named depth =
     Flambda.Expr (Flambda.create_let tgt_var named (
       Flambda.create_let rec_var (Recursive (tgt_var, depth))
         (Var rec_var)))
+
+let make_stub_body ?(dbg = Debuginfo.none) func args ~kind =
+  Flambda.Apply {
+    func; args; kind; dbg;
+    stack = stub_inlining_stack;
+    inline = Default_inline;
+    specialise = Default_specialise;
+  }

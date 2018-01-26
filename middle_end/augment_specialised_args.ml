@@ -467,17 +467,10 @@ module Make (T : S) = struct
        also be specialised. *)
     let wrapper_body, benefit =
       let apply : Flambda.expr =
-        Apply {
-          func = new_fun_var;
-          args =
-            (Parameter.List.vars wrapper_params) @
-            spec_args_bound_in_the_wrapper;
-          kind = Direct (Closure_id.wrap new_fun_var);
-          stack = Flambda_utils.stub_inlining_stack;
-          dbg = Debuginfo.none;
-          inline = Default_inline;
-          specialise = Default_specialise;
-        }
+        Flambda_utils.make_stub_body (new_fun_var)
+          (Parameter.List.vars wrapper_params @
+           spec_args_bound_in_the_wrapper)
+          ~kind:(Direct (Closure_id.wrap new_fun_var))
       in
       Variable.Map.fold (fun new_inner_var definition (wrapper_body, benefit) ->
           let definition : Definition.t =

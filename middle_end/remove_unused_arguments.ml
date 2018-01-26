@@ -84,19 +84,12 @@ let make_stub unused var (fun_decl : Flambda.function_declaration)
   in
   let args = List.map (fun (_, var) -> var) used_args' in
   let kind = Flambda.Direct (Closure_id.wrap renamed) in
-  let body : Flambda.t =
-    Apply {
-      func = renamed;
-      args = Parameter.List.vars args;
-      kind;
-      stack = Flambda_utils.stub_inlining_stack;
-      dbg = fun_decl.dbg;
-      inline = Default_inline;
-      specialise = Default_specialise;
-    }
+  let body =
+    Flambda_utils.make_stub_body renamed (Parameter.List.vars args)
+      ~kind ~dbg:fun_decl.dbg
   in
   let function_decl =
-    Flambda.create_function_declaration ~recursive:false
+    Flambda.create_function_declaration ~recursive:fun_decl.recursive
       ~params:(List.map snd args') ~body
       ~stub:true ~dbg:fun_decl.dbg ~inline:Default_inline
       ~specialise:Default_specialise ~is_a_functor:fun_decl.is_a_functor

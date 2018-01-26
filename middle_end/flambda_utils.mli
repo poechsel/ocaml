@@ -91,6 +91,13 @@ val bind
 
 val name_expr : Flambda.named -> name:string -> Flambda.t
 
+val make_stub_body
+   : ?dbg:Debuginfo.t
+  -> Variable.t
+  -> Variable.t list
+  -> kind:Flambda.call_kind
+  -> Flambda.t
+
 val compare_const : Flambda.const -> Flambda.const -> int
 
 val initialize_symbols

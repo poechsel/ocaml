@@ -68,24 +68,17 @@ let add_default_argument_wrappers lam =
 (** Generate a wrapper ("stub") function that accepts a tuple argument and
     calls another function with arguments extracted in the obvious
     manner from the tuple. *)
-let tupled_function_call_stub original_params unboxed_version
+let tupled_function_call_stub original_params unboxed_version ~recursive
       : Flambda.function_declaration =
   let tuple_param_var =
     Variable.rename ~append:"tupled_stub_param" unboxed_version
   in
   let params = List.map (fun p -> Variable.rename p) original_params in
   let call : Flambda.t =
-    Apply ({
-        func = unboxed_version;
-        args = params;
-        (* CR-someday mshinwell for mshinwell: investigate if there is some
-           redundancy here (func is also unboxed_version) *)
-        kind = Direct (Closure_id.wrap unboxed_version);
-        stack = [];
-        dbg = Debuginfo.none;
-        inline = Default_inline;
-        specialise = Default_specialise;
-      })
+    Flambda_utils.make_stub_body unboxed_version params
+      (* CR-someday mshinwell for mshinwell: investigate if there is some
+          redundancy here (func is also unboxed_version) *)
+      ~kind:(Direct (Closure_id.wrap unboxed_version))
   in
   let _, body =
     List.fold_left (fun (pos, body) param ->
@@ -96,7 +89,7 @@ let tupled_function_call_stub original_params unboxed_version
       (0, call) params
   in
   let tuple_param = Parameter.wrap tuple_param_var in
-  Flambda.create_function_declaration ~recursive:false ~params:[tuple_param]
+  Flambda.create_function_declaration ~recursive ~params:[tuple_param]
     ~body ~stub:true ~dbg:Debuginfo.none ~inline:Default_inline
     ~specialise:Default_specialise ~is_a_functor:false
 
@@ -613,7 +606,7 @@ and close_functions t external_env function_declarations : Flambda.named =
     | Tupled ->
       let unboxed_version = Variable.rename closure_bound_var in
       let generic_function_stub =
-        tupled_function_call_stub param_vars unboxed_version
+        tupled_function_call_stub param_vars unboxed_version ~recursive
       in
       Variable.Map.add unboxed_version fun_decl
         (Variable.Map.add closure_bound_var generic_function_stub map)
