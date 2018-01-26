@@ -642,12 +642,13 @@ let prepare_to_simplify_set_of_closures ~env
       ~freshening ~direct_call_surrogates
   in
   (* Populate the environment with the approximation of each closure.
-     This part of the environment is shared between all of the closures in
-     the set of closures. *)
-  let set_of_closures_env =
+     If [recursive] is true, this part of the environment is shared between all
+     the recursive closures in this set of closures; otherwise, it's shared
+     between the non-recursive ones. *)
+  let closure_env ~recursive =
     Variable.Map.fold (fun closure (decl : Flambda.function_declaration) env ->
         let rec_depth =
-          if decl.recursive then 1 else 0
+          if recursive && decl.recursive then 1 else 0
         in
         let approx =
           A.value_closure ~closure_var:closure ~rec_depth
@@ -658,8 +659,10 @@ let prepare_to_simplify_set_of_closures ~env
       )
       function_decls.funs env
   in
+  let nonrec_closure_env = lazy (closure_env ~recursive:false) in
+  let rec_closure_env = lazy (closure_env ~recursive:true) in
   free_vars, specialised_args, function_decls, parameter_approximations,
-    internal_value_set_of_closures, set_of_closures_env
+    internal_value_set_of_closures, nonrec_closure_env, rec_closure_env
 
 (* This adds only the minimal set of approximations to the closures.
    It is not strictly necessary to have this restriction, but it helps
@@ -668,12 +671,12 @@ let populate_closure_approximations
       ~(function_decl : Flambda.function_declaration)
       ~(free_vars : (_ * A.t) Variable.Map.t)
       ~(parameter_approximations : A.t Variable.Map.t)
-      ~set_of_closures_env =
+      ~env =
   (* Add approximations of free variables *)
   let env =
     Variable.Map.fold (fun id (_, desc) env ->
         E.add_outer_scope env id desc)
-      free_vars set_of_closures_env
+      free_vars env
   in
   (* Add known approximations of function parameters *)
   let env =
@@ -689,10 +692,15 @@ let populate_closure_approximations
 
 let prepare_to_simplify_closure ~(function_decl : Flambda.function_declaration)
       ~free_vars ~specialised_args ~parameter_approximations
-      ~set_of_closures_env =
+      ~nonrec_closure_env ~rec_closure_env =
+  let closure_env =
+    if function_decl.recursive
+    then Lazy.force rec_closure_env
+    else Lazy.force nonrec_closure_env
+  in
   let closure_env =
     populate_closure_approximations ~function_decl ~free_vars
-      ~parameter_approximations ~set_of_closures_env
+      ~parameter_approximations ~env:closure_env
   in
   (* Add definitions of known projections to the environment. *)
   let add_projections ~closure_env ~which_variables ~map =

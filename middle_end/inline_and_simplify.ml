@@ -604,7 +604,7 @@ and simplify_set_of_closures original_env r
   in
   let env = E.increase_closure_depth original_env in
   let free_vars, specialised_args, function_decls, parameter_approximations,
-      internal_value_set_of_closures, set_of_closures_env =
+      internal_value_set_of_closures, nonrec_closure_env, rec_closure_env =
     Inline_and_simplify_aux.prepare_to_simplify_set_of_closures ~env
       ~set_of_closures ~function_decls ~only_for_function_decl:None
       ~freshen:true
@@ -615,7 +615,7 @@ and simplify_set_of_closures original_env r
     let closure_env =
       Inline_and_simplify_aux.prepare_to_simplify_closure ~function_decl
         ~free_vars ~specialised_args ~parameter_approximations
-        ~set_of_closures_env
+        ~nonrec_closure_env ~rec_closure_env
     in
     let body, r =
       E.enter_closure closure_env ~closure_id:(Closure_id.wrap fun_var)
@@ -1433,7 +1433,7 @@ and duplicate_function ~env ~(set_of_closures : Flambda.set_of_closures)
   in
   let env = E.activate_freshening (E.set_never_inline env) in
   let free_vars, specialised_args, function_decls, parameter_approximations,
-      _internal_value_set_of_closures, set_of_closures_env =
+      _internal_value_set_of_closures, nonrec_closure_env, rec_closure_env =
     Inline_and_simplify_aux.prepare_to_simplify_set_of_closures ~env
       ~set_of_closures ~function_decls:set_of_closures.function_decls
       ~freshen:false ~only_for_function_decl:(Some function_decl)
@@ -1448,7 +1448,7 @@ and duplicate_function ~env ~(set_of_closures : Flambda.set_of_closures)
   let closure_env =
     Inline_and_simplify_aux.prepare_to_simplify_closure ~function_decl
       ~free_vars ~specialised_args ~parameter_approximations
-      ~set_of_closures_env
+      ~nonrec_closure_env ~rec_closure_env
   in
   let body, _r =
     E.enter_closure closure_env

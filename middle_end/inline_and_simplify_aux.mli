@@ -362,12 +362,14 @@ val prepare_to_simplify_set_of_closures
     * Flambda.function_declarations
     * Simple_value_approx.t Variable.Map.t       (* parameter approximations *)
     * Simple_value_approx.value_set_of_closures
-    * Env.t
+    * Env.t Lazy.t (* environment for non-recursive closures *)
+    * Env.t Lazy.t (* environment for recursive closures *)
 
 val prepare_to_simplify_closure
    : function_decl:Flambda.function_declaration
   -> free_vars:(Flambda.specialised_to * Simple_value_approx.t) Variable.Map.t
   -> specialised_args:Flambda.specialised_to Variable.Map.t
   -> parameter_approximations:Simple_value_approx.t Variable.Map.t
-  -> set_of_closures_env:Env.t
+  -> nonrec_closure_env:Env.t Lazy.t
+  -> rec_closure_env:Env.t Lazy.t
   -> Env.t
