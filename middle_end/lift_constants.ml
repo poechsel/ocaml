@@ -287,6 +287,7 @@ let find_original_set_of_closure
               Format.eprintf "var: %a@." Variable.print var;
               assert false
           end
+        | Recursive (var, _) -> loop var
         | _ -> assert false
       end
     | Symbol s ->
