@@ -437,7 +437,9 @@ let variable_and_symbol_invariants (program : Flambda.program) =
       check_symbol_is_bound env symbol
     | Flambda.Recursive (symbol, depth) ->
       check_symbol_is_bound env symbol;
-      check_relative_recursion_depth depth
+      (* Allow zero here because we can't easily eliminate a symbol if we
+         discover that it cancels another Recursive declaration out. *)
+      ignore_int depth
   in
   let rec loop_program_body env (program : Flambda.program_body) =
     match program with

@@ -65,6 +65,8 @@ and value_closure = {
   set_of_closures : t;
   closure_id : Closure_id.t;
   rec_depth : int;
+  rec_target_var : Variable.t option;
+  rec_target_symbol : Symbol.t option;
 }
 
 and value_set_of_closures = {
@@ -128,9 +130,23 @@ let rec print_descr ppf = function
   | Value_bottom -> Format.fprintf ppf "bottom"
   | Value_extern id -> Format.fprintf ppf "_%a_" Export_id.print id
   | Value_symbol sym -> Format.fprintf ppf "%a" Symbol.print sym
-  | Value_closure { set_of_closures; closure_id; rec_depth; } ->
-    Format.fprintf ppf "(closure:@ %a%a from@ %a)" Closure_id.print closure_id
+  | Value_closure { set_of_closures; closure_id; rec_depth;
+                    rec_target_var; rec_target_symbol } ->
+    let print_rec_target ppf () =
+      begin
+        match rec_target_var with
+        | Some var -> Format.fprintf ppf " => %a" Variable.print var
+        | None -> ()
+      end;
+      begin
+        match rec_target_symbol with
+        | Some sym -> Format.fprintf ppf " => %a" Symbol.print sym
+        | None -> ()
+      end
+    in
+      Format.fprintf ppf "(closure:@ %a%a%a from@ %a)" Closure_id.print closure_id
       print_recursion_depth rec_depth
+      print_rec_target ()
       print set_of_closures
   | Value_set_of_closures set_of_closures ->
     print_value_set_of_closures ppf set_of_closures
@@ -177,8 +193,24 @@ and print ppf { descr; var; symbol; } =
 
 let approx descr = { descr; var = None; symbol = None }
 
-let augment_with_variable t var = { t with var = Some var }
-let augment_with_symbol t symbol = { t with symbol = Some (symbol, None) }
+let augment_with_variable t var =
+  let descr =
+    match t.descr with
+    | Value_closure ({ rec_target_var = None; _ } as value_closure) ->
+      Value_closure { value_closure with rec_target_var = Some var }
+    | other ->
+      other
+  in
+  { t with descr; var = Some var }
+let augment_with_symbol t symbol =
+  let descr =
+    match t.descr with
+    | Value_closure ({ rec_target_symbol = None; _ } as value_closure) ->
+      Value_closure { value_closure with rec_target_symbol = Some symbol }
+    | other ->
+      other
+  in
+  { t with descr; symbol = Some (symbol, None) }
 let augment_with_symbol_field t symbol field =
   match t.symbol with
   | None -> { t with symbol = Some (symbol, Some field) }
@@ -230,6 +262,7 @@ let value_any_float = approx (Value_float None)
 let value_boxed_int bi i = approx (Value_boxed_int (bi,i))
 
 let value_closure ?closure_var ?set_of_closures_var ?set_of_closures_symbol
+      ?rec_target_var ?rec_target_symbol
       ~rec_depth value_set_of_closures closure_id =
   assert (rec_depth >= 0);
   let approx_set_of_closures =
@@ -238,10 +271,16 @@ let value_closure ?closure_var ?set_of_closures_var ?set_of_closures_symbol
       symbol = Misc.may_map (fun s -> s, None) set_of_closures_symbol;
     }
   in
+  let rec_target_var = match rec_target_var with
+    | Some var -> Some var
+    | None -> closure_var
+  in
   let value_closure =
     { set_of_closures = approx_set_of_closures;
       closure_id;
       rec_depth;
+      rec_target_var;
+      rec_target_symbol;
     }
   in
   { descr = Value_closure value_closure;
@@ -295,22 +334,23 @@ let value_set_of_closures ?set_of_closures_var value_set_of_closures =
   }
 
 let increase_recursion_depth approx depth =
-  (* This value is no longer equivalent to either the var or the symbol *)
-  let approx = { approx with var = None; symbol = None } in
-  match approx.descr with
-  | Value_closure value_closure ->
-    let rec_depth = value_closure.rec_depth + depth in
-    { approx with descr = Value_closure { value_closure with rec_depth; } }
-  | Value_set_of_closures value_set_of_closures ->
-    let rec_depth = value_set_of_closures.rec_depth + depth in
-    { approx with descr = Value_set_of_closures
-        { value_set_of_closures with rec_depth; } }
-  | Value_unknown _ | Value_unresolved _ | Value_bottom ->
-    approx
-  | Value_block _ | Value_int _ | Value_char _ | Value_constptr _
-  | Value_float _ | Value_boxed_int _
-  | Value_string _ | Value_float_array _ | Value_extern _ | Value_symbol _ ->
-    { approx with descr = Value_bottom }
+  if depth = 0 then approx else
+    (* This value is no longer equivalent to either the var or the symbol *)
+    let approx = { approx with var = None; symbol = None } in
+    match approx.descr with
+    | Value_closure value_closure ->
+      let rec_depth = value_closure.rec_depth + depth in
+      { approx with descr = Value_closure { value_closure with rec_depth; } }
+    | Value_set_of_closures value_set_of_closures ->
+      let rec_depth = value_set_of_closures.rec_depth + depth in
+      { approx with descr = Value_set_of_closures
+          { value_set_of_closures with rec_depth; } }
+    | Value_unknown _ | Value_unresolved _ | Value_bottom ->
+      approx
+    | Value_block _ | Value_int _ | Value_char _ | Value_constptr _
+    | Value_float _ | Value_boxed_int _
+    | Value_string _ | Value_float_array _ | Value_extern _ | Value_symbol _ ->
+      { approx with descr = Value_bottom }
 
 let value_block t b = approx (Value_block (t, b))
 let value_extern ex = approx (Value_extern ex)

@@ -1115,12 +1115,42 @@ and simplify_named env r (tree : Flambda.named) : Flambda.named * R.t =
   | Recursive (var, depth) ->
     let var = Freshening.apply_variable (E.freshening env) var in
     let approx = E.find_exn env var in
-    let var = match approx.var with
-      | Some var -> var
-      | None -> var
+    let var, approx, depth =
+      let use_var_from_approx () =
+        match approx.var with
+        | Some var -> var, approx, depth
+        | None -> var, approx, depth
+      in
+      match A.check_approx_for_closure approx with
+      | Ok ({ rec_target_var = Some tgt_var; rec_depth; _ }, _, _, _) ->
+        let tgt_var = Freshening.apply_variable (E.freshening env) tgt_var in
+        if Variable.equal tgt_var var then
+          use_var_from_approx ()
+        else begin
+          match E.find_opt env tgt_var with
+          | Some tgt_approx ->
+            begin
+              match A.check_approx_for_closure tgt_approx with
+              | Ok ({ rec_depth = tgt_rec_depth; _}, _, _, _) ->
+                let depth = depth + (rec_depth - tgt_rec_depth) in
+                tgt_var, tgt_approx, depth
+              | Wrong ->
+                use_var_from_approx ()
+            end
+          | None ->
+            use_var_from_approx ()
+        end
+      | Ok _ | Wrong ->
+        use_var_from_approx ()
     in
-    let approx = A.increase_recursion_depth approx depth in
-    Recursive (var, depth), ret r approx
+    if depth = 0 then
+      (* Multiple Recursives canceled out. Proceed as with (Expr (Var var)),
+         only skip freshening because it's already been freshened. *)
+      let expr, r = simplify_using_approx_and_env env r (Var var) approx in
+      Expr expr, r
+    else
+      let approx = A.increase_recursion_depth approx depth in
+      Recursive (var, depth), ret r approx
   | Expr expr ->
     let expr, r = simplify env r expr in
     Expr expr, r
@@ -1616,6 +1646,29 @@ let simplify_constant_defining_value
     | Recursive (target_symbol, depth) ->
       let target_approx =
         E.find_symbol_exn env target_symbol
+      in
+      let constant_defining_value, target_approx, depth =
+        match A.check_approx_for_closure target_approx with
+        | Ok ({ rec_target_symbol = Some new_target_symbol; rec_depth; _ },
+              _, _, _)
+             when not (Symbol.equal new_target_symbol target_symbol) ->
+          begin
+            let new_target_approx = E.find_symbol_exn env new_target_symbol in
+            match A.check_approx_for_closure new_target_approx with
+            | Ok ({ rec_depth = new_rec_depth; _}, _, _, _) ->
+              let depth = depth + (rec_depth - new_rec_depth) in
+              (* Note: This may create a Recursive of zero, which is redundant.
+                 However, we have no good way of getting rid of it now, so we
+                 keep it. Uses should get simplified away. *)
+              let constant_defining_value =
+                Flambda.Recursive (new_target_symbol, depth)
+              in
+              constant_defining_value, new_target_approx, depth
+            | Wrong ->
+              constant_defining_value, target_approx, depth
+          end
+        | Ok _ | Wrong ->
+          constant_defining_value, target_approx, depth
       in
       let rec_approx = A.increase_recursion_depth target_approx depth in
       r, constant_defining_value, rec_approx

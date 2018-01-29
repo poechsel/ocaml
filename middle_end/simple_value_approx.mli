@@ -142,6 +142,8 @@ and value_closure = {
   set_of_closures : t;
   closure_id : Closure_id.t;
   rec_depth : int;
+  rec_target_var : Variable.t option;
+  rec_target_symbol : Symbol.t option;
 }
 
 (* CR-soon mshinwell: add support for the approximations of the results, so we
@@ -223,6 +225,8 @@ val value_closure
    : ?closure_var:Variable.t
   -> ?set_of_closures_var:Variable.t
   -> ?set_of_closures_symbol:Symbol.t
+  -> ?rec_target_var:Variable.t
+  -> ?rec_target_symbol:Symbol.t
   -> rec_depth:int
   -> value_set_of_closures
   -> Closure_id.t
