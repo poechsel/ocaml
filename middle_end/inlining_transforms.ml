@@ -162,26 +162,36 @@ let inline_by_copying_function_body ~env ~r
      applied to another closure in the same set.
   *)
   let expr =
-    Variable.Map.fold (fun another_closure_in_the_same_set _ expr ->
+    Variable.Map.fold (fun another_closure_in_the_same_set other_decl expr ->
       let used =
         Variable.Set.mem another_closure_in_the_same_set
            function_decl.free_variables
       in
       if used then
-        let worker_var =
-          Variable.rename ~append:"_rec" another_closure_in_the_same_set
-        in
-        let worker_body : Flambda.named =
+        let original_body : Flambda.named =
           Move_within_set_of_closures {
             closure = lhs_of_application;
             start_from = closure_id_being_applied;
             move_to = Closure_id.wrap another_closure_in_the_same_set;
           }
         in
-        let wrapper_body : Flambda.named = Flambda.Recursive (worker_var, 1) in
-        Flambda.create_let worker_var worker_body
-          (Flambda.create_let another_closure_in_the_same_set wrapper_body
-            expr)
+        if function_decl.recursive && Flambda.(other_decl.recursive) then
+          let rec_var =
+            Variable.rename ~append:"_rec" another_closure_in_the_same_set
+          in
+          let rec_body : Flambda.named =
+            Recursive (another_closure_in_the_same_set, 1)
+          in
+          Flambda.create_let another_closure_in_the_same_set original_body @@
+          Flambda.create_let rec_var rec_body @@
+          (* Not strictly necessary to rename like this, but convenient to make
+             recursive declarations always end in _rec *)
+          Flambda.create_let another_closure_in_the_same_set
+            (Expr (Var rec_var)) @@
+          expr
+        else
+          Flambda.create_let another_closure_in_the_same_set original_body @@
+          expr
       else expr)
       function_decls.funs
       bindings_for_vars_bound_by_closure_and_params_to_args
@@ -303,14 +313,21 @@ let inline_by_copying_function_declaration ~env ~r
           Variable.Set.mem func required_functions)
         function_decls.funs
     in
-    let free_vars, free_vars_for_lets, original_vars =
+    let any_rec =
+      Variable.Map.exists (fun _ decl -> Flambda.(decl.recursive)) funs
+    in
+    let any_nonrec =
+      Variable.Map.exists (fun _ decl -> not Flambda.(decl.recursive)) funs
+    in
+    let free_vars, free_vars_for_lets,
+        nonrec_original_vars, rec_original_vars =
       (* Bind all the closures from the original (non-specialised) set as
          free variables in the set.  This means that we can reference them
          when some particular recursive call cannot be specialised.  See
          detailed comment below. *)
-      Variable.Map.fold (fun fun_var _fun_decl
-                (free_vars, free_vars_for_lets, original_vars) ->
-          let worker_var = Variable.rename ~append:"_rec" fun_var in
+      Variable.Map.fold (fun fun_var (fun_decl : Flambda.function_declaration)
+                          (free_vars, free_vars_for_lets,
+                           nonrec_original_vars, rec_original_vars) ->
           let original_closure : Flambda.named =
             Move_within_set_of_closures
               { closure = lhs_of_application;
@@ -318,20 +335,65 @@ let inline_by_copying_function_declaration ~env ~r
                 move_to = Closure_id.wrap fun_var;
               }
           in
-          let wrapper_var = Variable.rename fun_var in
-          let wrapper_body : Flambda.named = Recursive (worker_var, 1) in
+          let original_var = Variable.rename ~append:"_closure" fun_var in
           let internal_var = Variable.rename ~append:"_original" fun_var in
-          let free_vars =
-            Variable.Map.add internal_var
-              { Flambda. var = wrapper_var; projection = None }
-              free_vars
+          let free_vars_for_lets =
+            (original_var, original_closure) :: free_vars_for_lets
           in
-          free_vars,
-          (wrapper_var, wrapper_body) :: (worker_var, original_closure)
-          :: free_vars_for_lets,
-          Variable.Map.add fun_var internal_var original_vars)
+          (* We need to make recursive-to-recursive calls, but only those calls,
+             go through Recursive declarations. It's possible a recursive
+             function will be called both from recursive functions and from
+             non-recursive functions, in which case we need to provide two
+             mappings in the free variables. *)
+          let free_vars, nonrec_original_vars =
+            if any_nonrec then
+              let free_vars =
+                Variable.Map.add internal_var
+                  { Flambda. var = original_var; projection = None }
+                  free_vars
+              in
+              let nonrec_original_vars =
+                Variable.Map.add fun_var internal_var nonrec_original_vars
+              in
+              free_vars, nonrec_original_vars
+            else
+              free_vars, nonrec_original_vars
+          in
+          let free_vars, free_vars_for_lets, rec_original_vars =
+            if not any_rec then
+              free_vars, free_vars_for_lets, rec_original_vars
+            else if not Flambda.(fun_decl.recursive) then begin
+              (* Recursive functions get the same view as non-recursive ones *)
+              let rec_original_vars =
+                Variable.Map.add fun_var internal_var rec_original_vars
+              in
+              (* We already added the free var above. Note:
+                 not fun_decl.recursive implies any_nonrec. *)
+              assert (Variable.Map.mem internal_var free_vars);
+              free_vars, free_vars_for_lets, rec_original_vars
+            end else begin
+              let internal_rec_var =
+                Variable.rename ~append:"_original_rec" fun_var
+              in
+              let wrapper_var = Variable.rename ~append:"_rec" fun_var in
+              let wrapper_body : Flambda.named = Recursive (original_var, 1) in
+              let free_vars =
+                Variable.Map.add internal_rec_var
+                  { Flambda. var = wrapper_var; projection = None }
+                  free_vars
+              in
+              let free_vars_for_lets =
+                (wrapper_var, wrapper_body) :: free_vars_for_lets
+              in
+              let rec_original_vars =
+                Variable.Map.add fun_var internal_rec_var rec_original_vars
+              in
+              free_vars, free_vars_for_lets, rec_original_vars
+            end
+          in
+          free_vars, free_vars_for_lets, nonrec_original_vars, rec_original_vars)
         funs
-        (free_vars, free_vars_for_lets, Variable.Map.empty)
+        (free_vars, free_vars_for_lets, Variable.Map.empty, Variable.Map.empty)
     in
     let direct_call_surrogates =
       Closure_id.Map.fold (fun existing surrogate surrogates ->
@@ -440,6 +502,11 @@ let inline_by_copying_function_declaration ~env ~r
          second just performs the optimisation on a best-effort basis.
       *)
       let body_substituted =
+        let original_vars =
+          if fun_decl.recursive
+          then rec_original_vars
+          else nonrec_original_vars
+        in
         (* The use of [Freshening.rewrite_recursive_calls_with_symbols] above
            ensures that we catch all calls to the functions being defined
            in the current set of closures. *)

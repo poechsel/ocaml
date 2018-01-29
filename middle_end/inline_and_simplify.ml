@@ -325,14 +325,20 @@ let simplify_move_within_set_of_closures env r
           move_to;
         }
       in
+      let target_rec_depth =
+        let funs = value_set_of_closures.function_decls.funs in
+        let decl_of cid = Variable.Map.find (Closure_id.unwrap cid) funs in
+        if (decl_of start_from).recursive && (decl_of move_to).recursive
+        then value_closure.rec_depth
+        else 0
+      in
       let adjust_rec_depth flam approx =
         let direct_closure =
           match Simple_value_approx.check_approx_for_closure approx with
           | Ok (direct_closure, _, _, _) -> direct_closure
           | Wrong -> assert false
         in
-        (* This can be negative, in weird but legit cases *)
-        let rec_depth = value_closure.rec_depth - direct_closure.rec_depth in
+        let rec_depth = target_rec_depth - direct_closure.rec_depth in
         Flambda_utils.increase_recursion_depth flam rec_depth,
         Simple_value_approx.increase_recursion_depth approx rec_depth
       in
@@ -407,7 +413,7 @@ let simplify_move_within_set_of_closures env r
                   { closure; start_from; move_to; }
                 in
                 let approx =
-                  A.value_closure ~rec_depth:value_closure.rec_depth
+                  A.value_closure ~rec_depth:target_rec_depth
                     value_set_of_closures move_to
                 in
                 Move_within_set_of_closures move_within, ret r approx)
