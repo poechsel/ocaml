@@ -338,7 +338,7 @@ module Env = struct
   let inlines_remaining t id =
     let limit =
       max 1 (Clflags.Int_arg_helper.get
-               ~key:t.round !Clflags.inline_max_unroll)
+               ~key:t.round !Clflags.inline_max_depth)
     in
     limit - inline_depth_for t id
 

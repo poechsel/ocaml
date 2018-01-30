@@ -261,6 +261,13 @@ let mk_make_runtime_2 f =
   "-make_runtime", Arg.Unit f, " (deprecated) same as -make-runtime"
 ;;
 
+let mk_inline_max_depth f =
+  "-inline-max-depth", Arg.String f,
+    Printf.sprintf "<n>|<round>=<n>[,...]  Maximum depth of inlining \
+      (default %d)"
+      Clflags.default_inline_max_depth
+;;
+
 let mk_inline_max_speculation_depth f =
   "-inline-max-speculation-depth", Arg.String f,
     Printf.sprintf "<n>|<round>=<n>[,...]  Maximum depth of search for \
@@ -909,6 +916,7 @@ module type Optcommon_options = sig
   val _inline_toplevel : string -> unit
   val _inlining_report : unit -> unit
   val _dump_pass : string -> unit
+  val _inline_max_depth : string -> unit
   val _inline_max_speculation_depth : string -> unit
   val _rounds : int -> unit
   val _inline_max_unroll : string -> unit
@@ -1193,6 +1201,7 @@ struct
     mk_no_keep_locs F._no_keep_locs;
     mk_labels F._labels;
     mk_linkall F._linkall;
+    mk_inline_max_depth F._inline_max_depth;
     mk_inline_max_speculation_depth F._inline_max_speculation_depth;
     mk_alias_deps F._alias_deps;
     mk_no_alias_deps F._no_alias_deps;

@@ -33,6 +33,50 @@ type 'b good_idea =
   | Try_it
   | Don't_try_it of 'b
 
+type inlining_policy =
+  | Always_inline
+  | Start_unrolling of { to_depth : int }
+  | Continue_unrolling
+  | Never_inline
+  | Default_inline
+
+let inlining_policy
+      ~(func_annot : Lambda.inline_attribute)
+      ~(call_annot : Lambda.inline_attribute)
+      ~(actively_unrolling : int option)
+      ~(rec_depth : int)
+    : inlining_policy =
+  match actively_unrolling with
+  | Some count -> if count > 0 then Continue_unrolling else Never_inline
+  | None ->
+    (* Merge call site annotation and function annotation.
+       The call site annotation takes precedence *)
+    begin
+      match call_annot with
+      | Always_inline when rec_depth <= 1 ->
+        Always_inline
+      | Unroll count when rec_depth <= 1 ->
+        if count > 0
+        then Start_unrolling { to_depth = count }
+        else Never_inline
+      | Never_inline ->
+        Never_inline
+      | _ ->
+        begin
+          match func_annot with
+          | Always_inline when rec_depth = 0 ->
+            Always_inline
+          | Unroll count when rec_depth = 0 ->
+            if count > 0
+            then Start_unrolling { to_depth = count }
+            else Never_inline
+          | Never_inline ->
+            Never_inline
+          | _ ->
+            Default_inline
+        end
+    end
+
 let inline env r ~lhs_of_application
     ~(function_decls : Flambda.function_declarations)
     ~closure_id_being_applied ~(function_decl : Flambda.function_declaration)
@@ -43,40 +87,20 @@ let inline env r ~lhs_of_application
     ~rec_depth ~fun_cost ~inlining_threshold =
   let toplevel = E.at_toplevel env in
   let branch_depth = E.branch_depth env in
-  let unrolling, always_inline, never_inline, env =
-    let unrolling =
+  let policy =
+    let actively_unrolling =
       E.actively_unrolling env function_decls.set_of_closures_origin
     in
-    match unrolling with
-    | Some count ->
-      if count > 0 then
-        let env =
-          E.continue_actively_unrolling
-            env function_decls.set_of_closures_origin
-        in
-        true, true, false, env
-      else false, false, true, env
-    | None -> begin
-        let inline_annotation =
-          (* Merge call site annotation and function annotation.
-             The call site annotation takes precedence *)
-          match (inline_requested : Lambda.inline_attribute) with
-          | Always_inline | Never_inline | Unroll _ -> inline_requested
-          | Default_inline -> function_decl.inline
-        in
-        match inline_annotation with
-        | Always_inline -> false, true, false, env
-        | Never_inline -> false, false, true, env
-        | Default_inline -> false, false, false, env
-        | Unroll count ->
-          if count > 0 then
-            let env =
-              E.start_actively_unrolling
-                env function_decls.set_of_closures_origin (count - 1)
-            in
-            true, true, false, env
-          else false, false, true, env
-      end
+    inlining_policy
+      ~func_annot:(function_decl.inline)
+      ~call_annot:inline_requested
+      ~actively_unrolling
+      ~rec_depth
+  in
+  let always_inline =
+    match policy with
+    | Always_inline | Start_unrolling _ | Continue_unrolling -> true
+    | Never_inline | Default_inline -> false
   in
   let unrolling_limit =
     Clflags.Int_arg_helper.get ~key:(E.round env) !Clflags.inline_max_unroll
@@ -85,28 +109,41 @@ let inline env r ~lhs_of_application
     if always_inline then inlining_threshold
     else Lazy.force fun_cost
   in
+  let env = match policy with
+    | Continue_unrolling ->
+      E.continue_actively_unrolling
+        env function_decls.set_of_closures_origin
+    | Start_unrolling { to_depth = count } ->
+      E.start_actively_unrolling
+        env function_decls.set_of_closures_origin (count - 1)
+    | Always_inline | Never_inline | Default_inline ->
+      env
+  in
   let try_inlining =
-    if unrolling then
+    match policy with
+    | Continue_unrolling | Start_unrolling _ ->
       Try_it
-    else if not (E.inlining_allowed env closure_id_being_applied) then
+    | _ when not (E.inlining_allowed env closure_id_being_applied) ->
       Don't_try_it S.Not_inlined.Unrolling_depth_exceeded
-    else if only_use_of_function || always_inline then
+    | Always_inline ->
       Try_it
-    else if never_inline then
+    | _ when only_use_of_function ->
+      Try_it
+    | Never_inline ->
       Don't_try_it S.Not_inlined.Annotation
-    else if !Clflags.classic_inlining then
+    | _ when !Clflags.classic_inlining ->
       Don't_try_it S.Not_inlined.Classic_mode
-    else if rec_depth >= unrolling_limit && function_decl.recursive then
+    | _ when rec_depth >= unrolling_limit && function_decl.recursive ->
       Don't_try_it S.Not_inlined.Unrolling_depth_exceeded
-    else if remaining_inlining_threshold = T.Never_inline then
+    | _ when remaining_inlining_threshold = T.Never_inline ->
       let threshold =
         match inlining_threshold with
         | T.Never_inline -> assert false
         | T.Can_inline_if_no_larger_than threshold -> threshold
       in
       Don't_try_it (S.Not_inlined.Above_threshold threshold)
-    else if not (toplevel && branch_depth = 0)
-         && A.all_not_useful (E.find_list_exn env args) then
+    | _ when not (toplevel && branch_depth = 0)
+         && A.all_not_useful (E.find_list_exn env args) ->
       (* When all of the arguments to the function being inlined are unknown,
          then we cannot materially simplify the function.  As such, we know
          what the benefit of inlining it would be: just removing the call.
@@ -134,7 +171,7 @@ let inline env r ~lhs_of_application
 
           let g x = f x x
       *)
-      match size_from_approximation with
+      begin match size_from_approximation with
       | Some body_size ->
         let wsb =
           let benefit = Inlining_cost.Benefit.zero in
@@ -174,10 +211,10 @@ let inline env r ~lhs_of_application
            we also expect no gain from the code below that permits inlining
            inside the body. *)
         Don't_try_it S.Not_inlined.No_useful_approximations
-    else begin
+      end
+    | _ ->
       (* There are useful approximations, so we should simplify. *)
       Try_it
-    end
   in
   match try_inlining with
   | Don't_try_it decision -> Original decision

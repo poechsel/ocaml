@@ -304,6 +304,10 @@ let read_one_param ppf position name v =
     Float_arg_helper.parse v
       "Bad syntax in OCAMLPARAM for 'inline-branch-factor'"
       inline_branch_factor
+  | "inline-max-depth" ->
+    Int_arg_helper.parse v
+      "Bad syntax in OCAMLPARAM for 'inline-max-depth'"
+      inline_max_depth
   | "inline-max-speculation-depth" ->
     Int_arg_helper.parse v
       "Bad syntax in OCAMLPARAM for 'inline-max-speculation-depth'"
