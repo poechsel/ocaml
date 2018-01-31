@@ -78,3 +78,8 @@ val projecting_from : t -> Variable.t
 
 (** Change the variable that the given projection projects from. *)
 val map_projecting_from : t -> f:(Variable.t -> Variable.t) -> t
+
+(** Make up a fresh variable with a name that makes sense to hold the
+    result of the projection. For instance, the name might be taken
+    from the variable being projected out. *)
+val suggest_fresh_variable : ?append:string -> t -> Variable.t

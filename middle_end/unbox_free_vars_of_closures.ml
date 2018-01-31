@@ -103,13 +103,12 @@ let run ~env ~(set_of_closures : Flambda.set_of_closures) =
                 (* Add a new free variable.  This needs both a fresh
                    "new inner" and a fresh "new outer" var, since we know
                    the definition is not a duplicate. *)
-                let projecting_from = Projection.projecting_from projection in
                 let new_inner_var =
-                  Variable.rename projecting_from
+                  Projection.suggest_fresh_variable projection
                     ~append:variable_suffix
                 in
                 let new_outer_var =
-                  Variable.rename projecting_from
+                  Projection.suggest_fresh_variable projection
                     ~append:variable_suffix
                 in
                 let definitions_indexed_by_new_inner_vars =
