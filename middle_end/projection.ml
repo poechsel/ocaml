@@ -167,3 +167,18 @@ let map_projecting_from t ~f : t =
     in
     Move_within_set_of_closures move
   | Field (field_index, var) -> Field (field_index, f var)
+
+let suggest_fresh_variable t =
+  (* Why not just return the basis? Because it's an arbitrary value, good only
+     for debugging, and it's not even a "real" [Variable.t] (could be an
+     unwrapped closure id). Only legit thing to do with it is pass it to
+     [Variable.rename]. *)
+  let basis =
+    match t with
+    | Project_var { var; _ } -> Var_within_closure.unwrap var
+    | Field (_, var) -> var
+    | Project_closure { closure_id; _ }
+    | Move_within_set_of_closures { move_to = closure_id; _ } ->
+        Closure_id.unwrap closure_id
+  in
+  Variable.rename basis
