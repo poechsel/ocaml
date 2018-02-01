@@ -68,20 +68,13 @@ let import_set_of_closures_id_for_pack units pack
       set_of_closures_id
   else set_of_closures_id
 
-let import_set_of_closures_origin_for_pack units pack
-    (set_of_closures_origin : Set_of_closures_origin.t)
-    : Set_of_closures_origin.t =
-  Set_of_closures_origin.rename
-    (import_set_of_closures_id_for_pack units pack)
-    set_of_closures_origin
-
 let import_set_of_closures units pack
       (set_of_closures : Export_info.value_set_of_closures)
       : Export_info.value_set_of_closures =
   { set_of_closures_id =
       import_set_of_closures_id_for_pack units pack
         set_of_closures.set_of_closures_id;
-    rec_depth = set_of_closures.rec_depth;
+    rec_info = set_of_closures.rec_info;
     bound_vars =
       Var_within_closure.Map.map (import_approx_for_pack units pack)
         set_of_closures.bound_vars;
@@ -113,8 +106,8 @@ let import_descr_for_pack units pack (descr : Export_info.descr)
       closure_id;
       set_of_closures = import_set_of_closures units pack set_of_closures;
     }
-  | Value_recursive (approx, depth) ->
-    Value_recursive (import_approx_for_pack units pack approx, depth)
+  | Value_recursive (approx, rec_info) ->
+    Value_recursive (import_approx_for_pack units pack approx, rec_info)
   | Value_set_of_closures set_of_closures ->
     Value_set_of_closures (import_set_of_closures units pack set_of_closures)
   | Value_unknown_descr -> Value_unknown_descr
@@ -128,7 +121,7 @@ let rec import_code_for_pack units pack expr =
         let set_of_closures =
           Flambda.create_set_of_closures
             ~free_vars:set_of_closures.free_vars
-            ~rec_depth:set_of_closures.rec_depth
+            ~rec_info:set_of_closures.rec_info
             ~specialised_args:set_of_closures.specialised_args
             ~direct_call_surrogates:set_of_closures.direct_call_surrogates
             ~function_decls:
@@ -150,7 +143,6 @@ and import_function_declarations_for_pack_aux units pack
   Flambda.import_function_declarations_for_pack
     (Flambda.update_function_declarations function_decls ~funs)
     (import_set_of_closures_id_for_pack units pack)
-    (import_set_of_closures_origin_for_pack units pack)
 
 let import_function_declarations_for_pack_aux units pack
       (function_decls : A.function_declarations) : A.function_declarations =
@@ -164,7 +156,6 @@ let import_function_declarations_for_pack_aux units pack
   A.import_function_declarations_for_pack
     (A.update_function_declarations function_decls ~funs)
     (import_set_of_closures_id_for_pack units pack)
-    (import_set_of_closures_origin_for_pack units pack)
 
 let import_function_declarations_approx_for_pack units pack
       (function_decls: A.function_declarations) =

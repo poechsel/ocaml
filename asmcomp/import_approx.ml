@@ -66,7 +66,7 @@ let import_set_of_closures =
   Set_of_closures_id.Tbl.memoize Compilenv.imported_sets_of_closures_table aux
 
 let rec import_ex ex =
-  let import_value_set_of_closures ~set_of_closures_id ~rec_depth
+  let import_value_set_of_closures ~set_of_closures_id ~rec_info
         ~bound_vars ~free_vars
         ~(ex_info : Export_info.t) ~what : A.value_set_of_closures option =
     let bound_vars = Var_within_closure.Map.map import_approx bound_vars in
@@ -94,7 +94,7 @@ let rec import_ex ex =
       in
       Some (A.create_value_set_of_closures
         ~function_decls
-        ~rec_depth
+        ~rec_info
         ~bound_vars
         ~free_vars
         ~invariant_params:(lazy invariant_params)
@@ -138,33 +138,31 @@ let rec import_ex ex =
       A.value_block tag (Array.map import_approx fields)
     | Value_closure { closure_id;
           set_of_closures =
-            { set_of_closures_id; rec_depth;
+            { set_of_closures_id; rec_info;
               bound_vars; free_vars; aliased_symbol } } ->
       let value_set_of_closures =
         import_value_set_of_closures
-          ~set_of_closures_id ~rec_depth ~bound_vars ~free_vars ~ex_info
+          ~set_of_closures_id ~rec_info ~bound_vars ~free_vars ~ex_info
           ~what:(Format.asprintf "Value_closure %a" Closure_id.print closure_id)
       in
       begin match value_set_of_closures with
       | None -> A.value_unresolved (Set_of_closures_id set_of_closures_id)
       | Some value_set_of_closures ->
         A.value_closure ?set_of_closures_symbol:aliased_symbol
-          ~rec_depth:value_set_of_closures.rec_depth
+          ~rec_info:value_set_of_closures.rec_info
           value_set_of_closures closure_id
       end
-    | Value_recursive (approx, depth) -> begin
+    | Value_recursive (approx, info) -> begin
         match approx with
         | Value_unknown -> A.value_unknown Other
-        | Value_id ex -> A.value_extern ex
-        | Value_symbol sym ->
-          let approx = import_symbol sym in
-          A.increase_recursion_depth approx depth
+        | Value_id ex -> A.value_extern_recursive ex info
+        | Value_symbol sym -> A.value_symbol_recursive sym info
       end
     | Value_set_of_closures
-        { set_of_closures_id; rec_depth;
+        { set_of_closures_id; rec_info;
           bound_vars; free_vars; aliased_symbol } ->
       let value_set_of_closures =
-        import_value_set_of_closures ~set_of_closures_id ~rec_depth
+        import_value_set_of_closures ~set_of_closures_id ~rec_info
           ~bound_vars ~free_vars ~ex_info ~what:"Value_set_of_closures"
       in
       match value_set_of_closures with
@@ -207,6 +205,10 @@ let rec really_import (approx : A.descr) =
   match approx with
   | Value_extern ex -> really_import_ex ex
   | Value_symbol sym -> really_import_symbol sym
+  | Value_extern_recursive(ex, info) ->
+      A.add_rec_info_descr (really_import_ex ex) info
+  | Value_symbol_recursive(sym, info) ->
+      A.add_rec_info_descr (really_import_symbol sym) info
   | r -> r
 
 and really_import_ex ex =

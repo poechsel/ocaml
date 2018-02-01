@@ -135,13 +135,15 @@ and descr = private
   | Value_bottom
   | Value_extern of Export_id.t
   | Value_symbol of Symbol.t
+  | Value_extern_recursive of Export_id.t * Flambda.rec_info
+  | Value_symbol_recursive of Symbol.t * Flambda.rec_info
   | Value_unresolved of unresolved_value
     (* No description was found for this value *)
 
 and value_closure = {
   set_of_closures : t;
   closure_id : Closure_id.t;
-  rec_depth : int;
+  rec_info : Flambda.rec_info;
   rec_target_var : Variable.t option;
   rec_target_symbol : Symbol.t option;
 }
@@ -149,7 +151,6 @@ and value_closure = {
 and function_declarations = private {
   is_classic_mode: bool;
   set_of_closures_id : Set_of_closures_id.t;
-  set_of_closures_origin : Set_of_closures_origin.t;
   funs : function_declaration Variable.Map.t;
 }
 
@@ -182,7 +183,7 @@ and function_declaration = private {
 *)
 and value_set_of_closures = private {
   function_decls : function_declarations;
-  rec_depth : int;
+  rec_info : Flambda.rec_info;
   bound_vars : t Var_within_closure.Map.t;
   free_vars : Flambda.specialised_to Variable.Map.t;
   invariant_params : Variable.Set.t Variable.Map.t Lazy.t;
@@ -227,7 +228,7 @@ val function_declarations_approx
 
 val create_value_set_of_closures
    : function_decls:function_declarations
-  -> rec_depth:int
+  -> rec_info:Flambda.rec_info
   -> bound_vars:t Var_within_closure.Map.t
   -> free_vars:Flambda.specialised_to Variable.Map.t
   -> invariant_params:Variable.Set.t Variable.Map.t lazy_t
@@ -255,6 +256,8 @@ val value_constptr : int -> t
 val value_block : Tag.t -> t array -> t
 val value_extern : Export_id.t -> t
 val value_symbol : Symbol.t -> t
+val value_extern_recursive : Export_id.t -> Flambda.rec_info -> t
+val value_symbol_recursive : Symbol.t -> Flambda.rec_info -> t
 val value_bottom : t
 val value_unresolved : unresolved_value -> t
 
@@ -270,7 +273,7 @@ val value_closure
   -> ?set_of_closures_symbol:Symbol.t
   -> ?rec_target_var:Variable.t
   -> ?rec_target_symbol:Symbol.t
-  -> rec_depth:int
+  -> rec_info:Flambda.rec_info
   -> value_set_of_closures
   -> Closure_id.t
   -> t
@@ -319,7 +322,8 @@ val augment_with_kind : t -> Lambda.value_kind -> t
 val augment_kind_with_approx : t -> Lambda.value_kind -> Lambda.value_kind
 
 (** Make a closure a recursive occurrence or increase its depth *)
-val increase_recursion_depth : t -> int -> t
+val add_rec_info : t -> Flambda.rec_info -> t
+val add_rec_info_descr : descr -> Flambda.rec_info -> descr
 
 val equal_boxed_int : 'a boxed_int -> 'a -> 'b boxed_int -> 'b -> bool
 
@@ -493,7 +497,6 @@ val update_function_declarations
 val import_function_declarations_for_pack
    : function_declarations
   -> (Set_of_closures_id.t -> Set_of_closures_id.t)
-  -> (Set_of_closures_origin.t -> Set_of_closures_origin.t)
   -> function_declarations
 
 val update_function_declaration_body

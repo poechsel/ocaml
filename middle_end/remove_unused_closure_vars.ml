@@ -117,7 +117,7 @@ let remove_unused_closure_variables ~remove_direct_call_surrogates program =
       let set_of_closures =
         Flambda.create_set_of_closures ~function_decls
           ~free_vars ~specialised_args ~direct_call_surrogates
-          ~rec_depth:set_of_closures.rec_depth
+          ~rec_info:set_of_closures.rec_info
       in
       Set_of_closures set_of_closures
     | e -> e

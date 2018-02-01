@@ -130,12 +130,6 @@ module Env : sig
       variables from outer scopes that are not accessible. *)
   val local : t -> t
 
-  (** Determine whether the inliner is currently inside a function body from
-      the given set of closures.  This is used to detect whether a given
-      function call refers to a function which exists somewhere on the current
-      inlining stack. *)
-  val inside_set_of_closures_declaration : Set_of_closures_origin.t -> t -> bool
-
   (** Not inside a closure declaration.
       Toplevel code is the one evaluated when the compilation unit is
       loaded *)
@@ -182,23 +176,6 @@ module Env : sig
       used by the inlining heuristics to decide whether to continue.
       Unconditionally inlined does not take this into account. *)
   val speculation_depth_up : t -> t
-
-  (** Whether we are actively unrolling a given function. *)
-  val actively_unrolling : t -> Set_of_closures_origin.t -> int option
-
-  (** Start actively unrolling a given function [n] times. *)
-  val start_actively_unrolling : t -> Set_of_closures_origin.t -> int -> t
-
-  (** Unroll a function currently actively being unrolled. *)
-  val continue_actively_unrolling : t -> Set_of_closures_origin.t -> t
-
-  (** Whether it is permissible to unroll a call to a recursive function
-      in the given environment. *)
-  val unrolling_allowed : t -> Set_of_closures_origin.t -> bool
-
-  (** Whether the given environment is currently being used to rewrite the
-      body of an unrolled recursive function. *)
-  val inside_unrolled_function : t -> Set_of_closures_origin.t -> t
 
   (** Whether it is permissible to inline a call to a function in the given
       environment. *)
