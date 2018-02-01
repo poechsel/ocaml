@@ -72,7 +72,6 @@ val inline_by_copying_function_body
   -> inline_requested:Lambda.inline_attribute
   -> specialise_requested:Lambda.specialise_attribute
   -> closure_id_being_applied:Closure_id.t
-  -> function_decl:Flambda.function_declaration
   -> args:Variable.t list
   -> dbg:Debuginfo.t
   -> simplify:Inlining_decision_intf.simplify
@@ -93,7 +92,6 @@ val inline_by_copying_function_declaration
   -> rec_depth:int
   -> inline_requested:Lambda.inline_attribute
   -> closure_id_being_applied:Closure_id.t
-  -> function_decl:Flambda.function_declaration
   -> args:Variable.t list
   -> args_approxs:Simple_value_approx.t list
   -> invariant_params:Variable.Set.t Variable.Map.t lazy_t

@@ -229,7 +229,7 @@ let inline env r ~lhs_of_application
       Inlining_transforms.inline_by_copying_function_body ~env
         ~r:(R.reset_benefit r) ~function_decls ~lhs_of_application
         ~closure_id_being_applied ~specialise_requested ~inline_requested
-        ~function_decl ~args ~dbg ~simplify
+        ~args ~dbg ~simplify
     in
     let num_direct_applications_seen =
       (R.num_direct_applications r_inlined) - (R.num_direct_applications r)
@@ -433,7 +433,7 @@ let specialise env r ~lhs_of_application
       let copied_function_declaration =
         Inlining_transforms.inline_by_copying_function_declaration ~env
           ~r:(R.reset_benefit r) ~lhs_of_application ~rec_depth
-          ~function_decls ~closure_id_being_applied ~function_decl
+          ~function_decls ~closure_id_being_applied
           ~args ~args_approxs
           ~invariant_params:value_set_of_closures.invariant_params
           ~specialised_args:value_set_of_closures.specialised_args
@@ -577,7 +577,7 @@ let for_call_site ~env ~r ~(function_decls : Flambda.function_declarations)
       Inlining_transforms.inline_by_copying_function_body ~env
         ~r ~function_decls ~lhs_of_application
         ~closure_id_being_applied ~specialise_requested ~inline_requested
-        ~function_decl ~args ~dbg ~simplify
+        ~args ~dbg ~simplify
     in
     simplify env r body
   else if E.never_inline env then

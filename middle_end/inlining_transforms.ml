@@ -77,6 +77,13 @@ let set_attributes_on_all_apply body inline specialise stack =
       | expr -> expr)
     body
 
+let rewrite_recursive_calls_from_symbols_to_variables env function_decls =
+  let symbol_to_closure_id = E.find_closure_id_for_symbol env in
+  Freshening.rewrite_recursive_calls_with_symbols
+    (Freshening.activate Freshening.empty)
+    ~symbol_to_closure_id
+    function_decls
+
 (** Assign fresh names for a function's parameters and rewrite the body to
     use these new names. *)
 let copy_of_function's_body_with_freshened_params env
@@ -119,9 +126,18 @@ let inline_by_copying_function_body ~env ~r
       ~(inline_requested : Lambda.inline_attribute)
       ~(specialise_requested : Lambda.specialise_attribute)
       ~closure_id_being_applied
-      ~(function_decl : Flambda.function_declaration) ~args ~dbg ~simplify =
+      ~args ~dbg ~simplify =
   assert (E.mem env lhs_of_application);
   assert (List.for_all (E.mem env) args);
+
+  let function_decls =
+    (* This lets us check which recursive siblings are used simply by
+       checking free variables. *)
+    rewrite_recursive_calls_from_symbols_to_variables env function_decls
+  in
+  let function_decl =
+    Flambda_utils.find_declaration closure_id_being_applied function_decls
+  in
   let r =
     if function_decl.stub then r
     else R.map_benefit r B.remove_call
@@ -209,7 +225,6 @@ let inline_by_copying_function_declaration ~env ~r
     ~rec_depth
     ~(inline_requested : Lambda.inline_attribute)
     ~closure_id_being_applied
-    ~(function_decl : Flambda.function_declaration)
     ~args ~args_approxs
     ~(invariant_params:Variable.Set.t Variable.Map.t lazy_t)
     ~(specialised_args : Flambda.specialised_to Variable.Map.t)
@@ -218,11 +233,10 @@ let inline_by_copying_function_declaration ~env ~r
     (* To simplify a substitution (see comment below), rewrite any references
        to closures in the set being defined that go via symbols, so they go
        via closure variables instead. *)
-    let symbol_to_closure_id = E.find_closure_id_for_symbol env in
-    Freshening.rewrite_recursive_calls_with_symbols
-      (Freshening.activate Freshening.empty)
-      ~symbol_to_closure_id
-      function_decls
+    rewrite_recursive_calls_from_symbols_to_variables env function_decls
+  in
+  let function_decl =
+    Flambda_utils.find_declaration closure_id_being_applied function_decls
   in
   let original_function_decls = function_decls in
   let specialised_args_set = Variable.Map.keys specialised_args in
