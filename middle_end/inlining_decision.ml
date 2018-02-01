@@ -98,11 +98,6 @@ let inline env r ~lhs_of_application
     | Always_inline | Start_unrolling _ | Continue_unrolling -> true
     | Never_inline | Default_inline -> false
   in
-  let unrolling =
-    match policy with
-    | Start_unrolling _ | Continue_unrolling -> true
-    | Always_inline | Never_inline | Default_inline -> false
-  in
   let unroll_to =
     match policy with
     | Start_unrolling { to_depth = depth } -> depth
@@ -116,11 +111,11 @@ let inline env r ~lhs_of_application
     else Lazy.force fun_cost
   in
   let try_inlining =
-    if unrolling then
+    if policy = Continue_unrolling then
       Try_it
     else if not (E.inlining_allowed env closure_id_being_applied) then
       Don't_try_it S.Not_inlined.Inlining_depth_exceeded
-    else if only_use_of_function || policy = Always_inline then
+    else if only_use_of_function || always_inline then
       Try_it
     else if policy = Never_inline then
       Don't_try_it S.Not_inlined.Annotation
