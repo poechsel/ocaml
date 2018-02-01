@@ -116,7 +116,7 @@ let inline_by_copying_function_body ~env ~r
       ~closure_id_being_applied
       ~(function_decls : A.function_declarations)
       ~(function_body : A.function_body)
-      ~args ~dbg ~simplify =
+      ~unroll_to ~args ~dbg ~simplify =
   assert (E.mem env lhs_of_application);
   assert (List.for_all (E.mem env) args);
   let function_decls =
@@ -196,7 +196,8 @@ let inline_by_copying_function_body ~env ~r
         if recursive then
           let rec_var = Variable.rename another_closure_in_the_same_set in
           let rec_body : Flambda.named =
-            Recursive (another_closure_in_the_same_set, 1)
+            Recursive
+              (another_closure_in_the_same_set, { depth = 1; unroll_to })
           in
           Flambda.create_let another_closure_in_the_same_set original_body @@
           Flambda.create_let rec_var rec_body @@
@@ -377,7 +378,9 @@ let add_recursive_applied_closure_var ~lhs_of_application ~state =
   | Some var -> state, var
   | None ->
       let var = Variable.rename lhs_of_application in
-      let expr : Flambda.named = Recursive (lhs_of_application, 1) in
+      let expr : Flambda.named =
+        Recursive (lhs_of_application, { depth = 1; unroll_to = 0 })
+      in
       let let_bindings = (var, expr) :: state.let_bindings in
       let recursive_applied_closure_var = Some var in
       let state = { state with let_bindings; recursive_applied_closure_var } in
@@ -662,7 +665,7 @@ let inline_by_copying_function_declaration
     ~(r : Inline_and_simplify_aux.Result.t)
     ~(function_decls : A.function_declarations)
     ~(lhs_of_application : Variable.t)
-    ~(rec_depth : int)
+    ~(rec_info : Flambda.rec_info)
     ~(inline_requested : Lambda.inline_attribute)
     ~(closure_id_being_applied : Closure_id.t)
     ~(function_decl : A.function_declaration)
@@ -706,7 +709,6 @@ let inline_by_copying_function_declaration
       let function_decls =
         Flambda.create_function_declarations_with_origin
           ~funs:state.new_funs
-          ~set_of_closures_origin:function_decls.set_of_closures_origin
           ~is_classic_mode:function_decls.is_classic_mode
       in
       let free_vars =
@@ -719,7 +721,7 @@ let inline_by_copying_function_declaration
       in
       let direct_call_surrogates = Variable.Map.empty in
       let set_of_closures =
-        Flambda.create_set_of_closures ~function_decls ~rec_depth
+        Flambda.create_set_of_closures ~function_decls ~rec_info
           ~free_vars ~specialised_args ~direct_call_surrogates
       in
       let closure_var = new_var Internal_variable_names.dup_func in

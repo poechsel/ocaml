@@ -47,7 +47,7 @@ type descr =
   | Value_boxed_int : 'a A.boxed_int * 'a -> descr
   | Value_string of value_string
   | Value_closure of value_closure
-  | Value_recursive of approx * int
+  | Value_recursive of approx * Flambda.rec_info
   | Value_set_of_closures of value_set_of_closures
   | Value_unknown_descr
 
@@ -58,7 +58,7 @@ and value_closure = {
 
 and value_set_of_closures = {
   set_of_closures_id : Set_of_closures_id.t;
-  rec_depth : int;
+  rec_info : Flambda.rec_info;
   bound_vars : approx Var_within_closure.Map.t;
   free_vars : Flambda.specialised_to Variable.Map.t;
   results : approx Closure_id.Map.t;
@@ -98,7 +98,8 @@ let equal_option eq o1 o2 =
 let equal_set_of_closures (s1:value_set_of_closures)
       (s2:value_set_of_closures) =
   Set_of_closures_id.equal s1.set_of_closures_id s2.set_of_closures_id &&
-  s1.rec_depth = s2.rec_depth &&
+  s1.rec_info.depth = s2.rec_info.depth &&
+  s1.rec_info.unroll_to = s2.rec_info.unroll_to &&
   Var_within_closure.Map.equal equal_approx s1.bound_vars s2.bound_vars &&
   Closure_id.Map.equal equal_approx s1.results s2.results &&
   equal_option Symbol.equal s1.aliased_symbol s2.aliased_symbol
@@ -399,9 +400,9 @@ let print_raw_descr ppf descr =
   | Value_closure value_closure ->
     fprintf ppf "(Value_closure %a)"
       print_value_closure value_closure
-  | Value_recursive (approx, depth) ->
+  | Value_recursive (approx, info) ->
       fprintf ppf "(Value_recursive%a %a)"
-        Flambda.print_recursion_depth depth
+        (Flambda.print_rec_info_with ?rec_kwd:None ?unroll_kwd:None) info
         print_raw_approx approx
   | Value_set_of_closures value_set_of_closures ->
     fprintf ppf "(Value_set_of_closures %a)"
@@ -448,9 +449,10 @@ let print_approx_components ppf ~symbol_id ~values
     | Value_closure {closure_id; set_of_closures} ->
       fprintf ppf "(closure %a, %a)" Closure_id.print closure_id
         print_set_of_closures set_of_closures
-    | Value_recursive (approx, depth) ->
-      fprintf ppf "(recursive%a %a)"
-        Flambda.print_recursion_depth depth
+    | Value_recursive (approx, rec_info) ->
+      fprintf ppf "(%a %a)"
+        (Flambda.print_rec_info_with ~rec_kwd:"recursive" ~unroll_kwd:"unroll")
+          rec_info
         print_approx approx
     | Value_set_of_closures set_of_closures ->
       fprintf ppf "(set_of_closures %a)" print_set_of_closures set_of_closures

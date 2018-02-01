@@ -82,7 +82,9 @@ let assign_symbols_and_collect_constant_definitions
                to the actual [closure_symbol]. *)
             assign_existing_symbol_to fun_var rec_symbol;
             assign_existing_symbol_to rec_tgt_var closure_symbol;
-            let rec_def = Alias_analysis.Recursive (rec_tgt_var, 1) in
+            let rec_def =
+              Alias_analysis.Recursive (rec_tgt_var, { depth = 1; unroll_to = 0 })
+            in
             let closure_def =
               Alias_analysis.Project_closure
                 { set_of_closures = var; closure_id }
@@ -114,9 +116,9 @@ let assign_symbols_and_collect_constant_definitions
           Flambda.print_named named
       | Project_var project_var ->
         record_definition (AA.Project_var project_var)
-      | Recursive (v, depth) ->
+      | Recursive (v, rec_info) ->
         assign_symbol ();
-        record_definition (AA.Recursive (v, depth))
+        record_definition (AA.Recursive (v, rec_info))
       | Expr e ->
         match tail_variable e with
         | None -> assert false  (* See [Inconstant_idents]. *)
@@ -488,9 +490,9 @@ let translate_definition_and_resolve_alias inconstants
        be assigned to a symbol. *)
     let s = resolve_variable_as_symbol set_of_closures in
     Some (Flambda.Project_closure (s, closure_id))
-  | Recursive (v, depth) ->
+  | Recursive (v, rec_info) ->
     let s = resolve_variable_as_symbol v in
-    Some (Flambda.Recursive (s, depth))
+    Some (Flambda.Recursive (s, rec_info))
   | Move_within_set_of_closures { closure; move_to } ->
     let set_of_closure_symbol =
       find_original_set_of_closure
@@ -648,7 +650,7 @@ let introduce_free_variables_in_set_of_closures
     (var_to_block_field_tbl :
       Flambda.constant_defining_value_block_field Variable.Tbl.t)
     ({ Flambda.function_decls; free_vars; specialised_args;
-        direct_call_surrogates; rec_depth }
+        direct_call_surrogates; rec_info }
       as set_of_closures) =
   let add_definition_and_make_substitution var (expr, subst) =
     let searched_var =
@@ -725,7 +727,7 @@ let introduce_free_variables_in_set_of_closures
   if not !done_something then
     set_of_closures
   else
-    Flambda.create_set_of_closures ~function_decls ~rec_depth ~free_vars
+    Flambda.create_set_of_closures ~function_decls ~rec_info ~free_vars
       ~specialised_args ~direct_call_surrogates
 
 let rewrite_project_var

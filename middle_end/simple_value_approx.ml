@@ -58,13 +58,15 @@ and descr =
   | Value_bottom
   | Value_extern of Export_id.t
   | Value_symbol of Symbol.t
+  | Value_extern_recursive of Export_id.t * Flambda.rec_info
+  | Value_symbol_recursive of Symbol.t * Flambda.rec_info
   | Value_unresolved of unresolved_value
     (* No description was found for this value *)
 
 and value_closure = {
   set_of_closures : t;
   closure_id : Closure_id.t;
-  rec_depth : int;
+  rec_info : Flambda.rec_info;
   rec_target_var : Variable.t option;
   rec_target_symbol : Symbol.t option;
 }
@@ -72,7 +74,6 @@ and value_closure = {
 and function_declarations = {
   is_classic_mode : bool;
   set_of_closures_id : Set_of_closures_id.t;
-  set_of_closures_origin : Set_of_closures_origin.t;
   funs : function_declaration Variable.Map.t;
 }
 
@@ -95,7 +96,7 @@ and function_declaration = {
 
 and value_set_of_closures = {
   function_decls : function_declarations;
-  rec_depth : int;
+  rec_info : Flambda.rec_info;
   bound_vars : t Var_within_closure.Map.t;
   free_vars  : Flambda.specialised_to Variable.Map.t;
   invariant_params : Variable.Set.t Variable.Map.t Lazy.t;
@@ -116,19 +117,19 @@ and value_float_array = {
 
 let descr t = t.descr
 
-let print_recursion_depth ppf = function
-  | 0 -> ()
-  | depth ->
-    Format.fprintf ppf "@ <rec%a>"
-      Flambda.print_recursion_depth depth
+let print_rec_info ppf { Flambda. depth; unroll_to; } =
+  if depth <> 0 then
+    Format.fprintf ppf "@ <rec%a>" Flambda.print_rec_depth depth;
+  if unroll_to <> 0 then
+    Format.fprintf ppf "@ <unroll %i>" unroll_to
 
 let print_value_set_of_closures ppf
-      { function_decls = { funs }; rec_depth; invariant_params; freshening;
+      { function_decls = { funs }; rec_info; invariant_params; freshening;
         size; specialised_args = _; direct_call_surrogates = _;
         bound_vars = _ } =
   Format.fprintf ppf "(set_of_closures:@ %a%a invariant_params=%a freshening=%a size=%a)"
     (fun ppf -> Variable.Map.iter (fun id _ -> Variable.print ppf id)) funs
-    print_recursion_depth rec_depth
+    print_rec_info rec_info
     (Variable.Map.print Variable.Set.print) (Lazy.force invariant_params)
     Freshening.Project_var.print freshening
     (Variable.Map.print (fun ppf some_size ->
@@ -195,7 +196,11 @@ let rec print_descr ppf = function
   | Value_bottom -> Format.fprintf ppf "bottom"
   | Value_extern id -> Format.fprintf ppf "_%a_" Export_id.print id
   | Value_symbol sym -> Format.fprintf ppf "%a" Symbol.print sym
-  | Value_closure { set_of_closures; closure_id; rec_depth;
+  | Value_extern_recursive(id, info) ->
+      Format.fprintf ppf "_%a_%a" Export_id.print id print_rec_info info
+  | Value_symbol_recursive(sym, info) ->
+      Format.fprintf ppf "%a%a" Symbol.print sym print_rec_info info
+  | Value_closure { set_of_closures; closure_id; rec_info;
                     rec_target_var; rec_target_symbol } ->
     let print_rec_target ppf () =
       begin
@@ -210,7 +215,7 @@ let rec print_descr ppf = function
       end
     in
       Format.fprintf ppf "(closure:@ %a%a%a from@ %a)" Closure_id.print closure_id
-      print_recursion_depth rec_depth
+      print_rec_info rec_info
       print_rec_target ()
       print set_of_closures
   | Value_set_of_closures set_of_closures ->
@@ -303,7 +308,8 @@ let augment_with_kind t (kind:Lambda.value_kind) =
     | Value_bottom ->
       (* Unreachable *)
       { t with descr = Value_bottom }
-    | Value_extern _ | Value_symbol _ ->
+    | Value_extern _ | Value_symbol _
+    | Value_extern_recursive _ | Value_symbol_recursive _ ->
       (* We don't know yet *)
       t
     end
@@ -328,8 +334,8 @@ let value_boxed_int bi i = approx (Value_boxed_int (bi,i))
 
 let value_closure ?closure_var ?set_of_closures_var ?set_of_closures_symbol
       ?rec_target_var ?rec_target_symbol
-      ~rec_depth value_set_of_closures closure_id =
-  assert (rec_depth >= 0);
+      ~(rec_info : Flambda.rec_info) value_set_of_closures closure_id =
+  assert (rec_info.depth >= 0);
   let approx_set_of_closures =
     { descr = Value_set_of_closures value_set_of_closures;
       var = set_of_closures_var;
@@ -343,7 +349,7 @@ let value_closure ?closure_var ?set_of_closures_var ?set_of_closures_symbol
   let value_closure =
     { set_of_closures = approx_set_of_closures;
       closure_id;
-      rec_depth;
+      rec_info;
       rec_target_var;
       rec_target_symbol;
     }
@@ -354,10 +360,9 @@ let value_closure ?closure_var ?set_of_closures_var ?set_of_closures_symbol
   }
 
 let create_value_set_of_closures
-      ~(function_decls : function_declarations) ~rec_depth ~bound_vars
+      ~(function_decls : function_declarations) ~rec_info ~bound_vars
       ~free_vars ~invariant_params ~specialised_args ~freshening
       ~direct_call_surrogates =
-  assert (rec_depth >= 0);
   let size =
     lazy (
       let functions = Variable.Map.keys function_decls.funs in
@@ -384,7 +389,7 @@ let create_value_set_of_closures
         function_decls.funs Variable.Map.empty)
   in
   { function_decls;
-    rec_depth;
+    rec_info;
     bound_vars;
     free_vars;
     invariant_params;
@@ -406,29 +411,42 @@ let value_set_of_closures ?set_of_closures_var value_set_of_closures =
     symbol = None;
   }
 
-let increase_recursion_depth approx depth =
-  if depth = 0 then approx else
-    (* This value is no longer equivalent to either the var or the symbol *)
-    let approx = { approx with var = None; symbol = None } in
-    match approx.descr with
+let add_rec_info_descr descr (rec_info : Flambda.rec_info) =
+  let adjust (other_rec_info : Flambda.rec_info) : Flambda.rec_info = {
+    depth = rec_info.depth + other_rec_info.depth;
+    unroll_to = rec_info.unroll_to + other_rec_info.unroll_to;
+  }
+  in
+  if rec_info.depth = 0 && rec_info.unroll_to = 0 then descr
+  else begin
+    match descr with
     | Value_closure value_closure ->
-      let rec_depth = value_closure.rec_depth + depth in
-      { approx with descr = Value_closure { value_closure with rec_depth; } }
+      let rec_info = adjust value_closure.rec_info in
+      Value_closure { value_closure with rec_info }
     | Value_set_of_closures value_set_of_closures ->
-      let rec_depth = value_set_of_closures.rec_depth + depth in
-      { approx with descr = Value_set_of_closures
-          { value_set_of_closures with rec_depth; } }
+      let rec_info = adjust value_set_of_closures.rec_info in
+      Value_set_of_closures { value_set_of_closures with rec_info }
     | Value_unknown _ | Value_unresolved _ | Value_bottom ->
-      approx
+      descr
     | Value_block _ | Value_int _ | Value_char _ | Value_constptr _
     | Value_float _ | Value_boxed_int _
-    | Value_string _ | Value_float_array _ | Value_extern _ | Value_symbol _ ->
-      { approx with descr = Value_bottom }
+    | Value_string _ | Value_float_array _ | Value_extern _ | Value_symbol _
+    | Value_extern_recursive _ | Value_symbol_recursive _ ->
+      Value_bottom
+  end
+
+let add_rec_info t (rec_info : Flambda.rec_info) =
+  if rec_info.depth = 0 && rec_info.unroll_to = 0 then t
+  else approx (add_rec_info_descr t.descr rec_info)
 
 let value_block t b = approx (Value_block (t, b))
 let value_extern ex = approx (Value_extern ex)
 let value_symbol sym =
   { (approx (Value_symbol sym)) with symbol = Some (sym, None) }
+let value_extern_recursive ex info = approx (Value_extern_recursive(ex, info))
+let value_symbol_recursive sym info =
+  { (approx (Value_symbol_recursive(sym, info)))
+      with symbol = Some (sym, None) }
 let value_bottom = approx Value_bottom
 let value_unresolved value = approx (Value_unresolved value)
 
@@ -528,7 +546,9 @@ let simplify t (lam : Flambda.t) : simplification_result =
       U.name_expr (Symbol sym) ~name, Replaced_term, t
     | Value_string _ | Value_float_array _ | Value_float None
     | Value_block _ | Value_set_of_closures _ | Value_closure _
-    | Value_unknown _ | Value_bottom | Value_extern _ | Value_unresolved _ ->
+    | Value_unknown _ | Value_bottom | Value_extern _
+    | Value_extern_recursive _ | Value_symbol_recursive _
+    | Value_unresolved _ ->
       lam, Nothing_done, t
   else
     lam, Nothing_done, t
@@ -555,7 +575,9 @@ let simplify_named t (named : Flambda.named) : simplification_result_named =
       Symbol sym, Replaced_term, t
     | Value_string _ | Value_float_array _ | Value_float None
     | Value_block _ | Value_set_of_closures _ | Value_closure _
-    | Value_unknown _ | Value_bottom | Value_extern _ | Value_unresolved _ ->
+    | Value_unknown _ | Value_bottom | Value_extern _
+    | Value_extern_recursive _ | Value_symbol_recursive _
+    | Value_unresolved _ ->
       named, Nothing_done, t
   else
     named, Nothing_done, t
@@ -573,6 +595,7 @@ let simplify_var t : (Flambda.named * t) option =
   | Value_string _ | Value_float_array _ | Value_float None
   | Value_block _ | Value_set_of_closures _ | Value_closure _
   | Value_unknown _ | Value_bottom | Value_extern _
+  | Value_extern_recursive _ | Value_symbol_recursive _
   | Value_unresolved _ ->
     match t.symbol with
     | Some (sym, None) -> Some (Symbol sym, t)
@@ -630,15 +653,18 @@ let known t =
   | Value_string _ | Value_float_array _
   | Value_bottom | Value_block _ | Value_int _ | Value_char _
   | Value_constptr _ | Value_set_of_closures _ | Value_closure _
-  | Value_extern _ | Value_float _ | Value_boxed_int _ | Value_symbol _ -> true
+  | Value_extern_recursive _ | Value_symbol_recursive _
+  | Value_extern _ | Value_float _
+  | Value_boxed_int _ | Value_symbol _ -> true
 
 let useful t =
   match t.descr with
   | Value_unresolved _ | Value_unknown _ | Value_bottom -> false
   | Value_string _ | Value_float_array _ | Value_block _ | Value_int _
   | Value_char _ | Value_constptr _ | Value_set_of_closures _
-  | Value_float _ | Value_boxed_int _ | Value_closure _ | Value_extern _
-  | Value_symbol _ -> true
+  | Value_float _ | Value_boxed_int _ | Value_closure _
+  | Value_extern _ | Value_symbol _
+  | Value_extern_recursive _ | Value_symbol_recursive _ -> true
 
 let all_not_useful ts = List.for_all (fun t -> not (useful t)) ts
 
@@ -651,7 +677,8 @@ let warn_on_mutation t =
   | Value_closure _ -> true
   | Value_string { contents = None } | Value_float_array _
   | Value_unresolved _ | Value_unknown _ | Value_bottom -> false
-  | Value_extern _ | Value_symbol _ -> assert false
+  | Value_extern _ | Value_symbol _
+  | Value_extern_recursive _ | Value_symbol_recursive _ -> assert false
 
 type get_field_result =
   | Ok of t
@@ -688,7 +715,8 @@ let get_field t ~field_index:i : get_field_result =
     Unreachable
   | Value_set_of_closures _ | Value_closure _
     (* This is used by [CamlinternalMod]. *)
-  | Value_symbol _ | Value_extern _ ->
+  | Value_symbol _ | Value_extern _
+  | Value_extern_recursive _ | Value_symbol_recursive _ ->
     (* These should have been resolved. *)
     Ok (value_unknown Other)
   | Value_unknown reason ->
@@ -712,6 +740,7 @@ let check_approx_for_block t =
   | Value_string _ | Value_float _ | Value_boxed_int _
   | Value_set_of_closures _ | Value_closure _
   | Value_symbol _ | Value_extern _
+  | Value_extern_recursive _ | Value_symbol_recursive _
   | Value_unknown _
   | Value_unresolved _ ->
     Wrong
@@ -763,6 +792,14 @@ let rec meet_descr ~really_import_approx d1 d2 = match d1, d2 with
       d1
   | Value_extern e1, Value_extern e2 when Export_id.equal e1 e2 ->
       d1
+  | Value_extern_recursive(e1, ri1),
+    Value_extern_recursive(e2, ri2) when
+      Export_id.equal e1 e2 && Flambda.equal_rec_info ri1 ri2 ->
+      d1
+  | Value_symbol_recursive(s1, ri1),
+    Value_symbol_recursive(s2, ri2) when
+      Symbol.equal s1 s2 && Flambda.equal_rec_info ri1 ri2 ->
+      d1
   | Value_float i, Value_float j when equal_floats i j ->
       d1
   | Value_boxed_int (bi1, i1), Value_boxed_int (bi2, i2) when
@@ -780,8 +817,10 @@ and meet ~really_import_approx a1 a2 =
   match a1, a2 with
   | { descr = Value_bottom }, a
   | a, { descr = Value_bottom } -> a
-  | { descr = (Value_symbol _ | Value_extern _) }, _
-  | _, { descr = (Value_symbol _ | Value_extern _) } ->
+  | { descr = (Value_symbol _ | Value_extern _
+              | Value_symbol_recursive _ | Value_extern_recursive _) }, _
+  | _, { descr = (Value_symbol _ | Value_extern _
+                 | Value_symbol_recursive _ | Value_extern_recursive _) } ->
     meet ~really_import_approx
       (really_import_approx a1) (really_import_approx a2)
   | _ ->
@@ -851,8 +890,9 @@ let check_approx_for_set_of_closures t : checked_approx_for_set_of_closures =
     Ok (t.var, value_set_of_closures)
   | Value_closure _ | Value_block _ | Value_int _ | Value_char _
   | Value_constptr _ | Value_float _ | Value_boxed_int _ | Value_unknown _
-  | Value_bottom | Value_extern _ | Value_string _ | Value_float_array _
-  | Value_symbol _ ->
+  | Value_bottom | Value_extern _ | Value_string _
+  | Value_symbol_recursive _ | Value_extern_recursive _
+  | Value_float_array _ | Value_symbol _ ->
     Wrong
 
 type strict_checked_approx_for_set_of_closures =
@@ -889,7 +929,9 @@ let check_approx_for_closure_allowing_unresolved t
     | Value_unresolved _
     | Value_closure _ | Value_block _ | Value_int _ | Value_char _
     | Value_constptr _ | Value_float _ | Value_boxed_int _ | Value_unknown _
-    | Value_bottom | Value_extern _ | Value_string _ | Value_float_array _
+    | Value_bottom | Value_extern _
+    | Value_symbol_recursive _ | Value_extern_recursive _
+    | Value_string _ | Value_float_array _
     | Value_symbol _ ->
       Wrong
     end
@@ -898,7 +940,9 @@ let check_approx_for_closure_allowing_unresolved t
   | Value_unresolved symbol -> Unresolved symbol
   | Value_set_of_closures _ | Value_block _ | Value_int _ | Value_char _
   | Value_constptr _ | Value_float _ | Value_boxed_int _
-  | Value_bottom | Value_extern _ | Value_string _ | Value_float_array _
+  | Value_bottom | Value_extern _
+  | Value_symbol_recursive _ | Value_extern_recursive _
+  | Value_string _ | Value_float_array _
   | Value_symbol _ ->
     Wrong
   (* CR-soon mshinwell: This should be unwound once the reason for a value
@@ -937,7 +981,8 @@ let check_approx_for_float t : float option =
   | Value_unknown _ | Value_string _ | Value_float_array _
   | Value_bottom | Value_block _ | Value_int _ | Value_char _
   | Value_constptr _ | Value_set_of_closures _ | Value_closure _
-  | Value_extern _ | Value_boxed_int _ | Value_symbol _ ->
+  | Value_extern _ | Value_symbol_recursive _ | Value_extern_recursive _
+  | Value_boxed_int _ | Value_symbol _ ->
       None
 
 let float_array_as_constant (t:value_float_array) : float list option =
@@ -954,7 +999,8 @@ let float_array_as_constant (t:value_float_array) : float list option =
         | Value_unknown _ | Value_string _ | Value_float_array _
         | Value_bottom | Value_block _ | Value_int _ | Value_char _
         | Value_constptr _ | Value_set_of_closures _ | Value_closure _
-        | Value_extern _ | Value_boxed_int _ | Value_symbol _)
+        | Value_extern _ | Value_boxed_int _ | Value_symbol _
+        | Value_symbol_recursive _ | Value_extern_recursive _)
         -> None)
       contents (Some [])
 
@@ -966,7 +1012,8 @@ let check_approx_for_string t : string option =
   | Value_unknown _ | Value_float_array _
   | Value_bottom | Value_block _ | Value_int _ | Value_char _
   | Value_constptr _ | Value_set_of_closures _ | Value_closure _
-  | Value_extern _ | Value_boxed_int _ | Value_symbol _ ->
+  | Value_extern _ | Value_boxed_int _ | Value_symbol _
+  | Value_symbol_recursive _ | Value_extern_recursive _->
       None
 
 type switch_branch_selection =
@@ -979,7 +1026,9 @@ let potentially_taken_const_switch_branch t branch =
   | Value_unresolved _
   | Value_unknown _
   | Value_extern _
-  | Value_symbol _ ->
+  | Value_symbol _
+  | Value_symbol_recursive _
+  | Value_extern_recursive _ ->
     (* In theory symbol cannot contain integers but this shouldn't
        matter as this will always be an imported approximation *)
     Can_be_taken
@@ -999,7 +1048,9 @@ let potentially_taken_block_switch_branch t tag =
   | (Value_unresolved _
     | Value_unknown _
     | Value_extern _
-    | Value_symbol _) ->
+    | Value_symbol _
+    | Value_symbol_recursive _
+    | Value_extern_recursive _) ->
     Can_be_taken
   | (Value_constptr _ | Value_int _| Value_char _) ->
     Cannot_be_taken
@@ -1051,15 +1102,12 @@ let function_declarations_approx ~keep_body
   in
   { funs;
     is_classic_mode = fun_decls.is_classic_mode;
-    set_of_closures_id = fun_decls.set_of_closures_id;
-    set_of_closures_origin = fun_decls.set_of_closures_origin; }
+    set_of_closures_id = fun_decls.set_of_closures_id; }
 
 let import_function_declarations_for_pack function_decls
-    import_set_of_closures_id import_set_of_closures_origin =
+    import_set_of_closures_id =
   { set_of_closures_id =
       import_set_of_closures_id function_decls.set_of_closures_id;
-    set_of_closures_origin =
-      import_set_of_closures_origin function_decls.set_of_closures_origin;
     funs = function_decls.funs;
     is_classic_mode = function_decls.is_classic_mode;
   }
@@ -1068,10 +1116,8 @@ let update_function_declarations function_decls ~funs =
   let compilation_unit = Compilation_unit.get_current_exn () in
   let is_classic_mode = function_decls.is_classic_mode in
   let set_of_closures_id = Set_of_closures_id.create compilation_unit in
-  let set_of_closures_origin = function_decls.set_of_closures_origin in
   { is_classic_mode;
     set_of_closures_id;
-    set_of_closures_origin;
     funs;
   }
 
