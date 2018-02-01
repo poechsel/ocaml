@@ -1589,25 +1589,31 @@ let constant_defining_value_approx
     end
 
 (* See documentation on [Let_rec_symbol] in flambda.mli. *)
-let define_let_rec_symbol_approx orig_env defs =
+let define_let_rec_symbol_approx orig_env def_lists =
   (* First declare an empty version of the symbols *)
   let init_env =
     List.fold_left (fun building_env (symbol, _) ->
         E.add_symbol building_env symbol (A.value_unresolved (Symbol symbol)))
-      orig_env defs
+      orig_env (List.flatten def_lists)
   in
   let rec loop times lookup_env =
     if times <= 0 then
       lookup_env
     else
       let env =
-        List.fold_left (fun building_env (symbol, constant_defining_value) ->
+        (* Shadow lookup_env in the outer loop but /not/ the inner loop, since
+           definitions in later /lists/ are allowed to depend on earlier ones
+           but we want definitions within each list to be independent (since
+           their order is arbitrary). *)
+        List.fold_left (fun lookup_env defs ->
+          List.fold_left (fun building_env (symbol, constant_defining_value) ->
             let approx =
               constant_defining_value_approx lookup_env constant_defining_value
             in
             let approx = A.augment_with_symbol approx symbol in
-            E.redefine_symbol building_env symbol approx)
-          lookup_env defs
+            E.redefine_symbol building_env symbol approx
+          ) lookup_env defs
+        ) lookup_env def_lists
       in
       loop (times-1) env
   in
@@ -1737,13 +1743,16 @@ let rec simplify_program_body env r (program : Flambda.program_body)
         (env, r, []) defs
     in
     let env, r, set_of_closures_defs =
-      process_defs env r set_of_closures_defs defs
+      process_defs env r set_of_closures_defs
+        [set_of_closures_defs; other_defs; recursive_defs]
     in
     let env, r, other_defs =
-      process_defs env r other_defs (other_defs @ recursive_defs)
+      process_defs env r other_defs
+        [other_defs; recursive_defs]
     in
     let env, r, recursive_defs =
-      process_defs env r recursive_defs recursive_defs
+      process_defs env r recursive_defs
+        [recursive_defs]
     in
     let program, r = simplify_program_body env r program in
     Let_rec_symbol (set_of_closures_defs @ other_defs @ recursive_defs, program), r
