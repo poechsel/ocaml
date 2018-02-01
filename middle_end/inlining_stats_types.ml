@@ -76,8 +76,8 @@ module Not_inlined = struct
     | Above_threshold of int
     | Annotation
     | No_useful_approximations
+    | Inlining_depth_exceeded
     | Unrolling_depth_exceeded
-    | Self_call
     | Without_subfunctions of Wsb.t
     | With_subfunctions of Wsb.t * Wsb.t
 
@@ -100,14 +100,14 @@ module Not_inlined = struct
         "This function was not inlined because \
          there was no useful information about any of its parameters, \
          and it was not particularly small."
+    | Inlining_depth_exceeded ->
+      Format.pp_print_text ppf
+        "This function was not inlined because \
+         its inlining depth was exceeded."
     | Unrolling_depth_exceeded ->
       Format.pp_print_text ppf
         "This function was not inlined because \
          its unrolling depth was exceeded."
-    | Self_call ->
-      Format.pp_print_text ppf
-        "This function was not inlined because \
-         it was a self call."
     | Without_subfunctions _ ->
       Format.pp_print_text ppf
         "This function was not inlined because \
@@ -122,8 +122,8 @@ module Not_inlined = struct
     | Above_threshold _
     | Annotation
     | No_useful_approximations
-    | Unrolling_depth_exceeded
-    | Self_call -> ()
+    | Inlining_depth_exceeded
+    | Unrolling_depth_exceeded -> ()
     | Without_subfunctions wsb ->
       print_calculation
         ~depth ~title:"Inlining benefit calculation"
@@ -176,7 +176,6 @@ module Not_specialised = struct
     | Not_closed
     | No_invariant_parameters
     | No_useful_approximations
-    | Self_call
     | Not_beneficial of Wsb.t * Wsb.t
 
   let summary ppf = function
@@ -210,10 +209,6 @@ module Not_specialised = struct
         "This function was not specialised because \
          there was no useful information about any of its invariant \
          parameters."
-    | Self_call ->
-      Format.pp_print_text ppf
-        "This function was not specialised because \
-         it was a self call."
     | Not_beneficial _ ->
       Format.pp_print_text ppf
         "This function was not specialised because \
@@ -226,8 +221,7 @@ module Not_specialised = struct
     | Not_recursive
     | Not_closed
     | No_invariant_parameters
-    | No_useful_approximations
-    | Self_call -> ()
+    | No_useful_approximations -> ()
     | Not_beneficial(_, wsb) ->
       print_calculation
         ~depth ~title:"Specialising benefit calculation"

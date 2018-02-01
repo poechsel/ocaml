@@ -35,8 +35,8 @@ module Not_inlined : sig
     | Above_threshold of int
     | Annotation
     | No_useful_approximations
+    | Inlining_depth_exceeded
     | Unrolling_depth_exceeded
-    | Self_call
     | Without_subfunctions of
         Inlining_cost.Whether_sufficient_benefit.t
     | With_subfunctions of
@@ -63,7 +63,6 @@ module Not_specialised : sig
     | Not_closed
     | No_invariant_parameters
     | No_useful_approximations
-    | Self_call
     | Not_beneficial of
         Inlining_cost.Whether_sufficient_benefit.t
         * Inlining_cost.Whether_sufficient_benefit.t

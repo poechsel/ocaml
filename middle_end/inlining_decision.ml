@@ -119,7 +119,7 @@ let inline env r ~lhs_of_application
     if unrolling then
       Try_it
     else if (E.inlining_allowed env closure_id_being_applied) then
-      Don't_try_it S.Not_inlined.Unrolling_depth_exceeded
+      Don't_try_it S.Not_inlined.Inlining_depth_exceeded
     else if only_use_of_function || policy = Always_inline then
       Try_it
     else if policy = Never_inline then
