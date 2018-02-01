@@ -155,7 +155,7 @@ let separate_unused_arguments ~only_specialised
     in
     let set_of_closures =
       Flambda.create_set_of_closures ~function_decls
-        ~rec_depth:set_of_closures.rec_depth
+        ~rec_info:set_of_closures.rec_info
         ~free_vars:set_of_closures.free_vars ~specialised_args
         (* CR-soon mshinwell: Use direct_call_surrogates for this
            transformation. *)

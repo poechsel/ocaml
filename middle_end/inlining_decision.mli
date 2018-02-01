@@ -26,7 +26,7 @@ val for_call_site
   -> r:Inline_and_simplify_aux.Result.t
   -> function_decls:Flambda.function_declarations
   -> lhs_of_application:Variable.t
-  -> rec_depth:int
+  -> rec_info:Flambda.rec_info
   -> closure_id_being_applied:Closure_id.t
   -> function_decl:Flambda.function_declaration
   -> value_set_of_closures:Simple_value_approx.value_set_of_closures

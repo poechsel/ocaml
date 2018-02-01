@@ -184,7 +184,8 @@ and same_named (named1 : Flambda.named) (named2 : Flambda.named) =
     same_move_within_set_of_closures m1 m2
   | Move_within_set_of_closures _, _ | _, Move_within_set_of_closures _ ->
     false
-  | Recursive (v1, d1), Recursive (v2, d2) -> Variable.equal v1 v2 && d1 = d2
+  | Recursive (v1, r1), Recursive (v2, r2) ->
+    Variable.equal v1 v2 && same_rec_info r1 r2
   | Recursive _, _ | _, Recursive _ -> false
   | Prim (p1, al1, _), Prim (p2, al2, _) ->
     p1 = p2 && Misc.Stdlib.List.equal Variable.equal al1 al2
@@ -225,6 +226,9 @@ and sameswitch (fs1 : Flambda.switch) (fs2 : Flambda.switch) =
     && Misc.Stdlib.List.equal samecase fs1.consts fs2.consts
     && Misc.Stdlib.List.equal samecase fs1.blocks fs2.blocks
     && Misc.Stdlib.Option.equal same fs1.failaction fs2.failaction
+
+and same_rec_info (r1 : Flambda.rec_info) (r2 : Flambda.rec_info) =
+  r1.depth = r2.depth && r1.unroll_to = r2.unroll_to
 
 let can_be_merged = same
 
@@ -276,14 +280,14 @@ let toplevel_substitution sb tree =
     | Symbol _ | Const _ | Expr _ -> named
     | Allocated_const _ | Read_mutable _ -> named
     | Read_symbol_field _ -> named
-    | Recursive (var, depth) ->
+    | Recursive (var, rec_info) ->
       let var = sb var in
-      Recursive (var, depth)
+      Recursive (var, rec_info)
     | Set_of_closures set_of_closures ->
       let set_of_closures =
         Flambda.create_set_of_closures
           ~function_decls:set_of_closures.function_decls
-          ~rec_depth:set_of_closures.rec_depth
+          ~rec_info:set_of_closures.rec_info
           ~free_vars:
             (Variable.Map.map (fun (spec_to : Flambda.specialised_to) ->
                 { spec_to with var = sb spec_to.var; })
@@ -324,7 +328,7 @@ let toplevel_substitution_named sb named =
   | Let let_expr -> let_expr.defining_expr
   | _ -> assert false
 
-let make_closure_declaration ~id ~body ~params ~recursive ~rec_depth ~stub
+let make_closure_declaration ~id ~body ~params ~recursive ~rec_info ~stub
     : Flambda.t =
   let free_variables = Flambda.free_variables body in
   let param_set = Parameter.Set.vars params in
@@ -372,7 +376,7 @@ let make_closure_declaration ~id ~body ~params ~recursive ~rec_depth ~stub
       Flambda.create_function_declarations
         ~funs:(Variable.Map.singleton id function_declaration)
     in
-    Flambda.create_set_of_closures ~function_decls ~rec_depth ~free_vars
+    Flambda.create_set_of_closures ~function_decls ~rec_info ~free_vars
       ~specialised_args:Variable.Map.empty
       ~direct_call_surrogates:Variable.Map.empty
   in
@@ -581,7 +585,7 @@ let substitute_read_symbol_field_for_variables
       let set_of_closures =
         Flambda.create_set_of_closures
           ~function_decls:set_of_closures.function_decls
-          ~rec_depth:set_of_closures.rec_depth
+          ~rec_info:set_of_closures.rec_info
           ~free_vars:
             (Variable.Map.map (fun (spec_to : Flambda.specialised_to) ->
                 { spec_to with var = sb spec_to.var; })
@@ -949,15 +953,21 @@ let stub_inlining_stack : Flambda.inlining_stack = []
 
 let augment_inlining_stack ~orig ~new_ = new_ @ orig
 
-let increase_recursion_depth named depth =
-  match depth with
-  | 0 ->
+let add_rec_info ?var named (rec_info : Flambda.rec_info) =
+  match rec_info with
+  | { depth = 0; unroll_to = 0; } ->
     named
   | _ ->
-    let tgt_var = Variable.create "tgt" in
-    let rec_var = Variable.create "rec" in
+    let tgt_var = match var with
+      | Some var -> Variable.rename var
+      | None -> Variable.create "tgt"
+    in
+    let rec_var = match var with
+      | Some var -> Variable.rename ~append:"_rec" var
+      | None -> Variable.create "rec"
+    in
     Flambda.Expr (Flambda.create_let tgt_var named (
-      Flambda.create_let rec_var (Recursive (tgt_var, depth))
+      Flambda.create_let rec_var (Recursive (tgt_var, rec_info))
         (Var rec_var)))
 
 let make_stub_body ?(dbg = Debuginfo.none) func args ~kind =

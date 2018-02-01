@@ -79,7 +79,7 @@ let import_set_of_closures units pack
   { set_of_closures_id =
       import_set_of_closures_id_for_pack units pack
         set_of_closures.set_of_closures_id;
-    rec_depth = set_of_closures.rec_depth;
+    rec_info = set_of_closures.rec_info;
     bound_vars =
       Var_within_closure.Map.map (import_approx_for_pack units pack)
         set_of_closures.bound_vars;
@@ -110,8 +110,8 @@ let import_descr_for_pack units pack (descr : Export_info.descr)
       closure_id;
       set_of_closures = import_set_of_closures units pack set_of_closures;
     }
-  | Value_recursive (approx, depth) ->
-    Value_recursive (import_approx_for_pack units pack approx, depth)
+  | Value_recursive (approx, rec_info) ->
+    Value_recursive (import_approx_for_pack units pack approx, rec_info)
   | Value_set_of_closures set_of_closures ->
     Value_set_of_closures (import_set_of_closures units pack set_of_closures)
 
@@ -124,7 +124,7 @@ let rec import_code_for_pack units pack expr =
         let set_of_closures =
           Flambda.create_set_of_closures
             ~free_vars:set_of_closures.free_vars
-            ~rec_depth:set_of_closures.rec_depth
+            ~rec_info:set_of_closures.rec_info
             ~specialised_args:set_of_closures.specialised_args
             ~direct_call_surrogates:set_of_closures.direct_call_surrogates
             ~function_decls:

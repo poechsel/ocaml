@@ -31,7 +31,7 @@ type constant_defining_value =
   | Set_of_closures of Flambda.set_of_closures
   | Project_closure of Flambda.project_closure
   | Move_within_set_of_closures of Flambda.move_within_set_of_closures
-  | Recursive of Variable.t * int
+  | Recursive of Variable.t * Flambda.rec_info
   | Project_var of Flambda.project_var
   | Field of Variable.t * int
   | Symbol_field of Symbol.t * int
@@ -62,12 +62,10 @@ let print_constant_defining_value ppf = function
   | Project_closure project -> Flambda.print_project_closure ppf project
   | Move_within_set_of_closures move ->
     Flambda.print_move_within_set_of_closures ppf move
-  | Recursive (var, depth) ->
-    let print_depth ppf = function
-      | 1 -> ()
-      | n -> Format.fprintf ppf "^%i" n
-    in
-    Format.fprintf ppf "Recursive%a(%a)" print_depth depth Variable.print var
+  | Recursive (var, rec_info) ->
+    Format.fprintf ppf "%a(%a)"
+      Flambda.print_rec_info rec_info
+      Variable.print var
   | Project_var project -> Flambda.print_project_var ppf project
   | Field (var, field) -> Format.fprintf ppf "%a.(%d)" Variable.print var field
   | Symbol_field (sym, field) ->

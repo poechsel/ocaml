@@ -67,7 +67,7 @@ val make_closure_declaration
   -> body:Flambda.t
   -> params:Parameter.t list
   -> recursive:bool
-  -> rec_depth:int
+  -> rec_info:Flambda.rec_info
   -> stub:bool
   -> Flambda.t
 
@@ -248,9 +248,10 @@ val augment_inlining_stack
   -> new_:Flambda.inlining_stack
   -> Flambda.inlining_stack
 
-(** Wrap a [named] in a Recursive declaration. The depth can be 0, in which case
-    the original [named] is returned. *)
-val increase_recursion_depth
-   : Flambda.named
-  -> int
+(** Wrap a [named] in a Recursive declaration. The depth and unroll_to can be 0,
+    in which case the original [named] is returned. *)
+val add_rec_info
+   : ?var:Variable.t
+  -> Flambda.named
+  -> Flambda.rec_info
   -> Flambda.named

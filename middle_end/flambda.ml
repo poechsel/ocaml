@@ -68,6 +68,11 @@ type project_closure = Projection.project_closure
 type move_within_set_of_closures = Projection.move_within_set_of_closures
 type project_var = Projection.project_var
 
+type rec_info = {
+  depth : int;
+  unroll_to : int;
+}
+
 type specialised_to = {
   var : Variable.t;
   projection : Projection.t option;
@@ -101,7 +106,7 @@ and named =
   | Project_closure of project_closure
   | Move_within_set_of_closures of move_within_set_of_closures
   | Project_var of project_var
-  | Recursive of Variable.t * int
+  | Recursive of Variable.t * rec_info
   | Prim of Lambda.primitive * Variable.t list * Debuginfo.t
   | Expr of t
 
@@ -122,7 +127,7 @@ and let_mutable = {
 
 and set_of_closures = {
   function_decls : function_declarations;
-  rec_depth : int;
+  rec_info : rec_info;
   free_vars : specialised_to Variable.Map.t;
   specialised_args : specialised_to Variable.Map.t;
   direct_call_surrogates : Variable.t Variable.Map.t;
@@ -168,7 +173,7 @@ and constant_defining_value =
   | Block of Tag.t * constant_defining_value_block_field list
   | Set_of_closures of set_of_closures  (* [free_vars] must be empty *)
   | Project_closure of Symbol.t * Closure_id.t
-  | Recursive of Symbol.t * int
+  | Recursive of Symbol.t * rec_info
 
 and constant_defining_value_block_field =
   | Symbol of Symbol.t
@@ -223,10 +228,26 @@ let print_inlining_stack ppf stack =
   in
   fprintf ppf "[%a]" frames ()
 
-let print_recursion_depth ppf depth =
+let print_rec_depth ppf depth =
   match depth with
   | 1 -> ()
   | depth -> Format.fprintf ppf "^%i" depth
+
+let print_rec_info_with
+      ?(rec_kwd="Recursive") ?(unroll_kwd="Unroll")
+      ppf { depth; unroll_to } =
+  let print_unroll_to ppf = function
+    | 0 -> ()
+    | unroll_to -> fprintf ppf "/%s %i" unroll_kwd unroll_to
+  in
+  fprintf ppf "%s%a%a"
+    rec_kwd
+    print_rec_depth depth
+    print_unroll_to unroll_to
+
+let print_rec_info ppf rec_info =
+  (* Use default arguments *)
+  print_rec_info_with ppf rec_info
 
 (** CR-someday lwhite: use better name than this *)
 let rec lam ppf (flam : t) =
@@ -389,8 +410,8 @@ and print_named ppf (named : named) =
     print_move_within_set_of_closures ppf move_within_set_of_closures
   | Set_of_closures (set_of_closures) ->
     print_set_of_closures ppf set_of_closures
-  | Recursive (var, depth) ->
-    fprintf ppf "Recursive%a(%a)" print_recursion_depth depth Variable.print var
+  | Recursive (var, rec_info) ->
+    fprintf ppf "%a(%a)" print_rec_info rec_info Variable.print var
   | Prim(prim, args, dbg) ->
     fprintf ppf "@[<2>(%a<%s>%a)@]" Printlambda.primitive prim
       (Debuginfo.to_string dbg)
@@ -442,13 +463,17 @@ and print_function_declaration ppf var (f : function_declaration) =
 
 and print_set_of_closures ppf (set_of_closures : set_of_closures) =
   match set_of_closures with
-  | { function_decls; rec_depth; free_vars; specialised_args} ->
+  | { function_decls; rec_info; free_vars; specialised_args} ->
     let funs ppf =
       Variable.Map.iter (print_function_declaration ppf)
     in
-    let depth ppf rec_depth =
-      if rec_depth = 0 then ()
-      else fprintf ppf "@ *rec%a*" print_recursion_depth rec_depth
+    let depth ppf { depth; _ } =
+      if depth = 0 then ()
+      else fprintf ppf "@ *rec%a*" print_rec_depth depth
+    in
+    let unroll ppf { unroll_to; _ } =
+      if unroll_to = 0 then ()
+      else fprintf ppf "@ *unroll %i*" unroll_to
     in
     let vars ppf =
       Variable.Map.iter (fun id v ->
@@ -465,11 +490,12 @@ and print_set_of_closures ppf (set_of_closures : set_of_closures) =
           spec_args
       end
     in
-    fprintf ppf "@[<2>(set_of_closures id=%a%a@ %a@ @[<2>free_vars={%a@ }@]@ \
+    fprintf ppf "@[<2>(set_of_closures id=%a%a%a@ %a@ @[<2>free_vars={%a@ }@]@ \
         @[<2>specialised_args={%a})@]@ \
         @[<2>direct_call_surrogates=%a@]@]"
       Set_of_closures_id.print function_decls.set_of_closures_id
-      depth rec_depth
+      depth rec_info
+      unroll rec_info
       funs function_decls.funs
       vars free_vars
       spec specialised_args
@@ -516,8 +542,9 @@ let print_constant_defining_value ppf (const : constant_defining_value) =
   | Project_closure (set_of_closures, closure_id) ->
     fprintf ppf "(Project_closure (%a, %a))" Symbol.print set_of_closures
       Closure_id.print closure_id
-  | Recursive (sym, depth) ->
-    fprintf ppf "(Recursive%a %a)" print_recursion_depth depth Symbol.print sym
+  | Recursive (sym, rec_info) ->
+    fprintf ppf "(%a %a)" print_rec_info rec_info
+      Symbol.print sym
 
 let rec print_program_body ppf (program : program_body) =
   let symbol_binding ppf (symbol, constant_defining_value) =
@@ -1115,7 +1142,7 @@ let import_function_declarations_for_pack function_decls
     funs = function_decls.funs;
   }
 
-let create_set_of_closures ~function_decls ~rec_depth ~free_vars
+let create_set_of_closures ~function_decls ~rec_info ~free_vars
       ~specialised_args ~direct_call_surrogates =
   if !Clflags.flambda_invariant_checks then begin
     let all_fun_vars = Variable.Map.keys function_decls.funs in
@@ -1173,7 +1200,7 @@ let create_set_of_closures ~function_decls ~rec_depth ~free_vars
     end
   end;
   { function_decls;
-    rec_depth;
+    rec_info;
     free_vars;
     specialised_args;
     direct_call_surrogates;

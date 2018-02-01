@@ -64,14 +64,14 @@ and descr =
 and value_closure = {
   set_of_closures : t;
   closure_id : Closure_id.t;
-  rec_depth : int;
+  rec_info : Flambda.rec_info;
   rec_target_var : Variable.t option;
   rec_target_symbol : Symbol.t option;
 }
 
 and value_set_of_closures = {
   function_decls : Flambda.function_declarations;
-  rec_depth : int;
+  rec_info : Flambda.rec_info;
   bound_vars : t Var_within_closure.Map.t;
   invariant_params : Variable.Set.t Variable.Map.t lazy_t;
   size : int option Variable.Map.t lazy_t;
@@ -91,19 +91,19 @@ and value_float_array = {
 
 let descr t = t.descr
 
-let print_recursion_depth ppf = function
-  | 0 -> ()
-  | depth ->
-    Format.fprintf ppf "@ <rec%a>"
-      Flambda.print_recursion_depth depth
+let print_rec_info ppf { Flambda. depth; unroll_to; } =
+  if depth <> 0 then
+    Format.fprintf ppf "@ <rec%a>" Flambda.print_rec_depth depth;
+  if unroll_to <> 0 then
+    Format.fprintf ppf "@ <unroll %i>" unroll_to
 
 let print_value_set_of_closures ppf
-      { function_decls = { funs }; rec_depth; invariant_params; freshening;
+      { function_decls = { funs }; rec_info; invariant_params; freshening;
         size = _; specialised_args = _; direct_call_surrogates = _;
         bound_vars = _ } =
   Format.fprintf ppf "(set_of_closures:@ %a%a invariant_params=%a freshening=%a)"
     (fun ppf -> Variable.Map.iter (fun id _ -> Variable.print ppf id)) funs
-    print_recursion_depth rec_depth
+    print_rec_info rec_info
     (Variable.Map.print Variable.Set.print) (Lazy.force invariant_params)
     Freshening.Project_var.print freshening
 
@@ -130,7 +130,7 @@ let rec print_descr ppf = function
   | Value_bottom -> Format.fprintf ppf "bottom"
   | Value_extern id -> Format.fprintf ppf "_%a_" Export_id.print id
   | Value_symbol sym -> Format.fprintf ppf "%a" Symbol.print sym
-  | Value_closure { set_of_closures; closure_id; rec_depth;
+  | Value_closure { set_of_closures; closure_id; rec_info;
                     rec_target_var; rec_target_symbol } ->
     let print_rec_target ppf () =
       begin
@@ -145,7 +145,7 @@ let rec print_descr ppf = function
       end
     in
       Format.fprintf ppf "(closure:@ %a%a%a from@ %a)" Closure_id.print closure_id
-      print_recursion_depth rec_depth
+      print_rec_info rec_info
       print_rec_target ()
       print set_of_closures
   | Value_set_of_closures set_of_closures ->
@@ -263,8 +263,8 @@ let value_boxed_int bi i = approx (Value_boxed_int (bi,i))
 
 let value_closure ?closure_var ?set_of_closures_var ?set_of_closures_symbol
       ?rec_target_var ?rec_target_symbol
-      ~rec_depth value_set_of_closures closure_id =
-  assert (rec_depth >= 0);
+      ~(rec_info : Flambda.rec_info) value_set_of_closures closure_id =
+  assert (rec_info.depth >= 0);
   let approx_set_of_closures =
     { descr = Value_set_of_closures value_set_of_closures;
       var = set_of_closures_var;
@@ -278,7 +278,7 @@ let value_closure ?closure_var ?set_of_closures_var ?set_of_closures_symbol
   let value_closure =
     { set_of_closures = approx_set_of_closures;
       closure_id;
-      rec_depth;
+      rec_info;
       rec_target_var;
       rec_target_symbol;
     }
@@ -289,10 +289,11 @@ let value_closure ?closure_var ?set_of_closures_var ?set_of_closures_symbol
   }
 
 let create_value_set_of_closures
-      ~(function_decls : Flambda.function_declarations) ~rec_depth ~bound_vars
-      ~invariant_params ~specialised_args ~freshening
+      ~(function_decls : Flambda.function_declarations)
+      ~(rec_info : Flambda.rec_info)
+      ~bound_vars ~invariant_params ~specialised_args ~freshening
       ~direct_call_surrogates =
-  assert (rec_depth >= 0);
+  assert (rec_info.depth >= 0);
   let size =
     lazy (
       let functions = Variable.Map.keys function_decls.funs in
@@ -312,7 +313,7 @@ let create_value_set_of_closures
         function_decls.funs)
   in
   { function_decls;
-    rec_depth;
+    rec_info;
     bound_vars;
     invariant_params;
     size;
@@ -333,18 +334,24 @@ let value_set_of_closures ?set_of_closures_var value_set_of_closures =
     symbol = None;
   }
 
-let increase_recursion_depth approx depth =
-  if depth = 0 then approx else
+let add_rec_info approx (rec_info : Flambda.rec_info) =
+  let adjust (other_rec_info : Flambda.rec_info) : Flambda.rec_info = {
+    depth = rec_info.depth + other_rec_info.depth;
+    unroll_to = rec_info.unroll_to + other_rec_info.unroll_to;
+  }
+  in
+  if rec_info.depth = 0 && rec_info.unroll_to = 0 then approx else
     (* This value is no longer equivalent to either the var or the symbol *)
     let approx = { approx with var = None; symbol = None } in
     match approx.descr with
     | Value_closure value_closure ->
-      let rec_depth = value_closure.rec_depth + depth in
-      { approx with descr = Value_closure { value_closure with rec_depth; } }
+      let rec_info = adjust value_closure.rec_info in
+      { approx with
+        descr = Value_closure { value_closure with rec_info; } }
     | Value_set_of_closures value_set_of_closures ->
-      let rec_depth = value_set_of_closures.rec_depth + depth in
+      let rec_info = adjust value_set_of_closures.rec_info in
       { approx with descr = Value_set_of_closures
-          { value_set_of_closures with rec_depth; } }
+          { value_set_of_closures with rec_info; } }
     | Value_unknown _ | Value_unresolved _ | Value_bottom ->
       approx
     | Value_block _ | Value_int _ | Value_char _ | Value_constptr _

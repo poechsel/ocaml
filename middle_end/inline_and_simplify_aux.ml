@@ -637,7 +637,7 @@ let prepare_to_simplify_set_of_closures ~env
         free_vars Var_within_closure.Map.empty
     in
     A.create_value_set_of_closures ~function_decls ~bound_vars
-      ~rec_depth:set_of_closures.rec_depth
+      ~rec_info:set_of_closures.rec_info
       ~invariant_params:(lazy Variable.Map.empty) ~specialised_args
       ~freshening ~direct_call_surrogates
   in
@@ -647,11 +647,13 @@ let prepare_to_simplify_set_of_closures ~env
      between the non-recursive ones. *)
   let closure_env ~recursive =
     Variable.Map.fold (fun closure (decl : Flambda.function_declaration) env ->
-        let rec_depth =
-          if recursive && decl.recursive then 1 else 0
+        let rec_info : Flambda.rec_info = {
+          unroll_to = 0;
+          depth = if recursive && decl.recursive then 1 else 0;
+        }
         in
         let approx =
-          A.value_closure ~closure_var:closure ~rec_depth
+          A.value_closure ~closure_var:closure ~rec_info
             internal_value_set_of_closures
             (Closure_id.wrap closure)
         in

@@ -43,19 +43,19 @@ type inlining_policy =
 let inlining_policy
       ~(func_annot : Lambda.inline_attribute)
       ~(call_annot : Lambda.inline_attribute)
-      ~(actively_unrolling : int option)
-      ~(rec_depth : int)
+      ~(rec_info : Flambda.rec_info)
     : inlining_policy =
-  match actively_unrolling with
-  | Some count -> if count > 0 then Continue_unrolling else Never_inline
-  | None ->
+  match rec_info with
+  | { depth; unroll_to } when depth < unroll_to ->
+    Continue_unrolling
+  | _ ->
     (* Merge call site annotation and function annotation.
        The call site annotation takes precedence *)
     begin
       match call_annot with
-      | Always_inline when rec_depth <= 1 ->
+      | Always_inline when rec_info.depth <= 1 ->
         Always_inline
-      | Unroll count when rec_depth <= 1 ->
+      | Unroll count when rec_info.depth <= 1 ->
         if count > 0
         then Start_unrolling { to_depth = count }
         else Never_inline
@@ -64,9 +64,9 @@ let inlining_policy
       | _ ->
         begin
           match func_annot with
-          | Always_inline when rec_depth = 0 ->
+          | Always_inline when rec_info.depth = 0 ->
             Always_inline
-          | Unroll count when rec_depth = 0 ->
+          | Unroll count when rec_info.depth = 0 ->
             if count > 0
             then Start_unrolling { to_depth = count }
             else Never_inline
@@ -84,23 +84,29 @@ let inline env r ~lhs_of_application
     ~(args : Variable.t list) ~size_from_approximation ~dbg ~simplify
     ~(inline_requested : Lambda.inline_attribute)
     ~(specialise_requested : Lambda.specialise_attribute)
-    ~rec_depth ~fun_cost ~inlining_threshold =
+    ~(rec_info : Flambda.rec_info) ~fun_cost ~inlining_threshold =
   let toplevel = E.at_toplevel env in
   let branch_depth = E.branch_depth env in
   let policy =
-    let actively_unrolling =
-      E.actively_unrolling env function_decls.set_of_closures_origin
-    in
     inlining_policy
       ~func_annot:(function_decl.inline)
       ~call_annot:inline_requested
-      ~actively_unrolling
-      ~rec_depth
+      ~rec_info
   in
   let always_inline =
     match policy with
     | Always_inline | Start_unrolling _ | Continue_unrolling -> true
     | Never_inline | Default_inline -> false
+  in
+  let unrolling =
+    match policy with
+    | Start_unrolling _ | Continue_unrolling -> true
+    | Always_inline | Never_inline | Default_inline -> false
+  in
+  let unroll_to =
+    match policy with
+    | Start_unrolling { to_depth = depth } -> depth
+    | _ -> 0
   in
   let unrolling_limit =
     Clflags.Int_arg_helper.get ~key:(E.round env) !Clflags.inline_max_unroll
@@ -109,41 +115,28 @@ let inline env r ~lhs_of_application
     if always_inline then inlining_threshold
     else Lazy.force fun_cost
   in
-  let env = match policy with
-    | Continue_unrolling ->
-      E.continue_actively_unrolling
-        env function_decls.set_of_closures_origin
-    | Start_unrolling { to_depth = count } ->
-      E.start_actively_unrolling
-        env function_decls.set_of_closures_origin (count - 1)
-    | Always_inline | Never_inline | Default_inline ->
-      env
-  in
   let try_inlining =
-    match policy with
-    | Continue_unrolling | Start_unrolling _ ->
+    if unrolling then
       Try_it
-    | _ when not (E.inlining_allowed env closure_id_being_applied) ->
+    else if (E.inlining_allowed env closure_id_being_applied) then
       Don't_try_it S.Not_inlined.Unrolling_depth_exceeded
-    | Always_inline ->
+    else if only_use_of_function || policy = Always_inline then
       Try_it
-    | _ when only_use_of_function ->
-      Try_it
-    | Never_inline ->
+    else if policy = Never_inline then
       Don't_try_it S.Not_inlined.Annotation
-    | _ when !Clflags.classic_inlining ->
+    else if !Clflags.classic_inlining then
       Don't_try_it S.Not_inlined.Classic_mode
-    | _ when rec_depth >= unrolling_limit && function_decl.recursive ->
+    else if rec_info.depth >= unrolling_limit && function_decl.recursive then
       Don't_try_it S.Not_inlined.Unrolling_depth_exceeded
-    | _ when remaining_inlining_threshold = T.Never_inline ->
+    else if remaining_inlining_threshold = T.Never_inline then
       let threshold =
         match inlining_threshold with
         | T.Never_inline -> assert false
         | T.Can_inline_if_no_larger_than threshold -> threshold
       in
       Don't_try_it (S.Not_inlined.Above_threshold threshold)
-    | _ when not (toplevel && branch_depth = 0)
-         && A.all_not_useful (E.find_list_exn env args) ->
+    else if not (toplevel && branch_depth = 0)
+         && A.all_not_useful (E.find_list_exn env args) then
       (* When all of the arguments to the function being inlined are unknown,
          then we cannot materially simplify the function.  As such, we know
          what the benefit of inlining it would be: just removing the call.
@@ -212,9 +205,10 @@ let inline env r ~lhs_of_application
            inside the body. *)
         Don't_try_it S.Not_inlined.No_useful_approximations
       end
-    | _ ->
+    else begin
       (* There are useful approximations, so we should simplify. *)
       Try_it
+    end
   in
   match try_inlining with
   | Don't_try_it decision -> Original decision
@@ -227,7 +221,7 @@ let inline env r ~lhs_of_application
          the function, without doing any further inlining upon it, to the call
          site. *)
       Inlining_transforms.inline_by_copying_function_body ~env
-        ~r:(R.reset_benefit r) ~function_decls ~lhs_of_application
+        ~r:(R.reset_benefit r) ~function_decls ~lhs_of_application ~unroll_to
         ~closure_id_being_applied ~specialise_requested ~inline_requested
         ~args ~dbg ~simplify
     in
@@ -343,7 +337,7 @@ let specialise env r ~lhs_of_application
       ~(function_decl : Flambda.function_declaration)
       ~closure_id_being_applied
       ~(value_set_of_closures : Simple_value_approx.value_set_of_closures)
-      ~args ~args_approxs ~dbg ~simplify ~original ~rec_depth
+      ~args ~args_approxs ~dbg ~simplify ~original ~rec_info
       ~inlining_threshold ~fun_cost
       ~inline_requested ~specialise_requested =
   let bound_vars =
@@ -432,7 +426,7 @@ let specialise env r ~lhs_of_application
       in
       let copied_function_declaration =
         Inlining_transforms.inline_by_copying_function_declaration ~env
-          ~r:(R.reset_benefit r) ~lhs_of_application ~rec_depth
+          ~r:(R.reset_benefit r) ~lhs_of_application ~rec_info
           ~function_decls ~closure_id_being_applied
           ~args ~args_approxs
           ~invariant_params:value_set_of_closures.invariant_params
@@ -533,7 +527,7 @@ let specialise env r ~lhs_of_application
     end
 
 let for_call_site ~env ~r ~(function_decls : Flambda.function_declarations)
-      ~lhs_of_application ~rec_depth ~closure_id_being_applied
+      ~lhs_of_application ~rec_info ~closure_id_being_applied
       ~(function_decl : Flambda.function_declaration)
       ~(value_set_of_closures : Simple_value_approx.value_set_of_closures)
       ~args ~args_approxs ~dbg ~simplify ~inline_requested
@@ -542,20 +536,6 @@ let for_call_site ~env ~r ~(function_decls : Flambda.function_declarations)
     Misc.fatal_error "Inlining_decision.for_call_site: inconsistent lengths \
         of [args] and [args_approxs]"
   end;
-  (* Remove unroll attributes from functions we are already actively
-     unrolling, otherwise they'll be unrolled again next round. *)
-  let inline_requested : Lambda.inline_attribute =
-    match (inline_requested : Lambda.inline_attribute) with
-    | Unroll _ -> begin
-        let unrolling =
-          E.actively_unrolling env function_decls.set_of_closures_origin
-        in
-        match unrolling with
-        | Some _ -> Default_inline
-        | None -> inline_requested
-      end
-    | Always_inline | Default_inline | Never_inline -> inline_requested
-  in
   let original =
     (* Update inlining stack in any case *)
     let stack = E.inlining_stack env in
@@ -575,6 +555,9 @@ let for_call_site ~env ~r ~(function_decls : Flambda.function_declarations)
   if function_decl.stub then
     let body, r =
       Inlining_transforms.inline_by_copying_function_body ~env
+        (* No need to worry about requested unrolling because the stub's
+           inline annotation will be passed on *)
+        ~unroll_to:0
         ~r ~function_decls ~lhs_of_application
         ~closure_id_being_applied ~specialise_requested ~inline_requested
         ~args ~dbg ~simplify
@@ -639,7 +622,7 @@ let for_call_site ~env ~r ~(function_decls : Flambda.function_declarations)
           U.find_declaration_variable closure_id_being_applied function_decls
         in
         let specialise_result =
-          specialise env r ~lhs_of_application ~function_decls ~rec_depth
+          specialise env r ~lhs_of_application ~function_decls ~rec_info
             ~closure_id_being_applied ~function_decl ~value_set_of_closures
             ~args ~args_approxs ~dbg ~simplify ~original ~inline_requested
             ~specialise_requested ~fun_cost ~inlining_threshold
@@ -662,7 +645,7 @@ let for_call_site ~env ~r ~(function_decls : Flambda.function_declarations)
                   A.print_value_set_of_closures value_set_of_closures
           in
           let inline_result =
-            inline env r ~function_decls ~lhs_of_application ~rec_depth
+            inline env r ~function_decls ~lhs_of_application ~rec_info
               ~closure_id_being_applied ~function_decl ~value_set_of_closures
               ~only_use_of_function ~original
               ~inline_requested ~specialise_requested ~args

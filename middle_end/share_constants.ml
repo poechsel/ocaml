@@ -44,8 +44,8 @@ let update_constant_for_sharing sharing_symbol_tbl const
     )
   | Project_closure (sym, closure_id) ->
     Project_closure (substitute_symbol sym, closure_id)
-  | Recursive (sym, depth) ->
-    Recursive (substitute_symbol sym, depth)
+  | Recursive (sym, rec_info) ->
+    Recursive (substitute_symbol sym, rec_info)
 
 let cannot_share (const : Flambda.constant_defining_value) =
   match const with

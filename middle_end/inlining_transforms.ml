@@ -126,7 +126,7 @@ let inline_by_copying_function_body ~env ~r
       ~(inline_requested : Lambda.inline_attribute)
       ~(specialise_requested : Lambda.specialise_attribute)
       ~closure_id_being_applied
-      ~args ~dbg ~simplify =
+      ~unroll_to ~args ~dbg ~simplify =
   assert (E.mem env lhs_of_application);
   assert (List.for_all (E.mem env) args);
 
@@ -196,7 +196,8 @@ let inline_by_copying_function_body ~env ~r
             Variable.rename ~append:"_rec" another_closure_in_the_same_set
           in
           let rec_body : Flambda.named =
-            Recursive (another_closure_in_the_same_set, 1)
+            Recursive
+              (another_closure_in_the_same_set, { depth = 1; unroll_to })
           in
           Flambda.create_let another_closure_in_the_same_set original_body @@
           Flambda.create_let rec_var rec_body @@
@@ -222,7 +223,7 @@ let inline_by_copying_function_body ~env ~r
 let inline_by_copying_function_declaration ~env ~r
     ~(function_decls : Flambda.function_declarations)
     ~lhs_of_application
-    ~rec_depth
+    ~(rec_info : Flambda.rec_info)
     ~(inline_requested : Lambda.inline_attribute)
     ~closure_id_being_applied
     ~args ~args_approxs
@@ -390,7 +391,11 @@ let inline_by_copying_function_declaration ~env ~r
                 Variable.rename ~append:"_original_rec" fun_var
               in
               let wrapper_var = Variable.rename ~append:"_rec" fun_var in
-              let wrapper_body : Flambda.named = Recursive (original_var, 1) in
+              let wrapper_body : Flambda.named =
+                (* Don't use the passed-in rec_info here; we put it on the set
+                   of closures, and this is an increment on top of that. *)
+                Recursive (original_var, { depth = 1; unroll_to = 0; })
+              in
               let free_vars =
                 Variable.Map.add internal_rec_var
                   { Flambda. var = wrapper_var; projection = None }
@@ -595,7 +600,7 @@ let inline_by_copying_function_declaration ~env ~r
     let set_of_closures =
       (* This is the new set of closures, with more precise specialisation
          information than the one being copied. *)
-      Flambda.create_set_of_closures ~function_decls ~rec_depth ~free_vars
+      Flambda.create_set_of_closures ~function_decls ~rec_info ~free_vars
         ~specialised_args:specialisable_args
         ~direct_call_surrogates
     in
