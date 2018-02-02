@@ -353,9 +353,19 @@ let invariant_params_in_recursion (decls : Flambda.function_declarations)
           else not_unchanging)
       relation Variable.Set.empty
   in
-  let params = Variable.Map.fold (fun _
+  let used_functions =
+    Variable.Pair.Map.fold
+      (fun (fun_var, _param) _t used -> Variable.Set.add fun_var used)
+      relation Variable.Set.empty
+  in
+  let params = Variable.Map.fold (fun fun_var
         ({ params } : Flambda.function_declaration) set ->
-      Variable.Set.union (Parameter.Set.vars params) set)
+      (* Only count parameters of functions that are actually called -
+         otherwise a parameter that's never assigned is trivially
+         "unchanging" *)
+      if Variable.Set.mem fun_var used_functions then
+        Variable.Set.union (Parameter.Set.vars params) set
+      else set)
     decls.funs Variable.Set.empty
   in
   let unchanging = Variable.Set.diff params not_unchanging in
