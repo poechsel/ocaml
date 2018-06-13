@@ -51,6 +51,7 @@ let ignore_inline_attribute (_ : Lambda.inline_attribute) = ()
 let ignore_specialise_attribute (_ : Lambda.specialise_attribute) = ()
 let ignore_value_kind (_ : Lambda.value_kind) = ()
 let ignore_inlining_depth (_ : int) = ()
+let ignore_max_inlining_arguments (_ : Clflags.inlining_arguments option) = ()
 
 exception Binding_occurrence_not_from_current_compilation_unit of Variable.t
 exception Mutable_binding_occurrence_not_from_current_compilation_unit of
@@ -198,14 +199,16 @@ let variable_and_symbol_invariants (program : Flambda.program) =
       loop (add_binding_occurrence env var) handler
     (* Everything else: *)
     | Var var -> check_variable_is_bound env var
-    | Apply { func; args; kind; dbg; inline; specialise; inlining_depth; } ->
+    | Apply { func; args; kind; dbg; inline; specialise; inlining_depth;
+            max_inlining_arguments } ->
       check_variable_is_bound env func;
       check_variables_are_bound env args;
       ignore_call_kind kind;
       ignore_debuginfo dbg;
       ignore_inline_attribute inline;
       ignore_specialise_attribute specialise;
-      ignore_inlining_depth inlining_depth
+      ignore_inlining_depth inlining_depth;
+      ignore_max_inlining_arguments max_inlining_arguments
     | Assign { being_assigned; new_value; } ->
       check_mutable_variable_is_bound env being_assigned;
       check_variable_is_bound env new_value
