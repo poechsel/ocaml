@@ -354,6 +354,47 @@ let o3_arguments = {
   inline_toplevel_threshold = Some (50 * inline_toplevel_multiplier);
 }
 
+let get_inlining_arguments round =
+  let cost flag =
+    Int_arg_helper.get ~key:round flag
+  in
+  let cost_f flag =
+    Float_arg_helper.get ~key:round flag
+  in {
+    inline_call_cost = Some( cost !inline_call_cost );
+    inline_alloc_cost = Some( cost !inline_alloc_cost );
+    inline_prim_cost = Some( cost !inline_prim_cost );
+    inline_branch_cost = Some( cost !inline_branch_cost );
+    inline_indirect_cost = Some( cost !inline_indirect_cost );
+    inline_lifting_benefit = Some( cost !inline_lifting_benefit );
+    inline_branch_factor = Some( cost_f !inline_branch_factor );
+    inline_max_depth = Some( cost !inline_max_depth );
+    inline_max_speculation_depth = Some( cost !inline_max_speculation_depth );
+    inline_max_unroll = Some( cost !inline_max_unroll );
+    inline_threshold = Some( cost_f !inline_threshold );
+    inline_toplevel_threshold = Some( cost !inline_toplevel_threshold );
+  }
+
+let get_max_inlining_arguments () =
+  let round = rounds () - 1 in
+  get_inlining_arguments round
+
+let merge_inlining_arguments args1 args2 =
+  {
+    inline_call_cost = min args1.inline_call_cost args2.inline_call_cost;
+    inline_alloc_cost = min args1.inline_alloc_cost args2.inline_alloc_cost;
+    inline_prim_cost = min args1.inline_prim_cost args2.inline_prim_cost;
+    inline_branch_cost = min args1.inline_branch_cost args2.inline_branch_cost;
+    inline_indirect_cost = min args1.inline_indirect_cost args2.inline_indirect_cost;
+    inline_lifting_benefit = min args1.inline_lifting_benefit args2.inline_lifting_benefit;
+    inline_branch_factor = min args1.inline_branch_factor args2.inline_branch_factor;
+    inline_max_depth = min args1.inline_max_depth args2.inline_max_depth;
+    inline_max_speculation_depth = min args1.inline_max_speculation_depth args2.inline_max_speculation_depth;
+    inline_max_unroll = min args1.inline_max_unroll args2.inline_max_unroll;
+    inline_threshold = min args1.inline_threshold args2.inline_threshold;
+    inline_toplevel_threshold = min args1.inline_toplevel_threshold args2.inline_toplevel_threshold;
+  }
+
 let all_passes = ref []
 let dumped_passes_list = ref []
 let dumped_pass s =

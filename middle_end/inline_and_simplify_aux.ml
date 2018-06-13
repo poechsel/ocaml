@@ -39,6 +39,7 @@ module Env = struct
     closure_depth : int;
     inlining_stats_closure_stack : Inlining_stats.Closure_stack.t;
     inlined_debuginfo : Debuginfo.t;
+    inlining_arguments : Clflags.inlining_arguments;
   }
 
   let create ~never_inline ~backend ~round =
@@ -59,6 +60,7 @@ module Env = struct
       inlining_stats_closure_stack =
         Inlining_stats.Closure_stack.create ();
       inlined_debuginfo = Debuginfo.none;
+      inlining_arguments = Clflags.get_inlining_arguments round;
     }
 
   let backend t = t.backend
@@ -71,6 +73,10 @@ module Env = struct
       freshening = Freshening.empty_preserving_activation_state env.freshening;
       inlined_debuginfo = Debuginfo.none;
     }
+
+  let get_inlining_arguments env = env.inlining_arguments
+
+  let set_inlining_arguments env args = { env with inlining_arguments = args }
 
   let speculation_depth_up env =
     let max_level =

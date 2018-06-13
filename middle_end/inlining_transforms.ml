@@ -44,9 +44,10 @@ let fold_over_projections_of_vars_bound_by_closure ~closure_id_being_applied
     bound_variables
     init
 
-let set_attributes_on_all_apply body inline specialise inlining_depth =
+let set_attributes_on_all_apply body inline specialise inlining_depth max_inlining_arguments =
   Flambda_iterators.map_toplevel_expr (function
-      | Apply apply -> Apply { apply with inline; specialise; inlining_depth }
+    | Apply apply -> Apply { apply with inline; specialise; inlining_depth;
+                           max_inlining_arguments }
       | expr -> expr)
     body
 
@@ -113,6 +114,7 @@ let inline_by_copying_function_body ~env ~r
       ~lhs_of_application
       ~(inline_requested : Lambda.inline_attribute)
       ~(specialise_requested : Lambda.specialise_attribute)
+      ~max_inlining_arguments
       ~closure_id_being_applied
       ~(function_decls : A.function_declarations)
       ~(function_body : A.function_body)
@@ -139,6 +141,7 @@ let inline_by_copying_function_body ~env ~r
     if function_body.stub &&
        ((inline_requested <> Lambda.Default_inline)
         || (specialise_requested <> Lambda.Default_specialise)
+        || (max_inlining_arguments <> None)
         || (E.inlining_depth env <> 0)) then
       (* When the function inlined function is a stub, the annotation
          is reported to the function applications inside the stub.
@@ -147,6 +150,7 @@ let inline_by_copying_function_body ~env ~r
          in the source. *)
       set_attributes_on_all_apply body
         inline_requested specialise_requested (E.inlining_depth env)
+        max_inlining_arguments
     else
       body
   in
@@ -676,6 +680,7 @@ let inline_by_copying_function_declaration
     ~(free_vars : Flambda.specialised_to Variable.Map.t)
     ~(direct_call_surrogates : Closure_id.t Closure_id.Map.t)
     ~(dbg : Debuginfo.t)
+    ~(max_inlining_arguments : Clflags.inlining_arguments option)
     ~(simplify : Inlining_decision_intf.simplify) =
   let state = empty_state in
   let state =
@@ -734,7 +739,9 @@ let inline_by_copying_function_declaration
       let apply : Flambda.apply =
         { func = closure_var; args; kind = Direct closure_id; dbg;
           inlining_depth = E.inlining_depth env;
-          inline = inline_requested; specialise = Default_specialise; }
+          inline = inline_requested; specialise = Default_specialise;
+          max_inlining_arguments;
+        }
       in
       let body =
         Flambda.create_let
