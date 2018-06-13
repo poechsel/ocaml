@@ -77,7 +77,7 @@ let tupled_function_call_stub original_params unboxed_version ~recursive
   let call : Flambda.t =
     Flambda_utils.make_stub_body unboxed_version params
       (* CR-someday mshinwell for mshinwell: investigate if there is some
-          redundancy here (func is also unboxed_version) *)
+         redundancy here (func is also unboxed_version) *)
       ~kind:(Direct (Closure_id.wrap unboxed_version))
   in
   let _, body =
@@ -227,6 +227,7 @@ let rec close t env (lam : Lambda.lambda) : Flambda.t =
               dbg = Debuginfo.from_location ap_loc;
               inline = ap_inlined;
               specialise = ap_specialised;
+              max_inlining_arguments = Some (Env.get_max_inlining_arguments env);
             })))
   | Lletrec (defs, body) ->
     let env =

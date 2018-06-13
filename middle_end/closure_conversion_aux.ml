@@ -23,6 +23,7 @@ module Env = struct
     static_exceptions : Static_exception.t Numbers.Int.Map.t;
     globals : Symbol.t Numbers.Int.Map.t;
     at_toplevel : bool;
+    max_inlining_arguments : Clflags.inlining_arguments;
   }
 
   let empty = {
@@ -31,6 +32,7 @@ module Env = struct
     static_exceptions = Numbers.Int.Map.empty;
     globals = Numbers.Int.Map.empty;
     at_toplevel = true;
+    max_inlining_arguments = Clflags.get_max_inlining_arguments ();
   }
 
   let clear_local_bindings env =
@@ -78,6 +80,9 @@ module Env = struct
   let at_toplevel t = t.at_toplevel
 
   let not_at_toplevel t = { t with at_toplevel = false; }
+
+  let get_max_inlining_arguments t = t.max_inlining_arguments
+
 end
 
 module Function_decls = struct

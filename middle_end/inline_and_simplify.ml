@@ -715,7 +715,8 @@ and simplify_apply env r ~(apply : Flambda.apply) : Flambda.t * R.t =
   let {
     Flambda. func = lhs_of_application; args; kind = _; dbg;
     inline = inline_requested; specialise = specialise_requested;
-    stack = original_inlining_stack
+    stack = original_inlining_stack;
+    max_inlining_arguments = max_inlining_arguments;
   } = apply in
   let dbg = E.add_inlined_debuginfo env ~dbg in
   let env = E.add_original_inlining_stack env original_inlining_stack in
@@ -796,12 +797,12 @@ and simplify_apply env r ~(apply : Flambda.apply) : Flambda.t * R.t =
               simplify_full_application env r ~function_decls ~rec_info
                 ~lhs_of_application ~closure_id_being_applied ~function_decl
                 ~value_set_of_closures ~args ~args_approxs ~dbg
-                ~inline_requested ~specialise_requested
+                ~inline_requested ~specialise_requested ~max_inlining_arguments
             else if nargs > arity then
               simplify_over_application env r ~args ~args_approxs ~rec_info
                 ~function_decls ~lhs_of_application ~closure_id_being_applied
                 ~function_decl ~value_set_of_closures ~dbg ~inline_requested
-                ~specialise_requested
+                ~specialise_requested ~max_inlining_arguments
             else if nargs > 0 && nargs < arity then
               simplify_partial_application env r ~lhs_of_application
                 ~closure_id_being_applied ~function_decl ~args ~dbg
@@ -815,16 +816,23 @@ and simplify_apply env r ~(apply : Flambda.apply) : Flambda.t * R.t =
         | Wrong ->  (* Insufficient approximation information to simplify. *)
           Apply ({ func = lhs_of_application; args; kind = Indirect; dbg;
                    inline = inline_requested; specialise = specialise_requested;
-                   stack = E.inlining_stack env; }),
+                   stack = E.inlining_stack env; max_inlining_arguments}),
             ret r (A.value_unknown Other)))
 
 and simplify_full_application env r ~function_decls ~lhs_of_application
       ~rec_info ~closure_id_being_applied ~function_decl ~value_set_of_closures ~args
-      ~args_approxs ~dbg ~inline_requested ~specialise_requested =
+      ~args_approxs ~dbg ~inline_requested ~specialise_requested ~max_inlining_arguments =
+  let env =
+    match max_inlining_arguments with
+    | None -> env
+    | Some args ->
+      let merge_args = Clflags.merge_inlining_arguments (E.get_inlining_arguments env) args
+      in E.set_inlining_arguments env merge_args
+  in
   Inlining_decision.for_call_site ~env ~r ~function_decls
     ~lhs_of_application ~rec_info ~closure_id_being_applied ~function_decl
     ~value_set_of_closures ~args ~args_approxs ~dbg ~simplify
-    ~inline_requested ~specialise_requested
+    ~inline_requested ~specialise_requested ~max_inlining_arguments
 
 and simplify_partial_application env r ~lhs_of_application
       ~closure_id_being_applied ~function_decl ~args ~dbg
@@ -891,7 +899,8 @@ and simplify_partial_application env r ~lhs_of_application
 
 and simplify_over_application env r ~args ~args_approxs ~function_decls
       ~lhs_of_application ~rec_info ~closure_id_being_applied ~function_decl
-      ~value_set_of_closures ~dbg ~inline_requested ~specialise_requested =
+      ~value_set_of_closures ~dbg ~inline_requested ~specialise_requested
+      ~max_inlining_arguments =
   let arity = Flambda_utils.function_arity function_decl in
   assert (arity < List.length args);
   assert (List.length args = List.length args_approxs);
@@ -905,14 +914,14 @@ and simplify_over_application env r ~args ~args_approxs ~function_decls
     simplify_full_application env r ~function_decls ~lhs_of_application
       ~closure_id_being_applied ~function_decl ~value_set_of_closures
       ~args:full_app_args ~args_approxs:full_app_approxs ~dbg
-      ~inline_requested ~specialise_requested ~rec_info
+      ~inline_requested ~specialise_requested ~rec_info ~max_inlining_arguments
   in
   let func_var = Variable.create "full_apply" in
   let expr : Flambda.t =
     Flambda.create_let func_var (Expr expr)
       (Apply { func = func_var; args = remaining_args; kind = Indirect; dbg;
                inline = inline_requested; specialise = specialise_requested;
-               stack = E.inlining_stack env })
+               stack = E.inlining_stack env; max_inlining_arguments })
   in
   let expr = Lift_code.lift_lets_expr expr ~toplevel:true in
   simplify (E.set_never_inline env) r expr

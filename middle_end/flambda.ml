@@ -49,6 +49,7 @@ type apply = {
   dbg : Debuginfo.t;
   inline : Lambda.inline_attribute;
   specialise : Lambda.specialise_attribute;
+  max_inlining_arguments : Clflags.inlining_arguments option;
 }
 
 type assign = {
@@ -254,7 +255,7 @@ let rec lam ppf (flam : t) =
   match flam with
   | Var (id) ->
       Variable.print ppf id
-  | Apply({func; args; kind; inline; stack; dbg}) ->
+  | Apply({func; args; kind; inline; stack; dbg;}) ->
     let direct ppf () =
       match kind with
       | Indirect -> ()

@@ -71,10 +71,12 @@ let fold_over_projections_of_vars_bound_by_closure ~closure_id_being_applied
       function_decls)
     init
 
-let set_attributes_on_all_apply body inline specialise stack =
+let set_attributes_on_all_apply body inline specialise stack
+      max_inlining_arguments =
   Flambda_iterators.map_toplevel_expr (function
-      | Apply apply -> Apply { apply with inline; specialise; stack }
-      | expr -> expr)
+    | Apply apply -> Apply { apply with inline; specialise; stack;
+                                        max_inlining_arguments}
+    | expr -> expr)
     body
 
 let rewrite_recursive_calls_from_symbols_to_variables env function_decls =
@@ -125,6 +127,7 @@ let inline_by_copying_function_body ~env ~r
       ~lhs_of_application
       ~(inline_requested : Lambda.inline_attribute)
       ~(specialise_requested : Lambda.specialise_attribute)
+      ~max_inlining_arguments
       ~closure_id_being_applied
       ~unroll_to ~args ~dbg ~simplify =
   assert (E.mem env lhs_of_application);
@@ -149,6 +152,7 @@ let inline_by_copying_function_body ~env ~r
     if function_decl.stub &&
        ((inline_requested <> Lambda.Default_inline)
         || (specialise_requested <> Lambda.Default_specialise)
+        || (max_inlining_arguments <> None)
         || (E.inlining_depth env <> 0)) then
       (* When the function inlined function is a stub, the annotation
          is reported to the function applications inside the stub.
@@ -157,6 +161,7 @@ let inline_by_copying_function_body ~env ~r
          in the source. *)
       set_attributes_on_all_apply body
         inline_requested specialise_requested (E.inlining_stack env)
+        max_inlining_arguments
     else
       body
   in
@@ -626,6 +631,7 @@ let inline_by_copying_function_declaration ~env ~r
               dbg;
               inline = inline_requested;
               specialise = Default_specialise;
+              max_inlining_arguments = Some (E.get_inlining_arguments env);
             }))
       in
       Flambda_utils.bind ~bindings:free_vars_for_lets ~body

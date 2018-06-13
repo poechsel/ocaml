@@ -71,6 +71,7 @@ val inline_by_copying_function_body
   -> lhs_of_application:Variable.t
   -> inline_requested:Lambda.inline_attribute
   -> specialise_requested:Lambda.specialise_attribute
+  -> max_inlining_arguments:Clflags.inlining_arguments option
   -> closure_id_being_applied:Closure_id.t
   -> unroll_to:int
   -> args:Variable.t list

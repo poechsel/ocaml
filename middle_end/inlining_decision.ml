@@ -84,6 +84,7 @@ let inline env r ~lhs_of_application
     ~(args : Variable.t list) ~size_from_approximation ~dbg ~simplify
     ~(inline_requested : Lambda.inline_attribute)
     ~(specialise_requested : Lambda.specialise_attribute)
+    ~max_inlining_arguments
     ~(rec_info : Flambda.rec_info) ~fun_cost ~inlining_threshold =
   let toplevel = E.at_toplevel env in
   let branch_depth = E.branch_depth env in
@@ -217,8 +218,8 @@ let inline env r ~lhs_of_application
          site. *)
       Inlining_transforms.inline_by_copying_function_body ~env
         ~r:(R.reset_benefit r) ~function_decls ~lhs_of_application ~unroll_to
-        ~closure_id_being_applied ~specialise_requested ~inline_requested
-        ~args ~dbg ~simplify
+        ~closure_id_being_applied ~specialise_requested ~max_inlining_arguments
+        ~inline_requested ~args ~dbg ~simplify
     in
     let num_direct_applications_seen =
       (R.num_direct_applications r_inlined) - (R.num_direct_applications r)
@@ -526,7 +527,7 @@ let for_call_site ~env ~r ~(function_decls : Flambda.function_declarations)
       ~(function_decl : Flambda.function_declaration)
       ~(value_set_of_closures : Simple_value_approx.value_set_of_closures)
       ~args ~args_approxs ~dbg ~simplify ~inline_requested
-      ~specialise_requested =
+      ~specialise_requested ~max_inlining_arguments =
   if List.length args <> List.length args_approxs then begin
     Misc.fatal_error "Inlining_decision.for_call_site: inconsistent lengths \
         of [args] and [args_approxs]"
@@ -542,6 +543,7 @@ let for_call_site ~env ~r ~(function_decls : Flambda.function_declarations)
       stack;
       inline = inline_requested;
       specialise = specialise_requested;
+      max_inlining_arguments = max_inlining_arguments;
     }
   in
   let original_r =
@@ -555,6 +557,7 @@ let for_call_site ~env ~r ~(function_decls : Flambda.function_declarations)
         ~unroll_to:0
         ~r ~function_decls ~lhs_of_application
         ~closure_id_being_applied ~specialise_requested ~inline_requested
+        ~max_inlining_arguments
         ~args ~dbg ~simplify
     in
     simplify env r body
@@ -645,7 +648,7 @@ let for_call_site ~env ~r ~(function_decls : Flambda.function_declarations)
               ~only_use_of_function ~original
               ~inline_requested ~specialise_requested ~args
               ~size_from_approximation ~dbg ~simplify ~fun_cost
-              ~inlining_threshold
+              ~inlining_threshold ~max_inlining_arguments
           in
           match inline_result with
           | Changed (res, inl_reason) ->

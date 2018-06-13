@@ -267,6 +267,12 @@ module Env : sig
 
   (** Appends the locations of inlined call-sites to the [~dbg] argument *)
   val add_inlined_debuginfo : t -> dbg:Debuginfo.t -> Debuginfo.t
+
+  (** get the inlining arguments of our env *)
+  val get_inlining_arguments : t -> Clflags.inlining_arguments
+
+  (** set the inlining arguments of our env *)
+  val set_inlining_arguments : t -> Clflags.inlining_arguments -> t
 end
 
 module Result : sig
