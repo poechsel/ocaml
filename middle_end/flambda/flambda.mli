@@ -45,6 +45,9 @@ type apply = {
   specialise : Lambda.specialise_attribute;
   (** Instructions from the source code as to whether the callee should
       be specialised. *)
+  max_inlining_arguments : Clflags.inlining_arguments option;
+  (** Maximum value of the inlining arguments that can be used to inline the
+      current file. *)
 }
 
 (** The update of a mutable variable.  Mutable variables are distinct from

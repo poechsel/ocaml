@@ -3992,6 +3992,7 @@ middle_end/flambda/closure_conversion_aux.cmo : \
     lambda/lambda.cmi \
     utils/int_replace_polymorphic_compare.cmi \
     typing/ident.cmi \
+    utils/clflags.cmi \
     middle_end/flambda/closure_conversion_aux.cmi
 middle_end/flambda/closure_conversion_aux.cmx : \
     middle_end/variable.cmx \
@@ -4003,6 +4004,7 @@ middle_end/flambda/closure_conversion_aux.cmx : \
     lambda/lambda.cmx \
     utils/int_replace_polymorphic_compare.cmx \
     typing/ident.cmx \
+    utils/clflags.cmx \
     middle_end/flambda/closure_conversion_aux.cmi
 middle_end/flambda/closure_conversion_aux.cmi : \
     middle_end/variable.cmi \
@@ -4010,7 +4012,8 @@ middle_end/flambda/closure_conversion_aux.cmi : \
     middle_end/flambda/base_types/static_exception.cmi \
     middle_end/flambda/base_types/mutable_variable.cmi \
     lambda/lambda.cmi \
-    typing/ident.cmi
+    typing/ident.cmi \
+    utils/clflags.cmi
 middle_end/flambda/closure_offsets.cmo : \
     middle_end/variable.cmi \
     middle_end/flambda/base_types/var_within_closure.cmi \
@@ -4200,6 +4203,7 @@ middle_end/flambda/flambda.cmi : \
     utils/identifiable.cmi \
     lambda/debuginfo.cmi \
     middle_end/flambda/base_types/closure_id.cmi \
+    utils/clflags.cmi \
     middle_end/clambda_primitives.cmi \
     parsing/asttypes.cmi \
     middle_end/flambda/allocated_const.cmi
@@ -4222,6 +4226,7 @@ middle_end/flambda/flambda_invariants.cmo : \
     lambda/debuginfo.cmi \
     middle_end/compilation_unit.cmi \
     middle_end/flambda/base_types/closure_id.cmi \
+    utils/clflags.cmi \
     middle_end/clambda_primitives.cmi \
     parsing/asttypes.cmi \
     middle_end/flambda/allocated_const.cmi \
@@ -4245,6 +4250,7 @@ middle_end/flambda/flambda_invariants.cmx : \
     lambda/debuginfo.cmx \
     middle_end/compilation_unit.cmx \
     middle_end/flambda/base_types/closure_id.cmx \
+    utils/clflags.cmx \
     middle_end/clambda_primitives.cmx \
     parsing/asttypes.cmi \
     middle_end/flambda/allocated_const.cmx \
@@ -4735,6 +4741,7 @@ middle_end/flambda/inline_and_simplify_aux.cmi : \
     middle_end/flambda/flambda.cmi \
     lambda/debuginfo.cmi \
     middle_end/flambda/base_types/closure_id.cmi \
+    utils/clflags.cmi \
     middle_end/backend_intf.cmi
 middle_end/flambda/inlining_cost.cmo : \
     middle_end/variable.cmi \
@@ -4801,7 +4808,8 @@ middle_end/flambda/inlining_decision.cmi : \
     middle_end/flambda/inline_and_simplify_aux.cmi \
     middle_end/flambda/flambda.cmi \
     lambda/debuginfo.cmi \
-    middle_end/flambda/base_types/closure_id.cmi
+    middle_end/flambda/base_types/closure_id.cmi \
+    utils/clflags.cmi
 middle_end/flambda/inlining_decision_intf.cmi : \
     middle_end/variable.cmi \
     middle_end/flambda/simple_value_approx.cmi \
@@ -4859,6 +4867,7 @@ middle_end/flambda/inlining_transforms.cmo : \
     lambda/debuginfo.cmi \
     middle_end/compilation_unit.cmi \
     middle_end/flambda/base_types/closure_id.cmi \
+    utils/clflags.cmi \
     middle_end/flambda/inlining_transforms.cmi
 middle_end/flambda/inlining_transforms.cmx : \
     middle_end/variable.cmx \
@@ -4880,6 +4889,7 @@ middle_end/flambda/inlining_transforms.cmx : \
     lambda/debuginfo.cmx \
     middle_end/compilation_unit.cmx \
     middle_end/flambda/base_types/closure_id.cmx \
+    utils/clflags.cmx \
     middle_end/flambda/inlining_transforms.cmi
 middle_end/flambda/inlining_transforms.cmi : \
     middle_end/variable.cmi \
@@ -4889,7 +4899,8 @@ middle_end/flambda/inlining_transforms.cmi : \
     middle_end/flambda/inline_and_simplify_aux.cmi \
     middle_end/flambda/flambda.cmi \
     lambda/debuginfo.cmi \
-    middle_end/flambda/base_types/closure_id.cmi
+    middle_end/flambda/base_types/closure_id.cmi \
+    utils/clflags.cmi
 middle_end/flambda/invariant_params.cmo : \
     middle_end/variable.cmi \
     middle_end/symbol.cmi \
