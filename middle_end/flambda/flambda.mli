@@ -19,7 +19,20 @@
 (** Intermediate language used for tree-based analysis and optimization. *)
 
 (* holds every arguments impacting inlining (costs, thresholds...) *)
-type inlining_arguments
+type inlining_arguments = {
+  inline_call_cost : int;
+  inline_alloc_cost : int;
+  inline_prim_cost : int;
+  inline_branch_cost : int;
+  inline_indirect_cost : int;
+  inline_lifting_benefit : int;
+  inline_branch_factor : float;
+  inline_max_depth : int;
+  inline_max_speculation_depth : int;
+  inline_max_unroll : int;
+  inline_threshold : float;
+  inline_toplevel_threshold : int;
+}
 
 (** Whether the callee in a function application is known at compile time. *)
 type call_kind =

@@ -717,6 +717,28 @@ and simplify_apply env r ~(apply : Flambda.apply) : Flambda.t * R.t =
     inlining_depth = original_inlining_depth;
     max_inlining_arguments = max_inlining_arguments;
   } = apply in
+  (* we are always merging inlining environnements.
+      This allows us to keep the maximum inlining arguments sane at all
+      time. Ex: suppose we are in the following case:
+
+      A.ml (O3)      | B.ml (O1)      | C.ml  (O3)
+      let foo () =   | let bar () =   | let baz =
+        B.bar ()     |   C.baz ()     |   foo ()
+
+      When inlining A, we want to inline B. When B is inlined with O1,
+      a call to C.foo will appear in A. By updating the corresponding
+      value of max_inlining_arguments to be min(O1 (for B), O3 (for C)),
+      we will only inline the call of foo that had appears with O1,
+      which is predictable
+  *)
+  let max_inlining_arguments =
+    let env_args = (E.get_inlining_arguments env) in
+    match max_inlining_arguments with
+    | None ->
+      Some env_args
+    | Some apply_args ->
+      Some (Flambda.merge_inlining_arguments env_args apply_args)
+  in
   let dbg = E.add_inlined_debuginfo env ~dbg in
   let env = E.add_original_inlining_depth env original_inlining_depth in
   simplify_free_variable env lhs_of_application
