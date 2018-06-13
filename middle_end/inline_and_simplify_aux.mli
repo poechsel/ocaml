@@ -247,10 +247,10 @@ module Env : sig
   val add_inlined_debuginfo : t -> dbg:Debuginfo.t -> Debuginfo.t
 
   (** get the inlining arguments of our env *)
-  val get_inlining_arguments : t -> Clflags.inlining_arguments
+  val get_inlining_arguments : t -> Flambda.inlining_arguments
 
   (** set the inlining arguments of our env *)
-  val set_inlining_arguments : t -> Clflags.inlining_arguments -> t
+  val set_inlining_arguments : t -> Flambda.inlining_arguments -> t
 end
 
 module Result : sig
