@@ -44,7 +44,7 @@ module Env : sig
   val at_toplevel : t -> bool
   val not_at_toplevel : t -> t
 
-  val get_max_inlining_arguments : t -> Clflags.inlining_arguments
+  val get_max_inlining_arguments : t -> Flambda.inlining_arguments
 end
 
 (** Used to represent information about a set of function declarations

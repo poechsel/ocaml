@@ -825,7 +825,7 @@ and simplify_full_application env r ~function_decls ~lhs_of_application
     match max_inlining_arguments with
     | None -> env
     | Some args ->
-      let merge_args = Clflags.merge_inlining_arguments (E.get_inlining_arguments env) args
+      let merge_args = Flambda.merge_inlining_arguments (E.get_inlining_arguments env) args
       in E.set_inlining_arguments env merge_args
   in
   Inlining_decision.for_call_site ~env ~r ~function_decls
