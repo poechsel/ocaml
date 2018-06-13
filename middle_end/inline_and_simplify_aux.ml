@@ -39,7 +39,7 @@ module Env = struct
     closure_depth : int;
     inlining_stats_closure_stack : Inlining_stats.Closure_stack.t;
     inlined_debuginfo : Debuginfo.t;
-    inlining_arguments : Clflags.inlining_arguments;
+    inlining_arguments : Flambda.inlining_arguments;
   }
 
   let create ~never_inline ~backend ~round =
@@ -60,7 +60,7 @@ module Env = struct
       inlining_stats_closure_stack =
         Inlining_stats.Closure_stack.create ();
       inlined_debuginfo = Debuginfo.none;
-      inlining_arguments = Clflags.get_inlining_arguments round;
+      inlining_arguments = Flambda.get_inlining_arguments round;
     }
 
   let backend t = t.backend

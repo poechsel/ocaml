@@ -63,23 +63,6 @@ val o1_arguments : inlining_arguments
 val o2_arguments : inlining_arguments
 val o3_arguments : inlining_arguments
 
-(** get an [inlining_arguments] struct filled with the
-   maximum values across all round.
-   As we are forcing them to be increasing over rounds, this is equivalent to be
-   returning the arguments of the last round *)
-val get_max_inlining_arguments : unit -> inlining_arguments
-
-(** get the [inlining_arguments] structure corresponing
-    to a given round *)
-val get_inlining_arguments : int -> inlining_arguments
-
-(** Merge two inlining arguments structures:
-    Keep the minimum of each of their attributes *)
-val merge_inlining_arguments :
-  inlining_arguments
-  -> inlining_arguments
-  -> inlining_arguments
-
 (** Set all the inlining arguments for a round.
     The default is set if no round is provided. *)
 val use_inlining_arguments_set : ?round:int -> inlining_arguments -> unit
