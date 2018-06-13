@@ -18,6 +18,9 @@
 
 (** Intermediate language used for tree-based analysis and optimization. *)
 
+(* holds every arguments impacting inlining (costs, thresholds...) *)
+type inlining_arguments
+
 (** Whether the callee in a function application is known at compile time. *)
 type call_kind =
   | Indirect
@@ -65,7 +68,7 @@ type apply = {
   specialise : Lambda.specialise_attribute;
   (** Instructions from the source code as to whether the callee should
       be specialised. *)
-  max_inlining_arguments : Clflags.inlining_arguments option;
+  max_inlining_arguments : inlining_arguments option;
   (** Informations about the maximum value of the inlining arguments we can used
       to inline this file. *)
 }
@@ -727,3 +730,22 @@ val compare_move_within_set_of_closures
   -> int
 
 val compare_project_closure : project_closure -> project_closure -> int
+
+
+
+(** get the [inlining_arguments] structure corresponing
+    to a given round *)
+val get_inlining_arguments : int -> inlining_arguments
+
+(** get an [inlining_arguments] struct filled with the
+   maximum values across all round.
+   As we are forcing them to be increasing over rounds, this is equivalent to be
+   returning the arguments of the last round *)
+val get_max_inlining_arguments : unit -> inlining_arguments
+
+(** Merge two inlining arguments structures:
+    Keep the minimum of each of their attributes *)
+val merge_inlining_arguments :
+  inlining_arguments
+  -> inlining_arguments
+  -> inlining_arguments
