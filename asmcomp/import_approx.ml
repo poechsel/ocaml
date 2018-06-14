@@ -93,7 +93,8 @@ let rec import_ex ex =
           ~invariant_params:(lazy invariant_params)
           ~specialised_args:Variable.Map.empty
           ~freshening:Freshening.Project_var.empty
-          ~direct_call_surrogates:Closure_id.Map.empty)
+          ~direct_call_surrogates:Closure_id.Map.empty
+          ~args:(Flambda.get_max_inlining_arguments ()))
   in
   match Export_info.find_description ex_info ex with
   | exception Not_found -> A.value_unknown Other

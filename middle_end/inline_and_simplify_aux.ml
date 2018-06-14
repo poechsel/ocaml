@@ -622,6 +622,7 @@ let prepare_to_simplify_set_of_closures ~env
       ~rec_info:set_of_closures.rec_info
       ~invariant_params:(lazy Variable.Map.empty) ~specialised_args
       ~freshening ~direct_call_surrogates
+      ~args:(Env.get_inlining_arguments env)
   in
   (* Populate the environment with the approximation of each closure.
      If [recursive] is true, this part of the environment is shared between all

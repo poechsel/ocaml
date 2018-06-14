@@ -292,7 +292,7 @@ let create_value_set_of_closures
       ~(function_decls : Flambda.function_declarations)
       ~(rec_info : Flambda.rec_info)
       ~bound_vars ~invariant_params ~specialised_args ~freshening
-      ~direct_call_surrogates =
+      ~direct_call_surrogates ~(args : Flambda.inlining_arguments) =
   assert (rec_info.depth >= 0);
   let size =
     lazy (
@@ -307,7 +307,7 @@ let create_value_set_of_closures
           let num_free_vars = Variable.Set.cardinal free_vars in
           let max_size =
             Inlining_cost.maximum_interesting_size_of_function_body
-              num_free_vars
+              num_free_vars args
           in
           Inlining_cost.lambda_smaller' function_decl.body ~than:max_size)
         function_decls.funs)
