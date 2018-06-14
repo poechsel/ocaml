@@ -24,7 +24,9 @@
 module Env : sig
   type t
 
-  val empty : t
+  (** In order to get the comand line arguments, it is a
+      function and not just a variable *)
+  val empty : unit -> t
 
   val add_var : t -> Ident.t -> Variable.t -> t
   val add_vars : t -> Ident.t list -> Variable.t list -> t
