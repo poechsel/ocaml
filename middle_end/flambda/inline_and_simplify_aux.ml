@@ -42,6 +42,7 @@ module Env = struct
     inlining_stats_closure_stack : Inlining_stats.Closure_stack.t;
     inlined_debuginfo : Debuginfo.t;
     inlining_arguments : Flambda.inlining_arguments;
+    max_inlining_arguments : Flambda.inlining_arguments;
   }
 
   let create ~never_inline ~backend ~round ~ppf_dump =
@@ -64,6 +65,7 @@ module Env = struct
         Inlining_stats.Closure_stack.create ();
       inlined_debuginfo = Debuginfo.none;
       inlining_arguments = Flambda.get_inlining_arguments round;
+      max_inlining_arguments = Flambda.get_max_inlining_arguments ();
     }
 
   let backend t = t.backend
@@ -80,7 +82,11 @@ module Env = struct
 
   let get_inlining_arguments env = env.inlining_arguments
 
+  let get_max_inlining_arguments env = env.max_inlining_arguments
+
   let set_inlining_arguments env args = { env with inlining_arguments = args }
+
+  let set_max_inlining_arguments env args = { env with max_inlining_arguments = args }
 
   let speculation_depth_up env =
     let max_level =
