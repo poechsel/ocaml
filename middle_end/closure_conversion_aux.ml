@@ -26,7 +26,7 @@ module Env = struct
     max_inlining_arguments : Flambda.inlining_arguments;
   }
 
-  let empty = {
+  let empty () = {
     variables = Ident.empty;
     mutable_variables = Ident.empty;
     static_exceptions = Numbers.Int.Map.empty;
@@ -36,7 +36,7 @@ module Env = struct
   }
 
   let clear_local_bindings env =
-    { empty with globals = env.globals }
+    { (empty ()) with globals = env.globals }
 
   let add_var t id var = { t with variables = Ident.add id var t.variables }
   let add_vars t ids vars = List.fold_left2 add_var t ids vars

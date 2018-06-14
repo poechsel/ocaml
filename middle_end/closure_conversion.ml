@@ -711,7 +711,7 @@ let lambda_to_flambda ~backend ~module_ident ~size ~filename lam
     Initialize_symbol (
       block_symbol,
       Tag.create_exn 0,
-      [close t Env.empty lam],
+      [close t (Env.empty ()) lam],
       Initialize_symbol (
         module_symbol,
         Tag.create_exn 0,
