@@ -135,7 +135,7 @@ and set_of_closures = {
 }
 
 and function_declarations = {
-  is_classic_mode : bool;
+  is_classic_mode : float;
   set_of_closures_id : Set_of_closures_id.t;
   funs : function_declaration Variable.Map.t;
 }
@@ -1365,3 +1365,5 @@ let merge_inlining_arguments args1 args2 =
     inline_threshold = min args1.inline_threshold args2.inline_threshold;
     inline_toplevel_threshold = min args1.inline_toplevel_threshold args2.inline_toplevel_threshold;
   }
+
+let is_classic_mode_on classic_mode = Float.compare classic_mode 0.0 > 0

@@ -68,7 +68,7 @@ module Benefit : sig
 
   val zero : t
   val (+) : t -> t -> t
-  val max : round:int -> t -> t -> t
+  val max : args:Flambda.inlining_arguments -> t -> t -> t
 
   val remove_call : t -> t
   (* CR-soon mshinwell: [remove_alloc] should take the size of the block
@@ -104,7 +104,7 @@ module Whether_sufficient_benefit : sig
     -> Flambda.t
     -> benefit:Benefit.t
     -> lifting:bool
-    -> round:int
+    -> args: Flambda.inlining_arguments
     -> t
 
   val create_estimate
@@ -114,7 +114,7 @@ module Whether_sufficient_benefit : sig
     -> new_size:int
     -> benefit:Benefit.t
     -> lifting:bool
-    -> round:int
+    -> args: Flambda.inlining_arguments
     -> t
 
   val evaluate : t -> bool

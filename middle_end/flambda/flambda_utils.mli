@@ -63,7 +63,7 @@ val description_of_toplevel_node : Flambda.t -> string
    lwhite: the params restriction seems odd, perhaps give a reason
    in the comment. *)
 val make_closure_declaration
-   : is_classic_mode:bool
+   : is_classic_mode:float
   -> id:Variable.t
   -> body:Flambda.t
   -> params:Parameter.t list

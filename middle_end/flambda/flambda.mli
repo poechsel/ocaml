@@ -316,7 +316,7 @@ and set_of_closures = private {
 }
 
 and function_declarations = private {
-  is_classic_mode: bool;
+  is_classic_mode: float;
   (** Indicates whether this [function_declarations] was compiled
       with -Oclassic. *)
   set_of_closures_id : Set_of_closures_id.t;
@@ -605,14 +605,14 @@ val update_function_declaration_body
 
 (** Create a set of function declarations given the individual declarations. *)
 val create_function_declarations
-   : is_classic_mode:bool
+   : is_classic_mode:float
   -> funs:function_declaration Variable.Map.t
   -> function_declarations
 
 (** Create a set of function declarations with a given set of closures
     origin. *)
 val create_function_declarations_with_origin
-   : is_classic_mode:bool
+   : is_classic_mode:float
   -> funs:function_declaration Variable.Map.t
   -> function_declarations
 
@@ -624,7 +624,7 @@ val update_function_declarations
   -> function_declarations
 
 val create_function_declarations_with_closures_origin
-   : is_classic_mode: bool
+   : is_classic_mode:float
   -> funs:function_declaration Variable.Map.t
   -> function_declarations
 
@@ -775,3 +775,6 @@ val merge_inlining_arguments :
   inlining_arguments
   -> inlining_arguments
   -> inlining_arguments
+
+(* Return true if classic mode is on. *)
+val is_classic_mode_on : float -> bool

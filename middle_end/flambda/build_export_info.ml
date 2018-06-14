@@ -583,7 +583,8 @@ let build_transient (program : Flambda.program) : Export_info.transient =
       let invariant_params =
         Set_of_closures_id.Map.map
           (fun { Flambda. function_decls; _ } ->
-             if function_decls.is_classic_mode then begin
+             if Flambda.is_classic_mode_on function_decls.is_classic_mode then
+             begin
                Variable.Map.empty
              end else begin
                Invariant_params.invariant_params_in_recursion
@@ -665,7 +666,7 @@ let build_transient (program : Flambda.program) : Export_info.transient =
             Set_of_closures_id.Set.mem key
               relevant_set_of_closures_declaration_only
           end then begin
-            if fun_decls.is_classic_mode then
+            if Flambda.is_classic_mode_on fun_decls.is_classic_mode then
               Some (Simple_value_approx.clear_function_bodies fun_decls)
             else
               Some fun_decls
