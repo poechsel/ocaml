@@ -679,7 +679,8 @@ and simplify_set_of_closures original_env r
       ~is_classic_mode:function_decls.is_classic_mode
   in
   let function_decls_approx =
-    A.function_declarations_approx ~keep_body function_decls
+    A.function_declarations_approx ~keep_body
+      function_decls
   in
   let value_set_of_closures =
     A.create_value_set_of_closures
@@ -905,7 +906,7 @@ and simplify_partial_application env r ~lhs_of_application
         (Closure_id.unwrap closure_id_being_applied)
     in
     Flambda_utils.make_closure_declaration ~id:closure_variable
-      ~is_classic_mode:false
+      ~is_classic_mode:(-1.0)
       ~body
       ~params:remaining_args
       ~recursive:false

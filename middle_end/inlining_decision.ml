@@ -110,8 +110,7 @@ let inline env r ~lhs_of_application
     | Start_unrolling { to_depth = depth } -> depth
     | _ -> 0
   in
-  let unrolling_limit =
-    Clflags.Int_arg_helper.get ~key:(E.round env) !Clflags.inline_max_unroll
+  let unrolling_limit = (E.get_inlining_arguments env).inline_max_unroll
   in
   let remaining_inlining_threshold : Inlining_cost.Threshold.t =
     if always_inline then inlining_threshold
@@ -190,7 +189,7 @@ let inline env r ~lhs_of_application
             ~toplevel:(E.at_toplevel env)
             ~branch_depth:(E.branch_depth env)
             ~lifting:function_body.A.is_a_functor
-            ~round:(E.round env)
+            ~args:(E.get_inlining_arguments env)
             ~benefit
         in
         if (not (W.evaluate wsb)) then begin
@@ -240,7 +239,7 @@ let inline env r ~lhs_of_application
            have taken that into account before annotating the function. *)
         if always_inline then
           R.map_benefit r_inlined
-            (Inlining_cost.Benefit.max ~round:(E.round env)
+            (Inlining_cost.Benefit.max ~args:(E.get_inlining_arguments env)
                Inlining_cost.Benefit.(requested_inline ~size_of:body zero))
         else r_inlined
       in
@@ -269,7 +268,7 @@ let inline env r ~lhs_of_application
           ~toplevel:(E.at_toplevel env)
           ~branch_depth:(E.branch_depth env)
           ~lifting:function_body.is_a_functor
-          ~round:(E.round env)
+          ~args:(E.get_inlining_arguments env)
           ~benefit:(R.benefit r_inlined)
       in
       if W.evaluate wsb then
@@ -290,7 +289,7 @@ let inline env r ~lhs_of_application
             ~toplevel:(E.at_toplevel env)
             ~branch_depth:(E.branch_depth env)
             ~lifting:function_body.is_a_functor
-            ~round:(E.round env)
+            ~args:(E.get_inlining_arguments env)
             ~benefit:(R.benefit r_inlined)
         in
         if W.evaluate wsb_with_subfunctions then begin
@@ -364,7 +363,7 @@ let specialise env r ~lhs_of_application
        - is closed (it and all other members of the set of closures on which
          it depends); and
        - has useful approximations for some invariant parameters. *)
-    if function_decls.is_classic_mode then
+    if function_decls.is_classic_mode > 0.0 then
       Don't_try_it S.Not_specialised.Classic_mode
     else if always_specialise && not (Lazy.force has_no_useful_approxes) then
       Try_it
@@ -411,7 +410,7 @@ let specialise env r ~lhs_of_application
             ~toplevel:false
             ~branch_depth:(E.branch_depth env)
             ~lifting:false
-            ~round:(E.round env)
+            ~args:(E.get_inlining_arguments env)
             ~benefit:(R.benefit r_inlined)
         in
         let env =
@@ -428,7 +427,7 @@ let specialise env r ~lhs_of_application
           let r_inlined =
             if always_specialise then
               R.map_benefit r_inlined
-                (Inlining_cost.Benefit.max ~round:(E.round env)
+                (Inlining_cost.Benefit.max ~args:(E.get_inlining_arguments env)
                    Inlining_cost.Benefit.(requested_inline ~size_of:expr zero))
             else r_inlined
           in
@@ -468,7 +467,7 @@ let specialise env r ~lhs_of_application
               ~toplevel:false
               ~branch_depth:(E.branch_depth env)
               ~lifting:false
-              ~round:(E.round env)
+              ~args:(E.get_inlining_arguments env)
               ~benefit:(R.benefit r_inlined)
           in
           if W.evaluate wsb_with_subfunctions then begin
@@ -507,6 +506,7 @@ let for_call_site ~env ~r ~(function_decls : A.function_declarations)
     Misc.fatal_error "Inlining_decision.for_call_site: inconsistent lengths \
         of [args] and [args_approxs]"
   end;
+  let inlining_arguments = E.get_inlining_arguments env in
   let original =
     Flambda.Apply {
       func = lhs_of_application;
@@ -540,7 +540,7 @@ let for_call_site ~env ~r ~(function_decls : A.function_declarations)
          but not in the context of inlining said function.  As such, there
          is nothing to do here (and no decision to report). *)
       original, original_r
-    else if function_decls.is_classic_mode then begin
+    else if function_decls.is_classic_mode > 0.0 then begin
       let env =
         E.note_entering_call env
           ~closure_id:closure_id_being_applied ~dbg:dbg
@@ -580,11 +580,9 @@ let for_call_site ~env ~r ~(function_decls : A.function_declarations)
         | Changed ((expr, r), decision) ->
           let max_inlining_threshold =
             if E.at_toplevel env then
-              Inline_and_simplify_aux.initial_inlining_toplevel_threshold
-                ~round:(E.round env)
+              Inline_and_simplify_aux.initial_inlining_toplevel_threshold inlining_arguments
             else
-              Inline_and_simplify_aux.initial_inlining_threshold
-                ~round:(E.round env)
+              Inline_and_simplify_aux.initial_inlining_threshold inlining_arguments
           in
           let raw_inlining_threshold = R.inlining_threshold r in
           let unthrottled_inlining_threshold =
@@ -614,17 +612,14 @@ let for_call_site ~env ~r ~(function_decls : A.function_declarations)
         E.note_entering_call env
           ~closure_id:closure_id_being_applied ~dbg:dbg
       in
-      let max_level =
-        Clflags.Int_arg_helper.get ~key:(E.round env)
-          !Clflags.inline_max_speculation_depth
+      let max_level = inlining_arguments.inline_max_speculation_depth
       in
       let raw_inlining_threshold = R.inlining_threshold r in
       let max_inlining_threshold =
         if E.at_toplevel env then
-          Inline_and_simplify_aux.initial_inlining_toplevel_threshold
-            ~round:(E.round env)
+          Inline_and_simplify_aux.initial_inlining_toplevel_threshold inlining_arguments
         else
-          Inline_and_simplify_aux.initial_inlining_threshold ~round:(E.round env)
+          Inline_and_simplify_aux.initial_inlining_threshold inlining_arguments
       in
       let unthrottled_inlining_threshold =
         match raw_inlining_threshold with

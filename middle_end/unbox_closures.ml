@@ -33,7 +33,6 @@ module Transform = struct
     if not (precondition ~env ~set_of_closures) then
       what_to_specialise
     else begin
-      let round = E.round env in
       let num_closure_vars = Variable.Map.cardinal set_of_closures.free_vars in
       let module B = Inlining_cost.Benefit in
       let saved_by_not_building_closure =
@@ -59,7 +58,7 @@ module Transform = struct
                 ~new_size:((body_size / !Clflags.unbox_closures_factor) + 1)
                 ~benefit:saved_by_not_building_closure
                 ~lifting:false
-                ~round
+                ~args:(E.get_inlining_arguments env)
             in
             W.evaluate wsb
           in
