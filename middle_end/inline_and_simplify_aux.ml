@@ -88,8 +88,7 @@ module Env = struct
 
   let speculation_depth_up env =
     let max_level =
-      Clflags.Int_arg_helper.get ~key:(env.round)
-        !Clflags.inline_max_speculation_depth
+      (get_inlining_arguments env).inline_max_speculation_depth
     in
     if (env.speculation_depth + 1) > max_level then
       Misc.fatal_error "Inlining level increased above maximum";
@@ -299,8 +298,7 @@ module Env = struct
     in List.length (List.filter is_match t.inlining_stack)
 
   let unrolls_remaining t origin =
-    let limit =
-      Clflags.Int_arg_helper.get ~key:t.round !Clflags.inline_max_unroll
+    let limit = t.inlining_arguments.inline_max_unroll
     in
     limit - unroll_depth_for t origin
 
@@ -323,9 +321,7 @@ module Env = struct
     in List.length (List.filter is_match t.inlining_stack)
 
   let inlines_remaining t id =
-    let limit =
-      Clflags.Int_arg_helper.get
-        ~key:t.round !Clflags.inline_max_depth
+    let limit = t.inlining_arguments.inline_max_depth
     in
     limit - inline_depth_for t id
 
@@ -411,9 +407,9 @@ module Env = struct
     Debuginfo.concat t.inlined_debuginfo dbg
 end
 
-let initial_inlining_threshold ~round : Inlining_cost.Threshold.t =
-  let unscaled =
-    Clflags.Float_arg_helper.get ~key:round !Clflags.inline_threshold
+let initial_inlining_threshold (inlining_arguments : Flambda.inlining_arguments)
+  : Inlining_cost.Threshold.t =
+  let unscaled = inlining_arguments.inline_threshold
   in
   (* CR-soon pchambart: Add a warning if this is too big
      mshinwell: later *)
@@ -421,12 +417,11 @@ let initial_inlining_threshold ~round : Inlining_cost.Threshold.t =
     (int_of_float
       (unscaled *. float_of_int Inlining_cost.scale_inline_threshold_by))
 
-let initial_inlining_toplevel_threshold ~round : Inlining_cost.Threshold.t =
-  let ordinary_threshold =
-    Clflags.Float_arg_helper.get ~key:round !Clflags.inline_threshold
+let initial_inlining_toplevel_threshold (inlining_arguments : Flambda.inlining_arguments)
+  : Inlining_cost.Threshold.t =
+  let ordinary_threshold = inlining_arguments.inline_threshold
   in
-  let toplevel_threshold =
-    Clflags.Int_arg_helper.get ~key:round !Clflags.inline_toplevel_threshold
+  let toplevel_threshold = inlining_arguments.inline_toplevel_threshold
   in
   let unscaled =
     (int_of_float ordinary_threshold) + toplevel_threshold

@@ -299,14 +299,14 @@ module Benefit = struct
       b.direct_call_of_indirect
       b.requested_inline
 
-  let evaluate t ~round : int =
+  let evaluate t ~(args : Flambda.inlining_arguments) =
     benefit_factor *
-      (t.remove_call * (cost !Clflags.inline_call_cost ~round)
-       + t.remove_alloc * (cost !Clflags.inline_alloc_cost ~round)
-       + t.remove_prim * (cost !Clflags.inline_prim_cost ~round)
-       + t.remove_branch * (cost !Clflags.inline_branch_cost ~round)
+      (t.remove_call * args.inline_call_cost
+       + t.remove_alloc * args.inline_alloc_cost
+       + t.remove_prim * args.inline_prim_cost
+       + t.remove_branch * args.inline_branch_cost
        + (t.direct_call_of_indirect
-         * (cost !Clflags.inline_indirect_cost ~round)))
+         * args.inline_indirect_cost))
     + t.requested_inline
 
   let (+) t1 t2 = {
@@ -329,9 +329,9 @@ module Benefit = struct
     requested_inline = t1.requested_inline - t2.requested_inline;
   }
 
-  let max ~round t1 t2 =
-    let c1 = evaluate ~round t1 in
-    let c2 = evaluate ~round t2 in
+  let max ~args t1 t2 =
+    let c1 = evaluate ~args t1 in
+    let c2 = evaluate ~args t2 in
     if c1 > c2 then t1 else t2
 
   let add_code lam b =
@@ -396,7 +396,7 @@ end
 
 module Whether_sufficient_benefit = struct
   type t = {
-    round : int;
+    args : Flambda.inlining_arguments;
     benefit : Benefit.t;
     toplevel : bool;
     branch_depth : int;
@@ -407,9 +407,9 @@ module Whether_sufficient_benefit = struct
     estimate : bool;
   }
 
-  let create ~original ~toplevel ~branch_depth lam ~benefit ~lifting ~round =
-    let evaluated_benefit = Benefit.evaluate benefit ~round in
-    { round; benefit; toplevel; branch_depth; lifting;
+  let create ~original ~toplevel ~branch_depth lam ~benefit ~lifting ~args =
+    let evaluated_benefit = Benefit.evaluate benefit ~args in
+    { args; benefit; toplevel; branch_depth; lifting;
       original_size = lambda_size original;
       new_size = lambda_size lam;
       evaluated_benefit;
@@ -417,9 +417,9 @@ module Whether_sufficient_benefit = struct
     }
 
   let create_estimate ~original_size ~toplevel ~branch_depth ~new_size
-        ~benefit ~lifting ~round =
-    let evaluated_benefit = Benefit.evaluate benefit ~round in
-    { round; benefit; toplevel; branch_depth; lifting; original_size;
+        ~benefit ~lifting ~args =
+    let evaluated_benefit = Benefit.evaluate benefit ~args in
+    { args; benefit; toplevel; branch_depth; lifting; original_size;
       new_size; evaluated_benefit; estimate = true;
     }
 
@@ -430,7 +430,7 @@ module Whether_sufficient_benefit = struct
   let estimated_benefit t =
     if t.toplevel && t.lifting && t.branch_depth = 0 then begin
       let lifting_benefit =
-        Clflags.Int_arg_helper.get ~key:t.round !Clflags.inline_lifting_benefit
+        t.args.inline_lifting_benefit
       in
         float (t.evaluated_benefit + lifting_benefit)
     end else begin
@@ -447,8 +447,7 @@ module Whether_sufficient_benefit = struct
       let branch_taken_estimated_probability =
         let inline_branch_factor =
           let factor =
-            Clflags.Float_arg_helper.get ~key:t.round
-              !Clflags.inline_branch_factor
+            t.args.inline_branch_factor
           in
           if not (factor = factor) (* nan *) then
             Clflags.default_inline_branch_factor
@@ -474,8 +473,7 @@ module Whether_sufficient_benefit = struct
     let evaluated_benefit =
       if lifting then
         let lifting_benefit =
-          Clflags.Int_arg_helper.get ~key:t.round
-            !Clflags.inline_lifting_benefit
+          t.args.inline_lifting_benefit
         in
         t.evaluated_benefit + lifting_benefit
       else t.evaluated_benefit
@@ -541,8 +539,7 @@ module Whether_sufficient_benefit = struct
     let total_benefit =
       if lifting then
         let lifting_benefit =
-          Clflags.Int_arg_helper.get ~key:t.round
-            !Clflags.inline_lifting_benefit
+          t.args.inline_lifting_benefit
         in
          t.evaluated_benefit + lifting_benefit
       else t.evaluated_benefit

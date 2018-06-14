@@ -650,7 +650,7 @@ and simplify_set_of_closures original_env r
              (below the -inline threshold) it will always be inlined. *)
           let inlining_threshold =
             Inline_and_simplify_aux.initial_inlining_threshold
-              ~round:(E.round env)
+              (E.get_inlining_arguments env)
           in
           if Inlining_cost.can_inline body inlining_threshold ~bonus:0
           then
