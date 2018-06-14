@@ -101,7 +101,7 @@ let rec import_ex ex =
         ~specialised_args:Variable.Map.empty
         ~freshening:Freshening.Project_var.empty
         ~direct_call_surrogates:Closure_id.Map.empty
-        ~args:(Flambda.get_max_inlining_arguments ()))
+        ~args:(Flambda.InliningArgs.get_max_inlining_arguments ()))
   in
   let compilation_unit = Export_id.get_compilation_unit ex in
   match Compilenv.approx_for_global compilation_unit with

@@ -23,6 +23,7 @@ module W = Inlining_cost.Whether_sufficient_benefit
 module T = Inlining_cost.Threshold
 module S = Inlining_stats_types
 module D = S.Decision
+module InliningArgs = Flambda.InliningArgs
 
 let get_function_body (function_decl : A.function_declaration) =
   match function_decl.function_body with
@@ -110,7 +111,9 @@ let inline env r ~lhs_of_application
     | Start_unrolling { to_depth = depth } -> depth
     | _ -> 0
   in
-  let unrolling_limit = (E.get_inlining_arguments env).inline_max_unroll
+  let unrolling_limit =
+    let args = E.get_inlining_arguments env in
+    (InliningArgs.extract args).inline_max_unroll
   in
   let remaining_inlining_threshold : Inlining_cost.Threshold.t =
     if always_inline then inlining_threshold
@@ -612,7 +615,7 @@ let for_call_site ~env ~r ~(function_decls : A.function_declarations)
         E.note_entering_call env
           ~closure_id:closure_id_being_applied ~dbg:dbg
       in
-      let max_level = inlining_arguments.inline_max_speculation_depth
+      let max_level = (InliningArgs.extract inlining_arguments).inline_max_speculation_depth
       in
       let raw_inlining_threshold = R.inlining_threshold r in
       let max_inlining_threshold =

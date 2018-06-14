@@ -20,6 +20,7 @@ module A = Simple_value_approx
 module B = Inlining_cost.Benefit
 module E = Inline_and_simplify_aux.Env
 module R = Inline_and_simplify_aux.Result
+module InliningArgs = Flambda.InliningArgs
 
 (** Values of two types hold the information propagated during simplification:
     - [E.t] "environments", top-down, almost always called "env";
@@ -739,7 +740,7 @@ and simplify_apply env r ~(apply : Flambda.apply) : Flambda.t * R.t =
     | None ->
       max_env_args
     | Some apply_args ->
-      Flambda.merge_inlining_arguments max_env_args apply_args
+      InliningArgs.merge_inlining_arguments max_env_args apply_args
   in
   let env = E.set_max_inlining_arguments env max_inlining_arguments in
   let max_inlining_arguments = Some max_inlining_arguments in
@@ -851,7 +852,7 @@ and simplify_full_application env r ~function_decls ~lhs_of_application
     match max_inlining_arguments with
     | None -> env
     | Some args ->
-      let merge_args = Flambda.merge_inlining_arguments (E.get_inlining_arguments env) args
+      let merge_args = InliningArgs.merge_inlining_arguments (E.get_inlining_arguments env) args
       in E.set_inlining_arguments env merge_args
   in
   Inlining_decision.for_call_site ~env ~r ~function_decls

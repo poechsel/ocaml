@@ -680,7 +680,7 @@ let inline_by_copying_function_declaration
     ~(free_vars : Flambda.specialised_to Variable.Map.t)
     ~(direct_call_surrogates : Closure_id.t Closure_id.Map.t)
     ~(dbg : Debuginfo.t)
-    ~(max_inlining_arguments : Flambda.inlining_arguments option)
+    ~(max_inlining_arguments : Flambda.InliningArgs.t option)
     ~(simplify : Inlining_decision_intf.simplify) =
   let state = empty_state in
   let state =

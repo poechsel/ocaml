@@ -17,20 +17,68 @@
 [@@@ocaml.warning "+a-4-9-30-40-41-42"]
 
 
-type inlining_arguments = {
-  inline_call_cost : int;
-  inline_alloc_cost : int;
-  inline_prim_cost : int;
-  inline_branch_cost : int;
-  inline_indirect_cost : int;
-  inline_lifting_benefit : int;
-  inline_branch_factor : float;
-  inline_max_depth : int;
-  inline_max_speculation_depth : int;
-  inline_max_unroll : int;
-  inline_threshold : float;
-  inline_toplevel_threshold : int;
-}
+module InliningArgs = struct
+  type u = {
+    inline_call_cost : int;
+    inline_alloc_cost : int;
+    inline_prim_cost : int;
+    inline_branch_cost : int;
+    inline_indirect_cost : int;
+    inline_lifting_benefit : int;
+    inline_branch_factor : float;
+    inline_max_depth : int;
+    inline_max_speculation_depth : int;
+    inline_max_unroll : int;
+    inline_threshold : float;
+    inline_toplevel_threshold : int;
+  }
+
+  type t = u
+
+  let extract args = args
+
+  let get_inlining_arguments round =
+    let cost flag =
+      Clflags.Int_arg_helper.get ~key:round flag
+    in
+    let cost_f flag =
+      Clflags.Float_arg_helper.get ~key:round flag
+    in {
+      inline_call_cost = cost !Clflags.inline_call_cost;
+      inline_alloc_cost = cost !Clflags.inline_alloc_cost;
+      inline_prim_cost = cost !Clflags.inline_prim_cost;
+      inline_branch_cost = cost !Clflags.inline_branch_cost;
+      inline_indirect_cost = cost !Clflags.inline_indirect_cost;
+      inline_lifting_benefit = cost !Clflags.inline_lifting_benefit;
+      inline_branch_factor = cost_f !Clflags.inline_branch_factor;
+      inline_max_depth = cost !Clflags.inline_max_depth;
+      inline_max_speculation_depth = cost !Clflags.inline_max_speculation_depth;
+      inline_max_unroll = cost !Clflags.inline_max_unroll;
+      inline_threshold = cost_f !Clflags.inline_threshold;
+      inline_toplevel_threshold = cost !Clflags.inline_toplevel_threshold;
+    }
+
+  let get_max_inlining_arguments () =
+    let round = Clflags.rounds () - 1 in
+    get_inlining_arguments round
+
+  let merge_inlining_arguments args1 args2 =
+    {
+      inline_call_cost = min args1.inline_call_cost args2.inline_call_cost;
+      inline_alloc_cost = min args1.inline_alloc_cost args2.inline_alloc_cost;
+      inline_prim_cost = min args1.inline_prim_cost args2.inline_prim_cost;
+      inline_branch_cost = min args1.inline_branch_cost args2.inline_branch_cost;
+      inline_indirect_cost = min args1.inline_indirect_cost args2.inline_indirect_cost;
+      inline_lifting_benefit = min args1.inline_lifting_benefit args2.inline_lifting_benefit;
+      inline_branch_factor = min args1.inline_branch_factor args2.inline_branch_factor;
+      inline_max_depth = min args1.inline_max_depth args2.inline_max_depth;
+      inline_max_speculation_depth = min args1.inline_max_speculation_depth args2.inline_max_speculation_depth;
+      inline_max_unroll = min args1.inline_max_unroll args2.inline_max_unroll;
+      inline_threshold = min args1.inline_threshold args2.inline_threshold;
+      inline_toplevel_threshold = min args1.inline_toplevel_threshold args2.inline_toplevel_threshold;
+    }
+end
+
 
 type call_kind =
   | Indirect
@@ -49,7 +97,7 @@ type apply = {
   dbg : Debuginfo.t;
   inline : Lambda.inline_attribute;
   specialise : Lambda.specialise_attribute;
-  max_inlining_arguments : inlining_arguments option;
+  max_inlining_arguments : InliningArgs.t option;
 }
 
 type assign = {
@@ -1317,45 +1365,3 @@ let compare_project_var = Projection.compare_project_var
 let compare_project_closure = Projection.compare_project_closure
 let compare_move_within_set_of_closures =
   Projection.compare_move_within_set_of_closures
-
-
-let get_inlining_arguments round =
-  let cost flag =
-    Clflags.Int_arg_helper.get ~key:round flag
-  in
-  let cost_f flag =
-    Clflags.Float_arg_helper.get ~key:round flag
-  in {
-    inline_call_cost = cost !Clflags.inline_call_cost;
-    inline_alloc_cost = cost !Clflags.inline_alloc_cost;
-    inline_prim_cost = cost !Clflags.inline_prim_cost;
-    inline_branch_cost = cost !Clflags.inline_branch_cost;
-    inline_indirect_cost = cost !Clflags.inline_indirect_cost;
-    inline_lifting_benefit = cost !Clflags.inline_lifting_benefit;
-    inline_branch_factor = cost_f !Clflags.inline_branch_factor;
-    inline_max_depth = cost !Clflags.inline_max_depth;
-    inline_max_speculation_depth = cost !Clflags.inline_max_speculation_depth;
-    inline_max_unroll = cost !Clflags.inline_max_unroll;
-    inline_threshold = cost_f !Clflags.inline_threshold;
-    inline_toplevel_threshold = cost !Clflags.inline_toplevel_threshold;
-  }
-
-let get_max_inlining_arguments () =
-  let round = Clflags.rounds () - 1 in
-  get_inlining_arguments round
-
-let merge_inlining_arguments args1 args2 =
-  {
-    inline_call_cost = min args1.inline_call_cost args2.inline_call_cost;
-    inline_alloc_cost = min args1.inline_alloc_cost args2.inline_alloc_cost;
-    inline_prim_cost = min args1.inline_prim_cost args2.inline_prim_cost;
-    inline_branch_cost = min args1.inline_branch_cost args2.inline_branch_cost;
-    inline_indirect_cost = min args1.inline_indirect_cost args2.inline_indirect_cost;
-    inline_lifting_benefit = min args1.inline_lifting_benefit args2.inline_lifting_benefit;
-    inline_branch_factor = min args1.inline_branch_factor args2.inline_branch_factor;
-    inline_max_depth = min args1.inline_max_depth args2.inline_max_depth;
-    inline_max_speculation_depth = min args1.inline_max_speculation_depth args2.inline_max_speculation_depth;
-    inline_max_unroll = min args1.inline_max_unroll args2.inline_max_unroll;
-    inline_threshold = min args1.inline_threshold args2.inline_threshold;
-    inline_toplevel_threshold = min args1.inline_toplevel_threshold args2.inline_toplevel_threshold;
-  }
