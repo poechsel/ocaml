@@ -191,7 +191,7 @@ val create_value_set_of_closures
   -> specialised_args:Flambda.specialised_to Variable.Map.t
   -> freshening:Freshening.Project_var.t
   -> direct_call_surrogates:Closure_id.t Closure_id.Map.t
-  -> args: Flambda.inlining_arguments
+  -> args: Flambda.InliningArgs.t
   -> value_set_of_closures
 
 val update_freshening_of_value_set_of_closures

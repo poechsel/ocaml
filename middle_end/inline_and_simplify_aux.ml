@@ -16,6 +16,8 @@
 
 [@@@ocaml.warning "+a-4-9-30-40-41-42"]
 
+module InliningArgs = Flambda.InliningArgs
+
 module Env = struct
   type scope = Current | Outer
 
@@ -40,8 +42,8 @@ module Env = struct
     closure_depth : int;
     inlining_stats_closure_stack : Inlining_stats.Closure_stack.t;
     inlined_debuginfo : Debuginfo.t;
-    inlining_arguments : Flambda.inlining_arguments;
-    max_inlining_arguments : Flambda.inlining_arguments;
+    inlining_arguments : InliningArgs.t;
+    max_inlining_arguments : InliningArgs.t;
   }
 
   let create ~never_inline ~backend ~round =
@@ -63,8 +65,8 @@ module Env = struct
       inlining_stats_closure_stack =
         Inlining_stats.Closure_stack.create ();
       inlined_debuginfo = Debuginfo.none;
-      inlining_arguments = Flambda.get_inlining_arguments round;
-      max_inlining_arguments = Flambda.get_max_inlining_arguments ();
+      inlining_arguments = InliningArgs.get_inlining_arguments round;
+      max_inlining_arguments = InliningArgs.get_max_inlining_arguments ();
     }
 
   let backend t = t.backend
@@ -88,7 +90,7 @@ module Env = struct
 
   let speculation_depth_up env =
     let max_level =
-      (get_inlining_arguments env).inline_max_speculation_depth
+      (InliningArgs.extract (get_inlining_arguments env)).inline_max_speculation_depth
     in
     if (env.speculation_depth + 1) > max_level then
       Misc.fatal_error "Inlining level increased above maximum";
@@ -298,7 +300,7 @@ module Env = struct
     in List.length (List.filter is_match t.inlining_stack)
 
   let unrolls_remaining t origin =
-    let limit = t.inlining_arguments.inline_max_unroll
+    let limit = (InliningArgs.extract t.inlining_arguments).inline_max_unroll
     in
     limit - unroll_depth_for t origin
 
@@ -321,7 +323,7 @@ module Env = struct
     in List.length (List.filter is_match t.inlining_stack)
 
   let inlines_remaining t id =
-    let limit = t.inlining_arguments.inline_max_depth
+    let limit = (InliningArgs.extract t.inlining_arguments).inline_max_depth
     in
     limit - inline_depth_for t id
 
@@ -407,9 +409,9 @@ module Env = struct
     Debuginfo.concat t.inlined_debuginfo dbg
 end
 
-let initial_inlining_threshold (inlining_arguments : Flambda.inlining_arguments)
+let initial_inlining_threshold (inlining_arguments : InliningArgs.t)
   : Inlining_cost.Threshold.t =
-  let unscaled = inlining_arguments.inline_threshold
+  let unscaled = (InliningArgs.extract inlining_arguments).inline_threshold
   in
   (* CR-soon pchambart: Add a warning if this is too big
      mshinwell: later *)
@@ -417,11 +419,13 @@ let initial_inlining_threshold (inlining_arguments : Flambda.inlining_arguments)
     (int_of_float
       (unscaled *. float_of_int Inlining_cost.scale_inline_threshold_by))
 
-let initial_inlining_toplevel_threshold (inlining_arguments : Flambda.inlining_arguments)
+let initial_inlining_toplevel_threshold (inlining_arguments : InliningArgs.t)
   : Inlining_cost.Threshold.t =
-  let ordinary_threshold = inlining_arguments.inline_threshold
+  let ordinary_threshold =
+    (InliningArgs.extract inlining_arguments).inline_threshold
   in
-  let toplevel_threshold = inlining_arguments.inline_toplevel_threshold
+  let toplevel_threshold =
+    (InliningArgs.extract inlining_arguments).inline_toplevel_threshold
   in
   let unscaled =
     (int_of_float ordinary_threshold) + toplevel_threshold

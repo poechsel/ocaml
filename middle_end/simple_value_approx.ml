@@ -292,7 +292,7 @@ let create_value_set_of_closures
       ~(function_decls : Flambda.function_declarations)
       ~(rec_info : Flambda.rec_info)
       ~bound_vars ~invariant_params ~specialised_args ~freshening
-      ~direct_call_surrogates ~(args : Flambda.inlining_arguments) =
+      ~direct_call_surrogates ~(args : Flambda.InliningArgs.t) =
   assert (rec_info.depth >= 0);
   let size =
     lazy (

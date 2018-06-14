@@ -16,23 +16,43 @@
 
 [@@@ocaml.warning "+a-4-9-30-40-41-42"]
 
-(** Intermediate language used for tree-based analysis and optimization. *)
 
-(* holds every arguments impacting inlining (costs, thresholds...) *)
-type inlining_arguments = {
-  inline_call_cost : int;
-  inline_alloc_cost : int;
-  inline_prim_cost : int;
-  inline_branch_cost : int;
-  inline_indirect_cost : int;
-  inline_lifting_benefit : int;
-  inline_branch_factor : float;
-  inline_max_depth : int;
-  inline_max_speculation_depth : int;
-  inline_max_unroll : int;
-  inline_threshold : float;
-  inline_toplevel_threshold : int;
-}
+
+module InliningArgs : sig
+  type u = {
+    inline_call_cost : int;
+    inline_alloc_cost : int;
+    inline_prim_cost : int;
+    inline_branch_cost : int;
+    inline_indirect_cost : int;
+    inline_lifting_benefit : int;
+    inline_branch_factor : float;
+    inline_max_depth : int;
+    inline_max_speculation_depth : int;
+    inline_max_unroll : int;
+    inline_threshold : float;
+    inline_toplevel_threshold : int;
+  }
+
+  type t
+
+  val extract : t -> u
+  (* get the [inlining_arguments] structure corresponing
+      to a given round *)
+  val get_inlining_arguments : int -> t
+
+  (* get an [inlining_arguments] struct filled with the
+      maximum values across all round.
+      As we are forcing them to be increasing over rounds, this is equivalent to be
+      returning the arguments of the last round *)
+  val get_max_inlining_arguments : unit -> t
+
+  (* Merge two inlining arguments structures:
+      Keep the minimum of each of their attributes *)
+  val merge_inlining_arguments : t -> t -> t
+end
+
+(** Intermediate language used for tree-based analysis and optimization. *)
 
 (** Whether the callee in a function application is known at compile time. *)
 type call_kind =
@@ -81,7 +101,7 @@ type apply = {
   specialise : Lambda.specialise_attribute;
   (** Instructions from the source code as to whether the callee should
       be specialised. *)
-  max_inlining_arguments : inlining_arguments option;
+  max_inlining_arguments : InliningArgs.t option;
   (** Informations about the maximum value of the inlining arguments we can used
       to inline this file. *)
 }
@@ -743,22 +763,3 @@ val compare_move_within_set_of_closures
   -> int
 
 val compare_project_closure : project_closure -> project_closure -> int
-
-
-
-(** get the [inlining_arguments] structure corresponing
-    to a given round *)
-val get_inlining_arguments : int -> inlining_arguments
-
-(** get an [inlining_arguments] struct filled with the
-   maximum values across all round.
-   As we are forcing them to be increasing over rounds, this is equivalent to be
-   returning the arguments of the last round *)
-val get_max_inlining_arguments : unit -> inlining_arguments
-
-(** Merge two inlining arguments structures:
-    Keep the minimum of each of their attributes *)
-val merge_inlining_arguments :
-  inlining_arguments
-  -> inlining_arguments
-  -> inlining_arguments
