@@ -286,7 +286,7 @@ let variable_and_symbol_invariants (program : Flambda.program) =
     let { Flambda. is_classic_mode; set_of_closures_id; funs; } =
         function_decls
       in
-      ignore (is_classic_mode : bool);
+      ignore (is_classic_mode : float);
       ignore_set_of_closures_id set_of_closures_id;
       let functions_in_closure = Variable.Map.keys funs in
       let variables_in_closure =

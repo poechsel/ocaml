@@ -598,7 +598,11 @@ and close_functions t external_env function_declarations : Flambda.named =
         (Variable.Map.add closure_bound_var generic_function_stub map)
   in
   let function_decls =
-    let is_classic_mode = !Clflags.classic_inlining in
+    let is_classic_mode =
+      if !Clflags.classic_inlining then
+        (Flambda.get_inlining_arguments 0).inline_threshold
+      else -1.0
+    in
     let funs =
       List.fold_left close_one_function Variable.Map.empty
         (Function_decls.to_list function_declarations)

@@ -326,11 +326,11 @@ module Result : sig
 end
 
 (** Command line argument -inline *)
-val initial_inlining_threshold : round:int -> Inlining_cost.Threshold.t
+val initial_inlining_threshold : Flambda.inlining_arguments -> Inlining_cost.Threshold.t
 
 (** Command line argument -inline-toplevel *)
 val initial_inlining_toplevel_threshold
-  : round:int -> Inlining_cost.Threshold.t
+  : Flambda.inlining_arguments -> Inlining_cost.Threshold.t
 
 val prepare_to_simplify_set_of_closures
    : env:Env.t
@@ -356,7 +356,7 @@ val prepare_to_simplify_closure
   -> Env.t
 
 val keep_body_check
-   : is_classic_mode:bool
+  : is_classic_mode:float
   -> Flambda.function_declaration
   -> bool
 
