@@ -131,7 +131,7 @@ val direct_call_size : int
 
 (** If a function body exceeds this size, we can make a fast decision not
     to inline it (see [Inlining_decision]). *)
-val maximum_interesting_size_of_function_body : int -> int
+val maximum_interesting_size_of_function_body : int -> Flambda.inlining_arguments -> int
 
 (** Measure the given expression to determine whether its size is at or
     below the given threshold.  [None] is returned if it is too big; otherwise

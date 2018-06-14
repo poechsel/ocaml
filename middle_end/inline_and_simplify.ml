@@ -693,6 +693,7 @@ and simplify_set_of_closures original_env r
       ~freshening:internal_value_set_of_closures.freshening
       ~direct_call_surrogates:
         internal_value_set_of_closures.direct_call_surrogates
+      ~args:(E.get_inlining_arguments env)
   in
   let direct_call_surrogates =
     Closure_id.Map.fold (fun existing surrogate surrogates ->
@@ -1601,6 +1602,7 @@ let constant_defining_value_approx
         ~free_vars:Variable.Map.empty
         ~freshening:Freshening.Project_var.empty
         ~direct_call_surrogates:Closure_id.Map.empty
+        ~args:(E.get_inlining_arguments env)
     in
     A.value_set_of_closures value_set_of_closures
   | Project_closure (set_of_closures_symbol, closure_id) -> begin

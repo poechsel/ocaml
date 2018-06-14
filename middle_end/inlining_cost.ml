@@ -211,9 +211,6 @@ let can_inline lam inlining_threshold ~bonus =
        lam
        ~than:(inlining_threshold + bonus)
 
-let cost (flag : Clflags.Int_arg_helper.parsed) ~round =
-  Clflags.Int_arg_helper.get ~key:round flag
-
 let benefit_factor = 1
 
 module Benefit = struct
@@ -649,35 +646,19 @@ let default_toplevel_multiplier = 8
        body_size <= base + free_variables * multiplier
 
   *)
-let maximum_interesting_size_of_function_body_base =
-  lazy begin
-    let max_cost = ref 0 in
-    for round = 0 to (Clflags.rounds ()) - 1 do
-      let max_size =
-        let inline_call_cost = cost !Clflags.inline_call_cost ~round in
-        direct_call_size + (inline_call_cost * benefit_factor)
-      in
-      max_cost := max !max_cost max_size
-    done;
-    !max_cost
-  end
+let maximum_interesting_size_of_function_body_base
+      (max_args : Flambda.inlining_arguments) =
+  (* because we are assuming monocity between rounds, the last
+     round contains the maximum value *)
+  direct_call_size + (max_args.inline_call_cost * benefit_factor)
 
-let maximum_interesting_size_of_function_body_multiplier =
-  lazy begin
-    let max_cost = ref 0 in
-    for round = 0 to (Clflags.rounds ()) - 1 do
-      let max_size =
-        let inline_prim_cost = cost !Clflags.inline_prim_cost ~round in
-        inline_prim_cost * benefit_factor
-      in
-      max_cost := max !max_cost max_size
-    done;
-    !max_cost
-  end
+let maximum_interesting_size_of_function_body_multiplier
+      (max_args : Flambda.inlining_arguments) =
+  max_args.inline_prim_cost * benefit_factor
 
-let maximum_interesting_size_of_function_body num_free_variables =
-  let base = Lazy.force maximum_interesting_size_of_function_body_base in
-  let multiplier =
-    Lazy.force maximum_interesting_size_of_function_body_multiplier
+let maximum_interesting_size_of_function_body num_free_variables
+      (max_args : Flambda.inlining_arguments) =
+  let base = maximum_interesting_size_of_function_body_base max_args in
+  let multiplier = maximum_interesting_size_of_function_body_multiplier max_args
   in
   base + (num_free_variables * multiplier)
