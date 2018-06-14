@@ -227,7 +227,7 @@ let rec close t env (lam : Lambda.lambda) : Flambda.t =
               dbg = Debuginfo.from_location ap_loc;
               inline = ap_inlined;
               specialise = ap_specialised;
-              max_inlining_arguments = Some (Env.get_max_inlining_arguments env);
+              max_inlining_arguments = None;
             })))
   | Lletrec (defs, body) ->
     let env =
@@ -711,7 +711,7 @@ let lambda_to_flambda ~backend ~module_ident ~size ~filename lam
     Initialize_symbol (
       block_symbol,
       Tag.create_exn 0,
-      [close t (Env.empty ()) lam],
+      [close t Env.empty lam],
       Initialize_symbol (
         module_symbol,
         Tag.create_exn 0,

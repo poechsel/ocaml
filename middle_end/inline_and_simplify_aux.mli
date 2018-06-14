@@ -271,8 +271,14 @@ module Env : sig
   (** get the inlining arguments of our env *)
   val get_inlining_arguments : t -> Flambda.inlining_arguments
 
+  (** get the maximum inlining arguments of our env *)
+  val get_max_inlining_arguments : t -> Flambda.inlining_arguments
+
   (** set the inlining arguments of our env *)
   val set_inlining_arguments : t -> Flambda.inlining_arguments -> t
+
+  (** set the maximum inlining arguments of our env *)
+  val set_max_inlining_arguments : t -> Flambda.inlining_arguments -> t
 end
 
 module Result : sig
