@@ -36,7 +36,7 @@ val for_call_site
   -> simplify:Inlining_decision_intf.simplify
   -> inline_requested:Lambda.inline_attribute
   -> specialise_requested:Lambda.specialise_attribute
-  -> max_inlining_arguments:Flambda.inlining_arguments option
+  -> max_inlining_arguments:Flambda.InliningArgs.t option
   -> Flambda.t * Inline_and_simplify_aux.Result.t
 
 (** When a function declaration is encountered by [for_call_site], the body

@@ -17,6 +17,8 @@
 [@@@ocaml.warning "+a-4-9-30-40-41-42-66"]
 open! Int_replace_polymorphic_compare
 
+module InliningArgs = Flambda.InliningArgs
+
 (* Simple approximation of the space cost of a primitive. *)
 
 let prim_size (prim : Clambda_primitives.primitive) args =
@@ -303,7 +305,8 @@ module Benefit = struct
       b.direct_call_of_indirect
       b.requested_inline
 
-  let evaluate t ~(args : Flambda.inlining_arguments) =
+  let evaluate t ~(args : InliningArgs.t) =
+    let args = InliningArgs.extract args in
     benefit_factor *
       (t.remove_call * args.inline_call_cost
        + t.remove_alloc * args.inline_alloc_cost
@@ -400,7 +403,7 @@ end
 
 module Whether_sufficient_benefit = struct
   type t = {
-    args : Flambda.inlining_arguments;
+    args : Flambda.InliningArgs.t;
     benefit : Benefit.t;
     toplevel : bool;
     branch_depth : int;
@@ -439,7 +442,7 @@ module Whether_sufficient_benefit = struct
   let estimated_benefit t =
     if t.toplevel && t.lifting && t.branch_depth = 0 then begin
       let lifting_benefit =
-        t.args.inline_lifting_benefit
+        (InliningArgs.extract t.args).inline_lifting_benefit
       in
         float (t.evaluated_benefit + lifting_benefit)
     end else begin
@@ -456,7 +459,7 @@ module Whether_sufficient_benefit = struct
       let branch_taken_estimated_probability =
         let inline_branch_factor =
           let factor =
-            t.args.inline_branch_factor
+            (InliningArgs.extract t.args).inline_branch_factor
           in
           if is_nan factor then
             Clflags.default_inline_branch_factor
@@ -484,7 +487,7 @@ module Whether_sufficient_benefit = struct
     let evaluated_benefit =
       if lifting then
         let lifting_benefit =
-          t.args.inline_lifting_benefit
+          (InliningArgs.extract t.args).inline_lifting_benefit
         in
         t.evaluated_benefit + lifting_benefit
       else t.evaluated_benefit
@@ -550,7 +553,7 @@ module Whether_sufficient_benefit = struct
     let total_benefit =
       if lifting then
         let lifting_benefit =
-          t.args.inline_lifting_benefit
+          (InliningArgs.extract t.args).inline_lifting_benefit
         in
          t.evaluated_benefit + lifting_benefit
       else t.evaluated_benefit
@@ -662,17 +665,17 @@ let default_toplevel_multiplier = 8
 
   *)
 let maximum_interesting_size_of_function_body_base
-      (max_args : Flambda.inlining_arguments) =
+      (max_args : InliningArgs.t) =
   (* because we are assuming monocity between rounds, the last
      round contains the maximum value *)
-  direct_call_size + (max_args.inline_call_cost * benefit_factor)
+  direct_call_size + ((InliningArgs.extract max_args).inline_call_cost * benefit_factor)
 
 let maximum_interesting_size_of_function_body_multiplier
-      (max_args : Flambda.inlining_arguments) =
-  max_args.inline_prim_cost * benefit_factor
+      (max_args : InliningArgs.t) =
+  (InliningArgs.extract max_args).inline_prim_cost * benefit_factor
 
 let maximum_interesting_size_of_function_body num_free_variables
-      (max_args : Flambda.inlining_arguments) =
+      (max_args : InliningArgs.t) =
   let base = maximum_interesting_size_of_function_body_base max_args in
   let multiplier = maximum_interesting_size_of_function_body_multiplier max_args
   in
