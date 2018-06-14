@@ -611,6 +611,7 @@ let prepare_to_simplify_set_of_closures ~env
     A.create_value_set_of_closures ~function_decls ~bound_vars
       ~rec_info ~free_vars ~invariant_params ~specialised_args
       ~freshening ~direct_call_surrogates
+      ~args:(Env.get_inlining_arguments env)
   in
   (* Populate the environment with the approximation of each closure.
      If [recursive] is true, this part of the environment is shared between all
