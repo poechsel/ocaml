@@ -70,7 +70,7 @@ val inline_by_copying_function_body
   -> lhs_of_application:Variable.t
   -> inline_requested:Lambda.inline_attribute
   -> specialise_requested:Lambda.specialise_attribute
-  -> max_inlining_arguments:Flambda.inlining_arguments option
+  -> max_inlining_arguments:Flambda.InliningArgs.t option
   -> closure_id_being_applied:Closure_id.t
   -> function_decls:Simple_value_approx.function_declarations
   -> function_body:Simple_value_approx.function_body
@@ -103,6 +103,6 @@ val inline_by_copying_function_declaration
   -> free_vars:Flambda.specialised_to Variable.Map.t
   -> direct_call_surrogates:Closure_id.t Closure_id.Map.t
   -> dbg:Debuginfo.t
-  -> max_inlining_arguments:Flambda.inlining_arguments option
+  -> max_inlining_arguments:Flambda.InliningArgs.t option
   -> simplify:Inlining_decision_intf.simplify
   -> (Flambda.t * Inline_and_simplify_aux.Result.t) option

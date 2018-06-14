@@ -16,6 +16,8 @@
 
 [@@@ocaml.warning "+a-4-9-30-40-41-42"]
 
+module InliningArgs = Flambda.InliningArgs
+
 (** Measurement of the cost (including cost in space) of Flambda terms
     in the context of inlining. *)
 
@@ -67,7 +69,7 @@ module Benefit : sig
 
   val zero : t
   val (+) : t -> t -> t
-  val max : args:Flambda.inlining_arguments -> t -> t -> t
+  val max : args:InliningArgs.t -> t -> t -> t
 
   val remove_call : t -> t
   (* CR-soon mshinwell: [remove_alloc] should take the size of the block
@@ -103,7 +105,7 @@ module Whether_sufficient_benefit : sig
     -> Flambda.t
     -> benefit:Benefit.t
     -> lifting:bool
-    -> args: Flambda.inlining_arguments
+    -> args: InliningArgs.t
     -> t
 
   val create_estimate
@@ -113,7 +115,7 @@ module Whether_sufficient_benefit : sig
     -> new_size:int
     -> benefit:Benefit.t
     -> lifting:bool
-    -> args: Flambda.inlining_arguments
+    -> args: InliningArgs.t
     -> t
 
   val evaluate : t -> bool
@@ -131,7 +133,7 @@ val direct_call_size : int
 
 (** If a function body exceeds this size, we can make a fast decision not
     to inline it (see [Inlining_decision]). *)
-val maximum_interesting_size_of_function_body : int -> Flambda.inlining_arguments -> int
+val maximum_interesting_size_of_function_body : int -> InliningArgs.t -> int
 
 (** Measure the given expression to determine whether its size is at or
     below the given threshold.  [None] is returned if it is too big; otherwise

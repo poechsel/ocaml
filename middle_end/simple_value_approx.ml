@@ -362,7 +362,7 @@ let value_closure ?closure_var ?set_of_closures_var ?set_of_closures_symbol
 let create_value_set_of_closures
       ~(function_decls : function_declarations) ~rec_info ~bound_vars
       ~free_vars ~invariant_params ~specialised_args ~freshening
-      ~direct_call_surrogates  ~(args : Flambda.inlining_arguments) =
+      ~direct_call_surrogates  ~(args : Flambda.InliningArgs.t) =
   let size =
     lazy (
       let functions = Variable.Map.keys function_decls.funs in
