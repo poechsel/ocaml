@@ -732,13 +732,15 @@ and simplify_apply env r ~(apply : Flambda.apply) : Flambda.t * R.t =
       which is predictable
   *)
   let max_inlining_arguments =
-    let env_args = (E.get_inlining_arguments env) in
+    let max_env_args = (E.get_max_inlining_arguments env) in
     match max_inlining_arguments with
     | None ->
-      Some env_args
+      max_env_args
     | Some apply_args ->
-      Some (Flambda.merge_inlining_arguments env_args apply_args)
+      Flambda.merge_inlining_arguments max_env_args apply_args
   in
+  let env = E.set_max_inlining_arguments env max_inlining_arguments in
+  let max_inlining_arguments = Some max_inlining_arguments in
   let dbg = E.add_inlined_debuginfo env ~dbg in
   let env = E.add_original_inlining_depth env original_inlining_depth in
   simplify_free_variable env lhs_of_application
