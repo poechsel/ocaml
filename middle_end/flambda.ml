@@ -33,37 +33,104 @@ module InliningArgs = struct
     inline_toplevel_threshold : int;
   }
 
-  type t = u
+  type t =
+      O1
+    | O2
+    | O3
+    | Custom of u
 
-  let extract args = args
+  let convert_from_clflags (cl_var : Clflags.inlining_arguments) =
+    let get default value =
+      match value with
+      | None -> default
+      | Some x -> x
+    in {
+      inline_call_cost =
+        get Clflags.default_inline_call_cost cl_var.inline_call_cost;
+      inline_alloc_cost =
+        get Clflags.default_inline_alloc_cost cl_var.inline_alloc_cost;
+      inline_prim_cost =
+        get Clflags.default_inline_prim_cost cl_var.inline_prim_cost;
+      inline_branch_cost =
+        get Clflags.default_inline_branch_cost cl_var.inline_branch_cost;
+      inline_indirect_cost =
+        get Clflags.default_inline_indirect_cost cl_var.inline_indirect_cost;
+      inline_lifting_benefit =
+        get Clflags.default_inline_lifting_benefit cl_var.inline_lifting_benefit;
+      inline_branch_factor =
+        get Clflags.default_inline_branch_factor cl_var.inline_branch_factor;
+      inline_max_depth =
+        get Clflags.default_inline_max_depth cl_var.inline_max_depth;
+      inline_max_speculation_depth =
+        get Clflags.default_inline_max_speculation_depth cl_var.inline_max_speculation_depth;
+      inline_max_unroll =
+        get Clflags.default_inline_max_unroll cl_var.inline_max_unroll;
+      inline_threshold =
+        get Clflags.default_inline_threshold cl_var.inline_threshold;
+      inline_toplevel_threshold =
+        get Clflags.default_inline_toplevel_threshold cl_var.inline_toplevel_threshold;
+    }
+
+  let o1_args = convert_from_clflags Clflags.o1_arguments
+  let o2_args = convert_from_clflags Clflags.o2_arguments
+  let o3_args = convert_from_clflags Clflags.o3_arguments
+
+  let cost ~round flag =
+    Clflags.Int_arg_helper.get ~key:round flag
+
+  let cost_f ~round flag =
+    Clflags.Float_arg_helper.get ~key:round flag
+
+  let extract args =
+    match args with
+    | O1 ->
+      o1_args
+    | O2 ->
+      o2_args
+    | O3 ->
+      o3_args
+    | Custom u ->
+      u
 
   let get_inlining_arguments round =
-    let cost flag =
-      Clflags.Int_arg_helper.get ~key:round flag
-    in
-    let cost_f flag =
-      Clflags.Float_arg_helper.get ~key:round flag
-    in {
-      inline_call_cost = cost !Clflags.inline_call_cost;
-      inline_alloc_cost = cost !Clflags.inline_alloc_cost;
-      inline_prim_cost = cost !Clflags.inline_prim_cost;
-      inline_branch_cost = cost !Clflags.inline_branch_cost;
-      inline_indirect_cost = cost !Clflags.inline_indirect_cost;
-      inline_lifting_benefit = cost !Clflags.inline_lifting_benefit;
-      inline_branch_factor = cost_f !Clflags.inline_branch_factor;
-      inline_max_depth = cost !Clflags.inline_max_depth;
-      inline_max_speculation_depth = cost !Clflags.inline_max_speculation_depth;
-      inline_max_unroll = cost !Clflags.inline_max_unroll;
-      inline_threshold = cost_f !Clflags.inline_threshold;
-      inline_toplevel_threshold = cost !Clflags.inline_toplevel_threshold;
-    }
+    let theory = {
+      inline_call_cost = cost !Clflags.inline_call_cost ~round;
+      inline_alloc_cost = cost !Clflags.inline_alloc_cost ~round;
+      inline_prim_cost = cost !Clflags.inline_prim_cost ~round;
+      inline_branch_cost = cost !Clflags.inline_branch_cost ~round;
+      inline_indirect_cost = cost !Clflags.inline_indirect_cost ~round;
+      inline_lifting_benefit = cost !Clflags.inline_lifting_benefit ~round;
+      inline_branch_factor = cost_f !Clflags.inline_branch_factor ~round;
+      inline_max_depth = cost !Clflags.inline_max_depth ~round;
+      inline_max_speculation_depth = cost !Clflags.inline_max_speculation_depth ~round;
+      inline_max_unroll = cost !Clflags.inline_max_unroll ~round;
+      inline_threshold = cost_f !Clflags.inline_threshold ~round;
+      inline_toplevel_threshold = cost !Clflags.inline_toplevel_threshold ~round;
+    } in
+    if theory = o1_args then
+      O1
+    else if theory = o2_args then
+      O2
+    else if theory = o3_args then
+      O3
+    else
+      Custom theory
 
   let get_max_inlining_arguments () =
     let round = Clflags.rounds () - 1 in
     get_inlining_arguments round
 
   let merge_inlining_arguments args1 args2 =
-    {
+    let is_pure x = match x with Custom _ -> false | _ -> true in
+    if is_pure args1 && is_pure args2 then begin
+      match args1, args2 with
+      | O1, _ | _, O1 -> O1
+      | O2, _ | _, O2 -> O2
+      | _ -> O3
+    end else begin
+      let args1 = extract args1 in
+      let args2 = extract args2 in
+    Custom {
       inline_call_cost = min args1.inline_call_cost args2.inline_call_cost;
       inline_alloc_cost = min args1.inline_alloc_cost args2.inline_alloc_cost;
       inline_prim_cost = min args1.inline_prim_cost args2.inline_prim_cost;
@@ -77,6 +144,7 @@ module InliningArgs = struct
       inline_threshold = min args1.inline_threshold args2.inline_threshold;
       inline_toplevel_threshold = min args1.inline_toplevel_threshold args2.inline_toplevel_threshold;
     }
+    end
 end
 
 
