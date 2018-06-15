@@ -16,6 +16,42 @@
 
 [@@@ocaml.warning "+a-4-9-30-40-41-42"]
 
+module UnboxingArgs = struct
+  type t = {
+    unbox_specialised_args : bool;
+    unbox_free_vars_of_closures : bool;
+    unbox_closures : bool;
+    unbox_closures_factor : int;
+    remove_unused_arguments : bool;
+  }
+  type u = t
+
+  let extract args = args
+
+  let merge args1 args2 =
+    {
+      unbox_specialised_args =
+        min args1.unbox_specialised_args args2.unbox_specialised_args;
+      unbox_free_vars_of_closures =
+        min args1.unbox_free_vars_of_closures args2.unbox_free_vars_of_closures;
+      unbox_closures =
+        min args1.unbox_closures args2.unbox_closures;
+      unbox_closures_factor =
+        min args1.unbox_closures_factor args2.unbox_closures_factor;
+      remove_unused_arguments =
+        min args1.remove_unused_arguments args2.remove_unused_arguments;
+    }
+
+  let get () =
+    {
+      unbox_specialised_args = !Clflags.unbox_specialised_args;
+      unbox_free_vars_of_closures = !Clflags.unbox_free_vars_of_closures;
+      unbox_closures = !Clflags.unbox_closures;
+      unbox_closures_factor = !Clflags.unbox_closures_factor;
+      remove_unused_arguments = !Clflags.remove_unused_arguments;
+    }
+end
+
 
 module InliningArgs = struct
   type u = {
@@ -363,6 +399,7 @@ and set_of_closures = {
   free_vars : specialised_to Variable.Map.t;
   specialised_args : specialised_to Variable.Map.t;
   direct_call_surrogates : Variable.t Variable.Map.t;
+  unboxing_arguments : UnboxingArgs.t option;
 }
 
 and function_declarations = {
@@ -1382,7 +1419,7 @@ let import_function_declarations_for_pack function_decls
   }
 
 let create_set_of_closures ~function_decls ~rec_info ~free_vars
-      ~specialised_args ~direct_call_surrogates =
+      ~specialised_args ~direct_call_surrogates ~unboxing_arguments =
   if !Clflags.flambda_invariant_checks then begin
     let all_fun_vars = Variable.Map.keys function_decls.funs in
     let expected_free_vars =
@@ -1443,6 +1480,7 @@ let create_set_of_closures ~function_decls ~rec_info ~free_vars
     free_vars;
     specialised_args;
     direct_call_surrogates;
+    unboxing_arguments;
   }
 
 let used_params function_decl =

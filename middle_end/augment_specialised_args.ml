@@ -730,6 +730,7 @@ module Make (T : S) = struct
           ~specialised_args
           ~direct_call_surrogates
           ~rec_info:original_set_of_closures.rec_info
+          ~unboxing_arguments:original_set_of_closures.unboxing_arguments
       in
       if !Clflags.flambda_invariant_checks then begin
         check_invariants ~set_of_closures ~original_set_of_closures

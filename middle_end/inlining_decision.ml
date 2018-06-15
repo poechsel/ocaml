@@ -406,6 +406,7 @@ let specialise env r ~lhs_of_application
           ~specialised_args:value_set_of_closures.specialised_args
           ~free_vars:value_set_of_closures.free_vars
           ~direct_call_surrogates:value_set_of_closures.direct_call_surrogates
+          ~unboxing_arguments:value_set_of_closures.unboxing_arguments
           ~dbg ~simplify ~inline_requested ~max_inlining_arguments
       in
       match copied_function_declaration with
