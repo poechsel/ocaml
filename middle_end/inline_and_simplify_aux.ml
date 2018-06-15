@@ -39,6 +39,7 @@ module Env = struct
     never_inline_inside_closures : bool;
     never_inline_outside_closures : bool;
     inlining_stack : Flambda.inlining_stack;
+    specialise_depth : int;
     closure_depth : int;
     inlining_stats_closure_stack : Inlining_stats.Closure_stack.t;
     inlined_debuginfo : Debuginfo.t;
@@ -61,6 +62,7 @@ module Env = struct
       never_inline_inside_closures = false;
       never_inline_outside_closures = false;
       inlining_stack = Flambda_utils.empty_inlining_stack;
+      specialise_depth = 0;
       closure_depth = 0;
       inlining_stats_closure_stack =
         Inlining_stats.Closure_stack.create ();
@@ -306,6 +308,14 @@ module Env = struct
 
   let unrolling_allowed t origin =
     unrolls_remaining t origin > 0
+
+  let specialising_allowed t =
+    let limit = (InliningArgs.extract t.inlining_arguments).inline_max_specialise
+    in
+    limit - t.specialise_depth > 0
+
+  let inside_specialised_function t =
+    { t with specialise_depth = t.specialise_depth + 1 }
 
   let inside_unrolled_function t origin =
     let new_frame = Flambda.Unroll {

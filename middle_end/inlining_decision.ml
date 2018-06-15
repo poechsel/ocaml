@@ -395,6 +395,8 @@ let specialise env r ~lhs_of_application
        - has useful approximations for some invariant parameters. *)
     if !Clflags.classic_inlining then
       Don't_try_it S.Not_specialised.Classic_mode
+    else if not (E.specialising_allowed env) then
+      Don't_try_it S.Not_specialised.Specialised_depth_exceeded
     else if always_specialise && not (Lazy.force has_no_useful_approxes) then
       Try_it
     else if never_specialise then
@@ -462,6 +464,7 @@ let specialise env r ~lhs_of_application
           let r =
             R.map_benefit r_inlined (Inlining_cost.Benefit.(+) (R.benefit r))
           in
+          let env = E.inside_specialised_function env in
           let closure_env =
             let env =
               if E.speculation_depth env = 0

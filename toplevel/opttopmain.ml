@@ -122,6 +122,10 @@ module Options = Main_args.Make_opttop_options (struct
     Int_arg_helper.parse spec
       "Syntax: -inline-max-unroll <n> | <round>=<n>[,...]"
       inline_max_unroll
+  let _inline_max_specialise spec =
+    Int_arg_helper.parse spec
+      "Syntax: -inline-max-specialise <n> | <round>=<n>[,...]"
+      inline_max_specialise
   let _classic_inlining () = classic_inlining := true
   let _inline_call_cost spec =
     Int_arg_helper.parse spec

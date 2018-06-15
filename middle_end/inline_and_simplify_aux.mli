@@ -197,6 +197,12 @@ module Env : sig
       in the given environment. *)
   val unrolling_allowed : t -> Set_of_closures_origin.t -> bool
 
+  (** Wether it is permissible to unroll a function *)
+  val specialising_allowed : t -> bool
+
+  (** Increased specialisation depth *)
+    val inside_specialised_function : t -> t
+
   (** Whether the given environment is currently being used to rewrite the
       body of an unrolled recursive function. *)
   val inside_unrolled_function : t -> Set_of_closures_origin.t -> t

@@ -176,6 +176,7 @@ module Not_specialised = struct
     | Not_closed
     | No_invariant_parameters
     | No_useful_approximations
+    | Specialised_depth_exceeded
     | Not_beneficial of Wsb.t * Wsb.t
 
   let summary ppf = function
@@ -213,6 +214,10 @@ module Not_specialised = struct
       Format.pp_print_text ppf
         "This function was not specialised because \
           the expected benefit did not outweigh the change in code size."
+    | Specialised_depth_exceeded ->
+      Format.pp_print_text ppf
+        "This function was not specialised because \
+          the specialisation depth was exceeded."
 
   let calculation ~depth ppf = function
     | Classic_mode
@@ -221,6 +226,7 @@ module Not_specialised = struct
     | Not_recursive
     | Not_closed
     | No_invariant_parameters
+    | Specialised_depth_exceeded
     | No_useful_approximations -> ()
     | Not_beneficial(_, wsb) ->
       print_calculation
