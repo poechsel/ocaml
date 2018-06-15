@@ -50,6 +50,11 @@ module InliningArgs : sig
   (* Merge two inlining arguments structures:
       Keep the minimum of each of their attributes *)
   val merge_inlining_arguments : t -> t -> t
+
+  (* Check the integrity of inlining arguments, ie that they are in increasing
+     order when the round grows up.
+     If it's not the case, output a warning and set restore mononicity *)
+  val update_integrity : unit -> unit
 end
 
 (** Intermediate language used for tree-based analysis and optimization. *)
