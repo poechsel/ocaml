@@ -95,6 +95,7 @@ type t =
   | Unused_open_bang of string              (* 66 *)
   | Unused_functor_parameter of string      (* 67 *)
   | Match_on_mutable_state_prevent_uncurry  (* 68 *)
+  | Non_monotonic_inlining_arguments of string  (* 69 *)
 ;;
 
 type alert = {kind:string; message:string; def:loc; use:loc}
