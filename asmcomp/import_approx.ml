@@ -71,7 +71,8 @@ let rec import_ex ex =
   ignore (Compilenv.approx_for_global (Export_id.get_compilation_unit ex));
   let ex_info = Compilenv.approx_env () in
   let import_value_set_of_closures ~set_of_closures_id ~rec_info ~bound_vars
-        ~(ex_info : Export_info.t) ~what : A.value_set_of_closures option =
+        ~(ex_info : Export_info.t) ~unboxing_arguments
+        ~what : A.value_set_of_closures option =
     let bound_vars = Var_within_closure.Map.map import_approx bound_vars in
     match
       Set_of_closures_id.Map.find set_of_closures_id ex_info.invariant_params
@@ -90,6 +91,7 @@ let rec import_ex ex =
           ~function_decls
           ~rec_info
           ~bound_vars
+          ~unboxing_arguments
           ~invariant_params:(lazy invariant_params)
           ~specialised_args:Variable.Map.empty
           ~freshening:Freshening.Project_var.empty
@@ -126,10 +128,10 @@ let rec import_ex ex =
     A.value_block tag (Array.map import_approx fields)
   | Value_closure { closure_id;
         set_of_closures =
-          { set_of_closures_id; rec_info; bound_vars; aliased_symbol } } ->
+          { set_of_closures_id; rec_info; bound_vars; aliased_symbol; unboxing_arguments } } ->
     let value_set_of_closures =
       import_value_set_of_closures ~set_of_closures_id ~bound_vars ~ex_info
-        ~rec_info
+        ~rec_info ~unboxing_arguments
         ~what:(Format.asprintf "Value_closure %a" Closure_id.print closure_id)
     in
     begin match value_set_of_closures with
@@ -148,10 +150,10 @@ let rec import_ex ex =
       A.add_rec_info approx rec_info
     end
   | Value_set_of_closures
-      { set_of_closures_id; rec_info; bound_vars; aliased_symbol } ->
+      { set_of_closures_id; rec_info; bound_vars; aliased_symbol; unboxing_arguments } ->
     let value_set_of_closures =
       import_value_set_of_closures ~rec_info ~set_of_closures_id ~bound_vars
-        ~ex_info
+        ~ex_info ~unboxing_arguments
         ~what:"Value_set_of_closures"
     in
     match value_set_of_closures with

@@ -283,7 +283,7 @@ let variable_and_symbol_invariants (program : Flambda.program) =
       loop env expr
   and loop_set_of_closures env
       ({ Flambda.function_decls; free_vars; specialised_args;
-         direct_call_surrogates = _; rec_info; }
+         direct_call_surrogates = _; rec_info; unboxing_arguments = _ }
        as set_of_closures) =
       check_absolute_rec_info rec_info;
       (* CR-soon mshinwell: check [direct_call_surrogates] *)

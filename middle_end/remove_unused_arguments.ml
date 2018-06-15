@@ -160,6 +160,7 @@ let separate_unused_arguments ~only_specialised
         (* CR-soon mshinwell: Use direct_call_surrogates for this
            transformation. *)
         ~direct_call_surrogates:set_of_closures.direct_call_surrogates
+        ~unboxing_arguments:set_of_closures.unboxing_arguments
     in
     Some set_of_closures
   end
@@ -170,8 +171,10 @@ let separate_unused_arguments ~only_specialised
    args should always be beneficial since they should not be used in
    indirect calls. *)
 let should_split_only_specialised_args
-    (fun_decls : Flambda.function_declarations) =
-  if not !Clflags.remove_unused_arguments then begin
+      (fun_decls : Flambda.function_declarations)
+      (args : Flambda.UnboxingArgs.t) =
+  let remove_unused = args.remove_unused_arguments in
+  if not remove_unused then begin
     true
   end else begin
     let no_recursive_functions =
@@ -191,11 +194,12 @@ let should_split_only_specialised_args
   end
 
 let separate_unused_arguments_in_set_of_closures set_of_closures
-      ~symbol_to_closure_id =
+      ~symbol_to_closure_id ~args =
   let dump = Clflags.dumped_pass pass_name in
   let only_specialised =
     should_split_only_specialised_args
        set_of_closures.Flambda.function_decls
+       args
   in
   match separate_unused_arguments
           ~only_specialised ~symbol_to_closure_id ~set_of_closures with
@@ -212,12 +216,13 @@ let separate_unused_arguments_in_set_of_closures set_of_closures
         Flambda.print_set_of_closures result;
     Some result
 
-let separate_unused_arguments_in_closures_expr tree ~symbol_to_closure_id =
+let separate_unused_arguments_in_closures_expr tree ~symbol_to_closure_id ~args =
   let aux_named (named : Flambda.named) : Flambda.named =
     match named with
     | Set_of_closures set_of_closures -> begin
         let only_specialised =
           should_split_only_specialised_args set_of_closures.function_decls
+            args
         in
         match separate_unused_arguments
                 ~only_specialised ~symbol_to_closure_id ~set_of_closures with
@@ -228,6 +233,6 @@ let separate_unused_arguments_in_closures_expr tree ~symbol_to_closure_id =
   in
   Flambda_iterators.map_named aux_named tree
 
-let separate_unused_arguments_in_closures program ~symbol_to_closure_id =
+let separate_unused_arguments_in_closures program ~symbol_to_closure_id ~args =
   Flambda_iterators.map_exprs_at_toplevel_of_program program ~f:(fun expr ->
-    separate_unused_arguments_in_closures_expr expr ~symbol_to_closure_id)
+    separate_unused_arguments_in_closures_expr expr ~symbol_to_closure_id ~args)

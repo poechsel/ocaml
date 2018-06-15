@@ -432,6 +432,7 @@ let specialise env r ~lhs_of_application
           ~invariant_params:value_set_of_closures.invariant_params
           ~specialised_args:value_set_of_closures.specialised_args
           ~direct_call_surrogates:value_set_of_closures.direct_call_surrogates
+          ~unboxing_arguments:value_set_of_closures.unboxing_arguments
           ~dbg ~simplify ~inline_requested
       in
       match copied_function_declaration with

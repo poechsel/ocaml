@@ -234,7 +234,7 @@ let inline_by_copying_function_declaration ~env ~r
     ~args ~args_approxs
     ~(invariant_params:Variable.Set.t Variable.Map.t lazy_t)
     ~(specialised_args : Flambda.specialised_to Variable.Map.t)
-    ~direct_call_surrogates ~dbg ~simplify =
+    ~direct_call_surrogates ~unboxing_arguments ~dbg ~simplify =
   let function_decls =
     (* To simplify a substitution (see comment below), rewrite any references
        to closures in the set being defined that go via symbols, so they go
@@ -607,7 +607,7 @@ let inline_by_copying_function_declaration ~env ~r
          information than the one being copied. *)
       Flambda.create_set_of_closures ~function_decls ~rec_info ~free_vars
         ~specialised_args:specialisable_args
-        ~direct_call_surrogates
+        ~direct_call_surrogates ~unboxing_arguments
     in
     (* Generate a copy of the function application, including the function
        declaration(s), but with variables (not yet bound) in place of the
@@ -631,7 +631,7 @@ let inline_by_copying_function_declaration ~env ~r
               dbg;
               inline = inline_requested;
               specialise = Default_specialise;
-              max_inlining_arguments = Some (E.get_inlining_arguments env);
+              max_inlining_arguments = Some (E.get_max_inlining_arguments env);
             }))
       in
       Flambda_utils.bind ~bindings:free_vars_for_lets ~body

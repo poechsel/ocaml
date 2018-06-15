@@ -695,6 +695,7 @@ and simplify_set_of_closures original_env r
       ~direct_call_surrogates:
         internal_value_set_of_closures.direct_call_surrogates
       ~args:(E.get_inlining_arguments env)
+      ~unboxing_arguments:internal_value_set_of_closures.unboxing_arguments
   in
   let direct_call_surrogates =
     Closure_id.Map.fold (fun existing surrogate surrogates ->
@@ -709,6 +710,7 @@ and simplify_set_of_closures original_env r
       ~free_vars:(Variable.Map.map fst free_vars)
       ~specialised_args
       ~direct_call_surrogates
+      ~unboxing_arguments:set_of_closures.unboxing_arguments
   in
   let r = ret r (A.value_set_of_closures value_set_of_closures) in
   set_of_closures, r, value_set_of_closures.freshening
@@ -978,7 +980,13 @@ and simplify_named env r (tree : Flambda.named) : Flambda.named * R.t =
       simplify_named_using_approx_and_env env r tree approx
     end
   | Set_of_closures set_of_closures -> begin
-    let symbol_to_closure_id = E.find_closure_id_for_symbol env in
+      let env =
+        let env_unbox = E.get_unboxing_arguments env in
+        match set_of_closures.unboxing_arguments with
+        | None -> env
+        | Some args -> E.set_unboxing_arguments env (Flambda.UnboxingArgs.merge args env_unbox)
+      in
+      let symbol_to_closure_id = E.find_closure_id_for_symbol env in
     let set_of_closures, r, first_freshening =
       simplify_set_of_closures env r set_of_closures
     in
@@ -1049,6 +1057,7 @@ and simplify_named env r (tree : Flambda.named) : Flambda.named * R.t =
           match
             Remove_unused_arguments.separate_unused_arguments_in_set_of_closures
               set_of_closures ~symbol_to_closure_id
+              ~args:(E.get_unboxing_arguments env)
           with
           | Some set_of_closures ->
             let expr =
@@ -1570,7 +1579,7 @@ let constant_defining_value_approx
     in
     A.value_block tag (Array.of_list fields)
   | Set_of_closures
-      { function_decls; rec_info; free_vars; specialised_args } ->
+      { function_decls; rec_info; free_vars; specialised_args; unboxing_arguments } ->
     (* At toplevel, there is no freshening currently happening (this
        cannot be the body of a currently inlined function), so we can
        keep the original set_of_closures in the approximation. *)
@@ -1590,6 +1599,7 @@ let constant_defining_value_approx
         ~freshening:Freshening.Project_var.empty
         ~direct_call_surrogates:Closure_id.Map.empty
         ~args:(E.get_inlining_arguments env)
+        ~unboxing_arguments
     in
     A.value_set_of_closures value_set_of_closures
   | Project_closure (set_of_closures_symbol, closure_id) -> begin

@@ -655,7 +655,7 @@ let introduce_free_variables_in_set_of_closures
     (var_to_block_field_tbl :
       Flambda.constant_defining_value_block_field Variable.Tbl.t)
     ({ Flambda.function_decls; free_vars; specialised_args;
-        direct_call_surrogates; rec_info }
+       direct_call_surrogates; rec_info; unboxing_arguments }
       as set_of_closures) =
   let add_definition_and_make_substitution var (expr, subst) =
     let searched_var =
@@ -732,7 +732,7 @@ let introduce_free_variables_in_set_of_closures
     set_of_closures
   else
     Flambda.create_set_of_closures ~function_decls ~rec_info ~free_vars
-      ~specialised_args ~direct_call_surrogates
+      ~specialised_args ~direct_call_surrogates ~unboxing_arguments
 
 let rewrite_project_var
       (var_to_block_field_tbl

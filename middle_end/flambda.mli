@@ -16,6 +16,22 @@
 
 [@@@ocaml.warning "+a-4-9-30-40-41-42"]
 
+module UnboxingArgs : sig
+  type t = {
+    unbox_specialised_args : bool;
+    unbox_free_vars_of_closures : bool;
+    unbox_closures : bool;
+    unbox_closures_factor : int;
+    remove_unused_arguments : bool;
+  }
+  type u
+
+  val extract : t -> u
+
+  val merge : t -> t -> t
+
+  val get : unit -> t
+end
 
 module InliningArgs : sig
   type u = {
@@ -361,6 +377,8 @@ and set_of_closures = private {
       functions (which will be inlined at direct call sites, but will
       penalise indirect call sites).
       [direct_call_surrogates] may not be transitively closed. *)
+
+  unboxing_arguments : UnboxingArgs.t option;
 }
 
 and function_declarations = private {
@@ -669,6 +687,7 @@ val create_set_of_closures
   -> free_vars:specialised_to Variable.Map.t
   -> specialised_args:specialised_to Variable.Map.t
   -> direct_call_surrogates:Variable.t Variable.Map.t
+  -> unboxing_arguments:UnboxingArgs.t option
   -> set_of_closures
 
 (** Given a function declaration, find which of its parameters (if any)

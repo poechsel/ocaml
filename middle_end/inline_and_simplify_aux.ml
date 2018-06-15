@@ -17,6 +17,7 @@
 [@@@ocaml.warning "+a-4-9-30-40-41-42"]
 
 module InliningArgs = Flambda.InliningArgs
+module UnboxingArgs = Flambda.UnboxingArgs
 
 module Env = struct
   type scope = Current | Outer
@@ -45,6 +46,7 @@ module Env = struct
     inlined_debuginfo : Debuginfo.t;
     inlining_arguments : InliningArgs.t;
     max_inlining_arguments : InliningArgs.t;
+    unboxing_arguments : UnboxingArgs.t;
   }
 
   let create ~never_inline ~backend ~round =
@@ -69,6 +71,7 @@ module Env = struct
       inlined_debuginfo = Debuginfo.none;
       inlining_arguments = InliningArgs.get round;
       max_inlining_arguments = InliningArgs.get_max ();
+      unboxing_arguments = UnboxingArgs.get ();
     }
 
   let backend t = t.backend
@@ -89,6 +92,10 @@ module Env = struct
   let set_inlining_arguments env args = { env with inlining_arguments = args }
 
   let set_max_inlining_arguments env args = { env with max_inlining_arguments = args }
+
+  let get_unboxing_arguments env = env.unboxing_arguments
+
+  let set_unboxing_arguments env args = { env with unboxing_arguments = args }
 
   let speculation_depth_up env =
     let max_level =
@@ -637,6 +644,7 @@ let prepare_to_simplify_set_of_closures ~env
       ~invariant_params:(lazy Variable.Map.empty) ~specialised_args
       ~freshening ~direct_call_surrogates
       ~args:(Env.get_inlining_arguments env)
+      ~unboxing_arguments:set_of_closures.unboxing_arguments
   in
   (* Populate the environment with the approximation of each closure.
      If [recursive] is true, this part of the environment is shared between all
