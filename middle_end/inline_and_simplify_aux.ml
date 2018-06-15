@@ -67,8 +67,8 @@ module Env = struct
       inlining_stats_closure_stack =
         Inlining_stats.Closure_stack.create ();
       inlined_debuginfo = Debuginfo.none;
-      inlining_arguments = InliningArgs.get_inlining_arguments round;
-      max_inlining_arguments = InliningArgs.get_max_inlining_arguments ();
+      inlining_arguments = InliningArgs.get round;
+      max_inlining_arguments = InliningArgs.get_max ();
     }
 
   let backend t = t.backend

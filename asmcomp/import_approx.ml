@@ -94,7 +94,7 @@ let rec import_ex ex =
           ~specialised_args:Variable.Map.empty
           ~freshening:Freshening.Project_var.empty
           ~direct_call_surrogates:Closure_id.Map.empty
-          ~args:(Flambda.InliningArgs.get_max_inlining_arguments ()))
+          ~args:(Flambda.InliningArgs.get_max ()))
   in
   match Export_info.find_description ex_info ex with
   | exception Not_found -> A.value_unknown Other

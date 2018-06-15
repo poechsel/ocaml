@@ -17,7 +17,6 @@
 [@@@ocaml.warning "+a-4-9-30-40-41-42"]
 
 
-
 module InliningArgs : sig
   type u = {
     inline_call_cost : int;
@@ -37,25 +36,28 @@ module InliningArgs : sig
 
   type t
 
+  (* extract the inlining arguments from the compressed
+     representation *)
   val extract : t -> u
-  (* get the [inlining_arguments] structure corresponing
+
+  (* get the [inlining_arguments] structure corresponding
       to a given round *)
-  val get_inlining_arguments : int -> t
+  val get : int -> t
 
   (* get an [inlining_arguments] struct filled with the
       maximum values across all round.
       As we are forcing them to be increasing over rounds, this is equivalent to be
       returning the arguments of the last round *)
-  val get_max_inlining_arguments : unit -> t
+  val get_max : unit -> t
 
   (* Merge two inlining arguments structures:
-      Keep the minimum of each of their attributes *)
-  val merge_inlining_arguments : t -> t -> t
+      Keep the weaker version of each of their attributes *)
+  val merge : t -> t -> t
 
   (* Check the integrity of inlining arguments, ie that they are in increasing
      order when the round grows up.
-     If it's not the case, output a warning and set restore mononicity *)
-  val update_integrity : unit -> unit
+     If it's not the case, output a warning and restore monotonicity *)
+  val ensure_integrity : unit -> unit
 end
 
 (** Intermediate language used for tree-based analysis and optimization. *)
