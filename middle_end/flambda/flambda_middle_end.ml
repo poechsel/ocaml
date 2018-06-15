@@ -78,7 +78,7 @@ let lambda_to_flambda ~ppf_dump ~prefixname ~backend ~size ~filename
            flam
          in
          Profile.record_call ~accumulate:true "middle_end" (fun () ->
-           Flambda.InliningArgs.update_integrity ();
+           Flambda.InliningArgs.ensure_integrity ();
            let flam =
              Profile.record_call ~accumulate:true "closure_conversion"
                (fun () ->
