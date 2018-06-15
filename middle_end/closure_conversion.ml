@@ -631,6 +631,7 @@ and close_functions t external_env function_declarations : Flambda.named =
       ~rec_info:{ depth = 0; unroll_to = 0 }
       ~specialised_args:Variable.Map.empty
       ~direct_call_surrogates:Variable.Map.empty
+      ~unboxing_arguments:None
   in
   Set_of_closures set_of_closures
 

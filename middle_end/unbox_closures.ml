@@ -24,7 +24,7 @@ module Transform = struct
   let pass_name = "unbox-closures"
 
   let precondition ~env ~(set_of_closures : Flambda.set_of_closures) =
-    !Clflags.unbox_closures
+    (E.get_unboxing_arguments env).unbox_closures
       && not (E.at_toplevel env)
       && not (Variable.Map.is_empty set_of_closures.free_vars)
 
@@ -55,7 +55,7 @@ module Transform = struct
               W.create_estimate ~original_size:0
                 ~toplevel:false
                 ~branch_depth:0
-                ~new_size:((body_size / !Clflags.unbox_closures_factor) + 1)
+                ~new_size:((body_size / (E.get_unboxing_arguments env).unbox_closures_factor) + 1)
                 ~benefit:saved_by_not_building_closure
                 ~lifting:false
                 ~args:(E.get_inlining_arguments env)

@@ -679,6 +679,7 @@ let inline_by_copying_function_declaration
     ~(specialised_args : Flambda.specialised_to Variable.Map.t)
     ~(free_vars : Flambda.specialised_to Variable.Map.t)
     ~(direct_call_surrogates : Closure_id.t Closure_id.Map.t)
+    ~(unboxing_arguments:Flambda.UnboxingArgs.t option)
     ~(dbg : Debuginfo.t)
     ~(max_inlining_arguments : Flambda.InliningArgs.t option)
     ~(simplify : Inlining_decision_intf.simplify) =
@@ -728,6 +729,7 @@ let inline_by_copying_function_declaration
       let set_of_closures =
         Flambda.create_set_of_closures ~function_decls ~rec_info
           ~free_vars ~specialised_args ~direct_call_surrogates
+          ~unboxing_arguments
       in
       let closure_var = new_var Internal_variable_names.dup_func in
       let set_of_closures_var =

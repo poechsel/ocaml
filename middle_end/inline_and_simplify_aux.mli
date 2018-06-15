@@ -17,6 +17,7 @@
 [@@@ocaml.warning "+a-4-9-30-40-41-42"]
 
 module InliningArgs = Flambda.InliningArgs
+module UnboxingArgs = Flambda.UnboxingArgs
 
 (** Environments and result structures used during inlining and
     simplification.  (See inline_and_simplify.ml.) *)
@@ -265,6 +266,12 @@ module Env : sig
 
   (** set the maximum inlining arguments of our env *)
   val set_max_inlining_arguments : t -> InliningArgs.t -> t
+
+  (** get the unboxing arguments of our env *)
+  val get_unboxing_arguments : t -> UnboxingArgs.t
+
+  (** set the unboxing arguments of our env *)
+  val set_unboxing_arguments : t -> UnboxingArgs.t -> t
 end
 
 module Result : sig
