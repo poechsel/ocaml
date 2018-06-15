@@ -75,6 +75,7 @@ module Options = Main_args.Make_optcomp_options (struct
   let _inline_max_speculation_depth n = option_with_arg "-inline-max-speculation-depth" n
   let _rounds n = option_with_int "-rounds" n
   let _inline_max_unroll n = option_with_arg "-unroll" n
+  let _inline_max_specialise n = option_with_arg "-inline-max-specialise" n
   let _inline_call_cost n = option_with_arg "-inline-call-cost" n
   let _inline_alloc_cost n = option_with_arg "-inline-alloc-cost" n
   let _inline_prim_cost n = option_with_arg "-inline-prim-cost" n

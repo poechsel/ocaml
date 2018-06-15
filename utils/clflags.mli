@@ -58,6 +58,7 @@ type inlining_arguments = {
   inline_max_depth : int option;
   inline_max_speculation_depth : int option;
   inline_max_unroll : int option;
+  inline_max_specialise : int option;
   inline_threshold : float option;
   inline_toplevel_threshold : int option;
 }
@@ -164,6 +165,8 @@ val default_simplify_rounds : int ref
 val rounds : unit -> int
 val default_inline_max_unroll : int
 val inline_max_unroll : Int_arg_helper.parsed ref
+val default_inline_max_specialise : int
+val inline_max_specialise : Int_arg_helper.parsed ref
 val default_inline_toplevel_threshold : int
 val inline_toplevel_threshold : Int_arg_helper.parsed ref
 val default_inline_call_cost : int

@@ -168,6 +168,13 @@ let mk_inline_max_unroll f =
       Clflags.default_inline_max_unroll
 ;;
 
+let mk_inline_max_specialise f =
+  "-inline-max-specialise", Arg.String f,
+    Printf.sprintf "<n>|<round>=<n>[,...]  Specialise recursive functions at most \
+      this many times (default %d)"
+      Clflags.default_inline_max_specialise
+;;
+
 let mk_classic_inlining f =
   "-Oclassic", Arg.Unit f, " Make inlining decisions at function definition \
      time rather than at the call site (replicates previous behaviour of the \
@@ -935,6 +942,7 @@ module type Optcommon_options = sig
   val _inline_max_speculation_depth : string -> unit
   val _rounds : int -> unit
   val _inline_max_unroll : string -> unit
+  val _inline_max_specialise : string -> unit
   val _classic_inlining : unit -> unit
   val _inline_call_cost : string -> unit
   val _inline_alloc_cost : string -> unit
@@ -1266,6 +1274,7 @@ struct
     mk_thread F._thread;
     mk_unbox_closures F._unbox_closures;
     mk_unbox_closures_factor F._unbox_closures_factor;
+    mk_inline_max_specialise F._inline_max_specialise;
     mk_inline_max_unroll F._inline_max_unroll;
     mk_unboxed_types F._unboxed_types;
     mk_no_unboxed_types F._no_unboxed_types;
@@ -1335,6 +1344,7 @@ module Make_opttop_options (F : Opttop_options) = struct
     mk_inlining_report F._inlining_report;
     mk_rounds F._rounds;
     mk_inline_max_unroll F._inline_max_unroll;
+    mk_inline_max_specialise F._inline_max_specialise;
     mk_classic_inlining F._classic_inlining;
     mk_inline_call_cost F._inline_call_cost;
     mk_inline_alloc_cost F._inline_alloc_cost;
