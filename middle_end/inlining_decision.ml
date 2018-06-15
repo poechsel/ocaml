@@ -306,14 +306,14 @@ let inline env r ~lhs_of_application
             ~benefit:(R.benefit r_inlined)
         in
         if W.evaluate wsb_with_subfunctions then begin
-          let res =
-            (body, R.map_benefit r_inlined
-                     (Inlining_cost.Benefit.(+) (R.benefit r)))
-          in
           let decision =
             S.Inlined.With_subfunctions (wsb, wsb_with_subfunctions)
           in
-          Changed (res, decision)
+          (* we are going through the same code path as before
+             This allows us to do a call with the same env as before,
+             thus resulting in coherent results
+          *)
+          keep_inlined_version decision
         end
         else begin
           (* r_inlined contains an approximation that may be invalid for the
@@ -451,8 +451,7 @@ let specialise env r ~lhs_of_application
                 (Variable.Set.elements (Variable.Map.keys function_decls.funs)))
           in
           E.note_entering_specialised env ~closure_ids
-        in
-        if always_specialise || W.evaluate wsb then begin
+        in let keep_specialised decision =
           let r_inlined =
             if always_specialise then
               R.map_benefit r_inlined
@@ -480,12 +479,13 @@ let specialise env r ~lhs_of_application
           (* Inlining stacks just updated above; don't update them again! *)
           let application_env = E.clear_inlining_stack application_env in
           let res = simplify application_env r expr in
-          let decision =
-            if always_specialise then S.Specialised.Annotation
-            else S.Specialised.Without_subfunctions wsb
-          in
           Changed (res, decision)
-        end else begin
+        in
+        if always_specialise then
+          keep_specialised S.Specialised.Annotation
+        else if W.evaluate wsb then
+          keep_specialised (S.Specialised.Without_subfunctions wsb)
+        else begin
           let closure_env =
             let env = E.speculation_depth_up env in
             E.set_never_inline_outside_closures env
@@ -500,18 +500,8 @@ let specialise env r ~lhs_of_application
               ~benefit:(R.benefit r_inlined)
           in
           if W.evaluate wsb_with_subfunctions then begin
-             let r =
-               R.map_benefit r_inlined
-                        (Inlining_cost.Benefit.(+) (R.benefit r))
-             in
-             let application_env = E.set_never_inline_inside_closures env in
-             (* Inlining stacks already updated; don't update them again! *)
-             let application_env = E.clear_inlining_stack application_env in
-             let res = simplify application_env r expr in
-             let decision =
-               S.Specialised.With_subfunctions (wsb, wsb_with_subfunctions)
-             in
-             Changed (res, decision)
+            (* we know we are going to specialise. We run the same code path as before *)
+            keep_specialised (S.Specialised.With_subfunctions (wsb, wsb_with_subfunctions))
           end else begin
             let decision =
               S.Not_specialised.Not_beneficial (wsb, wsb_with_subfunctions)
