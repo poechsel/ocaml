@@ -600,7 +600,7 @@ and close_functions t external_env function_declarations : Flambda.named =
   let function_decls =
     let is_classic_mode =
       if !Clflags.classic_inlining then
-        let args = Flambda.InliningArgs.get_inlining_arguments 0 in
+        let args = Flambda.InliningArgs.get 0 in
         (Flambda.InliningArgs.extract args).inline_threshold
       else -1.0
     in

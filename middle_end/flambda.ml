@@ -96,7 +96,7 @@ module InliningArgs = struct
       u
 
 
-  let get_inlining_arguments round =
+  let get round =
     let theory = {
       inline_call_cost = cost !Clflags.inline_call_cost ~round;
       inline_alloc_cost = cost !Clflags.inline_alloc_cost ~round;
@@ -121,11 +121,11 @@ module InliningArgs = struct
     else
       Custom theory
 
-  let get_max_inlining_arguments () =
+  let get_max () =
     let round = Clflags.rounds () - 1 in
-    get_inlining_arguments round
+    get round
 
-  let merge_inlining_arguments args1 args2 =
+  let merge args1 args2 =
     let is_pure x = match x with Custom _ -> false | _ -> true in
     if is_pure args1 && is_pure args2 then begin
       match args1, args2 with
@@ -152,7 +152,7 @@ module InliningArgs = struct
     }
     end
 
-    let update_integrity () =
+    let ensure_integrity () =
     let rec iter_through_round round previous =
       if round < Clflags.rounds () then begin
         let attrs_int =
@@ -164,7 +164,10 @@ module InliningArgs = struct
                    !Clflags.inline_call_cost));
            ("inline_alloc_cost",
             (fun x -> x.inline_alloc_cost),
-            (fun r x -> Clflags.inline_alloc_cost := Clflags.Int_arg_helper.add_user_override r x !Clflags.inline_alloc_cost));
+            (fun r x ->
+               Clflags.inline_alloc_cost :=
+                 Clflags.Int_arg_helper.add_user_override r x
+                   !Clflags.inline_alloc_cost));
            ("inline_prim_cost",
             (fun x -> x.inline_prim_cost),
             (fun r x ->
@@ -234,7 +237,7 @@ module InliningArgs = struct
                  Clflags.Float_arg_helper.add_user_override r x
                    !Clflags.inline_branch_factor));]
         in
-        let current = get_inlining_arguments round |> extract in
+        let current = get round |> extract in
         let action format (label, proj, updater) =
           let non_incr = label = "inline_branch_factor" in
           if (non_incr && proj previous < proj current)
@@ -253,10 +256,10 @@ module InliningArgs = struct
         in
         List.iter (action string_of_int) attrs_int;
         List.iter (action string_of_float) attrs_float;
-        let current = get_inlining_arguments round |> extract in
+        let current = get round |> extract in
         iter_through_round (round+1) current
       end
-    in iter_through_round 1 (get_inlining_arguments 0 |> extract)
+    in iter_through_round 1 (get 0 |> extract)
 end
 
 
