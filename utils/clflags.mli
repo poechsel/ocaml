@@ -27,6 +27,8 @@ module Int_arg_helper : sig
   val parse_no_error : string -> parsed ref -> parse_result
 
   val get : key:int -> parsed -> int
+
+  val add_user_override : int -> int -> parsed -> parsed
 end
 
 (** Optimization parameters represented as floats indexed by round number. *)
@@ -41,6 +43,8 @@ module Float_arg_helper : sig
   val parse_no_error : string -> parsed ref -> parse_result
 
   val get : key:int -> parsed -> float
+
+  val add_user_override : int -> float -> parsed -> parsed
 end
 
 type inlining_arguments = {

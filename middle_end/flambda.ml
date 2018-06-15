@@ -92,6 +92,7 @@ module InliningArgs = struct
     | Custom u ->
       u
 
+
   let get_inlining_arguments round =
     let theory = {
       inline_call_cost = cost !Clflags.inline_call_cost ~round;
@@ -137,7 +138,7 @@ module InliningArgs = struct
       inline_branch_cost = min args1.inline_branch_cost args2.inline_branch_cost;
       inline_indirect_cost = min args1.inline_indirect_cost args2.inline_indirect_cost;
       inline_lifting_benefit = min args1.inline_lifting_benefit args2.inline_lifting_benefit;
-      inline_branch_factor = min args1.inline_branch_factor args2.inline_branch_factor;
+      inline_branch_factor = max args1.inline_branch_factor args2.inline_branch_factor;
       inline_max_depth = min args1.inline_max_depth args2.inline_max_depth;
       inline_max_speculation_depth = min args1.inline_max_speculation_depth args2.inline_max_speculation_depth;
       inline_max_unroll = min args1.inline_max_unroll args2.inline_max_unroll;
@@ -145,6 +146,106 @@ module InliningArgs = struct
       inline_toplevel_threshold = min args1.inline_toplevel_threshold args2.inline_toplevel_threshold;
     }
     end
+
+    let update_integrity () =
+    let rec iter_through_round round previous =
+      if round < Clflags.rounds () then begin
+        let attrs_int =
+          [("inline_call_cost",
+            (fun x -> x.inline_call_cost),
+            (fun r x ->
+               Clflags.inline_call_cost :=
+                 Clflags.Int_arg_helper.add_user_override r x
+                   !Clflags.inline_call_cost));
+           ("inline_alloc_cost",
+            (fun x -> x.inline_alloc_cost),
+            (fun r x -> Clflags.inline_alloc_cost := Clflags.Int_arg_helper.add_user_override r x !Clflags.inline_alloc_cost));
+           ("inline_prim_cost",
+            (fun x -> x.inline_prim_cost),
+            (fun r x ->
+               Clflags.inline_prim_cost :=
+                 Clflags.Int_arg_helper.add_user_override r x
+                   !Clflags.inline_prim_cost));
+           ("inline_branch_cost",
+            (fun x -> x.inline_branch_cost),
+            (fun r x ->
+               Clflags.inline_branch_cost :=
+                 Clflags.Int_arg_helper.add_user_override r x
+                   !Clflags.inline_branch_cost));
+           ("inline_indirect_cost",
+            (fun x -> x.inline_indirect_cost),
+            (fun r x ->
+               Clflags.inline_indirect_cost :=
+                 Clflags.Int_arg_helper.add_user_override r x
+                   !Clflags.inline_indirect_cost));
+           ("inline_lifting_benefit",
+            (fun x -> x.inline_lifting_benefit),
+            (fun r x ->
+               Clflags.inline_lifting_benefit :=
+                 Clflags.Int_arg_helper.add_user_override r x
+                   !Clflags.inline_lifting_benefit));
+           ("inline_max_depth",
+            (fun x -> x.inline_max_depth),
+            (fun r x ->
+               Clflags.inline_max_depth :=
+                 Clflags.Int_arg_helper.add_user_override r x
+                   !Clflags.inline_max_depth));
+           ("inline_max_speculation_depth",
+            (fun x -> x.inline_max_speculation_depth),
+            (fun r x ->
+               Clflags.inline_max_speculation_depth :=
+                 Clflags.Int_arg_helper.add_user_override r x
+                   !Clflags.inline_max_speculation_depth));
+           ("inline_max_unroll",
+            (fun x -> x.inline_max_unroll),
+            (fun r x ->
+               Clflags.inline_max_unroll :=
+                 Clflags.Int_arg_helper.add_user_override r x
+                   !Clflags.inline_max_unroll));
+           ("inline_toplevel_threshold",
+            (fun x -> x.inline_toplevel_threshold),
+            (fun r x ->
+               Clflags.inline_toplevel_threshold :=
+                 Clflags.Int_arg_helper.add_user_override r x
+                   !Clflags.inline_toplevel_threshold));]
+        in
+        let attrs_float =
+          [("inline_threshold",
+            (fun x -> x.inline_threshold),
+            (fun r x ->
+               Clflags.inline_threshold :=
+                 Clflags.Float_arg_helper.add_user_override r x
+                   !Clflags.inline_threshold));
+           ("inline_branch_factor",
+            (fun x -> x.inline_branch_factor),
+            (fun r x ->
+               Clflags.inline_branch_factor :=
+                 Clflags.Float_arg_helper.add_user_override r x
+                   !Clflags.inline_branch_factor));]
+        in
+        let current = get_inlining_arguments round |> extract in
+        let action format (label, proj, updater) =
+          let non_incr = label = "inline_branch_factor" in
+          if (non_incr && proj previous < proj current)
+           || (not non_incr && proj previous > proj current) then begin
+            let monotony = if non_incr then "decreasing" else "increasing" in
+            let message = "Argument " ^ label ^ " is " ^ monotony ^ " between round " ^
+                          string_of_int round ^ " (=" ^ (format (proj previous)) ^ ") and " ^
+                          string_of_int (round + 1) ^ " (=" ^ (format (proj current)) ^ ")"
+            in
+            Location.prerr_warning ({loc_start = Lexing.dummy_pos;
+                                     loc_end = Lexing.dummy_pos;
+                                     loc_ghost = true})
+              (Warnings.Non_monotonic_inlining_arguments message);
+            updater round (proj previous)
+          end
+        in
+        List.iter (action string_of_int) attrs_int;
+        List.iter (action string_of_float) attrs_float;
+        let current = get_inlining_arguments round |> extract in
+        iter_through_round (round+1) current
+      end
+    in iter_through_round 1 (get_inlining_arguments 0 |> extract)
 end
 
 
