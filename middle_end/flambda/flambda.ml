@@ -30,6 +30,7 @@ module InliningArgs = struct
     inline_max_depth : int;
     inline_max_speculation_depth : int;
     inline_max_unroll : int;
+    inline_max_specialise : int;
     inline_threshold : float;
     inline_toplevel_threshold : int;
   }
@@ -84,6 +85,8 @@ module InliningArgs = struct
             cl_var.inline_max_speculation_depth;
       inline_max_unroll =
         get Clflags.default_inline_max_unroll cl_var.inline_max_unroll;
+      inline_max_specialise =
+        get Clflags.default_inline_max_specialise cl_var.inline_max_specialise;
       inline_threshold =
         get Clflags.default_inline_threshold cl_var.inline_threshold;
       inline_toplevel_threshold =
@@ -126,6 +129,7 @@ module InliningArgs = struct
       inline_max_speculation_depth = cost !Clflags.inline_max_speculation_depth
                                           ~round;
       inline_max_unroll = cost !Clflags.inline_max_unroll ~round;
+      inline_max_specialise = cost !Clflags.inline_max_specialise ~round;
       inline_threshold = cost_f !Clflags.inline_threshold ~round;
       inline_toplevel_threshold = cost !Clflags.inline_toplevel_threshold
                                        ~round;
@@ -171,6 +175,7 @@ module InliningArgs = struct
         min args1.inline_max_speculation_depth
           args2.inline_max_speculation_depth;
       inline_max_unroll = min args1.inline_max_unroll args2.inline_max_unroll;
+      inline_max_specialise = min args1.inline_max_specialise args2.inline_max_specialise;
       inline_threshold = min args1.inline_threshold args2.inline_threshold;
       inline_toplevel_threshold =
         min args1.inline_toplevel_threshold args2.inline_toplevel_threshold;
@@ -244,6 +249,13 @@ module InliningArgs = struct
                Clflags.inline_max_unroll :=
                  Clflags.Int_arg_helper.add_user_override r x
                    !Clflags.inline_max_unroll));
+           ("inline_max_specialise",
+            (fun x -> x.inline_max_specialise),
+            compare,
+            (fun r x ->
+               Clflags.inline_max_specialise :=
+                 Clflags.Int_arg_helper.add_user_override r x
+                   !Clflags.inline_max_specialise));
            ("inline_toplevel_threshold",
             (fun x -> x.inline_toplevel_threshold),
             compare,
