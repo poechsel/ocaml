@@ -31,9 +31,11 @@
 val separate_unused_arguments_in_closures
    : Flambda.program
   -> symbol_to_closure_id:(Symbol.t -> Closure_id.t option)
+  -> args:Flambda.UnboxingArgs.t
   -> Flambda.program
 
 val separate_unused_arguments_in_set_of_closures
    : Flambda.set_of_closures
   -> symbol_to_closure_id:(Symbol.t -> Closure_id.t option)
+  -> args:Flambda.UnboxingArgs.t
   -> Flambda.set_of_closures option

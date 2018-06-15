@@ -307,6 +307,7 @@ let toplevel_substitution sb tree =
                 { spec_to with var = sb spec_to.var; })
               set_of_closures.specialised_args)
           ~direct_call_surrogates:set_of_closures.direct_call_surrogates
+          ~unboxing_arguments:set_of_closures.unboxing_arguments
       in
       Set_of_closures set_of_closures
     | Project_closure project_closure ->
@@ -391,6 +392,7 @@ let make_closure_declaration ~is_classic_mode ~id
     Flambda.create_set_of_closures ~function_decls ~rec_info ~free_vars
       ~specialised_args:Variable.Map.empty
       ~direct_call_surrogates:Variable.Map.empty
+      ~unboxing_arguments:None
   in
   let project_closure : Flambda.named =
     Project_closure {
@@ -584,6 +586,7 @@ let substitute_read_symbol_field_for_variables
                 { spec_to with var = sb spec_to.var; })
               set_of_closures.specialised_args)
           ~direct_call_surrogates:set_of_closures.direct_call_surrogates
+          ~unboxing_arguments:set_of_closures.unboxing_arguments
       in
       Set_of_closures set_of_closures
     | Project_closure project_closure ->
