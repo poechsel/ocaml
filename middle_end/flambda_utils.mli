@@ -70,6 +70,7 @@ val make_closure_declaration
   -> recursive:bool
   -> rec_info:Flambda.rec_info
   -> stub:bool
+  -> unboxing_arguments:Flambda.UnboxingArgs.t
   -> Flambda.t
 
 val toplevel_substitution

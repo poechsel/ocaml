@@ -399,7 +399,7 @@ and set_of_closures = {
   free_vars : specialised_to Variable.Map.t;
   specialised_args : specialised_to Variable.Map.t;
   direct_call_surrogates : Variable.t Variable.Map.t;
-  unboxing_arguments : UnboxingArgs.t option;
+  unboxing_arguments : UnboxingArgs.t;
 }
 
 and function_declarations = {
