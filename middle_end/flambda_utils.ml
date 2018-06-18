@@ -330,6 +330,7 @@ let toplevel_substitution_named sb named =
   | _ -> assert false
 
 let make_closure_declaration ~id ~body ~params ~recursive ~rec_info ~stub
+      ~unboxing_arguments
     : Flambda.t =
   let free_variables = Flambda.free_variables body in
   let param_set = Parameter.Set.vars params in
@@ -380,7 +381,7 @@ let make_closure_declaration ~id ~body ~params ~recursive ~rec_info ~stub
     Flambda.create_set_of_closures ~function_decls ~rec_info ~free_vars
       ~specialised_args:Variable.Map.empty
       ~direct_call_surrogates:Variable.Map.empty
-      ~unboxing_arguments:None
+      ~unboxing_arguments
   in
   let project_closure : Flambda.named =
     Project_closure {

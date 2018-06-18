@@ -160,7 +160,7 @@ and value_set_of_closures = private {
   (* Any freshening that has been applied to [function_decls]. *)
   freshening : Freshening.Project_var.t;
   direct_call_surrogates : Closure_id.t Closure_id.Map.t;
-  unboxing_arguments : Flambda.UnboxingArgs.t option;
+  unboxing_arguments : Flambda.UnboxingArgs.t;
 }
 
 and value_float_array_contents =
@@ -193,7 +193,7 @@ val create_value_set_of_closures
   -> freshening:Freshening.Project_var.t
   -> direct_call_surrogates:Closure_id.t Closure_id.Map.t
   -> args: Flambda.InliningArgs.t
-  -> unboxing_arguments: Flambda.UnboxingArgs.t option
+  -> unboxing_arguments: Flambda.UnboxingArgs.t
   -> value_set_of_closures
 
 val update_freshening_of_value_set_of_closures

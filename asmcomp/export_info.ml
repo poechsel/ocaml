@@ -59,7 +59,7 @@ and value_set_of_closures = {
   bound_vars : approx Var_within_closure.Map.t;
   results : approx Closure_id.Map.t;
   aliased_symbol : Symbol.t option;
-  unboxing_arguments : Flambda.UnboxingArgs.t option;
+  unboxing_arguments : Flambda.UnboxingArgs.t;
 }
 
 and approx =
