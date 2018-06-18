@@ -28,8 +28,6 @@ module UnboxingArgs : sig
 
   val extract : t -> u
 
-  val merge : t -> t -> t
-
   val get : unit -> t
 end
 
