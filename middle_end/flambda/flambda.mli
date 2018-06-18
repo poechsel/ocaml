@@ -361,7 +361,7 @@ and set_of_closures = private {
       penalise indirect call sites).
       [direct_call_surrogates] may not be transitively closed. *)
 
-  unboxing_arguments : UnboxingArgs.t option;
+  unboxing_arguments : UnboxingArgs.t;
 }
 
 and function_declarations = private {
@@ -690,7 +690,7 @@ val create_set_of_closures
   -> free_vars:specialised_to Variable.Map.t
   -> specialised_args:specialised_to Variable.Map.t
   -> direct_call_surrogates:Variable.t Variable.Map.t
-  -> unboxing_arguments:UnboxingArgs.t option
+  -> unboxing_arguments:UnboxingArgs.t
   -> set_of_closures
 
 (** Given a function declaration, find which of its parameters (if any)

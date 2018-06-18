@@ -916,6 +916,7 @@ and simplify_partial_application env r ~lhs_of_application
       ~recursive:false
       ~rec_info:{ depth = 0; unroll_to = 0; }
       ~stub:true
+      ~unboxing_arguments:(E.get_unboxing_arguments env)
   in
   let with_known_args =
     Flambda_utils.bind
@@ -983,15 +984,15 @@ and simplify_named env r (tree : Flambda.named) : Flambda.named * R.t =
   | Set_of_closures set_of_closures -> begin
       let env =
         let env_unbox = E.get_unboxing_arguments env in
-        match set_of_closures.unboxing_arguments with
-        | None -> env
-        | Some args -> E.set_unboxing_arguments env (Flambda.UnboxingArgs.merge args env_unbox)
+        let closure_unbox = set_of_closures.unboxing_arguments in
+        let merge_unbox = Flambda.UnboxingArgs.merge closure_unbox env_unbox in
+        E.set_unboxing_arguments env merge_unbox
       in
       let symbol_to_closure_id = E.find_closure_id_for_symbol env in
-    let set_of_closures, r, first_freshening =
-      simplify_set_of_closures env r set_of_closures
-    in
-    let simplify env r expr ~pass_name : Flambda.named * R.t =
+      let set_of_closures, r, first_freshening =
+        simplify_set_of_closures env r set_of_closures
+      in
+      let simplify env r expr ~pass_name : Flambda.named * R.t =
       (* If simplifying a set of closures more than once during any given round
          of simplification, the [Freshening.Project_var] substitutions arising
          from each call to [simplify_set_of_closures] must be composed.
