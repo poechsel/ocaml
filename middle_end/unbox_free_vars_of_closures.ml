@@ -17,7 +17,6 @@
 [@@@ocaml.warning "+a-4-9-30-40-41-42"]
 
 module B = Inlining_cost.Benefit
-module E = Inline_and_simplify_aux.Env
 
 let pass_name = "unbox-free-vars-of-closures"
 let () = Pass_wrapper.register ~pass_name
@@ -62,7 +61,7 @@ let add_lifted_projections_around_set_of_closures
     (body, benefit)
 
 let run ~env ~(set_of_closures : Flambda.set_of_closures) =
-  if not (E.get_unboxing_arguments env).unbox_free_vars_of_closures then
+  if not set_of_closures.unboxing_arguments.unbox_free_vars_of_closures then
     None
   else
     let definitions_indexed_by_new_inner_vars, _, free_vars, done_something =

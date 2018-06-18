@@ -18,13 +18,12 @@
 
 module ASA = Augment_specialised_args
 module W = ASA.What_to_specialise
-module E = Inline_and_simplify_aux.Env
 
 module Transform = struct
   let pass_name = "unbox-specialised-args"
 
-  let precondition ~env ~(set_of_closures : Flambda.set_of_closures) =
-    (E.get_unboxing_arguments env).unbox_specialised_args
+  let precondition ~env:_ ~(set_of_closures : Flambda.set_of_closures) =
+    set_of_closures.unboxing_arguments.unbox_specialised_args
       && not (Variable.Map.is_empty set_of_closures.specialised_args)
 
   let what_to_specialise ~env ~(set_of_closures : Flambda.set_of_closures) =

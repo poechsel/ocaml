@@ -194,12 +194,12 @@ let should_split_only_specialised_args
   end
 
 let separate_unused_arguments_in_set_of_closures set_of_closures
-      ~symbol_to_closure_id ~args =
+      ~symbol_to_closure_id =
   let dump = Clflags.dumped_pass pass_name in
   let only_specialised =
     should_split_only_specialised_args
        set_of_closures.Flambda.function_decls
-       args
+       set_of_closures.Flambda.unboxing_arguments
   in
   match separate_unused_arguments
           ~only_specialised ~symbol_to_closure_id ~set_of_closures with
