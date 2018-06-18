@@ -266,12 +266,6 @@ module Env : sig
 
   (** set the maximum inlining arguments of our env *)
   val set_max_inlining_arguments : t -> InliningArgs.t -> t
-
-  (** get the unboxing arguments of our env *)
-  val get_unboxing_arguments : t -> UnboxingArgs.t
-
-  (** set the unboxing arguments of our env *)
-  val set_unboxing_arguments : t -> UnboxingArgs.t -> t
 end
 
 module Result : sig

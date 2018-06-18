@@ -811,6 +811,7 @@ and simplify_apply env r ~(apply : Flambda.apply) : Flambda.t * R.t =
                 Closure_id.print closure_id_being_applied
           in
           let rec_info = value_closure.rec_info in
+          let unboxing_arguments = value_set_of_closures.unboxing_arguments in
           let r =
             match apply.kind with
             | Indirect ->
@@ -834,6 +835,7 @@ and simplify_apply env r ~(apply : Flambda.apply) : Flambda.t * R.t =
               simplify_partial_application env r ~lhs_of_application
                 ~closure_id_being_applied ~function_decl ~args ~dbg
                 ~inline_requested ~specialise_requested
+                ~unboxing_arguments
             else
               Misc.fatal_errorf "Function with arity %d when simplifying \
                   application expression: %a"
@@ -864,7 +866,7 @@ and simplify_full_application env r ~function_decls ~lhs_of_application
 
 and simplify_partial_application env r ~lhs_of_application
       ~closure_id_being_applied ~function_decl ~args ~dbg
-      ~inline_requested ~specialise_requested =
+      ~inline_requested ~specialise_requested ~unboxing_arguments =
   let arity = A.function_arity function_decl in
   assert (arity > List.length args);
   (* For simplicity, we disallow [@inline] attributes on partial
@@ -916,7 +918,7 @@ and simplify_partial_application env r ~lhs_of_application
       ~recursive:false
       ~rec_info:{ depth = 0; unroll_to = 0; }
       ~stub:true
-      ~unboxing_arguments:(E.get_unboxing_arguments env)
+      ~unboxing_arguments
   in
   let with_known_args =
     Flambda_utils.bind
@@ -982,12 +984,6 @@ and simplify_named env r (tree : Flambda.named) : Flambda.named * R.t =
       simplify_named_using_approx_and_env env r tree approx
     end
   | Set_of_closures set_of_closures -> begin
-      let env =
-        let env_unbox = E.get_unboxing_arguments env in
-        let closure_unbox = set_of_closures.unboxing_arguments in
-        let merge_unbox = Flambda.UnboxingArgs.merge closure_unbox env_unbox in
-        E.set_unboxing_arguments env merge_unbox
-      in
       let symbol_to_closure_id = E.find_closure_id_for_symbol env in
       let set_of_closures, r, first_freshening =
         simplify_set_of_closures env r set_of_closures
@@ -1059,7 +1055,6 @@ and simplify_named env r (tree : Flambda.named) : Flambda.named * R.t =
           match
             Remove_unused_arguments.separate_unused_arguments_in_set_of_closures
               set_of_closures ~symbol_to_closure_id
-              ~args:(E.get_unboxing_arguments env)
           with
           | Some set_of_closures ->
             let expr =

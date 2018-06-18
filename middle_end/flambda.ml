@@ -28,20 +28,6 @@ module UnboxingArgs = struct
 
   let extract args = args
 
-  let merge args1 args2 =
-    {
-      unbox_specialised_args =
-        min args1.unbox_specialised_args args2.unbox_specialised_args;
-      unbox_free_vars_of_closures =
-        min args1.unbox_free_vars_of_closures args2.unbox_free_vars_of_closures;
-      unbox_closures =
-        min args1.unbox_closures args2.unbox_closures;
-      unbox_closures_factor =
-        min args1.unbox_closures_factor args2.unbox_closures_factor;
-      remove_unused_arguments =
-        min args1.remove_unused_arguments args2.remove_unused_arguments;
-    }
-
   let get () =
     {
       unbox_specialised_args = !Clflags.unbox_specialised_args;
