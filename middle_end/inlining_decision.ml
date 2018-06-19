@@ -531,11 +531,51 @@ let build_annotations_structure ~caller_inline ~caller_specialise
   { caller_inline; caller_specialise;
     callee_inline; callee_specialise }
 
+
+let extract_original_caller_and_result env r call callee annotations =
+  let original =
+    Flambda.Apply {
+      func = call.callee;
+      args = call.args;
+      kind = Direct callee.closure_id_being_applied;
+      dbg = call.dbg;
+      inlining_depth = E.inlining_depth env;
+      inline = annotations.caller_inline;
+      specialise = annotations.caller_specialise;
+      max_inlining_arguments = Some (E.get_max_inlining_arguments env);
+    }
+  in
+  let original_r =
+    R.set_approx (R.seen_direct_application r) (A.value_unknown Other)
+  in original, original_r
+
+let compute_thresholding_for_call env r inlining_arguments =
+  let raw = R.inlining_threshold r in
+  let max =
+      if E.at_toplevel env then
+        Inline_and_simplify_aux.initial_inlining_toplevel_threshold inlining_arguments
+      else
+        Inline_and_simplify_aux.initial_inlining_threshold inlining_arguments
+    in
+    let unthrottled =
+      match raw with
+      | None -> max
+      | Some inlining_threshold -> inlining_threshold
+    in
+    let inlining_threshold =
+      T.min unthrottled max
+    in
+    let diff =
+      T.sub unthrottled inlining_threshold
+    in
+    inlining_threshold, raw, diff
+
+
 let for_call_site ~env ~r ~(call : call_informations)
       ~(callee : callee_informations) ~(annotations : annotations)
       ~args_approxs ~simplify
       =
-  let args = call.args in
+      let args = call.args in
   let function_decls = callee.function_decls in
   let lhs_of_application = call.callee in
   let rec_info = call.rec_info in
@@ -550,21 +590,7 @@ let for_call_site ~env ~r ~(call : call_informations)
         of [args] and [args_approxs]"
   end;
   let inlining_arguments = E.get_inlining_arguments env in
-  let max_inlining_arguments = E.get_max_inlining_arguments env in
-  let original =
-    Flambda.Apply {
-      func = lhs_of_application;
-      args;
-      kind = Direct closure_id_being_applied;
-      dbg;
-      inlining_depth = E.inlining_depth env;
-      inline = inline_requested;
-      specialise = specialise_requested;
-      max_inlining_arguments = Some max_inlining_arguments;
-    }
-  in
-  let original_r =
-    R.set_approx (R.seen_direct_application r) (A.value_unknown Other)
+  let original, original_r = extract_original_caller_and_result env r call callee annotations
   in
   match function_decl.function_body with
   | None -> original, original_r
@@ -657,31 +683,11 @@ let for_call_site ~env ~r ~(call : call_informations)
       in
       let max_level = (InliningArgs.extract inlining_arguments).inline_max_speculation_depth
       in
-      let raw_inlining_threshold = R.inlining_threshold r in
-      let max_inlining_threshold =
-        if E.at_toplevel env then
-          Inline_and_simplify_aux.initial_inlining_toplevel_threshold inlining_arguments
-        else
-          Inline_and_simplify_aux.initial_inlining_threshold inlining_arguments
-      in
-      let unthrottled_inlining_threshold =
-        match raw_inlining_threshold with
-        | None -> max_inlining_threshold
-        | Some inlining_threshold -> inlining_threshold
-      in
-      let inlining_threshold =
-        T.min unthrottled_inlining_threshold max_inlining_threshold
-      in
-      let inlining_threshold_diff =
-        T.sub unthrottled_inlining_threshold inlining_threshold
-      in
-      let inlining_prevented =
-        match inlining_threshold with
-        | Never_inline -> true
-        | Can_inline_if_no_larger_than _ -> false
+      let inlining_threshold, raw_inlining_threshold, inlining_threshold_diff =
+        compute_thresholding_for_call env r inlining_arguments
       in
       let simpl =
-        if inlining_prevented then
+        if inlining_threshold = T.Never_inline then
           Original (D.Prevented Function_prevented_from_inlining)
         else if E.speculation_depth env >= max_level then
           Original (D.Prevented Level_exceeded)
