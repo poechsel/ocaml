@@ -45,6 +45,48 @@ type inlining_policy =
   | Never_inline
   | Default_inline
 
+type call_informations = {
+  callee : Variable.t;
+  args : Variable.t list;
+  dbg : Debuginfo.t;
+  rec_info : Flambda.rec_info;
+}
+
+type callee_informations = {
+    function_decls : A.function_declarations;
+    (* the function definition itself *)
+    function_decl : A.function_declaration;
+    (* the closure identifier itself *)
+    closure_id_being_applied : Closure_id.t;
+
+    value_set_of_closures : A.value_set_of_closures;
+}
+
+type annotations = {
+    caller_inline : Lambda.inline_attribute;
+    caller_specialise : Lambda.specialise_attribute;
+    callee_inline : Lambda.inline_attribute;
+    callee_specialise : Lambda.specialise_attribute;
+  }
+
+let build_call_structure ~callee ~args ~dbg ~rec_info =
+  { callee; args; dbg; rec_info }
+
+let build_callee_structure ~function_decls ~function_decl
+      ~closure_id_being_applied ~value_set_of_closures =
+  { function_decls; function_decl; closure_id_being_applied; value_set_of_closures }
+
+let build_annotations_structure ~caller_inline ~caller_specialise
+      ~(callee : A.function_declaration) =
+  let callee_inline, callee_specialise =
+    match callee.function_body with
+    | None -> Lambda.Never_inline, Lambda.Never_specialise
+    | Some x -> x.inline, x.specialise
+  in
+  { caller_inline; caller_specialise;
+    callee_inline; callee_specialise }
+
+
 let inlining_policy
       ~(func_annot : Lambda.inline_attribute)
       ~(call_annot : Lambda.inline_attribute)
@@ -318,41 +360,104 @@ let inline env r ~lhs_of_application
       end
     end
 
-let specialise env r ~lhs_of_application
-      ~(function_decls : A.function_declarations)
-      ~(function_decl : A.function_declaration)
-      ~(function_body : A.function_body)
-      ~closure_id_being_applied
-      ~(value_set_of_closures : A.value_set_of_closures)
-      ~args ~args_approxs ~dbg ~simplify ~original ~rec_info
-      ~inlining_threshold ~fun_cost
-      ~inline_requested ~specialise_requested
-      =
-  let invariant_params = value_set_of_closures.invariant_params in
-  let free_vars = value_set_of_closures.free_vars in
+let stat_note_specialise_closures env callee =
+  (* CR-someday lwhite: could avoid calculating this if stats is turned
+     off *)
+  let closure_ids =
+    Closure_id.Set.of_list (
+      List.map Closure_id.wrap
+        (Variable.Set.elements (Variable.Map.keys callee.function_decls.funs)))
+  in
+  E.note_entering_specialised env ~closure_ids
+
+let compute_params_informations callee args_approxs =
+  let free_vars = callee.value_set_of_closures.free_vars in
+  let invariant_params = callee.value_set_of_closures.invariant_params in
   let has_no_useful_approxes =
     lazy
       (List.for_all2
          (fun id approx ->
             not ((A.useful approx)
                  && Variable.Map.mem id (Lazy.force invariant_params)))
-         (Parameter.List.vars function_decl.params) args_approxs)
+         (Parameter.List.vars callee.function_decl.params) args_approxs)
   in
-  let always_specialise, never_specialise =
-    (* Merge call site annotation and function annotation.
-       The call site annotation takes precedence *)
-    match (specialise_requested : Lambda.specialise_attribute) with
+  free_vars, invariant_params, has_no_useful_approxes
+
+let specialise_policy annotations =
+    match (annotations.caller_specialise : Lambda.specialise_attribute) with
     | Always_specialise -> true, false
     | Never_specialise -> false, true
     | Default_specialise -> begin
-        match function_decl.function_body with
-        | None -> false, true
-        | Some { specialise } ->
-          match (specialise : Lambda.specialise_attribute) with
-          | Always_specialise -> true, false
-          | Never_specialise -> false, true
-          | Default_specialise -> false, false
+        match (annotations.callee_specialise : Lambda.specialise_attribute) with
+        | Always_specialise -> true, false
+        | Never_specialise -> false, true
+        | Default_specialise -> false, false
       end
+
+let is_recursive callee =
+  match callee.function_decl.function_body with
+  | None -> false
+  | Some x -> x.recursive
+
+
+let keep_specialised decision ~env ~always_specialise ~r_inlined ~expr ~simplify ~previous_benefit =
+  let r_inlined =
+    if always_specialise then
+      R.map_benefit r_inlined
+        (Inlining_cost.Benefit.max ~args:(E.get_inlining_arguments env)
+           Inlining_cost.Benefit.(requested_inline ~size_of:expr zero))
+    else r_inlined
+  in
+  let r =
+    R.map_benefit r_inlined (Inlining_cost.Benefit.(+) (previous_benefit))
+  in
+  let env = E.inside_specialised_function env in
+  let closure_env =
+    let env =
+      if E.speculation_depth env = 0
+      (* If the function was considered for specialising without
+         considering its sub-functions, and it is not below another
+         inlining choice, then we are certain that this code will
+         be kept. *)
+      then env
+      else E.speculation_depth_up env
+    in
+    E.set_never_inline_outside_closures env
+  in
+  let expr, r = simplify closure_env r expr in
+  let application_env = E.set_never_inline_inside_closures env in
+  (* Inlining depths just updated above; don't update them again! *)
+  let application_env = E.clear_inlining_depth application_env in
+  let res = simplify application_env r expr in
+  Changed (res, decision)
+
+let evaluate_speculative_specialisation env r_inlined expr original ~simplify =
+  let closure_env =
+    E.speculation_depth_up env
+    |> E.set_never_inline_outside_closures
+  in
+  let expr, r_inlined = simplify closure_env r_inlined expr in
+  let wsb_with_subfunctions =
+    W.create ~original expr
+      ~toplevel:false
+      ~branch_depth:(E.branch_depth env)
+      ~lifting:false
+      ~args:(E.get_inlining_arguments env)
+      ~benefit:(R.benefit r_inlined)
+  in
+  W.evaluate wsb_with_subfunctions, wsb_with_subfunctions
+
+
+
+let specialise env r ~(call : call_informations)
+      ~(callee : callee_informations) ~(annotations : annotations)
+      ~args_approxs ~simplify ~original
+      ~inlining_threshold ~fun_cost =
+  let free_vars, invariant_params, has_no_useful_approxes =
+    compute_params_informations callee args_approxs
+  in
+  let always_specialise, never_specialise =
+    specialise_policy annotations
   in
   let remaining_inlining_threshold : Inlining_cost.Threshold.t =
     if always_specialise then inlining_threshold
@@ -364,7 +469,7 @@ let specialise env r ~lhs_of_application
        - is closed (it and all other members of the set of closures on which
          it depends); and
        - has useful approximations for some invariant parameters. *)
-    if function_decls.is_classic_mode > 0.0 then
+    if callee.function_decls.is_classic_mode > 0.0 then
       Don't_try_it S.Not_specialised.Classic_mode
     else if not (E.specialising_allowed env) then
       Don't_try_it S.Not_specialised.Specialised_depth_exceeded
@@ -381,7 +486,7 @@ let specialise env r ~lhs_of_application
       Don't_try_it (S.Not_specialised.Above_threshold threshold)
     else if not (Variable.Map.is_empty free_vars) then
       Don't_try_it S.Not_specialised.Not_closed
-    else if not function_body.recursive then
+    else if not (is_recursive callee) then
       Don't_try_it S.Not_specialised.Not_recursive
     else if Variable.Map.is_empty (Lazy.force invariant_params) then
       Don't_try_it S.Not_specialised.No_invariant_parameters
@@ -397,15 +502,18 @@ let specialise env r ~lhs_of_application
       in
       let copied_function_declaration =
         Inlining_transforms.inline_by_copying_function_declaration ~env
-          ~r:(R.reset_benefit r) ~lhs_of_application ~rec_info
-          ~function_decls ~function_decl ~closure_id_being_applied
-          ~args ~args_approxs
-          ~invariant_params:invariant_params
-          ~specialised_args:value_set_of_closures.specialised_args
-          ~free_vars:value_set_of_closures.free_vars
-          ~direct_call_surrogates:value_set_of_closures.direct_call_surrogates
-          ~unboxing_arguments:value_set_of_closures.unboxing_arguments
-          ~dbg ~simplify ~inline_requested
+          ~r:(R.reset_benefit r) ~lhs_of_application:call.callee
+          ~rec_info:call.rec_info
+          ~function_decls:callee.function_decls
+          ~closure_id_being_applied:callee.closure_id_being_applied
+          ~args:call.args ~args_approxs
+          ~invariant_params:callee.value_set_of_closures.invariant_params
+          ~specialised_args:callee.value_set_of_closures.specialised_args
+          ~direct_call_surrogates:callee.value_set_of_closures.direct_call_surrogates
+          ~unboxing_arguments:callee.value_set_of_closures.unboxing_arguments
+          ~dbg:call.dbg ~simplify ~inline_requested:annotations.caller_inline
+          ~function_decl:callee.function_decl
+          ~free_vars
       in
       match copied_function_declaration with
       | Some (expr, r_inlined) ->
@@ -417,120 +525,32 @@ let specialise env r ~lhs_of_application
             ~args:(E.get_inlining_arguments env)
             ~benefit:(R.benefit r_inlined)
         in
-        let env =
-          (* CR-someday lwhite: could avoid calculating this if stats is turned
-             off *)
-          let closure_ids =
-            Closure_id.Set.of_list (
-              List.map Closure_id.wrap
-                (Variable.Set.elements (Variable.Map.keys function_decls.funs)))
-          in
-          E.note_entering_specialised env ~closure_ids
+        let env = stat_note_specialise_closures env callee
         in let keep_specialised decision =
-          let r_inlined =
-            if always_specialise then
-              R.map_benefit r_inlined
-                (Inlining_cost.Benefit.max ~args:(E.get_inlining_arguments env)
-                   Inlining_cost.Benefit.(requested_inline ~size_of:expr zero))
-            else r_inlined
-          in
-          let r =
-            R.map_benefit r_inlined (Inlining_cost.Benefit.(+) (R.benefit r))
-          in
-          let env = E.inside_specialised_function env in
-          let closure_env =
-            let env =
-              if E.speculation_depth env = 0
-               (* If the function was considered for specialising without
-                  considering its sub-functions, and it is not below another
-                  inlining choice, then we are certain that this code will
-                  be kept. *)
-              then env
-              else E.speculation_depth_up env
-            in
-              E.set_never_inline_outside_closures env
-          in
-          let expr, r = simplify closure_env r expr in
-          let application_env = E.set_never_inline_inside_closures env in
-          (* Inlining depths just updated above; don't update them again! *)
-          let application_env = E.clear_inlining_depth application_env in
-          let res = simplify application_env r expr in
-          Changed (res, decision)
+             keep_specialised decision ~env ~r_inlined ~expr ~simplify ~always_specialise
+               ~previous_benefit:(R.benefit r)
         in
         if always_specialise then
           keep_specialised S.Specialised.Annotation
         else if W.evaluate wsb then
           keep_specialised (S.Specialised.Without_subfunctions wsb)
         else begin
-          let closure_env =
-            let env = E.speculation_depth_up env in
-            E.set_never_inline_outside_closures env
+          let will_specialise, wsb_with_subfunctions = evaluate_speculative_specialisation env r_inlined
+                                                         expr original ~simplify
           in
-          let expr, r_inlined = simplify closure_env r_inlined expr in
-          let wsb_with_subfunctions =
-            W.create ~original expr
-              ~toplevel:false
-              ~branch_depth:(E.branch_depth env)
-              ~lifting:false
-              ~args:(E.get_inlining_arguments env)
-              ~benefit:(R.benefit r_inlined)
-          in
-          if W.evaluate wsb_with_subfunctions then begin
+          if will_specialise then
             (* we know we are going to specialise. We run the same code path as before *)
             keep_specialised (S.Specialised.With_subfunctions (wsb, wsb_with_subfunctions))
-          end else begin
+          else
             let decision =
               S.Not_specialised.Not_beneficial (wsb, wsb_with_subfunctions)
             in
             Original decision
-          end
         end
       | None ->
         let decision = S.Not_specialised.No_useful_approximations in
         Original decision
     end
-
-type call_informations = {
-  callee : Variable.t;
-  args : Variable.t list;
-  dbg : Debuginfo.t;
-  rec_info : Flambda.rec_info;
-}
-
-type callee_informations = {
-    function_decls : A.function_declarations;
-    (* the function definition itself *)
-    function_decl : A.function_declaration;
-    (* the closure identifier itself *)
-    closure_id_being_applied : Closure_id.t;
-
-    value_set_of_closures : A.value_set_of_closures;
-}
-
-type annotations = {
-    caller_inline : Lambda.inline_attribute;
-    caller_specialise : Lambda.specialise_attribute;
-    callee_inline : Lambda.inline_attribute;
-    callee_specialise : Lambda.specialise_attribute;
-  }
-
-let build_call_structure ~callee ~args ~dbg ~rec_info =
-  { callee; args; dbg; rec_info }
-
-let build_callee_structure ~function_decls ~function_decl
-      ~closure_id_being_applied ~value_set_of_closures =
-  { function_decls; function_decl; closure_id_being_applied; value_set_of_closures }
-
-let build_annotations_structure ~caller_inline ~caller_specialise
-      ~(callee : A.function_declaration) =
-  let callee_inline, callee_specialise =
-    match callee.function_body with
-    | None -> Lambda.Never_inline, Lambda.Never_specialise
-    | Some x -> x.inline, x.specialise
-  in
-  { caller_inline; caller_specialise;
-    callee_inline; callee_specialise }
-
 
 let extract_original_caller_and_result env r call callee annotations =
   let original =
@@ -703,12 +723,8 @@ let for_call_site ~env ~r ~(call : call_informations)
                  ~size_from_approximation:None)
           in
           let specialise_result =
-            specialise env r
-              ~function_decls ~function_decl ~function_body
-              ~lhs_of_application ~closure_id_being_applied
-              ~value_set_of_closures ~args ~args_approxs ~dbg ~simplify
-              ~original ~inline_requested ~specialise_requested ~fun_cost
-              ~rec_info ~inlining_threshold
+            specialise env r ~call ~callee ~annotations ~args_approxs
+              ~simplify ~original~fun_cost ~inlining_threshold
           in
           match specialise_result with
           | Changed (res, spec_reason) ->
