@@ -19,23 +19,45 @@
 (** See the Flambda manual chapter for an explanation in prose of the
     inlining decision procedure. *)
 
+
+type call_informations
+
+type callee_informations
+
+type annotations
+
+val build_call_structure :
+  callee:Variable.t
+  -> args:Variable.t list
+  -> dbg:Debuginfo.t
+  -> rec_info:Flambda.rec_info
+  -> call_informations
+
+val build_callee_structure :
+  function_decls:Simple_value_approx.function_declarations
+  -> function_decl:Simple_value_approx.function_declaration
+  -> closure_id_being_applied:Closure_id.t
+  -> value_set_of_closures:Simple_value_approx.value_set_of_closures
+  -> callee_informations
+
+val build_annotations_structure :
+  caller_inline:Lambda.inline_attribute
+  -> caller_specialise:Lambda.specialise_attribute
+  -> callee:Simple_value_approx.function_declaration
+  -> annotations
+
+
+
 (** Try to inline a full application of a known function, guided by various
     heuristics. *)
 val for_call_site
    : env:Inline_and_simplify_aux.Env.t
   -> r:Inline_and_simplify_aux.Result.t
-  -> function_decls:Simple_value_approx.function_declarations
-  -> lhs_of_application:Variable.t
-  -> rec_info:Flambda.rec_info
-  -> closure_id_being_applied:Closure_id.t
-  -> function_decl:Simple_value_approx.function_declaration
-  -> value_set_of_closures:Simple_value_approx.value_set_of_closures
-  -> args:Variable.t list
+  -> call:call_informations
+  -> callee:callee_informations
+  -> annotations:annotations
   -> args_approxs:Simple_value_approx.t list
-  -> dbg:Debuginfo.t
   -> simplify:Inlining_decision_intf.simplify
-  -> inline_requested:Lambda.inline_attribute
-  -> specialise_requested:Lambda.specialise_attribute
   -> Flambda.t * Inline_and_simplify_aux.Result.t
 
 (** When a function declaration is encountered by [for_call_site], the body
