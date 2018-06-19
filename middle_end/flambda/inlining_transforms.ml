@@ -115,13 +115,13 @@ let inline_by_copying_function_body ~env ~r
       ~lhs_of_application
       ~(inline_requested : Lambda.inline_attribute)
       ~(specialise_requested : Lambda.specialise_attribute)
-      ~max_inlining_arguments
       ~closure_id_being_applied
       ~(function_decls : A.function_declarations)
       ~(function_body : A.function_body)
       ~unroll_to ~args ~dbg ~simplify =
   assert (E.mem env lhs_of_application);
   assert (List.for_all (E.mem env) args);
+  let max_inlining_arguments = E.get_max_inlining_arguments env in
   let function_decls =
     (* This lets us check which recursive siblings are used simply by
        checking free variables. *)
@@ -148,7 +148,6 @@ let inline_by_copying_function_body ~env ~r
     if function_body.stub &&
        ((not default_inline)
         || (not default_specialise)
-        || (Option.is_some max_inlining_arguments)
         || (E.inlining_depth env <> 0)) then
       (* When the function inlined function is a stub, the annotation
          is reported to the function applications inside the stub.
@@ -157,7 +156,7 @@ let inline_by_copying_function_body ~env ~r
          in the source. *)
       set_attributes_on_all_apply body
         inline_requested specialise_requested (E.inlining_depth env)
-        max_inlining_arguments
+        (Some max_inlining_arguments)
     else
       body
   in
@@ -688,7 +687,6 @@ let inline_by_copying_function_declaration
     ~(direct_call_surrogates : Closure_id.t Closure_id.Map.t)
     ~(unboxing_arguments:Flambda.UnboxingArgs.t)
     ~(dbg : Debuginfo.t)
-    ~(max_inlining_arguments : Flambda.InliningArgs.t option)
     ~(simplify : Inlining_decision_intf.simplify) =
   let state = empty_state in
   let state =
@@ -749,7 +747,7 @@ let inline_by_copying_function_declaration
         { func = closure_var; args; kind = Direct closure_id; dbg;
           inlining_depth = E.inlining_depth env;
           inline = inline_requested; specialise = Default_specialise;
-          max_inlining_arguments;
+          max_inlining_arguments = Some (E.get_max_inlining_arguments env);
         }
       in
       let body =

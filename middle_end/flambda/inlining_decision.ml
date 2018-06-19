@@ -102,7 +102,6 @@ let inline env r ~lhs_of_application
     ~(args : Variable.t list) ~size_from_approximation ~dbg ~simplify
     ~(inline_requested : Lambda.inline_attribute)
     ~(specialise_requested : Lambda.specialise_attribute)
-    ~max_inlining_arguments
     ~(rec_info : Flambda.rec_info)
     ~fun_cost ~inlining_threshold =
   let toplevel = E.at_toplevel env in
@@ -237,7 +236,6 @@ let inline env r ~lhs_of_application
         ~r:(R.reset_benefit r) ~lhs_of_application ~unroll_to
         ~closure_id_being_applied ~specialise_requested ~inline_requested
         ~function_decls ~function_body ~args ~dbg ~simplify
-        ~max_inlining_arguments
     in
     let num_direct_applications_seen =
       (R.num_direct_applications r_inlined) - (R.num_direct_applications r)
@@ -337,7 +335,7 @@ let specialise env r ~lhs_of_application
       ~args ~args_approxs ~dbg ~simplify ~original ~rec_info
       ~inlining_threshold ~fun_cost
       ~inline_requested ~specialise_requested
-      ~max_inlining_arguments =
+      =
   let invariant_params = value_set_of_closures.invariant_params in
   let free_vars = value_set_of_closures.free_vars in
   let has_no_useful_approxes =
@@ -415,7 +413,7 @@ let specialise env r ~lhs_of_application
           ~free_vars:value_set_of_closures.free_vars
           ~direct_call_surrogates:value_set_of_closures.direct_call_surrogates
           ~unboxing_arguments:value_set_of_closures.unboxing_arguments
-          ~dbg ~simplify ~inline_requested ~max_inlining_arguments
+          ~dbg ~simplify ~inline_requested
       in
       match copied_function_declaration with
       | Some (expr, r_inlined) ->
@@ -506,12 +504,13 @@ let for_call_site ~env ~r ~(function_decls : A.function_declarations)
       ~(function_decl : A.function_declaration)
       ~(value_set_of_closures : A.value_set_of_closures)
       ~args ~args_approxs ~dbg ~simplify ~inline_requested
-      ~specialise_requested ~max_inlining_arguments =
+      ~specialise_requested =
   if List.length args <> List.length args_approxs then begin
     Misc.fatal_error "Inlining_decision.for_call_site: inconsistent lengths \
         of [args] and [args_approxs]"
   end;
   let inlining_arguments = E.get_inlining_arguments env in
+  let max_inlining_arguments = E.get_max_inlining_arguments env in
   let original =
     Flambda.Apply {
       func = lhs_of_application;
@@ -521,7 +520,7 @@ let for_call_site ~env ~r ~(function_decls : A.function_declarations)
       inlining_depth = E.inlining_depth env;
       inline = inline_requested;
       specialise = specialise_requested;
-      max_inlining_arguments = max_inlining_arguments;
+      max_inlining_arguments = Some max_inlining_arguments;
     }
   in
   let original_r =
@@ -537,7 +536,6 @@ let for_call_site ~env ~r ~(function_decls : A.function_declarations)
           ~unroll_to:0 ~r ~lhs_of_application
           ~closure_id_being_applied ~specialise_requested ~inline_requested
           ~function_decls ~function_body ~args ~dbg ~simplify
-          ~max_inlining_arguments
       in
       simplify env r body
     end else if E.never_inline env then
@@ -569,7 +567,7 @@ let for_call_site ~env ~r ~(function_decls : A.function_declarations)
               Inlining_transforms.inline_by_copying_function_body ~env
                 ~unroll_to:0 ~r ~function_body ~lhs_of_application
                 ~closure_id_being_applied ~specialise_requested ~inline_requested
-                ~function_decls ~args ~dbg ~simplify ~max_inlining_arguments
+                ~function_decls ~args ~dbg ~simplify
             in
             let env = E.note_entering_inlined env in
             let env = E.inside_inlined_function env in
@@ -667,7 +665,7 @@ let for_call_site ~env ~r ~(function_decls : A.function_declarations)
               ~lhs_of_application ~closure_id_being_applied
               ~value_set_of_closures ~args ~args_approxs ~dbg ~simplify
               ~original ~inline_requested ~specialise_requested ~fun_cost
-              ~rec_info ~inlining_threshold ~max_inlining_arguments
+              ~rec_info ~inlining_threshold
           in
           match specialise_result with
           | Changed (res, spec_reason) ->
@@ -695,7 +693,7 @@ let for_call_site ~env ~r ~(function_decls : A.function_declarations)
                 ~only_use_of_function ~original
                 ~inline_requested ~specialise_requested ~args
                 ~size_from_approximation ~dbg ~simplify ~fun_cost ~rec_info
-                ~inlining_threshold ~function_body ~max_inlining_arguments
+                ~inlining_threshold ~function_body
             in
             match inline_result with
             | Changed (res, inl_reason) ->
