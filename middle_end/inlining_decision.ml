@@ -87,22 +87,30 @@ let build_annotations_structure ~caller_inline ~caller_specialise
     callee_inline; callee_specialise }
 
 
-let inlining_policy
-      ~(func_annot : Lambda.inline_attribute)
-      ~(call_annot : Lambda.inline_attribute)
-      ~(rec_info : Flambda.rec_info)
+let is_recursive callee =
+  match callee.function_decl.function_body with
+  | None -> false
+  | Some x -> x.recursive
+
+let is_a_functor callee =
+  match callee.function_decl.function_body with
+  | None -> false
+  | Some x -> x.is_a_functor
+
+
+let inlining_policy annotations call
     : inlining_policy =
-  match rec_info with
+  match call.rec_info with
   | { depth; unroll_to } when depth < unroll_to ->
     Continue_unrolling
   | _ ->
     (* Merge call site annotation and function annotation.
        The call site annotation takes precedence *)
     begin
-      match call_annot with
-      | Always_inline when rec_info.depth <= 1 ->
+      match annotations.caller_inline with
+      | Always_inline when call.rec_info.depth <= 1 ->
         Always_inline
-      | Unroll count when rec_info.depth <= 1 ->
+      | Unroll count when call.rec_info.depth <= 1 ->
         if count > 0
         then Start_unrolling { to_depth = count }
         else Never_inline
@@ -110,10 +118,10 @@ let inlining_policy
         Never_inline
       | _ ->
         begin
-          match func_annot with
-          | Always_inline when rec_info.depth = 0 ->
+          match annotations.callee_inline with
+          | Always_inline when call.rec_info.depth = 0 ->
             Always_inline
-          | Unroll count when rec_info.depth = 0 ->
+          | Unroll count when call.rec_info.depth = 0 ->
             if count > 0
             then Start_unrolling { to_depth = count }
             else Never_inline
@@ -124,23 +132,135 @@ let inlining_policy
         end
     end
 
-let inline env r ~lhs_of_application
-    ~closure_id_being_applied
-    ~(function_decls : A.function_declarations)
-    ~(function_body : A.function_body)
-    ~value_set_of_closures ~only_use_of_function ~original
-    ~(args : Variable.t list) ~size_from_approximation ~dbg ~simplify
-    ~(inline_requested : Lambda.inline_attribute)
-    ~(specialise_requested : Lambda.specialise_attribute)
-    ~(rec_info : Flambda.rec_info)
-    ~fun_cost ~inlining_threshold =
+let inline_without_knowing_args env ~size_from_approximation ~callee =
+  (* When all of the arguments to the function being inlined are unknown,
+     then we cannot materially simplify the function.  As such, we know
+     what the benefit of inlining it would be: just removing the call.
+     In this case we may be able to prove the function cannot be inlined
+     without traversing its body.
+     Note that if the function is sufficiently small, we still have to call
+     [simplify], because the body needs freshening before substitution.
+  *)
+  (* CR-someday mshinwell: (from GPR#8): pchambart writes:
+
+     We may need to think a bit about that. I can't see a lot of
+     meaningful examples right now, but there are some cases where some
+     optimization can happen even if we don't know anything about the
+     shape of the arguments.
+
+     For instance
+
+     let f x y = x
+
+     let g x =
+     let y = (x,x) in
+     f x y
+     let f x y =
+     if x = y then ... else ...
+
+     let g x = f x x
+  *)
+  begin match size_from_approximation with
+  | Some body_size ->
+    let wsb =
+      let benefit = Inlining_cost.Benefit.zero in
+      let benefit = Inlining_cost.Benefit.remove_call benefit in
+      let benefit =
+        Variable.Set.fold (fun v acc ->
+          try
+            let t =
+              Var_within_closure.Map.find (Var_within_closure.wrap v)
+                callee.value_set_of_closures.A.bound_vars
+            in
+            match t.A.var with
+            | Some v ->
+              if (E.mem env v) then Inlining_cost.Benefit.remove_prim acc
+              else acc
+            | None -> acc
+          with Not_found -> acc)
+          (match callee.function_decl.function_body with
+           | Some x -> x.free_variables
+           | None -> Variable.Set.empty) benefit
+      in
+      W.create_estimate
+        ~original_size:Inlining_cost.direct_call_size
+        ~new_size:body_size
+        ~toplevel:(E.at_toplevel env)
+        ~branch_depth:(E.branch_depth env)
+        ~lifting:(is_a_functor callee)
+        ~args:(E.get_inlining_arguments env)
+        ~benefit
+    in
+    if (not (W.evaluate wsb)) then begin
+      Don't_try_it
+        (S.Not_inlined.Without_subfunctions wsb)
+    end else Try_it
+  | None ->
+    (* The function is definitely too large to inline given that we don't
+       have any approximations for its arguments.  Further, the body
+       should already have been simplified (inside its declaration), so
+       we also expect no gain from the code below that permits inlining
+       inside the body. *)
+    Don't_try_it S.Not_inlined.No_useful_approximations
+  end
+
+let keep_inlined_version decision ~env ~always_inline ~r_inlined ~body
+      ~previous_benefit ~simplify =
+  (* Inlining the body of the function was sufficiently beneficial that we
+     will keep it, replacing the call site.  We continue by allowing
+     further inlining within the inlined copy of the body. *)
+  let r_inlined =
+    (* The meaning of requesting inlining is that the user ensure
+       that the function has a benefit of at least its size. It is not
+       added to the benefit exposed by the inlining because the user should
+       have taken that into account before annotating the function. *)
+    if always_inline then
+      R.map_benefit r_inlined
+        (Inlining_cost.Benefit.max ~args:(E.get_inlining_arguments env)
+           Inlining_cost.Benefit.(requested_inline ~size_of:body zero))
+    else r_inlined
+  in
+  let r =
+    R.map_benefit r_inlined (Inlining_cost.Benefit.(+) previous_benefit)
+  in
+  let env = E.note_entering_inlined env in
+  let env = E.inside_inlined_function env in
+  let env =
+    if E.speculation_depth env = 0
+    (* If the function was considered for inlining without considering
+       its sub-functions, and it is not below another inlining choice,
+       then we are certain that this code will be kept. *)
+    then env
+    else E.speculation_depth_up env
+  in
+  Changed ((simplify env r body), decision)
+
+
+let evaluate_speculative_inline env ~callee ~r_inlined ~body ~original ~simplify=
+  let env =
+    E.speculation_depth_up env
+    |> E.note_entering_inlined
+  in
+  let body, r_inlined = simplify env r_inlined body in
+  let wsb_with_subfunctions =
+    W.create ~original body
+      ~toplevel:(E.at_toplevel env)
+      ~branch_depth:(E.branch_depth env)
+      ~lifting:(is_a_functor callee)
+      ~args:(E.get_inlining_arguments env)
+      ~benefit:(R.benefit r_inlined)
+  in
+  W.evaluate wsb_with_subfunctions, wsb_with_subfunctions
+
+
+
+let inline env r ~call ~callee ~annotations ~original
+      ~size_from_approximation ~simplify ~fun_cost
+      ~inlining_threshold =
   let toplevel = E.at_toplevel env in
   let branch_depth = E.branch_depth env in
   let policy =
-    inlining_policy
-      ~func_annot:(function_body.inline)
-      ~call_annot:inline_requested
-      ~rec_info
+    inlining_policy annotations call
   in
   let always_inline =
     match policy with
@@ -165,89 +285,23 @@ let inline env r ~lhs_of_application
       Try_it
     else if not (E.inlining_allowed env) then
       Don't_try_it S.Not_inlined.Inlining_depth_exceeded
-    else if only_use_of_function || always_inline then
+    else if always_inline then
       Try_it
     else if policy = Never_inline then
       Don't_try_it S.Not_inlined.Annotation
-    else if rec_info.depth >= unrolling_limit && function_body.recursive then
+    else if call.rec_info.depth >= unrolling_limit && is_recursive callee then
       Don't_try_it S.Not_inlined.Unrolling_depth_exceeded
     else if remaining_inlining_threshold = T.Never_inline then
-      let threshold =
+       let threshold =
         match inlining_threshold with
         | T.Never_inline -> assert false
         | T.Can_inline_if_no_larger_than threshold -> threshold
       in
       Don't_try_it (S.Not_inlined.Above_threshold threshold)
     else if not (toplevel && branch_depth = 0)
-         && A.all_not_useful (E.find_list_exn env args) then begin
-      (* When all of the arguments to the function being inlined are unknown,
-         then we cannot materially simplify the function.  As such, we know
-         what the benefit of inlining it would be: just removing the call.
-         In this case we may be able to prove the function cannot be inlined
-         without traversing its body.
-         Note that if the function is sufficiently small, we still have to call
-         [simplify], because the body needs freshening before substitution.
-      *)
-      (* CR-someday mshinwell: (from GPR#8): pchambart writes:
-
-          We may need to think a bit about that. I can't see a lot of
-          meaningful examples right now, but there are some cases where some
-          optimization can happen even if we don't know anything about the
-          shape of the arguments.
-
-          For instance
-
-          let f x y = x
-
-          let g x =
-            let y = (x,x) in
-            f x y
-          let f x y =
-            if x = y then ... else ...
-
-          let g x = f x x
-      *)
-      match size_from_approximation with
-      | Some body_size ->
-        let wsb =
-          let benefit = Inlining_cost.Benefit.zero in
-          let benefit = Inlining_cost.Benefit.remove_call benefit in
-          let benefit =
-            Variable.Set.fold (fun v acc ->
-                try
-                  let t =
-                    Var_within_closure.Map.find (Var_within_closure.wrap v)
-                      value_set_of_closures.A.bound_vars
-                  in
-                  match t.A.var with
-                  | Some v ->
-                    if (E.mem env v) then Inlining_cost.Benefit.remove_prim acc
-                    else acc
-                  | None -> acc
-                with Not_found -> acc)
-              function_body.free_variables benefit
-          in
-          W.create_estimate
-            ~original_size:Inlining_cost.direct_call_size
-            ~new_size:body_size
-            ~toplevel:(E.at_toplevel env)
-            ~branch_depth:(E.branch_depth env)
-            ~lifting:function_body.A.is_a_functor
-            ~args:(E.get_inlining_arguments env)
-            ~benefit
-        in
-        if (not (W.evaluate wsb)) then begin
-          Don't_try_it
-            (S.Not_inlined.Without_subfunctions wsb)
-        end else Try_it
-      | None ->
-        (* The function is definitely too large to inline given that we don't
-           have any approximations for its arguments.  Further, the body
-           should already have been simplified (inside its declaration), so
-           we also expect no gain from the code below that permits inlining
-           inside the body. *)
-        Don't_try_it S.Not_inlined.No_useful_approximations
-    end else begin
+         && A.all_not_useful (E.find_list_exn env call.args) then
+      inline_without_knowing_args env ~size_from_approximation ~callee
+    else begin
       (* There are useful approximations, so we should simplify. *)
       Try_it
     end
@@ -263,54 +317,32 @@ let inline env r ~lhs_of_application
          the function, without doing any further inlining upon it, to the call
          site. *)
       Inlining_transforms.inline_by_copying_function_body ~env
-        ~r:(R.reset_benefit r) ~lhs_of_application ~unroll_to
-        ~closure_id_being_applied ~specialise_requested ~inline_requested
-        ~function_decls ~function_body ~args ~dbg ~simplify
+        ~r:(R.reset_benefit r) ~function_decls:callee.function_decls
+        ~lhs_of_application:call.callee ~unroll_to
+        ~closure_id_being_applied:callee.closure_id_being_applied
+        ~specialise_requested:annotations.caller_specialise
+        ~inline_requested:annotations.caller_inline
+        ~args:call.args ~dbg:call.dbg ~simplify
+        ~function_body:(match callee.function_decl.function_body with
+          | Some x -> x
+          | None -> assert(false))
     in
     let num_direct_applications_seen =
       (R.num_direct_applications r_inlined) - (R.num_direct_applications r)
     in
     assert (num_direct_applications_seen >= 0);
     let keep_inlined_version decision =
-      (* Inlining the body of the function was sufficiently beneficial that we
-         will keep it, replacing the call site.  We continue by allowing
-         further inlining within the inlined copy of the body. *)
-      let r_inlined =
-        (* The meaning of requesting inlining is that the user ensure
-           that the function has a benefit of at least its size. It is not
-           added to the benefit exposed by the inlining because the user should
-           have taken that into account before annotating the function. *)
-        if always_inline then
-          R.map_benefit r_inlined
-            (Inlining_cost.Benefit.max ~args:(E.get_inlining_arguments env)
-               Inlining_cost.Benefit.(requested_inline ~size_of:body zero))
-        else r_inlined
-      in
-      let r =
-        R.map_benefit r_inlined (Inlining_cost.Benefit.(+) (R.benefit r))
-      in
-      let env = E.note_entering_inlined env in
-      let env = E.inside_inlined_function env in
-      let env =
-        if E.speculation_depth env = 0
-           (* If the function was considered for inlining without considering
-              its sub-functions, and it is not below another inlining choice,
-              then we are certain that this code will be kept. *)
-        then env
-        else E.speculation_depth_up env
-      in
-      Changed ((simplify env r body), decision)
+      keep_inlined_version decision ~env ~r_inlined ~body ~always_inline
+        ~previous_benefit:(R.benefit r) ~simplify
     in
     if always_inline then
       keep_inlined_version S.Inlined.Annotation
-    else if only_use_of_function then
-      keep_inlined_version S.Inlined.Decl_local_to_application
     else begin
       let wsb =
         W.create ~original body
           ~toplevel:(E.at_toplevel env)
           ~branch_depth:(E.branch_depth env)
-          ~lifting:function_body.is_a_functor
+          ~lifting:(is_a_functor callee)
           ~args:(E.get_inlining_arguments env)
           ~benefit:(R.benefit r_inlined)
       in
@@ -324,18 +356,10 @@ let inline env r ~lhs_of_application
          no opportunities for inlining. *)
         Original (S.Not_inlined.Without_subfunctions wsb)
       end else begin
-        let env = E.speculation_depth_up env in
-        let env = E.note_entering_inlined env in
-        let body, r_inlined = simplify env r_inlined body in
-        let wsb_with_subfunctions =
-          W.create ~original body
-            ~toplevel:(E.at_toplevel env)
-            ~branch_depth:(E.branch_depth env)
-            ~lifting:function_body.is_a_functor
-            ~args:(E.get_inlining_arguments env)
-            ~benefit:(R.benefit r_inlined)
+        let will_inline, wsb_with_subfunctions =
+          evaluate_speculative_inline env ~body ~callee ~simplify ~r_inlined ~original
         in
-        if W.evaluate wsb_with_subfunctions then begin
+        if will_inline then begin
           let decision =
             S.Inlined.With_subfunctions (wsb, wsb_with_subfunctions)
           in
@@ -394,10 +418,6 @@ let specialise_policy annotations =
         | Default_specialise -> false, false
       end
 
-let is_recursive callee =
-  match callee.function_decl.function_body with
-  | None -> false
-  | Some x -> x.recursive
 
 
 let keep_specialised decision ~env ~always_specialise ~r_inlined ~expr ~simplify ~previous_benefit =
@@ -413,7 +433,7 @@ let keep_specialised decision ~env ~always_specialise ~r_inlined ~expr ~simplify
   in
   let env = E.inside_specialised_function env in
   let closure_env =
-    let env =
+    let env' =
       if E.speculation_depth env = 0
       (* If the function was considered for specialising without
          considering its sub-functions, and it is not below another
@@ -422,7 +442,7 @@ let keep_specialised decision ~env ~always_specialise ~r_inlined ~expr ~simplify
       then env
       else E.speculation_depth_up env
     in
-    E.set_never_inline_outside_closures env
+    E.set_never_inline_outside_closures env'
   in
   let expr, r = simplify closure_env r expr in
   let application_env = E.set_never_inline_inside_closures env in
@@ -535,8 +555,8 @@ let specialise env r ~(call : call_informations)
         else if W.evaluate wsb then
           keep_specialised (S.Specialised.Without_subfunctions wsb)
         else begin
-          let will_specialise, wsb_with_subfunctions = evaluate_speculative_specialisation env r_inlined
-                                                         expr original ~simplify
+          let will_specialise, wsb_with_subfunctions =
+            evaluate_speculative_specialisation env r_inlined expr original ~simplify
           in
           if will_specialise then
             (* we know we are going to specialise. We run the same code path as before *)
@@ -598,7 +618,6 @@ let for_call_site ~env ~r ~(call : call_informations)
       let args = call.args in
   let function_decls = callee.function_decls in
   let lhs_of_application = call.callee in
-  let rec_info = call.rec_info in
   let closure_id_being_applied = callee.closure_id_being_applied in
   let function_decl = callee.function_decl in
   let value_set_of_closures = callee.value_set_of_closures in
@@ -639,7 +658,7 @@ let for_call_site ~env ~r ~(call : call_informations)
         | None -> Original S.Not_inlined.Classic_mode
         | Some function_body ->
           let try_inlining =
-            if rec_info.depth >= 1 then
+            if call.rec_info.depth >= 1 then
               Don't_try_it S.Not_inlined.Unrolling_depth_exceeded
             else if not (E.inlining_allowed env) then
               Don't_try_it S.Not_inlined.Inlining_depth_exceeded
@@ -730,7 +749,6 @@ let for_call_site ~env ~r ~(call : call_informations)
           | Changed (res, spec_reason) ->
             Changed (res, D.Specialised spec_reason)
           | Original spec_reason ->
-            let only_use_of_function = false in
             (* If we didn't specialise then try inlining *)
             let size_from_approximation =
               let fun_var = Closure_id.unwrap closure_id_being_applied in
@@ -745,12 +763,9 @@ let for_call_site ~env ~r ~(call : call_informations)
                   A.print_value_set_of_closures value_set_of_closures
             in
             let inline_result =
-              inline env r ~lhs_of_application
-                ~closure_id_being_applied ~function_decls ~value_set_of_closures
-                ~only_use_of_function ~original
-                ~inline_requested ~specialise_requested ~args
-                ~size_from_approximation ~dbg ~simplify ~fun_cost ~rec_info
-                ~inlining_threshold ~function_body
+            inline env r ~call ~callee ~annotations ~original
+              ~size_from_approximation ~simplify ~fun_cost
+              ~inlining_threshold
             in
             match inline_result with
             | Changed (res, inl_reason) ->
