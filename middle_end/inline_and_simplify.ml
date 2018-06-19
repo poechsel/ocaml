@@ -852,12 +852,26 @@ and simplify_apply env r ~(apply : Flambda.apply) : Flambda.t * R.t =
             ret r (A.value_unknown Other)))
 
 and simplify_full_application env r ~function_decls ~lhs_of_application
-      ~rec_info ~closure_id_being_applied ~function_decl ~value_set_of_closures ~args
+      ~rec_info ~closure_id_being_applied ~(function_decl : Simple_value_approx.function_declaration)
+      ~value_set_of_closures ~args
       ~args_approxs ~dbg ~inline_requested ~specialise_requested =
-  Inlining_decision.for_call_site ~env ~r ~function_decls
-    ~lhs_of_application ~rec_info ~closure_id_being_applied ~function_decl
-    ~value_set_of_closures ~args ~args_approxs ~dbg ~simplify
-    ~inline_requested ~specialise_requested
+  let call = Inlining_decision.build_call_structure
+               ~callee:lhs_of_application
+               ~args ~dbg ~rec_info
+  in
+  let callee = Inlining_decision.build_callee_structure
+                 ~function_decls ~function_decl
+                 ~closure_id_being_applied
+                 ~value_set_of_closures
+  in
+  let annotations = Inlining_decision.build_annotations_structure
+                      ~caller_inline:inline_requested
+                      ~caller_specialise:specialise_requested
+                      ~callee:function_decl
+  in
+  Inlining_decision.for_call_site ~env ~r
+    ~call ~callee ~annotations
+    ~args_approxs ~simplify
 
 and simplify_partial_application env r ~lhs_of_application
       ~closure_id_being_applied ~function_decl ~args ~dbg

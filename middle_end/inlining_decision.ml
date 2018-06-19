@@ -490,13 +490,61 @@ let specialise env r ~lhs_of_application
         Original decision
     end
 
-let for_call_site ~env ~r ~(function_decls : A.function_declarations)
-      ~lhs_of_application ~(rec_info : Flambda.rec_info)
-      ~closure_id_being_applied
-      ~(function_decl : A.function_declaration)
-      ~(value_set_of_closures : A.value_set_of_closures)
-      ~args ~args_approxs ~dbg ~simplify ~inline_requested
-      ~specialise_requested =
+type call_informations = {
+  callee : Variable.t;
+  args : Variable.t list;
+  dbg : Debuginfo.t;
+  rec_info : Flambda.rec_info;
+}
+
+type callee_informations = {
+    function_decls : A.function_declarations;
+    (* the function definition itself *)
+    function_decl : A.function_declaration;
+    (* the closure identifier itself *)
+    closure_id_being_applied : Closure_id.t;
+
+    value_set_of_closures : A.value_set_of_closures;
+}
+
+type annotations = {
+    caller_inline : Lambda.inline_attribute;
+    caller_specialise : Lambda.specialise_attribute;
+    callee_inline : Lambda.inline_attribute;
+    callee_specialise : Lambda.specialise_attribute;
+  }
+
+let build_call_structure ~callee ~args ~dbg ~rec_info =
+  { callee; args; dbg; rec_info }
+
+let build_callee_structure ~function_decls ~function_decl
+      ~closure_id_being_applied ~value_set_of_closures =
+  { function_decls; function_decl; closure_id_being_applied; value_set_of_closures }
+
+let build_annotations_structure ~caller_inline ~caller_specialise
+      ~(callee : A.function_declaration) =
+  let callee_inline, callee_specialise =
+    match callee.function_body with
+    | None -> Lambda.Never_inline, Lambda.Never_specialise
+    | Some x -> x.inline, x.specialise
+  in
+  { caller_inline; caller_specialise;
+    callee_inline; callee_specialise }
+
+let for_call_site ~env ~r ~(call : call_informations)
+      ~(callee : callee_informations) ~(annotations : annotations)
+      ~args_approxs ~simplify
+      =
+  let args = call.args in
+  let function_decls = callee.function_decls in
+  let lhs_of_application = call.callee in
+  let rec_info = call.rec_info in
+  let closure_id_being_applied = callee.closure_id_being_applied in
+  let function_decl = callee.function_decl in
+  let value_set_of_closures = callee.value_set_of_closures in
+  let dbg = call.dbg in
+  let inline_requested = annotations.caller_inline in
+  let specialise_requested = annotations.caller_specialise in
   if List.length args <> List.length args_approxs then begin
     Misc.fatal_error "Inlining_decision.for_call_site: inconsistent lengths \
         of [args] and [args_approxs]"
