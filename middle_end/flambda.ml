@@ -16,6 +16,106 @@
 
 [@@@ocaml.warning "+a-4-9-30-40-41-42"]
 
+
+module Closure_stack = struct
+  type t = node list
+
+  and node =
+    | Closure of Closure_id.t * Debuginfo.t
+    | Call of Closure_id.t * Debuginfo.t * t option
+    | Inlined
+    | Specialised of Closure_id.Set.t
+
+  let create () = []
+
+  (* beware, the following are more to check equality than true
+     order *)
+  let rec compare_node a b =
+    match a, b with
+    | Inlined, Inlined ->
+      0
+    | Closure(a, b), Closure(a', b') ->
+      let c = Closure_id.compare a a' in
+      if c <> 0 then c else
+      Debuginfo.compare b b'
+    | Call(a, b, p), Call(a', b', p') ->
+      let c = Closure_id.compare a a' in
+      if c <> 0 then c else
+        let c = Debuginfo.compare b b' in
+        if c <> 0 then c else begin
+          match p, p' with
+          | None, None -> 0
+          | Some l, Some l' ->
+            compare l l'
+          | _ -> -1
+          end
+    | Specialised(a), Specialised(a') ->
+      Closure_id.Set.compare a a'
+    | _ -> -1
+
+  and compare l l' =
+    let c = List.compare_lengths l l' in
+    if c <> 0 then c else
+      List.fold_left2 (fun p e e' ->
+        if p <> 0 then p
+        else compare_node e e')
+        0 l l'
+
+  let strip_history hist =
+    List.map (function | Call(a, b, _) -> Call (a, b, None)
+                       | x -> x) hist
+
+  let print_node ppf x =
+    match x with
+    | Inlined ->
+      Format.fprintf ppf "inlined "
+    | Call (c, _, _) ->
+      Format.fprintf ppf "call(%s) " (Closure_id.unique_name c)
+    | Closure (c, _) ->
+      Format.fprintf ppf "closure(%s) " (Closure_id.unique_name c)
+    | _ ->
+      Format.fprintf ppf "specialise "
+
+  let print ppf l =
+    List.iter (print_node ppf) l
+
+  let add a b =
+    (* order is important. If b= [1; 2] and a = [3;4;5],
+       we want the result to be [1;2;3;4;5] *)
+    a @ b
+
+  let note_entering_closure t ~closure_id ~dbg =
+    if not !Clflags.inlining_report then t
+    else
+      match t with
+      | [] | (Closure _ | Inlined | Specialised _)  :: _->
+        (Closure (closure_id, dbg)) :: t
+      | (Call _) :: _ ->
+        Misc.fatal_errorf "note_entering_closure: unexpected Call node"
+
+  (* CR-someday lwhite: since calls do not have a unique id it is possible
+     some calls will end up sharing nodes. *)
+  let note_entering_call t ~closure_id ~dbg ~absolute_inlining_history =
+        (Call (closure_id, dbg, absolute_inlining_history)) :: t
+
+  let note_entering_inlined t =
+    if not !Clflags.inlining_report then t
+    else
+      match t with
+      | [] | (Closure _ | Inlined | Specialised _) :: _->
+        Misc.fatal_errorf "note_entering_inlined: missing Call node"
+      | (Call _) :: _ -> Inlined :: t
+
+  let note_entering_specialised t ~closure_ids =
+    if not !Clflags.inlining_report then t
+    else
+      match t with
+      | [] | (Closure _ | Inlined | Specialised _) :: _ ->
+        Misc.fatal_errorf "note_entering_specialised: missing Call node"
+      | (Call _) :: _ -> Specialised closure_ids :: t
+
+end
+
 module UnboxingArgs = struct
   type t = {
     unbox_specialised_args : bool;
@@ -303,6 +403,7 @@ type apply = {
   inline : Lambda.inline_attribute;
   specialise : Lambda.specialise_attribute;
   max_inlining_arguments : InliningArgs.t option;
+  inlining_history : Closure_stack.t;
 }
 
 type assign = {
@@ -405,6 +506,7 @@ and function_declaration = {
   inline : Lambda.inline_attribute;
   specialise : Lambda.specialise_attribute;
   is_a_functor : bool;
+  inlining_history : Closure_stack.t;
 }
 
 and switch = {
@@ -494,7 +596,7 @@ let rec lam ppf (flam : t) =
   match flam with
   | Var (id) ->
       Variable.print ppf id
-  | Apply({func; args; kind; inline; inlining_depth; dbg}) ->
+  | Apply({func; args; kind; inline; inlining_depth; dbg; inlining_history}) ->
     let direct ppf () =
       match kind with
       | Indirect -> ()
@@ -507,10 +609,11 @@ let rec lam ppf (flam : t) =
       | Unroll i -> fprintf ppf "<unroll %i>" i
       | Default_inline -> ()
     in
-    fprintf ppf "@[<2>(apply%a%a<%s>@,%a@ %a%a)@]" direct () inline ()
+    fprintf ppf "@[<2>(apply%a%a<%s>@,%a@ %a%a)  hist=[%a]@]" direct () inline ()
       (Debuginfo.to_string dbg)
       print_inlining_depth inlining_depth
       Variable.print func Variable.print_list args
+      Closure_stack.print inlining_history
   | Assign { being_assigned; new_value; } ->
     fprintf ppf "@[<2>(assign@ %a@ %a)@]"
       Mutable_variable.print being_assigned
@@ -697,8 +800,9 @@ and print_function_declaration ppf var (f : function_declaration) =
     | Never_specialise -> " *never_specialise*"
     | Default_specialise -> ""
   in
-  fprintf ppf "@[<2>(%a%s%s%s%s%s@ =@ fun@[<2>%a@] ->@ @[<2>%a@])@]@ "
+  fprintf ppf "@[<2>(%a%s%s%s%s%s[%a]@ =@ fun@[<2>%a@] ->@ @[<2>%a@])@]@ "
     Variable.print var recursive stub is_a_functor inline specialise
+    Closure_stack.print f.inlining_history
     params f.params lam f.body
 
 and print_set_of_closures ppf (set_of_closures : set_of_closures) =
@@ -1311,9 +1415,41 @@ let free_symbols_program (program : program) =
   loop program.program_body;
   !symbols
 
+
+let replace_declaration_in_stats_stack ~old_id ~new_id stack =
+  List.map (function
+    | Closure_stack.Closure (c, dbg) when Closure_id.unwrap c = old_id ->
+      Closure_stack.Closure (Closure_id.wrap new_id, dbg)
+    | x -> x) stack
+
+let update_id_declaration_stats_stack ~old_id ~new_id decl =
+  { decl with inlining_history =
+                replace_declaration_in_stats_stack
+                  ~old_id ~new_id
+                  decl.inlining_history }
+
+let map_stats_stack_id subst stack =
+  List.map (function
+    | Closure_stack.Closure(id, dbg) ->
+      let id = subst (Closure_id.unwrap id)
+               |> Closure_id.wrap
+      in
+      Closure_stack.Closure(id, dbg)
+    | Closure_stack.Call(id, dbg, h) ->
+      let id = subst (Closure_id.unwrap id)
+               |> Closure_id.wrap
+      in
+      Closure_stack.Call(id, dbg, h)
+    | x -> x)
+    stack
+
+let create_declaration_stats_stack ~id ~dbg =
+  Closure_stack.Closure (Closure_id.wrap id, dbg) :: []
+
 let create_function_declaration ~recursive ~params ~body ~stub ~dbg
       ~(inline : Lambda.inline_attribute)
       ~(specialise : Lambda.specialise_attribute) ~is_a_functor
+      ~inlining_history
       : function_declaration =
   begin match stub, inline with
   | true, (Never_inline | Default_inline)
@@ -1341,12 +1477,24 @@ let create_function_declaration ~recursive ~params ~body ~stub ~dbg
     inline;
     specialise;
     is_a_functor;
+    inlining_history;
   }
 
-let update_function_declaration fun_decl ~params ~body =
+(*let update_function_body func_decl body =
+  create_function_declaration ~body
+    ~recursive:func_decl.recursive
+    ~params:func_decl.params
+    ~stub:func_decl.stub
+    ~dbg:func_decl.dbg
+    ~inline:func_decl.inline
+    ~specialise:func_decl.specialise
+    ~is_a_functor:func_decl.is_a_functor
+    ~inlining_history:func_decl.inlining_history
+*)
+let update_function_declaration fun_decl ~params ~body ~inlining_history =
   let free_variables = free_variables body in
   let free_symbols = free_symbols body in
-  { fun_decl with params; body; free_variables; free_symbols }
+  { fun_decl with params; body; free_variables; free_symbols; inlining_history }
 
 let update_function_declaration_body (fun_decl : function_declaration) f =
   let old_body = fun_decl.body in
@@ -1572,3 +1720,7 @@ let compare_project_var = Projection.compare_project_var
 let compare_project_closure = Projection.compare_project_closure
 let compare_move_within_set_of_closures =
   Projection.compare_move_within_set_of_closures
+
+
+let update_set_of_closure_decls set ~function_decls =
+  { set with function_decls }

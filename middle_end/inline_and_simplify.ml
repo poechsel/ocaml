@@ -621,6 +621,7 @@ let rec simplify_project_var env r ~(project_var : Flambda.project_var)
 *)
 and simplify_set_of_closures original_env r
       (set_of_closures : Flambda.set_of_closures)
+      parts_inlining_stack
       : Flambda.set_of_closures * R.t * Freshening.Project_var.t =
   let function_decls =
     (* CR-soon mshinwell: Does this affect
@@ -645,12 +646,16 @@ and simplify_set_of_closures original_env r
         ~free_vars ~specialised_args ~parameter_approximations
         ~nonrec_closure_env ~rec_closure_env
     in
+    let inlining_history =
+      Flambda.Closure_stack.add function_decl.inlining_history parts_inlining_stack
+    in
     let body, r =
       E.enter_closure closure_env ~closure_id:(Closure_id.wrap fun_var)
         ~inline_inside:
           (Inlining_decision.should_inline_inside_declaration function_decl)
         ~dbg:function_decl.dbg
         ~f:(fun body_env ->
+          let body_env = E.add_inlining_history body_env inlining_history in
           simplify body_env r function_decl.body)
     in
     let function_decl =
@@ -659,6 +664,7 @@ and simplify_set_of_closures original_env r
         ~body ~stub:function_decl.stub ~dbg:function_decl.dbg
         ~inline:function_decl.inline ~specialise:function_decl.specialise
         ~is_a_functor:function_decl.is_a_functor
+        ~inlining_history
     in
     let used_params' = Flambda.used_params function_decl in
     Variable.Map.add fun_var function_decl funs,
@@ -721,6 +727,7 @@ and simplify_apply env r ~(apply : Flambda.apply) : Flambda.t * R.t =
     inline = inline_requested; specialise = specialise_requested;
     inlining_depth = original_inlining_depth;
     max_inlining_arguments = max_inlining_arguments;
+    inlining_history = inlining_history;
   } = apply in
   (* we are always merging inlining environnements.
       This allows us to keep the maximum inlining arguments sane at all
@@ -736,6 +743,11 @@ and simplify_apply env r ~(apply : Flambda.apply) : Flambda.t * R.t =
       we will only inline the call of foo that had appears with O1,
       which is predictable
   *)
+  let parts, env = E.pop_inlining_history_next_parts env in
+  (* the parts we had defines previous history. We must add them at the end *)
+  let inlining_history =
+    Flambda.Closure_stack.add inlining_history parts
+  in
   let env =
     let max_env_args = E.get_max_inlining_arguments env in
     let env_args = E.get_inlining_arguments env in
@@ -827,12 +839,12 @@ and simplify_apply env r ~(apply : Flambda.apply) : Flambda.t * R.t =
               simplify_full_application env r ~function_decls ~rec_info
                 ~lhs_of_application ~closure_id_being_applied ~function_decl
                 ~value_set_of_closures ~args ~args_approxs ~dbg
-                ~inline_requested ~specialise_requested
+                ~inline_requested ~specialise_requested ~inlining_history
             else if nargs > arity then
               simplify_over_application env r ~args ~args_approxs ~rec_info
                 ~function_decls ~lhs_of_application ~closure_id_being_applied
                 ~function_decl ~value_set_of_closures ~dbg ~inline_requested
-                ~specialise_requested
+                ~specialise_requested ~inlining_history
             else if nargs > 0 && nargs < arity then
               simplify_partial_application env r ~lhs_of_application
                 ~closure_id_being_applied ~function_decl ~args ~dbg
@@ -848,16 +860,18 @@ and simplify_apply env r ~(apply : Flambda.apply) : Flambda.t * R.t =
           Apply ({ func = lhs_of_application; args; kind = Indirect; dbg;
                    inline = inline_requested; specialise = specialise_requested;
                    inlining_depth = E.inlining_depth env;
-                   max_inlining_arguments = Some max_inlining_arguments}),
+                   max_inlining_arguments = Some max_inlining_arguments;
+                   inlining_history
+                 }),
             ret r (A.value_unknown Other)))
 
 and simplify_full_application env r ~function_decls ~lhs_of_application
       ~rec_info ~closure_id_being_applied ~(function_decl : Simple_value_approx.function_declaration)
-      ~value_set_of_closures ~args
+      ~value_set_of_closures ~args ~inlining_history
       ~args_approxs ~dbg ~inline_requested ~specialise_requested =
   let call = Inlining_decision.build_call_structure
                ~callee:lhs_of_application
-               ~args ~dbg ~rec_info
+               ~args ~dbg ~rec_info ~inlining_history
   in
   let callee = Inlining_decision.build_callee_structure
                  ~function_decls ~function_decl
@@ -940,6 +954,7 @@ and simplify_partial_application env r ~lhs_of_application
 and simplify_over_application env r ~args ~args_approxs ~function_decls
       ~lhs_of_application ~rec_info ~closure_id_being_applied ~function_decl
       ~value_set_of_closures ~dbg ~inline_requested ~specialise_requested
+      ~inlining_history
       =
   let arity = A.function_arity function_decl in
   assert (arity < List.length args);
@@ -954,7 +969,7 @@ and simplify_over_application env r ~args ~args_approxs ~function_decls
     simplify_full_application env r ~function_decls ~lhs_of_application
       ~closure_id_being_applied ~function_decl ~value_set_of_closures
       ~args:full_app_args ~args_approxs:full_app_approxs ~dbg
-      ~inline_requested ~specialise_requested ~rec_info
+      ~inline_requested ~specialise_requested ~rec_info ~inlining_history
   in
   let func_var = Variable.create Internal_variable_names.full_apply in
   let expr : Flambda.t =
@@ -962,7 +977,9 @@ and simplify_over_application env r ~args ~args_approxs ~function_decls
       (Apply { func = func_var; args = remaining_args; kind = Indirect; dbg;
                inline = inline_requested; specialise = specialise_requested;
                inlining_depth = E.inlining_depth env;
-               max_inlining_arguments = Some (E.get_max_inlining_arguments env) })
+               max_inlining_arguments = Some (E.get_max_inlining_arguments env);
+               inlining_history (* not updating it *)
+             })
   in
   let expr = Lift_code.lift_lets_expr expr ~toplevel:true in
   simplify (E.set_never_inline env) r expr
@@ -994,85 +1011,86 @@ and simplify_named env r (tree : Flambda.named) : Flambda.named * R.t =
     end
   | Set_of_closures set_of_closures -> begin
       let symbol_to_closure_id = E.find_closure_id_for_symbol env in
+      let parts, env = E.pop_inlining_history_next_parts env in
       let set_of_closures, r, first_freshening =
-        simplify_set_of_closures env r set_of_closures
+        simplify_set_of_closures env r set_of_closures parts
       in
       let simplify env r expr ~pass_name : Flambda.named * R.t =
-      (* If simplifying a set of closures more than once during any given round
-         of simplification, the [Freshening.Project_var] substitutions arising
-         from each call to [simplify_set_of_closures] must be composed.
-         Note that this function only composes with [first_freshening] owing
-         to the structure of the code below (this new [simplify] is always
-         in tail position). *)
-      (* CR-someday mshinwell: It was mooted that maybe we could try
-         structurally-typed closures (i.e. where we would never rename the
-         closure elements), or something else, to try to remove
-         the "closure freshening" thing in the approximation which is hard
-         to deal with. *)
-      let expr, r = simplify (E.set_never_inline env) r expr in
-      let approx = R.approx r in
-      let value_set_of_closures =
-        match A.strict_check_approx_for_set_of_closures approx with
-        | Wrong ->
-          Misc.fatal_errorf "Unexpected approximation returned from \
-              simplification of [%s] result: %a"
-            pass_name A.print approx
-        | Ok (_var, value_set_of_closures) ->
-          let freshening =
-            Freshening.Project_var.compose ~earlier:first_freshening
-              ~later:value_set_of_closures.freshening
-          in
-          A.update_freshening_of_value_set_of_closures value_set_of_closures
-            ~freshening
+        (* If simplifying a set of closures more than once during any given round
+           of simplification, the [Freshening.Project_var] substitutions arising
+           from each call to [simplify_set_of_closures] must be composed.
+           Note that this function only composes with [first_freshening] owing
+           to the structure of the code below (this new [simplify] is always
+           in tail position). *)
+        (* CR-someday mshinwell: It was mooted that maybe we could try
+           structurally-typed closures (i.e. where we would never rename the
+           closure elements), or something else, to try to remove
+           the "closure freshening" thing in the approximation which is hard
+           to deal with. *)
+        let expr, r = simplify (E.set_never_inline env) r expr in
+        let approx = R.approx r in
+        let value_set_of_closures =
+          match A.strict_check_approx_for_set_of_closures approx with
+          | Wrong ->
+            Misc.fatal_errorf "Unexpected approximation returned from \
+                               simplification of [%s] result: %a"
+              pass_name A.print approx
+          | Ok (_var, value_set_of_closures) ->
+            let freshening =
+              Freshening.Project_var.compose ~earlier:first_freshening
+                ~later:value_set_of_closures.freshening
+            in
+            A.update_freshening_of_value_set_of_closures value_set_of_closures
+              ~freshening
+        in
+        Expr expr, (ret r (A.value_set_of_closures value_set_of_closures))
       in
-      Expr expr, (ret r (A.value_set_of_closures value_set_of_closures))
-    in
-    (* This does the actual substitutions of specialised args introduced
-       by [Unbox_closures] for free variables.  (Apart from simplifying
-       the [Unbox_closures] output, this also prevents applying
-       [Unbox_closures] over and over.) *)
-    let set_of_closures =
-      match Remove_free_vars_equal_to_args.run set_of_closures with
-      | None -> set_of_closures
-      | Some set_of_closures -> set_of_closures
-    in
-    (* Do [Unbox_closures] next to try to decide which things are
-       free variables and which things are specialised arguments before
-       unboxing them. *)
-    match
-      Unbox_closures.rewrite_set_of_closures ~env
-        ~duplicate_function ~set_of_closures
-    with
-    | Some (expr, benefit) ->
-      let r = R.add_benefit r benefit in
-      simplify env r expr ~pass_name:"Unbox_closures"
-    | None ->
-      match Unbox_free_vars_of_closures.run ~env ~set_of_closures with
+      (* This does the actual substitutions of specialised args introduced
+         by [Unbox_closures] for free variables.  (Apart from simplifying
+         the [Unbox_closures] output, this also prevents applying
+         [Unbox_closures] over and over.) *)
+      let set_of_closures =
+        match Remove_free_vars_equal_to_args.run set_of_closures with
+        | None -> set_of_closures
+        | Some set_of_closures -> set_of_closures
+      in
+      (* Do [Unbox_closures] next to try to decide which things are
+         free variables and which things are specialised arguments before
+         unboxing them. *)
+      match
+        Unbox_closures.rewrite_set_of_closures ~env
+          ~duplicate_function ~set_of_closures
+      with
       | Some (expr, benefit) ->
         let r = R.add_benefit r benefit in
-        simplify env r expr ~pass_name:"Unbox_free_vars_of_closures"
+        simplify env r expr ~pass_name:"Unbox_closures"
       | None ->
-        (* CR-soon mshinwell: should maybe add one allocation for the stub *)
-        match
-          Unbox_specialised_args.rewrite_set_of_closures ~env
-            ~duplicate_function ~set_of_closures
-        with
+        match Unbox_free_vars_of_closures.run ~env ~set_of_closures with
         | Some (expr, benefit) ->
           let r = R.add_benefit r benefit in
-          simplify env r expr ~pass_name:"Unbox_specialised_args"
+          simplify env r expr ~pass_name:"Unbox_free_vars_of_closures"
         | None ->
+          (* CR-soon mshinwell: should maybe add one allocation for the stub *)
           match
-            Remove_unused_arguments.separate_unused_arguments_in_set_of_closures
-              set_of_closures ~symbol_to_closure_id
+            Unbox_specialised_args.rewrite_set_of_closures ~env
+              ~duplicate_function ~set_of_closures
           with
-          | Some set_of_closures ->
-            let expr =
-              Flambda_utils.name_expr (Set_of_closures set_of_closures)
-                ~name:Internal_variable_names.remove_unused_arguments
-            in
-            simplify env r expr ~pass_name:"Remove_unused_arguments"
+          | Some (expr, benefit) ->
+            let r = R.add_benefit r benefit in
+            simplify env r expr ~pass_name:"Unbox_specialised_args"
           | None ->
-            Set_of_closures set_of_closures, r
+            match
+              Remove_unused_arguments.separate_unused_arguments_in_set_of_closures
+                set_of_closures ~symbol_to_closure_id
+            with
+            | Some set_of_closures ->
+              let expr =
+                Flambda_utils.name_expr (Set_of_closures set_of_closures)
+                  ~name:Internal_variable_names.remove_unused_arguments
+              in
+              simplify env r expr ~pass_name:"Remove_unused_arguments"
+            | None ->
+              Set_of_closures set_of_closures, r
     end
   | Project_closure project_closure ->
     simplify_project_closure env r ~project_closure
@@ -1567,6 +1585,7 @@ and duplicate_function ~env ~(set_of_closures : Flambda.set_of_closures)
       ~body ~stub:function_decl.stub ~dbg:function_decl.dbg
       ~inline:function_decl.inline ~specialise:function_decl.specialise
       ~is_a_functor:function_decl.is_a_functor ~recursive:function_decl.recursive
+      ~inlining_history:function_decl.inlining_history
   in
   function_decl, specialised_args
 
@@ -1706,8 +1725,9 @@ let simplify_constant_defining_value
                            closed: %a"
           Flambda.print_set_of_closures set_of_closures
       end;
+      let parts, env = E.pop_inlining_history_next_parts env in
       let set_of_closures, r, _freshening =
-        simplify_set_of_closures env r set_of_closures
+        simplify_set_of_closures env r set_of_closures parts
       in
       r, ((Set_of_closures set_of_closures) : Flambda.constant_defining_value),
         R.approx r

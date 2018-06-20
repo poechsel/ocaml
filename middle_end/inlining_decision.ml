@@ -50,6 +50,7 @@ type call_informations = {
   args : Variable.t list;
   dbg : Debuginfo.t;
   rec_info : Flambda.rec_info;
+  inlining_history : Flambda.Closure_stack.t;
 }
 
 type callee_informations = {
@@ -69,8 +70,8 @@ type annotations = {
     callee_specialise : Lambda.specialise_attribute;
   }
 
-let build_call_structure ~callee ~args ~dbg ~rec_info =
-  { callee; args; dbg; rec_info }
+let build_call_structure ~callee ~args ~dbg ~rec_info ~inlining_history =
+  { callee; args; dbg; rec_info; inlining_history }
 
 let build_callee_structure ~function_decls ~function_decl
       ~closure_id_being_applied ~value_set_of_closures =
@@ -255,7 +256,8 @@ let evaluate_speculative_inline env ~callee ~r_inlined ~body ~original ~simplify
 
 let inline env r ~call ~callee ~annotations ~original
       ~size_from_approximation ~simplify ~fun_cost
-      ~inlining_threshold =
+      ~inlining_threshold ~inlining_history_next_part
+  =
   let toplevel = E.at_toplevel env in
   let branch_depth = E.branch_depth env in
   let policy =
@@ -323,6 +325,8 @@ let inline env r ~call ~callee ~annotations ~original
         ~inline_requested:annotations.caller_inline
         ~args:call.args ~dbg:call.dbg ~simplify
         ~function_body:(get_function_body callee.function_decl)
+        ~inlining_history:call.inlining_history
+        ~inlining_history_next_part:(Some inlining_history_next_part)
     in
     let num_direct_applications_seen =
       (R.num_direct_applications r_inlined) - (R.num_direct_applications r)
@@ -516,6 +520,14 @@ let specialise env r ~(call : call_informations)
         R.set_inlining_threshold r (Some remaining_inlining_threshold)
       in
       let copied_function_declaration =
+        let closure_ids =
+          Closure_id.Set.of_list (
+            List.map Closure_id.wrap
+              (Variable.Set.elements (Variable.Map.keys callee.function_decls.funs)))
+        in
+        let env =
+          E.add_inlining_history_part env (Flambda.Closure_stack.Specialised closure_ids)
+        in
         Inlining_transforms.inline_by_copying_function_declaration ~env
           ~r:(R.reset_benefit r) ~lhs_of_application:call.callee
           ~rec_info:call.rec_info
@@ -578,6 +590,7 @@ let extract_original_caller_and_result env r call callee annotations =
       inline = annotations.caller_inline;
       specialise = annotations.caller_specialise;
       max_inlining_arguments = Some (E.get_max_inlining_arguments env);
+      inlining_history = call.inlining_history;
     }
   in
   let original_r =
@@ -605,11 +618,9 @@ let compute_thresholding_for_call env r inlining_arguments =
     in
     inlining_threshold, raw, diff
 
-let classic_mode_inlining env r ~simplify ~callee ~call ~annotations =
-  let env =
-    E.note_entering_call env
-      ~closure_id:callee.closure_id_being_applied ~dbg:call.dbg
-  in
+let classic_mode_inlining env r ~simplify ~callee ~call ~annotations
+      ~inlining_history_next_part
+  =
   let simpl =
     match callee.function_decl.function_body with
     | None -> Original S.Not_inlined.Classic_mode
@@ -633,6 +644,8 @@ let classic_mode_inlining env r ~simplify ~callee ~call ~annotations =
             ~specialise_requested:annotations.caller_specialise
             ~inline_requested:annotations.caller_inline
             ~function_decls:callee.function_decls ~args:call.args ~dbg:call.dbg ~simplify
+            ~inlining_history:call.inlining_history
+            ~inlining_history_next_part:(Some inlining_history_next_part)
         in
         let env = E.note_entering_inlined env in
         let env = E.inside_inlined_function env in
@@ -647,16 +660,15 @@ let classic_mode_inlining env r ~simplify ~callee ~call ~annotations =
       Original (decision)
     | Changed ((expr, r), decision) ->
       Changed((expr, r), S.Decision.Inlined (S.Not_specialised.Classic_mode, decision))
-  in out, env
+  in out
 
 let flambda_mode_inlining env r ~simplify ~callee ~call ~annotations
-      ~inlining_threshold ~inlining_arguments ~original ~args_approxs =
+      ~inlining_threshold ~inlining_arguments ~original ~args_approxs
+      ~inlining_history_next_part
+
+  =
   let function_body = get_function_body callee.function_decl in
   let env = E.unset_never_inline_inside_closures env in
-  let env =
-    E.note_entering_call env
-      ~closure_id:callee.closure_id_being_applied ~dbg:call.dbg
-  in
   let max_level =
     (InliningArgs.extract inlining_arguments).inline_max_speculation_depth
   in
@@ -677,7 +689,8 @@ let flambda_mode_inlining env r ~simplify ~callee ~call ~annotations
              ~size_from_approximation:None)
       in
       let specialise_result =
-        specialise env r ~call ~callee ~annotations ~args_approxs
+        specialise (E.add_inlining_history env inlining_history_next_part)
+          r ~call ~callee ~annotations ~args_approxs
           ~simplify ~original ~fun_cost ~inlining_threshold
       in
       let out = match specialise_result with
@@ -700,7 +713,7 @@ let flambda_mode_inlining env r ~simplify ~callee ~call ~annotations
           let inline_result =
             inline env r ~call ~callee ~annotations ~original
               ~size_from_approximation ~simplify ~fun_cost
-              ~inlining_threshold
+              ~inlining_threshold ~inlining_history_next_part
           in
           match inline_result with
           | Changed (res, inl_reason) ->
@@ -709,13 +722,12 @@ let flambda_mode_inlining env r ~simplify ~callee ~call ~annotations
             Original (D.Unchanged (spec_reason, inl_reason))
       in out
     end
-  in out, env
+  in out
 
 let for_call_site ~env ~r ~(call : call_informations)
       ~(callee : callee_informations) ~(annotations : annotations)
-      ~args_approxs ~simplify
-      =
-      let args = call.args in
+      ~args_approxs ~simplify =
+  let args = call.args in
   let function_decls = callee.function_decls in
   let lhs_of_application = call.callee in
   let closure_id_being_applied = callee.closure_id_being_applied in
@@ -739,6 +751,8 @@ let for_call_site ~env ~r ~(call : call_informations)
           ~unroll_to:0 ~r ~lhs_of_application
           ~closure_id_being_applied ~specialise_requested ~inline_requested
           ~function_decls ~function_body ~args ~dbg ~simplify
+          ~inlining_history:call.inlining_history
+          ~inlining_history_next_part:None
       in
       simplify env r body
     end else if E.never_inline env then
@@ -750,16 +764,29 @@ let for_call_site ~env ~r ~(call : call_informations)
       let inlining_threshold, raw_inlining_threshold, inlining_threshold_diff =
         compute_thresholding_for_call env r inlining_arguments
       in
-      let simpl, env =
+      let inlining_history_next_part =
+        Flambda.Closure_stack.note_entering_call
+          ~dbg:call.dbg ~closure_id:callee.closure_id_being_applied
+          ~absolute_inlining_history:
+            (Some (Flambda.Closure_stack.strip_history (E.inlining_history env)))
+          call.inlining_history
+      in
+      let env =
+        E.note_entering_call env
+          ~closure_id:callee.closure_id_being_applied ~dbg:call.dbg
+      in
+      let simpl =
         if function_decls.is_classic_mode > 0.0 then begin
           classic_mode_inlining env r ~simplify
             ~call ~callee ~annotations
+            ~inlining_history_next_part
         end else begin
           flambda_mode_inlining env r ~simplify ~call ~callee ~annotations
             ~original ~inlining_arguments ~inlining_threshold ~args_approxs
+            ~inlining_history_next_part
         end
       in
-      let res, decision, _record_decision =
+      let res, decision, record_decision =
         match simpl with
         | Original decision -> (original, original_r), decision, false
         | Changed ((expr, r), decision) ->
@@ -770,10 +797,10 @@ let for_call_site ~env ~r ~(call : call_informations)
           in
           res, decision, true
       in
-      (*if record_decision || (E.round env = Clflags.rounds ()) then begin
+      let env = E.add_inlining_history env inlining_history_next_part in
+      if record_decision || (E.round env = Clflags.rounds () - 1) then begin
         E.record_decision env decision;
-        end;*)
-        E.record_decision env decision;
+        end;
       res
     end
 

@@ -44,10 +44,10 @@ let fold_over_projections_of_vars_bound_by_closure ~closure_id_being_applied
     bound_variables
     init
 
-let set_attributes_on_all_apply body inline specialise inlining_depth max_inlining_arguments =
+let set_attributes_on_all_apply body inline specialise inlining_depth max_inlining_arguments ~inlining_history =
   Flambda_iterators.map_toplevel_expr (function
     | Apply apply -> Apply { apply with inline; specialise; inlining_depth;
-                           max_inlining_arguments }
+                                        max_inlining_arguments; inlining_history }
       | expr -> expr)
     body
 
@@ -117,6 +117,8 @@ let inline_by_copying_function_body ~env ~r
       ~closure_id_being_applied
       ~(function_decls : A.function_declarations)
       ~(function_body : A.function_body)
+      ~(inlining_history : Flambda.Closure_stack.t)
+      ~(inlining_history_next_part : Flambda.Closure_stack.t option)
       ~unroll_to ~args ~dbg ~simplify =
   assert (E.mem env lhs_of_application);
   assert (List.for_all (E.mem env) args);
@@ -141,7 +143,8 @@ let inline_by_copying_function_body ~env ~r
     if function_body.stub &&
        ((inline_requested <> Lambda.Default_inline)
         || (specialise_requested <> Lambda.Default_specialise)
-        || (E.inlining_depth env <> 0)) then
+        || (E.inlining_depth env <> 0)
+        || (inlining_history <> Flambda.Closure_stack.create ())) then
       (* When the function inlined function is a stub, the annotation
          is reported to the function applications inside the stub.
          This allows to report the annotation to the application the
@@ -149,7 +152,7 @@ let inline_by_copying_function_body ~env ~r
          in the source. *)
       set_attributes_on_all_apply body
         inline_requested specialise_requested (E.inlining_depth env)
-        (Some max_inlining_arguments)
+        (Some max_inlining_arguments) ~inlining_history
     else
       body
   in
@@ -215,6 +218,17 @@ let inline_by_copying_function_body ~env ~r
       else expr)
       function_decls.funs
       bindings_for_vars_bound_by_closure_and_params_to_args
+  in
+  (* Set the bit of inlining history we want to move down on apply and
+     function_declaration nodes *)
+
+  let env =
+  (* option because sometimes we don't want to move down something (ex:stubs) *)
+    match inlining_history_next_part with
+    | None -> env
+    | Some x ->
+      let env = E.add_inlining_history_parts env x in
+      E.add_inlining_history_part env Flambda.Closure_stack.Inlined
   in
   let env = E.set_never_inline env in
   let env = E.activate_freshening env in
@@ -611,6 +625,14 @@ let rewrite_function ~lhs_of_application ~closure_id_being_applied
   let body =
     Flambda_utils.toplevel_substitution state.old_inside_to_new_inside body
   in
+  let inlining_history =
+    List.map (
+      function
+      | Flambda.Closure_stack.Closure(c, dbg) when Closure_id.unwrap c = fun_var ->
+        Flambda.Closure_stack.Closure(Closure_id.wrap new_fun_var, dbg)
+      | x -> x
+    ) function_body.inlining_history
+  in
   let new_function_decl =
     Flambda.create_function_declaration
       ~params ~body ~recursive:function_body.recursive
@@ -619,6 +641,7 @@ let rewrite_function ~lhs_of_application ~closure_id_being_applied
       ~inline:function_body.inline
       ~specialise:function_body.specialise
       ~is_a_functor:function_body.is_a_functor
+      ~inlining_history:inlining_history (* change the name in it *)
   in
   let new_funs =
     Variable.Map.add new_fun_var new_function_decl state.new_funs
@@ -680,7 +703,8 @@ let inline_by_copying_function_declaration
     ~(direct_call_surrogates : Closure_id.t Closure_id.Map.t)
     ~(unboxing_arguments:Flambda.UnboxingArgs.t)
     ~(dbg : Debuginfo.t)
-    ~(simplify : Inlining_decision_intf.simplify) =
+    ~(simplify : Inlining_decision_intf.simplify)
+  =
   let state = empty_state in
   let state =
     bind_free_vars ~lhs_of_application ~closure_id_being_applied
@@ -710,6 +734,7 @@ let inline_by_copying_function_declaration
       in
       let state = loop state in
       let closure_id = Closure_id.wrap new_fun_var in
+
       let function_decls =
         Flambda.create_function_declarations_with_origin
           ~funs:state.new_funs
@@ -741,6 +766,7 @@ let inline_by_copying_function_declaration
           inlining_depth = E.inlining_depth env;
           inline = inline_requested; specialise = Default_specialise;
           max_inlining_arguments = Some (E.get_max_inlining_arguments env);
+          inlining_history = Flambda.Closure_stack.create ();
         }
       in
       let body =

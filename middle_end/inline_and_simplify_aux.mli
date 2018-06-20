@@ -194,6 +194,20 @@ module Env : sig
       body of an inlined function. *)
   val inside_inlined_function : t -> t
 
+  (** return the next parts of the env and reset these next parts of this env *)
+  val pop_inlining_history_next_parts : t -> Flambda.Closure_stack.t * t
+
+  (** add an inlining stats stack to the current one *)
+  val add_inlining_history : t -> Flambda.Closure_stack.t -> t
+
+  val set_inlining_history : t -> Flambda.Closure_stack.t -> t
+
+  val inlining_history : t -> Flambda.Closure_stack.t
+
+  val add_inlining_history_parts : t -> Flambda.Closure_stack.t -> t
+
+  val add_inlining_history_part : t -> Flambda.Closure_stack.node -> t
+
   (** If collecting inlining statistics, record that the inliner is about to
       descend into [closure_id].  This information enables us to produce a
       stack of closures that form a kind of context around an inlining
@@ -209,6 +223,12 @@ module Env : sig
        produce a stack of closures that form a kind of context around an
        inlining decision point. *)
   val note_entering_call
+     : t
+    -> closure_id:Closure_id.t
+    -> dbg:Debuginfo.t
+    -> t
+
+  val note_entering_call2
      : t
     -> closure_id:Closure_id.t
     -> dbg:Debuginfo.t
