@@ -16,6 +16,35 @@
 
 [@@@ocaml.warning "+a-4-9-30-40-41-42"]
 
+
+module Closure_stack : sig
+  type t = node list
+
+  and node =
+    | Closure of Closure_id.t * Debuginfo.t
+    | Call of Closure_id.t * Debuginfo.t
+    | Inlined
+    | Specialised of Closure_id.Set.t
+
+  val create : unit -> t
+
+  val note_entering_closure
+     : t
+    -> closure_id:Closure_id.t
+    -> dbg:Debuginfo.t
+    -> t
+
+  val note_entering_call
+    : t
+    -> closure_id:Closure_id.t
+    -> dbg:Debuginfo.t
+    -> t
+
+  val note_entering_inlined : t -> t
+  val note_entering_specialised : t -> closure_ids:Closure_id.Set.t -> t
+
+end
+
 module UnboxingArgs : sig
   type t = {
     unbox_specialised_args : bool;
