@@ -18,6 +18,7 @@
 
 module InliningArgs = Flambda.InliningArgs
 module UnboxingArgs = Flambda.UnboxingArgs
+module Closure_stack = Flambda.Closure_stack
 
 module Env = struct
   type scope = Current | Outer
@@ -41,7 +42,7 @@ module Env = struct
     inlining_depth : int;
     specialise_depth : int;
     closure_depth : int;
-    inlining_stats_closure_stack : Inlining_stats.Closure_stack.t;
+    inlining_stats_closure_stack : Closure_stack.t;
     inlined_debuginfo : Debuginfo.t;
     inlining_arguments : InliningArgs.t;
     max_inlining_arguments : InliningArgs.t;
@@ -64,7 +65,7 @@ module Env = struct
       specialise_depth = 0;
       closure_depth = 0;
       inlining_stats_closure_stack =
-        Inlining_stats.Closure_stack.create ();
+        Closure_stack.create ();
       inlined_debuginfo = Debuginfo.none;
       inlining_arguments = InliningArgs.get round;
       max_inlining_arguments = InliningArgs.get_max ();
@@ -321,7 +322,7 @@ module Env = struct
     else
       { t with
         inlining_stats_closure_stack =
-          Inlining_stats.Closure_stack.note_entering_closure
+          Closure_stack.note_entering_closure
             t.inlining_stats_closure_stack ~closure_id ~dbg;
       }
 
@@ -330,7 +331,7 @@ module Env = struct
     else
       { t with
         inlining_stats_closure_stack =
-          Inlining_stats.Closure_stack.note_entering_call
+          Closure_stack.note_entering_call
             t.inlining_stats_closure_stack ~closure_id ~dbg;
       }
 
@@ -339,7 +340,7 @@ module Env = struct
     else
       { t with
         inlining_stats_closure_stack =
-          Inlining_stats.Closure_stack.note_entering_inlined
+          Closure_stack.note_entering_inlined
             t.inlining_stats_closure_stack;
       }
 
@@ -348,7 +349,7 @@ module Env = struct
     else
       { t with
         inlining_stats_closure_stack =
-          Inlining_stats.Closure_stack.note_entering_specialised
+          Closure_stack.note_entering_specialised
             t.inlining_stats_closure_stack ~closure_ids;
       }
 

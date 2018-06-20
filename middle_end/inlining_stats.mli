@@ -16,31 +16,10 @@
 
 [@@@ocaml.warning "+a-4-9-30-40-41-42"]
 
-module Closure_stack : sig
-  type t
-
-  val create : unit -> t
-
-  val note_entering_closure
-     : t
-    -> closure_id:Closure_id.t
-    -> dbg:Debuginfo.t
-    -> t
-
-  val note_entering_call
-    : t
-    -> closure_id:Closure_id.t
-    -> dbg:Debuginfo.t
-    -> t
-
-  val note_entering_inlined : t -> t
-  val note_entering_specialised : t -> closure_ids:Closure_id.Set.t -> t
-
-end
 
 val record_decision
    : Inlining_stats_types.Decision.t
-  -> closure_stack:Closure_stack.t
+  -> closure_stack:Flambda.Closure_stack.t
   -> unit
 
 val save_then_forget_decisions : output_prefix:string -> unit

@@ -16,6 +16,56 @@
 
 [@@@ocaml.warning "+a-4-9-30-40-41-42"]
 
+
+module Closure_stack = struct
+  type t = node list
+
+  and node =
+    | Closure of Closure_id.t * Debuginfo.t
+    | Call of Closure_id.t * Debuginfo.t
+    | Inlined
+    | Specialised of Closure_id.Set.t
+
+  let create () = []
+
+  let note_entering_closure t ~closure_id ~dbg =
+    if not !Clflags.inlining_report then t
+    else
+      match t with
+      | [] | (Closure _ | Inlined | Specialised _)  :: _->
+        (Closure (closure_id, dbg)) :: t
+      | (Call _) :: _ ->
+        Misc.fatal_errorf "note_entering_closure: unexpected Call node"
+
+  (* CR-someday lwhite: since calls do not have a unique id it is possible
+     some calls will end up sharing nodes. *)
+  let note_entering_call t ~closure_id ~dbg =
+    if not !Clflags.inlining_report then t
+    else
+      match t with
+      | [] | (Closure _ | Inlined | Specialised _) :: _ ->
+        (Call (closure_id, dbg)) :: t
+      | (Call _) :: _ ->
+        Misc.fatal_errorf "note_entering_call: unexpected Call node"
+
+  let note_entering_inlined t =
+    if not !Clflags.inlining_report then t
+    else
+      match t with
+      | [] | (Closure _ | Inlined | Specialised _) :: _->
+        Misc.fatal_errorf "note_entering_inlined: missing Call node"
+      | (Call _) :: _ -> Inlined :: t
+
+  let note_entering_specialised t ~closure_ids =
+    if not !Clflags.inlining_report then t
+    else
+      match t with
+      | [] | (Closure _ | Inlined | Specialised _) :: _ ->
+        Misc.fatal_errorf "note_entering_specialised: missing Call node"
+      | (Call _) :: _ -> Specialised closure_ids :: t
+
+end
+
 module UnboxingArgs = struct
   type t = {
     unbox_specialised_args : bool;
