@@ -50,6 +50,7 @@ type call_informations = {
   args : Variable.t list;
   dbg : Debuginfo.t;
   rec_info : Flambda.rec_info;
+  inlining_stats_stack : Flambda.Closure_stack.t;
 }
 
 type callee_informations = {
@@ -69,8 +70,8 @@ type annotations = {
     callee_specialise : Lambda.specialise_attribute;
   }
 
-let build_call_structure ~callee ~args ~dbg ~rec_info =
-  { callee; args; dbg; rec_info }
+let build_call_structure ~callee ~args ~dbg ~rec_info ~inlining_stats_stack =
+  { callee; args; dbg; rec_info; inlining_stats_stack }
 
 let build_callee_structure ~function_decls ~function_decl
       ~closure_id_being_applied ~value_set_of_closures =
@@ -578,6 +579,7 @@ let extract_original_caller_and_result env r call callee annotations =
       inline = annotations.caller_inline;
       specialise = annotations.caller_specialise;
       max_inlining_arguments = Some (E.get_max_inlining_arguments env);
+      inlining_stats_stack = call.inlining_stats_stack;
     }
   in
   let original_r =
