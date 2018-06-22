@@ -619,6 +619,7 @@ let rewrite_function ~lhs_of_application ~closure_id_being_applied
       ~inline:function_body.inline
       ~specialise:function_body.specialise
       ~is_a_functor:function_body.is_a_functor
+      ~inlining_stats_stack:function_body.inlining_stats_stack
   in
   let new_funs =
     Variable.Map.add new_fun_var new_function_decl state.new_funs
@@ -741,6 +742,7 @@ let inline_by_copying_function_declaration
           inlining_depth = E.inlining_depth env;
           inline = inline_requested; specialise = Default_specialise;
           max_inlining_arguments = Some (E.get_max_inlining_arguments env);
+          inlining_stats_stack = [];
         }
       in
       let body =

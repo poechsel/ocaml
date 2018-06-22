@@ -93,6 +93,7 @@ val build_call_structure :
   -> args:Variable.t list
   -> dbg:Debuginfo.t
   -> rec_info:Flambda.rec_info
+  -> inlining_stats_stack: Flambda.Closure_stack.t
   -> call_informations
 
 val build_callee_structure :
