@@ -53,7 +53,7 @@ module Closure_stack = struct
     else
       match t with
       | [] | (Closure _ | Inlined | Specialised _) :: _->
-        Misc.fatal_errorf "note_entering_inlined: missing Call node"
+        Misc.fatal_errorf "anote_entering_inlined: missing Call node"
       | (Call _) :: _ -> Inlined :: t
 
   let note_entering_specialised t ~closure_ids =
@@ -61,7 +61,7 @@ module Closure_stack = struct
     else
       match t with
       | [] | (Closure _ | Inlined | Specialised _) :: _ ->
-        Misc.fatal_errorf "note_entering_specialised: missing Call node"
+        Misc.fatal_errorf "bnote_entering_specialised: missing Call node"
       | (Call _) :: _ -> Specialised closure_ids :: t
 
 end
