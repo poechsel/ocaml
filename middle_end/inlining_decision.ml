@@ -97,7 +97,6 @@ let is_a_functor callee =
   | None -> false
   | Some x -> x.is_a_functor
 
-
 let inlining_policy annotations call
     : inlining_policy =
   match call.rec_info with
@@ -323,9 +322,7 @@ let inline env r ~call ~callee ~annotations ~original
         ~specialise_requested:annotations.caller_specialise
         ~inline_requested:annotations.caller_inline
         ~args:call.args ~dbg:call.dbg ~simplify
-        ~function_body:(match callee.function_decl.function_body with
-          | Some x -> x
-          | None -> assert(false))
+        ~function_body:(get_function_body callee.function_decl)
     in
     let num_direct_applications_seen =
       (R.num_direct_applications r_inlined) - (R.num_direct_applications r)
@@ -489,9 +486,7 @@ let specialise env r ~(call : call_informations)
        - is closed (it and all other members of the set of closures on which
          it depends); and
        - has useful approximations for some invariant parameters. *)
-    if callee.function_decls.is_classic_mode > 0.0 then
-      Don't_try_it S.Not_specialised.Classic_mode
-    else if not (E.specialising_allowed env) then
+    if not (E.specialising_allowed env) then
       Don't_try_it S.Not_specialised.Specialised_depth_exceeded
     else if always_specialise && not (Lazy.force has_no_useful_approxes) then
       Try_it
@@ -610,6 +605,111 @@ let compute_thresholding_for_call env r inlining_arguments =
     in
     inlining_threshold, raw, diff
 
+let classic_mode_inlining env r ~simplify ~callee ~call ~annotations =
+  let env =
+    E.note_entering_call env
+      ~closure_id:callee.closure_id_being_applied ~dbg:call.dbg
+  in
+  let simpl =
+    match callee.function_decl.function_body with
+    | None -> Original S.Not_inlined.Classic_mode
+    | Some function_body ->
+      let try_inlining =
+        if call.rec_info.depth >= 1 then
+          Don't_try_it S.Not_inlined.Unrolling_depth_exceeded
+        else if not (E.inlining_allowed env) then
+          Don't_try_it S.Not_inlined.Inlining_depth_exceeded
+        else
+          Try_it
+      in
+      match try_inlining with
+      | Don't_try_it decision -> Original decision
+      | Try_it ->
+        let body, r =
+          Inlining_transforms.inline_by_copying_function_body ~env
+            ~unroll_to:0 ~r ~function_body
+            ~lhs_of_application:call.callee
+            ~closure_id_being_applied:callee.closure_id_being_applied
+            ~specialise_requested:annotations.caller_specialise
+            ~inline_requested:annotations.caller_inline
+            ~function_decls:callee.function_decls ~args:call.args ~dbg:call.dbg ~simplify
+        in
+        let env = E.note_entering_inlined env in
+        let env = E.inside_inlined_function env in
+        Changed ((simplify env r body), S.Inlined.Classic_mode)
+  in
+  let out =
+    match simpl with
+    | Original decision ->
+      let decision =
+        S.Decision.Unchanged (S.Not_specialised.Classic_mode, decision)
+      in
+      Original (decision)
+    | Changed ((expr, r), decision) ->
+      Changed((expr, r), S.Decision.Inlined (S.Not_specialised.Classic_mode, decision))
+  in out, env
+
+let flambda_mode_inlining env r ~simplify ~callee ~call ~annotations
+      ~inlining_threshold ~inlining_arguments ~original ~args_approxs =
+  let function_body = get_function_body callee.function_decl in
+  let env = E.unset_never_inline_inside_closures env in
+  let env =
+    E.note_entering_call env
+      ~closure_id:callee.closure_id_being_applied ~dbg:call.dbg
+  in
+  let max_level =
+    (InliningArgs.extract inlining_arguments).inline_max_speculation_depth
+  in
+  let out =
+    if inlining_threshold = T.Never_inline then
+      Original (D.Prevented Function_prevented_from_inlining)
+    else if E.speculation_depth env >= max_level then
+      Original (D.Prevented Level_exceeded)
+    else begin
+      let fun_cost =
+        lazy
+          (Inlining_cost.can_try_inlining function_body.body
+             inlining_threshold
+             ~number_of_arguments:(List.length callee.function_decl.params)
+             (* CR-someday mshinwell: for the moment, this is None, since
+                the Inlining_cost code isn't checking sizes up to the max
+                inlining threshold---this seems to take too long. *)
+             ~size_from_approximation:None)
+      in
+      let specialise_result =
+        specialise env r ~call ~callee ~annotations ~args_approxs
+          ~simplify ~original ~fun_cost ~inlining_threshold
+      in
+      let out = match specialise_result with
+        | Changed (res, spec_reason) ->
+          Changed (res, D.Specialised spec_reason)
+        | Original spec_reason ->
+          (* If we didn't specialise then try inlining *)
+          let size_from_approximation =
+            let fun_var = Closure_id.unwrap callee.closure_id_being_applied in
+            match
+              Variable.Map.find fun_var (Lazy.force callee.value_set_of_closures.size)
+            with
+            | size -> size
+            | exception Not_found ->
+              Misc.fatal_errorf "Approximation does not give a size for the \
+                                 function having fun_var %a.  value_set_of_closures: %a"
+                Variable.print fun_var
+                A.print_value_set_of_closures callee.value_set_of_closures
+          in
+          let inline_result =
+            inline env r ~call ~callee ~annotations ~original
+              ~size_from_approximation ~simplify ~fun_cost
+              ~inlining_threshold
+          in
+          match inline_result with
+          | Changed (res, inl_reason) ->
+            Changed (res, D.Inlined (spec_reason, inl_reason))
+          | Original inl_reason ->
+            Original (D.Unchanged (spec_reason, inl_reason))
+      in out
+    end
+  in out, env
 
 let for_call_site ~env ~r ~(call : call_informations)
       ~(callee : callee_informations) ~(annotations : annotations)
@@ -620,7 +720,6 @@ let for_call_site ~env ~r ~(call : call_informations)
   let lhs_of_application = call.callee in
   let closure_id_being_applied = callee.closure_id_being_applied in
   let function_decl = callee.function_decl in
-  let value_set_of_closures = callee.value_set_of_closures in
   let dbg = call.dbg in
   let inline_requested = annotations.caller_inline in
   let specialise_requested = annotations.caller_specialise in
@@ -635,7 +734,6 @@ let for_call_site ~env ~r ~(call : call_informations)
   | None -> original, original_r
   | Some function_body ->
     if function_body.stub then begin
-      let function_body = get_function_body function_decl in
       let body, r =
         Inlining_transforms.inline_by_copying_function_body ~env
           ~unroll_to:0 ~r ~lhs_of_application
@@ -648,144 +746,34 @@ let for_call_site ~env ~r ~(call : call_informations)
          but not in the context of inlining said function.  As such, there
          is nothing to do here (and no decision to report). *)
       original, original_r
-    else if function_decls.is_classic_mode > 0.0 then begin
-      let env =
-        E.note_entering_call env
-          ~closure_id:closure_id_being_applied ~dbg:dbg
-      in
-      let simpl =
-        match function_decl.function_body with
-        | None -> Original S.Not_inlined.Classic_mode
-        | Some function_body ->
-          let try_inlining =
-            if call.rec_info.depth >= 1 then
-              Don't_try_it S.Not_inlined.Unrolling_depth_exceeded
-            else if not (E.inlining_allowed env) then
-              Don't_try_it S.Not_inlined.Inlining_depth_exceeded
-            else
-              Try_it
-          in
-          match try_inlining with
-          | Don't_try_it decision -> Original decision
-          | Try_it ->
-            let body, r =
-              Inlining_transforms.inline_by_copying_function_body ~env
-                ~unroll_to:0 ~r ~function_body ~lhs_of_application
-                ~closure_id_being_applied ~specialise_requested ~inline_requested
-                ~function_decls ~args ~dbg ~simplify
-            in
-            let env = E.note_entering_inlined env in
-            let env = E.inside_inlined_function env in
-            Changed ((simplify env r body), S.Inlined.Classic_mode)
-      in
-      let res, decision =
-        match simpl with
-        | Original decision ->
-          let decision =
-            S.Decision.Unchanged (S.Not_specialised.Classic_mode, decision)
-          in
-          (original, original_r), decision
-        | Changed ((expr, r), decision) ->
-          let max_inlining_threshold =
-            if E.at_toplevel env then
-              Inline_and_simplify_aux.initial_inlining_toplevel_threshold inlining_arguments
-            else
-              Inline_and_simplify_aux.initial_inlining_threshold inlining_arguments
-          in
-          let raw_inlining_threshold = R.inlining_threshold r in
-          let unthrottled_inlining_threshold =
-            match raw_inlining_threshold with
-            | None -> max_inlining_threshold
-            | Some inlining_threshold -> inlining_threshold
-          in
-          let inlining_threshold =
-            T.min unthrottled_inlining_threshold max_inlining_threshold
-          in
-          let inlining_threshold_diff =
-            T.sub unthrottled_inlining_threshold inlining_threshold
-          in
-          let res =
-            if E.speculation_depth env = 0
-            then expr, R.set_inlining_threshold r raw_inlining_threshold
-            else expr, R.add_inlining_threshold r inlining_threshold_diff
-          in
-          res, S.Decision.Inlined (S.Not_specialised.Classic_mode, decision)
-      in
-      E.record_decision env decision;
-      res
-    end else begin
-      let function_body = get_function_body function_decl in
-      let env = E.unset_never_inline_inside_closures env in
-      let env =
-        E.note_entering_call env
-          ~closure_id:closure_id_being_applied ~dbg:dbg
-      in
-      let max_level = (InliningArgs.extract inlining_arguments).inline_max_speculation_depth
-      in
+    else begin
       let inlining_threshold, raw_inlining_threshold, inlining_threshold_diff =
         compute_thresholding_for_call env r inlining_arguments
       in
-      let simpl =
-        if inlining_threshold = T.Never_inline then
-          Original (D.Prevented Function_prevented_from_inlining)
-        else if E.speculation_depth env >= max_level then
-          Original (D.Prevented Level_exceeded)
-        else begin
-          let fun_cost =
-            lazy
-              (Inlining_cost.can_try_inlining function_body.body
-                 inlining_threshold
-                 ~number_of_arguments:(List.length function_decl.params)
-                 (* CR-someday mshinwell: for the moment, this is None, since
-                    the Inlining_cost code isn't checking sizes up to the max
-                    inlining threshold---this seems to take too long. *)
-                 ~size_from_approximation:None)
-          in
-          let specialise_result =
-            specialise env r ~call ~callee ~annotations ~args_approxs
-              ~simplify ~original~fun_cost ~inlining_threshold
-          in
-          match specialise_result with
-          | Changed (res, spec_reason) ->
-            Changed (res, D.Specialised spec_reason)
-          | Original spec_reason ->
-            (* If we didn't specialise then try inlining *)
-            let size_from_approximation =
-              let fun_var = Closure_id.unwrap closure_id_being_applied in
-              match
-                Variable.Map.find fun_var (Lazy.force value_set_of_closures.size)
-              with
-              | size -> size
-              | exception Not_found ->
-                Misc.fatal_errorf "Approximation does not give a size for the \
-                                   function having fun_var %a.  value_set_of_closures: %a"
-                  Variable.print fun_var
-                  A.print_value_set_of_closures value_set_of_closures
-            in
-            let inline_result =
-            inline env r ~call ~callee ~annotations ~original
-              ~size_from_approximation ~simplify ~fun_cost
-              ~inlining_threshold
-            in
-            match inline_result with
-            | Changed (res, inl_reason) ->
-              Changed (res, D.Inlined (spec_reason, inl_reason))
-            | Original inl_reason ->
-              Original (D.Unchanged (spec_reason, inl_reason))
+      let simpl, env =
+        if function_decls.is_classic_mode > 0.0 then begin
+          classic_mode_inlining env r ~simplify
+            ~call ~callee ~annotations
+        end else begin
+          flambda_mode_inlining env r ~simplify ~call ~callee ~annotations
+            ~original ~inlining_arguments ~inlining_threshold ~args_approxs
         end
       in
-      let res, decision =
+      let res, decision, _record_decision =
         match simpl with
-        | Original decision -> (original, original_r), decision
+        | Original decision -> (original, original_r), decision, false
         | Changed ((expr, r), decision) ->
           let res =
             if E.speculation_depth env = 0
             then expr, R.set_inlining_threshold r raw_inlining_threshold
             else expr, R.add_inlining_threshold r inlining_threshold_diff
           in
-          res, decision
+          res, decision, true
       in
-      E.record_decision env decision;
+      (*if record_decision || (E.round env = Clflags.rounds ()) then begin
+        E.record_decision env decision;
+        end;*)
+        E.record_decision env decision;
       res
     end
 

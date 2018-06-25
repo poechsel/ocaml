@@ -29,7 +29,8 @@ We distinguish the different cases
     launching inline and simplify again] on its content
 - If we set the never inline flag in the env, then we do nothing
 - Otherwise, we will try to inline and specialise the call.
-    If we don't have enough threshold to inline, or
+    If we are in classic mode, we follow the classic inlining
+    algorithm. Otherwise, If we don't have enough threshold to inline, or
     if we have reached our maximum speculation depth, then we stop
     the process.
     Otherwise, we first try to specialise the call. If it's not
@@ -41,7 +42,6 @@ We distinguish the different cases
 We go through a decision tree to see if we can try inlining:
     - If our policy is to continue unrolling, try inlining
     - If we are not allowed to inline, don't try it
-    - If we are in classic mode, don't try it
     - If we should always inline, try it
     - If we should never inline, don't try it
     - If we've exceeded the maximum unrolling depth and are trying
@@ -61,13 +61,12 @@ Otherwise, we first get the inlined function. If we are sure we want to
 # Specialise <-- Method used to specialise a call
 
 We go through a decision tree to see if we can try specialising:
-    - If we are in classic mode, don't try it
     - If we are not allowed to specialise, don't try it
     - If we are sure to specialise and we have at least one useful approximation
       for a parameter, try it
     - If we never want to specialise, don't try it
     - If we have not enough remaining threshold, don't try it
-    - If we don't have any bound variables, don't try it
+    - If we have any free variables, don't try it
     - If the function is not recursive, don't try it
     - If we have no invariant parameters, don't try it
     - If we don't have useful approximations of parameters, don't try it
