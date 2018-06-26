@@ -611,13 +611,13 @@ let rewrite_function ~lhs_of_application ~closure_id_being_applied
   let body =
     Flambda_utils.toplevel_substitution state.old_inside_to_new_inside body
   in
-  let inlining_stats_stack =
+  let inlining_history =
     List.map (
       function
       | Flambda.Closure_stack.Closure(c, dbg) when Closure_id.unwrap c = fun_var ->
         Flambda.Closure_stack.Closure(Closure_id.wrap new_fun_var, dbg)
       | x -> x
-    ) function_body.inlining_stats_stack
+    ) function_body.inlining_history
   in
   let new_function_decl =
     Flambda.create_function_declaration
@@ -627,7 +627,7 @@ let rewrite_function ~lhs_of_application ~closure_id_being_applied
       ~inline:function_body.inline
       ~specialise:function_body.specialise
       ~is_a_functor:function_body.is_a_functor
-      ~inlining_stats_stack:inlining_stats_stack (* change the name in it *)
+      ~inlining_history:inlining_history (* change the name in it *)
   in
   let new_funs =
     Variable.Map.add new_fun_var new_function_decl state.new_funs
@@ -751,7 +751,7 @@ let inline_by_copying_function_declaration
           inlining_depth = E.inlining_depth env;
           inline = inline_requested; specialise = Default_specialise;
           max_inlining_arguments = Some (E.get_max_inlining_arguments env);
-          inlining_stats_stack = [];
+          inlining_history = [];
         }
       in
       let body =

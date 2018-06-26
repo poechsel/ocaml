@@ -621,7 +621,7 @@ let rec simplify_project_var env r ~(project_var : Flambda.project_var)
 *)
 and simplify_set_of_closures original_env r
       (set_of_closures : Flambda.set_of_closures)
-      atoms_inlining_stack
+      parts_inlining_stack
       : Flambda.set_of_closures * R.t * Freshening.Project_var.t =
   let function_decls =
     (* CR-soon mshinwell: Does this affect
@@ -646,8 +646,8 @@ and simplify_set_of_closures original_env r
         ~free_vars ~specialised_args ~parameter_approximations
         ~nonrec_closure_env ~rec_closure_env
     in
-    let inlining_stats_stack =
-      Flambda.Closure_stack.add function_decl.inlining_stats_stack atoms_inlining_stack
+    let inlining_history =
+      Flambda.Closure_stack.add function_decl.inlining_history parts_inlining_stack
     in
     let body, r =
       E.enter_closure closure_env ~closure_id:(Closure_id.wrap fun_var)
@@ -655,7 +655,7 @@ and simplify_set_of_closures original_env r
           (Inlining_decision.should_inline_inside_declaration function_decl)
         ~dbg:function_decl.dbg
         ~f:(fun body_env ->
-          let body_env = E.add_inlining_stats body_env inlining_stats_stack in
+          let body_env = E.add_inlining_history body_env inlining_history in
           simplify body_env r function_decl.body)
     in
     let function_decl =
@@ -664,7 +664,7 @@ and simplify_set_of_closures original_env r
         ~body ~stub:function_decl.stub ~dbg:function_decl.dbg
         ~inline:function_decl.inline ~specialise:function_decl.specialise
         ~is_a_functor:function_decl.is_a_functor
-        ~inlining_stats_stack
+        ~inlining_history
     in
     let used_params' = Flambda.used_params function_decl in
     Variable.Map.add fun_var function_decl funs,
@@ -727,7 +727,7 @@ and simplify_apply env r ~(apply : Flambda.apply) : Flambda.t * R.t =
     inline = inline_requested; specialise = specialise_requested;
     inlining_depth = original_inlining_depth;
     max_inlining_arguments = max_inlining_arguments;
-    inlining_stats_stack = inlining_stats_stack;
+    inlining_history = inlining_history;
   } = apply in
   (* we are always merging inlining environnements.
       This allows us to keep the maximum inlining arguments sane at all
@@ -743,10 +743,10 @@ and simplify_apply env r ~(apply : Flambda.apply) : Flambda.t * R.t =
       we will only inline the call of foo that had appears with O1,
       which is predictable
   *)
-  let atoms, env = E.pop_inlining_stats_next_atoms env in
-  (* the atoms we had defines previous history. We must add them at the end *)
-  let inlining_stats_stack =
-    Flambda.Closure_stack.add inlining_stats_stack atoms
+  let parts, env = E.pop_inlining_history_next_parts env in
+  (* the parts we had defines previous history. We must add them at the end *)
+  let inlining_history =
+    Flambda.Closure_stack.add inlining_history parts
   in
   let env =
     let max_env_args = E.get_max_inlining_arguments env in
@@ -839,12 +839,12 @@ and simplify_apply env r ~(apply : Flambda.apply) : Flambda.t * R.t =
               simplify_full_application env r ~function_decls ~rec_info
                 ~lhs_of_application ~closure_id_being_applied ~function_decl
                 ~value_set_of_closures ~args ~args_approxs ~dbg
-                ~inline_requested ~specialise_requested ~inlining_stats_stack
+                ~inline_requested ~specialise_requested ~inlining_history
             else if nargs > arity then
               simplify_over_application env r ~args ~args_approxs ~rec_info
                 ~function_decls ~lhs_of_application ~closure_id_being_applied
                 ~function_decl ~value_set_of_closures ~dbg ~inline_requested
-                ~specialise_requested ~inlining_stats_stack
+                ~specialise_requested ~inlining_history
             else if nargs > 0 && nargs < arity then
               simplify_partial_application env r ~lhs_of_application
                 ~closure_id_being_applied ~function_decl ~args ~dbg
@@ -861,17 +861,17 @@ and simplify_apply env r ~(apply : Flambda.apply) : Flambda.t * R.t =
                    inline = inline_requested; specialise = specialise_requested;
                    inlining_depth = E.inlining_depth env;
                    max_inlining_arguments = Some max_inlining_arguments;
-                   inlining_stats_stack
+                   inlining_history
                  }),
             ret r (A.value_unknown Other)))
 
 and simplify_full_application env r ~function_decls ~lhs_of_application
       ~rec_info ~closure_id_being_applied ~(function_decl : Simple_value_approx.function_declaration)
-      ~value_set_of_closures ~args ~inlining_stats_stack
+      ~value_set_of_closures ~args ~inlining_history
       ~args_approxs ~dbg ~inline_requested ~specialise_requested =
   let call = Inlining_decision.build_call_structure
                ~callee:lhs_of_application
-               ~args ~dbg ~rec_info ~inlining_stats_stack
+               ~args ~dbg ~rec_info ~inlining_history
   in
   let callee = Inlining_decision.build_callee_structure
                  ~function_decls ~function_decl
@@ -954,7 +954,7 @@ and simplify_partial_application env r ~lhs_of_application
 and simplify_over_application env r ~args ~args_approxs ~function_decls
       ~lhs_of_application ~rec_info ~closure_id_being_applied ~function_decl
       ~value_set_of_closures ~dbg ~inline_requested ~specialise_requested
-      ~inlining_stats_stack
+      ~inlining_history
       =
   let arity = A.function_arity function_decl in
   assert (arity < List.length args);
@@ -969,7 +969,7 @@ and simplify_over_application env r ~args ~args_approxs ~function_decls
     simplify_full_application env r ~function_decls ~lhs_of_application
       ~closure_id_being_applied ~function_decl ~value_set_of_closures
       ~args:full_app_args ~args_approxs:full_app_approxs ~dbg
-      ~inline_requested ~specialise_requested ~rec_info ~inlining_stats_stack
+      ~inline_requested ~specialise_requested ~rec_info ~inlining_history
   in
   let func_var = Variable.create Internal_variable_names.full_apply in
   let expr : Flambda.t =
@@ -978,7 +978,7 @@ and simplify_over_application env r ~args ~args_approxs ~function_decls
                inline = inline_requested; specialise = specialise_requested;
                inlining_depth = E.inlining_depth env;
                max_inlining_arguments = Some (E.get_max_inlining_arguments env);
-               inlining_stats_stack (* not updating it *)
+               inlining_history (* not updating it *)
              })
   in
   let expr = Lift_code.lift_lets_expr expr ~toplevel:true in
@@ -1011,9 +1011,9 @@ and simplify_named env r (tree : Flambda.named) : Flambda.named * R.t =
     end
   | Set_of_closures set_of_closures -> begin
       let symbol_to_closure_id = E.find_closure_id_for_symbol env in
-      let atoms, env = E.pop_inlining_stats_next_atoms env in
+      let parts, env = E.pop_inlining_history_next_parts env in
       let set_of_closures, r, first_freshening =
-        simplify_set_of_closures env r set_of_closures atoms
+        simplify_set_of_closures env r set_of_closures parts
       in
       let simplify env r expr ~pass_name : Flambda.named * R.t =
         (* If simplifying a set of closures more than once during any given round
@@ -1585,7 +1585,7 @@ and duplicate_function ~env ~(set_of_closures : Flambda.set_of_closures)
       ~body ~stub:function_decl.stub ~dbg:function_decl.dbg
       ~inline:function_decl.inline ~specialise:function_decl.specialise
       ~is_a_functor:function_decl.is_a_functor ~recursive:function_decl.recursive
-      ~inlining_stats_stack:function_decl.inlining_stats_stack
+      ~inlining_history:function_decl.inlining_history
   in
   function_decl, specialised_args
 
@@ -1725,9 +1725,9 @@ let simplify_constant_defining_value
                            closed: %a"
           Flambda.print_set_of_closures set_of_closures
       end;
-      let atoms, env = E.pop_inlining_stats_next_atoms env in
+      let parts, env = E.pop_inlining_history_next_parts env in
       let set_of_closures, r, _freshening =
-        simplify_set_of_closures env r set_of_closures atoms
+        simplify_set_of_closures env r set_of_closures parts
       in
       r, ((Set_of_closures set_of_closures) : Flambda.constant_defining_value),
         R.approx r

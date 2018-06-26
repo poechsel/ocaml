@@ -382,7 +382,7 @@ type apply = {
   inline : Lambda.inline_attribute;
   specialise : Lambda.specialise_attribute;
   max_inlining_arguments : InliningArgs.t option;
-  inlining_stats_stack : Closure_stack.t;
+  inlining_history : Closure_stack.t;
 }
 
 type assign = {
@@ -485,7 +485,7 @@ and function_declaration = {
   inline : Lambda.inline_attribute;
   specialise : Lambda.specialise_attribute;
   is_a_functor : bool;
-  inlining_stats_stack : Closure_stack.t;
+  inlining_history : Closure_stack.t;
 }
 
 and switch = {
@@ -1400,10 +1400,10 @@ let replace_declaration_in_stats_stack ~old_id ~new_id stack =
     | x -> x) stack
 
 let update_id_declaration_stats_stack ~old_id ~new_id decl =
-  { decl with inlining_stats_stack =
+  { decl with inlining_history =
                 replace_declaration_in_stats_stack
                   ~old_id ~new_id
-                  decl.inlining_stats_stack }
+                  decl.inlining_history }
 
 let map_stats_stack_id subst stack =
   List.map (function
@@ -1426,7 +1426,7 @@ let create_declaration_stats_stack ~id ~dbg =
 let create_function_declaration ~recursive ~params ~body ~stub ~dbg
       ~(inline : Lambda.inline_attribute)
       ~(specialise : Lambda.specialise_attribute) ~is_a_functor
-      ~inlining_stats_stack
+      ~inlining_history
       : function_declaration =
   begin match stub, inline with
   | true, (Never_inline | Default_inline)
@@ -1454,7 +1454,7 @@ let create_function_declaration ~recursive ~params ~body ~stub ~dbg
     inline;
     specialise;
     is_a_functor;
-    inlining_stats_stack;
+    inlining_history;
   }
 
 (*let update_function_body func_decl body =
@@ -1466,12 +1466,12 @@ let create_function_declaration ~recursive ~params ~body ~stub ~dbg
     ~inline:func_decl.inline
     ~specialise:func_decl.specialise
     ~is_a_functor:func_decl.is_a_functor
-    ~inlining_stats_stack:func_decl.inlining_stats_stack
+    ~inlining_history:func_decl.inlining_history
 *)
-let update_function_declaration fun_decl ~params ~body ~inlining_stats_stack =
+let update_function_declaration fun_decl ~params ~body ~inlining_history =
   let free_variables = free_variables body in
   let free_symbols = free_symbols body in
-  { fun_decl with params; body; free_variables; free_symbols; inlining_stats_stack }
+  { fun_decl with params; body; free_variables; free_symbols; inlining_history }
 
 let update_function_declaration_body (fun_decl : function_declaration) f =
   let old_body = fun_decl.body in
