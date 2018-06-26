@@ -47,7 +47,7 @@ module Env = struct
     inlining_arguments : InliningArgs.t;
     max_inlining_arguments : InliningArgs.t;
     inlining_stats_stack : Closure_stack.t;
-    inlining_stats_stack_next_atom : Closure_stack.t;
+    inlining_stats_next_atoms : Closure_stack.t;
   }
 
   let create ~never_inline ~backend ~round =
@@ -72,7 +72,7 @@ module Env = struct
       inlining_arguments = InliningArgs.get round;
       max_inlining_arguments = InliningArgs.get_max ();
       inlining_stats_stack = Closure_stack.create ();
-      inlining_stats_stack_next_atom = Closure_stack.create ();
+      inlining_stats_next_atoms = Closure_stack.create ();
     }
 
   let backend t = t.backend
@@ -321,6 +321,48 @@ module Env = struct
   let freshening t = t.freshening
   let never_inline t = t.never_inline || t.never_inline_outside_closures
 
+  let pop_inlining_stats_next_atoms t =
+    t.inlining_stats_next_atoms,
+    { t with inlining_stats_next_atoms = Flambda.Closure_stack.create ()}
+
+  let inlining_stats_stack t =
+    t.inlining_stats_stack
+
+  let set_inlining_history t history =
+    { t with inlining_stats_stack = history }
+
+  let remove_stats_atoms t atoms =
+    let rec destroyer stack atoms =
+      match stack, atoms with
+      | s::stack, a::atoms when Flambda.Closure_stack.compare s a = 0 ->
+        destroyer stack atoms
+      | _, [] -> stack
+      | _, _ -> if !Clflags.inlining_report then assert false else stack
+    in
+    { t with inlining_stats_stack = destroyer t.inlining_stats_stack atoms }
+
+  let remove_stats_last_call t =
+    let stack =
+      match t.inlining_stats_stack with
+      | Flambda.Closure_stack.Call _ :: l -> l
+      | _l -> if !Clflags.inlining_report then assert false else _l
+    in { t with inlining_stats_stack = stack }
+
+  let add_inlining_stats t substats =
+    { t with inlining_stats_stack =
+               Flambda.Closure_stack.add
+                 substats t.inlining_stats_stack
+                 }
+
+  let add_inlining_stats_atoms t atoms =
+    { t with inlining_stats_next_atoms =
+               Flambda.Closure_stack.add
+                 atoms t.inlining_stats_next_atoms }
+
+  let add_inlining_stats_atom t atom =
+    { t with inlining_stats_next_atoms =
+               atom :: t.inlining_stats_next_atoms }
+
   let note_entering_closure t ~closure_id ~dbg =
     if t.never_inline then t
     else
@@ -337,6 +379,13 @@ module Env = struct
         inlining_stats_closure_stack =
           Closure_stack.note_entering_call
             t.inlining_stats_closure_stack ~closure_id ~dbg;
+      }
+
+  let note_entering_call2 t ~closure_id ~dbg =
+      { t with
+        inlining_stats_stack =
+          Closure_stack.note_entering_call
+            t.inlining_stats_stack ~closure_id ~dbg
       }
 
   let note_entering_inlined t =
@@ -366,8 +415,12 @@ module Env = struct
     f (note_entering_closure t ~closure_id ~dbg)
 
   let record_decision t decision =
+    (*let p = Flambda.Closure_stack.print in
+    Printf.printf "--> "; List.iter p t.inlining_stats_stack; Printf.printf "\n";
+    List.iter p t.inlining_stats_closure_stack; Printf.printf "\n";
+    *)
     Inlining_stats.record_decision decision
-      ~closure_stack:t.inlining_stats_closure_stack
+      ~closure_stack:t.inlining_stats_stack
 
   let set_inline_debuginfo t ~dbg =
     { t with inlined_debuginfo = dbg }

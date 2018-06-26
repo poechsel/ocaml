@@ -256,7 +256,9 @@ let evaluate_speculative_inline env ~callee ~r_inlined ~body ~original ~simplify
 
 let inline env r ~call ~callee ~annotations ~original
       ~size_from_approximation ~simplify ~fun_cost
-      ~inlining_threshold =
+      ~inlining_threshold ~inlining_history_without_call
+      ~inlining_history_next_part
+  =
   let toplevel = E.at_toplevel env in
   let branch_depth = E.branch_depth env in
   let policy =
@@ -316,6 +318,11 @@ let inline env r ~call ~callee ~annotations ~original
       (* First we construct the code that would result from copying the body of
          the function, without doing any further inlining upon it, to the call
          site. *)
+      let env =
+        E.add_inlining_stats_atoms env inlining_history_next_part in
+      let env =
+        E.add_inlining_stats_atom env Flambda.Closure_stack.Inlined
+      in
       Inlining_transforms.inline_by_copying_function_body ~env
         ~r:(R.reset_benefit r) ~function_decls:callee.function_decls
         ~lhs_of_application:call.callee ~unroll_to
@@ -330,6 +337,7 @@ let inline env r ~call ~callee ~annotations ~original
     in
     assert (num_direct_applications_seen >= 0);
     let keep_inlined_version decision =
+      let env = E.set_inlining_history env inlining_history_without_call in
       keep_inlined_version decision ~env ~r_inlined ~body ~always_inline
         ~previous_benefit:(R.benefit r) ~simplify
     in
@@ -517,6 +525,14 @@ let specialise env r ~(call : call_informations)
         R.set_inlining_threshold r (Some remaining_inlining_threshold)
       in
       let copied_function_declaration =
+        let closure_ids =
+          Closure_id.Set.of_list (
+            List.map Closure_id.wrap
+              (Variable.Set.elements (Variable.Map.keys callee.function_decls.funs)))
+        in
+        let env =
+          E.add_inlining_stats_atom env (Flambda.Closure_stack.Specialised closure_ids)
+        in
         Inlining_transforms.inline_by_copying_function_declaration ~env
           ~r:(R.reset_benefit r) ~lhs_of_application:call.callee
           ~rec_info:call.rec_info
@@ -608,10 +624,6 @@ let compute_thresholding_for_call env r inlining_arguments =
     inlining_threshold, raw, diff
 
 let classic_mode_inlining env r ~simplify ~callee ~call ~annotations =
-  let env =
-    E.note_entering_call env
-      ~closure_id:callee.closure_id_being_applied ~dbg:call.dbg
-  in
   let simpl =
     match callee.function_decl.function_body with
     | None -> Original S.Not_inlined.Classic_mode
@@ -652,13 +664,13 @@ let classic_mode_inlining env r ~simplify ~callee ~call ~annotations =
   in out, env
 
 let flambda_mode_inlining env r ~simplify ~callee ~call ~annotations
-      ~inlining_threshold ~inlining_arguments ~original ~args_approxs =
+      ~inlining_threshold ~inlining_arguments ~original ~args_approxs
+      ~inlining_history_without_call
+      ~inlining_history_next_part
+
+  =
   let function_body = get_function_body callee.function_decl in
   let env = E.unset_never_inline_inside_closures env in
-  let env =
-    E.note_entering_call env
-      ~closure_id:callee.closure_id_being_applied ~dbg:call.dbg
-  in
   let max_level =
     (InliningArgs.extract inlining_arguments).inline_max_speculation_depth
   in
@@ -702,7 +714,8 @@ let flambda_mode_inlining env r ~simplify ~callee ~call ~annotations
           let inline_result =
             inline env r ~call ~callee ~annotations ~original
               ~size_from_approximation ~simplify ~fun_cost
-              ~inlining_threshold
+              ~inlining_threshold ~inlining_history_without_call
+              ~inlining_history_next_part
           in
           match inline_result with
           | Changed (res, inl_reason) ->
@@ -753,15 +766,27 @@ let for_call_site ~env ~r ~(call : call_informations)
         compute_thresholding_for_call env r inlining_arguments
       in
       let simpl, env =
+        let inlining_history_next_part =
+          Flambda.Closure_stack.note_entering_call
+            ~dbg:call.dbg ~closure_id:callee.closure_id_being_applied
+            call.inlining_stats_stack
+        in
+        let inlining_history_without_call = E.inlining_stats_stack env in
+        let env = E.add_inlining_stats env inlining_history_next_part in
+        let env3 =
+          E.note_entering_call env
+            ~closure_id:callee.closure_id_being_applied ~dbg:call.dbg
+        in
         if function_decls.is_classic_mode > 0.0 then begin
-          classic_mode_inlining env r ~simplify
+          classic_mode_inlining env3 r ~simplify
             ~call ~callee ~annotations
         end else begin
-          flambda_mode_inlining env r ~simplify ~call ~callee ~annotations
+          flambda_mode_inlining env3 r ~simplify ~call ~callee ~annotations
             ~original ~inlining_arguments ~inlining_threshold ~args_approxs
+            ~inlining_history_without_call ~inlining_history_next_part
         end
       in
-      let res, decision, _record_decision =
+      let res, decision, record_decision =
         match simpl with
         | Original decision -> (original, original_r), decision, false
         | Changed ((expr, r), decision) ->
@@ -772,10 +797,9 @@ let for_call_site ~env ~r ~(call : call_informations)
           in
           res, decision, true
       in
-      (*if record_decision || (E.round env = Clflags.rounds ()) then begin
+      if record_decision || (E.round env = Clflags.rounds () - 1) then begin
         E.record_decision env decision;
-        end;*)
-        E.record_decision env decision;
+        end;
       res
     end
 
