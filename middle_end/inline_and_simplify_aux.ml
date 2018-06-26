@@ -46,8 +46,8 @@ module Env = struct
     inlined_debuginfo : Debuginfo.t;
     inlining_arguments : InliningArgs.t;
     max_inlining_arguments : InliningArgs.t;
-    inlining_stats_stack : Closure_stack.t;
-    inlining_stats_next_atoms : Closure_stack.t;
+    inlining_history : Closure_stack.t;
+    inlining_history_next_parts : Closure_stack.t;
   }
 
   let create ~never_inline ~backend ~round =
@@ -71,8 +71,8 @@ module Env = struct
       inlined_debuginfo = Debuginfo.none;
       inlining_arguments = InliningArgs.get round;
       max_inlining_arguments = InliningArgs.get_max ();
-      inlining_stats_stack = Closure_stack.create ();
-      inlining_stats_next_atoms = Closure_stack.create ();
+      inlining_history = Closure_stack.create ();
+      inlining_history_next_parts = Closure_stack.create ();
     }
 
   let backend t = t.backend
@@ -321,47 +321,47 @@ module Env = struct
   let freshening t = t.freshening
   let never_inline t = t.never_inline || t.never_inline_outside_closures
 
-  let pop_inlining_stats_next_atoms t =
-    t.inlining_stats_next_atoms,
-    { t with inlining_stats_next_atoms = Flambda.Closure_stack.create ()}
+  let pop_inlining_history_next_parts t =
+    t.inlining_history_next_parts,
+    { t with inlining_history_next_parts = Flambda.Closure_stack.create ()}
 
-  let inlining_stats_stack t =
-    t.inlining_stats_stack
+  let inlining_history t =
+    t.inlining_history
 
   let set_inlining_history t history =
-    { t with inlining_stats_stack = history }
+    { t with inlining_history = history }
 
-  let remove_stats_atoms t atoms =
-    let rec destroyer stack atoms =
-      match stack, atoms with
-      | s::stack, a::atoms when Flambda.Closure_stack.compare s a = 0 ->
-        destroyer stack atoms
+  let remove_stats_parts t parts =
+    let rec destroyer stack parts =
+      match stack, parts with
+      | s::stack, a::parts when Flambda.Closure_stack.compare s a = 0 ->
+        destroyer stack parts
       | _, [] -> stack
       | _, _ -> if !Clflags.inlining_report then assert false else stack
     in
-    { t with inlining_stats_stack = destroyer t.inlining_stats_stack atoms }
+    { t with inlining_history = destroyer t.inlining_history parts }
 
   let remove_stats_last_call t =
     let stack =
-      match t.inlining_stats_stack with
+      match t.inlining_history with
       | Flambda.Closure_stack.Call _ :: l -> l
       | _l -> if !Clflags.inlining_report then assert false else _l
-    in { t with inlining_stats_stack = stack }
+    in { t with inlining_history = stack }
 
-  let add_inlining_stats t substats =
-    { t with inlining_stats_stack =
+  let add_inlining_history t substats =
+    { t with inlining_history =
                Flambda.Closure_stack.add
-                 substats t.inlining_stats_stack
+                 substats t.inlining_history
                  }
 
-  let add_inlining_stats_atoms t atoms =
-    { t with inlining_stats_next_atoms =
+  let add_inlining_history_parts t parts =
+    { t with inlining_history_next_parts =
                Flambda.Closure_stack.add
-                 atoms t.inlining_stats_next_atoms }
+                 parts t.inlining_history_next_parts }
 
-  let add_inlining_stats_atom t atom =
-    { t with inlining_stats_next_atoms =
-               atom :: t.inlining_stats_next_atoms }
+  let add_inlining_history_part t part =
+    { t with inlining_history_next_parts =
+               part :: t.inlining_history_next_parts }
 
   let note_entering_closure t ~closure_id ~dbg =
     if t.never_inline then t
@@ -383,9 +383,9 @@ module Env = struct
 
   let note_entering_call2 t ~closure_id ~dbg =
       { t with
-        inlining_stats_stack =
+        inlining_history =
           Closure_stack.note_entering_call
-            t.inlining_stats_stack ~closure_id ~dbg
+            t.inlining_history ~closure_id ~dbg
       }
 
   let note_entering_inlined t =
@@ -416,11 +416,11 @@ module Env = struct
 
   let record_decision t decision =
     (*let p = Flambda.Closure_stack.print in
-    Printf.printf "--> "; List.iter p t.inlining_stats_stack; Printf.printf "\n";
+    Printf.printf "--> "; List.iter p t.inlining_history; Printf.printf "\n";
     List.iter p t.inlining_stats_closure_stack; Printf.printf "\n";
     *)
     Inlining_stats.record_decision decision
-      ~closure_stack:t.inlining_stats_stack
+      ~closure_stack:t.inlining_history
 
   let set_inline_debuginfo t ~dbg =
     { t with inlined_debuginfo = dbg }

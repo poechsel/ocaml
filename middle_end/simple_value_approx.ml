@@ -87,7 +87,7 @@ and function_body = {
   is_a_functor : bool;
   body : Flambda.t;
   recursive : bool;
-  inlining_stats_stack : Flambda.Closure_stack.t;
+  inlining_history : Flambda.Closure_stack.t;
 }
 
 and function_declaration = {
@@ -1094,7 +1094,7 @@ let function_declaration_approx ~keep_body
              free_variables = fun_decl.free_variables;
              free_symbols = fun_decl.free_symbols;
              recursive = fun_decl.recursive;
-             inlining_stats_stack = fun_decl.inlining_stats_stack;}
+             inlining_history = fun_decl.inlining_history;}
     end
   in
   { function_body;

@@ -164,7 +164,7 @@ and function_body = private {
   is_a_functor : bool;
   body : Flambda.t;
   recursive : bool;
-  inlining_stats_stack : Flambda.Closure_stack.t;
+  inlining_history : Flambda.Closure_stack.t;
 }
 
 and function_declaration = private {

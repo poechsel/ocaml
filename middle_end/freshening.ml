@@ -308,7 +308,7 @@ module Project_var = struct
     match subst with
     | Inactive -> func_decls, subst, t
     | Active subst ->
-      let subst_inlining_stats (old_id, new_id) stack =
+      let subst_inlining_history (old_id, new_id) stack =
        Flambda.replace_declaration_in_stats_stack ~old_id ~new_id stack
       in
       let subst_func_decl ids (func_decl : Flambda.function_declaration)
@@ -321,8 +321,8 @@ module Project_var = struct
         in
         let function_decl =
           Flambda.update_function_declaration func_decl ~params ~body
-            ~inlining_stats_stack:(subst_inlining_stats
-                                     ids func_decl.inlining_stats_stack)
+            ~inlining_history:(subst_inlining_history
+                                     ids func_decl.inlining_history)
         in
         function_decl, subst
       in

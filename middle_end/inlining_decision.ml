@@ -50,7 +50,7 @@ type call_informations = {
   args : Variable.t list;
   dbg : Debuginfo.t;
   rec_info : Flambda.rec_info;
-  inlining_stats_stack : Flambda.Closure_stack.t;
+  inlining_history : Flambda.Closure_stack.t;
 }
 
 type callee_informations = {
@@ -70,8 +70,8 @@ type annotations = {
     callee_specialise : Lambda.specialise_attribute;
   }
 
-let build_call_structure ~callee ~args ~dbg ~rec_info ~inlining_stats_stack =
-  { callee; args; dbg; rec_info; inlining_stats_stack }
+let build_call_structure ~callee ~args ~dbg ~rec_info ~inlining_history =
+  { callee; args; dbg; rec_info; inlining_history }
 
 let build_callee_structure ~function_decls ~function_decl
       ~closure_id_being_applied ~value_set_of_closures =
@@ -319,9 +319,9 @@ let inline env r ~call ~callee ~annotations ~original
          the function, without doing any further inlining upon it, to the call
          site. *)
       let env =
-        E.add_inlining_stats_atoms env inlining_history_next_part in
+        E.add_inlining_history_parts env inlining_history_next_part in
       let env =
-        E.add_inlining_stats_atom env Flambda.Closure_stack.Inlined
+        E.add_inlining_history_part env Flambda.Closure_stack.Inlined
       in
       Inlining_transforms.inline_by_copying_function_body ~env
         ~r:(R.reset_benefit r) ~function_decls:callee.function_decls
@@ -531,7 +531,7 @@ let specialise env r ~(call : call_informations)
               (Variable.Set.elements (Variable.Map.keys callee.function_decls.funs)))
         in
         let env =
-          E.add_inlining_stats_atom env (Flambda.Closure_stack.Specialised closure_ids)
+          E.add_inlining_history_part env (Flambda.Closure_stack.Specialised closure_ids)
         in
         Inlining_transforms.inline_by_copying_function_declaration ~env
           ~r:(R.reset_benefit r) ~lhs_of_application:call.callee
@@ -595,7 +595,7 @@ let extract_original_caller_and_result env r call callee annotations =
       inline = annotations.caller_inline;
       specialise = annotations.caller_specialise;
       max_inlining_arguments = Some (E.get_max_inlining_arguments env);
-      inlining_stats_stack = call.inlining_stats_stack;
+      inlining_history = call.inlining_history;
     }
   in
   let original_r =
@@ -769,10 +769,10 @@ let for_call_site ~env ~r ~(call : call_informations)
         let inlining_history_next_part =
           Flambda.Closure_stack.note_entering_call
             ~dbg:call.dbg ~closure_id:callee.closure_id_being_applied
-            call.inlining_stats_stack
+            call.inlining_history
         in
-        let inlining_history_without_call = E.inlining_stats_stack env in
-        let env = E.add_inlining_stats env inlining_history_next_part in
+        let inlining_history_without_call = E.inlining_history env in
+        let env = E.add_inlining_history env inlining_history_next_part in
         let env3 =
           E.note_entering_call env
             ~closure_id:callee.closure_id_being_applied ~dbg:call.dbg
