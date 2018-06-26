@@ -28,6 +28,12 @@ module Closure_stack : sig
 
   val create : unit -> t
 
+  val compare : node -> node -> int
+
+  val print : node -> unit
+
+  val add : t -> t -> t
+
   val note_entering_closure
      : t
     -> closure_id:Closure_id.t

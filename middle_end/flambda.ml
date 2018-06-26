@@ -28,6 +28,39 @@ module Closure_stack = struct
 
   let create () = []
 
+  let compare a b =
+    match a, b with
+    | Inlined, Inlined ->
+      0
+    | Closure(a, b), Closure(a', b') ->
+      let c = Closure_id.compare a a' in
+      if c <> 0 then c else
+      Debuginfo.compare b b'
+    | Call(a, b), Call(a', b') ->
+      let c = Closure_id.compare a a' in
+      if c <> 0 then c else
+      Debuginfo.compare b b'
+    | Specialised(a), Specialised(a') ->
+      Closure_id.Set.compare a a'
+    | _ -> -1
+
+
+  let print x =
+    match x with
+    | Inlined ->
+      Printf.printf "inlined "
+    | Call (c, _) ->
+      Printf.printf "call(%s)" (Closure_id.unique_name c)
+    | Closure (c, _) ->
+      Printf.printf "closure(%s)" (Closure_id.unique_name c)
+    | _ ->
+      Printf.printf "specialise "
+
+  let add a b =
+    (* order is important. If b= [1; 2] and a = [3;4;5],
+       we want the result to be [1;2;3;4;5] *)
+    a @ b
+
   let note_entering_closure t ~closure_id ~dbg =
     if not !Clflags.inlining_report then t
     else
@@ -42,11 +75,7 @@ module Closure_stack = struct
   let note_entering_call t ~closure_id ~dbg =
     if not !Clflags.inlining_report then t
     else
-      match t with
-      | [] | (Closure _ | Inlined | Specialised _) :: _ ->
         (Call (closure_id, dbg)) :: t
-      | (Call _) :: _ ->
-        Misc.fatal_errorf "note_entering_call: unexpected Call node"
 
   let note_entering_inlined t =
     if not !Clflags.inlining_report then t
