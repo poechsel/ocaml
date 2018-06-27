@@ -350,6 +350,7 @@ module Benefit = struct
       "Prims", (fun b -> b.remove_prim);
       "Branches", (fun b -> b.remove_branch);
       "Indirect calls", (fun b -> b.direct_call_of_indirect);
+      "Requested inline", (fun b -> b.requested_inline);
     ]
 
   let benefits_table =
