@@ -61,7 +61,7 @@ module Inlining_report = struct
     | Decision of Inlining_stats_types.Decision.t
     | Reference of Closure_stack.t
 
-  type t = node Place_map.t
+  type t = (node * string) Place_map.t
 
   and node =
     | Closure of t
@@ -81,6 +81,13 @@ module Inlining_report = struct
       inlined = None;
       specialised = None; }
 
+  let uid_of_history h =
+    let str_uid =
+      Format.asprintf "%a" Closure_stack.print h
+    in
+    Digest.string str_uid
+    |> Digest.to_hex
+
   (* Prevented or unchanged decisions may be overridden by a later look at the
      same call. Other decisions may also be "overridden" because calls are not
      uniquely identified. *)
@@ -95,76 +102,82 @@ module Inlining_report = struct
     | Decision _, Inlined _ -> { call with decision = Decision decision }
     | Decision Unchanged _, Unchanged _ -> call
 
-  let add_decision t (stack, decision) =
-    let rec loop t : Closure_stack.t -> _ = function
-      | Closure(cl, dbg) :: rest ->
+  let add_decision t (stack, decision) : (node * string) Place_map.t =
+    let rec loop seen t (stack : Closure_stack.t) =
+      let uid = uid_of_history seen in
+      match stack with
+      | (Closure(cl, dbg) as x) :: rest ->
           let key : Place.t = (dbg, cl, Closure) in
           let v =
             try
               match Place_map.find key t with
-              | Closure v -> v
-              | Call _ -> assert false
+              | Closure v, _ -> v
+              | Call _, _ -> assert false
             with Not_found -> Place_map.empty
           in
-          let v = loop v rest in
-          Place_map.add key (Closure v) t
-      | Call(cl, dbg, path) :: rest ->
+          let v = loop (x :: seen) v rest in
+          Place_map.add key (Closure v, uid) t
+      | (Call(cl, dbg, path) as x) :: rest ->
           let key : Place.t = (dbg, cl, Call) in
           let v =
             try
               match Place_map.find key t with
-              | Call v -> v
-              | Closure _ -> assert false
+              | Call v, _ -> v
+              | Closure _, _ -> assert false
             with Not_found -> empty_call path
           in
           let v =
             match rest with
             | [] -> add_call_decision v decision
-            | Inlined :: rest ->
+            | (Inlined as y) :: rest ->
                 let inlined =
                   match v.inlined with
                   | None -> Place_map.empty
                   | Some inlined -> inlined
                 in
-                let inlined = loop inlined rest in
+                let inlined = loop (y :: x :: seen) inlined rest in
                 { v with inlined = Some inlined }
-            | Specialised _ :: rest ->
+            | (Specialised _ as y) :: rest ->
                 let specialised =
                   match v.specialised with
                   | None -> Place_map.empty
                   | Some specialised -> specialised
                 in
-                let specialised = loop specialised rest in
+                let specialised = loop (y :: x :: seen) specialised rest in
                 { v with specialised = Some specialised }
             | Call _ :: _ -> assert false
             | Closure _ :: _ -> assert false
           in
-          Place_map.add key (Call v) t
+          Place_map.add key (Call v, uid) t
       | [] -> assert false
       | Inlined :: _ -> assert false
       | Specialised _ :: _ -> assert false
     in
-    loop t (List.rev stack)
+    loop [] t (List.rev stack)
 
   let build log =
-    List.fold_left add_decision Place_map.empty log
+      List.fold_left add_decision Place_map.empty log
 
   let print_stars ppf n =
     let s = String.make n '*' in
     Format.fprintf ppf "%s" s
 
   let print_reference ppf reference =
-    Format.fprintf ppf "The decision for this site was taken at:@;  %a"
-      Closure_stack.print reference
+    uid_of_history reference
+    |> Format.fprintf ppf "The decision for this site was taken at:@;  [[%s][decision site]]"
+
+  let print_anchor ppf anchor =
+    Format.fprintf ppf "[[id:<<%s>>][ ]]" anchor
 
   let rec print ~depth ppf t =
-    Place_map.iter (fun (dbg, cl, _) v ->
+    Place_map.iter (fun (dbg, cl, _) (v, uid) ->
        match v with
        | Closure t ->
-         Format.fprintf ppf "@[<h>%a Definition of %a%s@]@."
+         Format.fprintf ppf "@[<h>%a Definition of %a%s %a@]@."
            print_stars (depth + 1)
            Closure_id.print cl
-           (Debuginfo.to_string dbg);
+           (Debuginfo.to_string dbg)
+           print_anchor uid;
          print ppf ~depth:(depth + 1) t;
          if depth = 0 then Format.pp_print_newline ppf ()
        | Call c ->
@@ -172,10 +185,11 @@ module Inlining_report = struct
          | Reference reference ->
            begin
            Format.pp_open_vbox ppf (depth + 2);
-           Format.fprintf ppf "@[<h>%a Application of %a%s@]@;@;@[%a@]"
+           Format.fprintf ppf "@[<h>%a Application of %a%s %a@]@;@;@[%a@]"
              print_stars (depth + 1)
              Closure_id.print cl
              (Debuginfo.to_string dbg)
+             print_anchor uid
              print_reference reference;
            Format.pp_close_box ppf ();
            Format.pp_print_newline ppf ();
@@ -195,28 +209,16 @@ module Inlining_report = struct
              end
          | Decision decision ->
            Format.pp_open_vbox ppf (depth + 2);
-           Format.fprintf ppf "@[<h>%a Application of %a%s@]@;@;@[%a@]"
+           Format.fprintf ppf "@[<h>%a Application of %a%s %a@]@;@;@[%a@]"
              print_stars (depth + 1)
              Closure_id.print cl
              (Debuginfo.to_string dbg)
+             print_anchor uid
              Inlining_stats_types.Decision.summary decision;
            Format.pp_close_box ppf ();
            Format.pp_print_newline ppf ();
            Format.pp_print_newline ppf ();
-           Inlining_stats_types.Decision.calculation ~depth:(depth + 1)
-             ppf decision;
-           begin
-             match c.specialised with
-             | None -> ()
-             | Some specialised ->
-               print ppf ~depth:(depth + 1) specialised
-           end;
-           begin
-             match c.inlined with
-             | None -> ()
-             | Some inlined ->
-               print ppf ~depth:(depth + 1) inlined
-           end;
+           Inlining_stats_types.Decision.meta_print ~specialised:c.specialised ~inlined:c.inlined ~print:print ~depth:(depth + 1)  ppf decision;
            if depth = 0 then Format.pp_print_newline ppf ())
       t
 
