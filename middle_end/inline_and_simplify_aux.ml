@@ -331,23 +331,6 @@ module Env = struct
   let set_inlining_history t history =
     { t with inlining_history = history }
 
-  let remove_stats_parts t parts =
-    let rec destroyer stack parts =
-      match stack, parts with
-      | s::stack, a::parts when Flambda.Closure_stack.compare s a = 0 ->
-        destroyer stack parts
-      | _, [] -> stack
-      | _, _ -> if !Clflags.inlining_report then assert false else stack
-    in
-    { t with inlining_history = destroyer t.inlining_history parts }
-
-  let remove_stats_last_call t =
-    let stack =
-      match t.inlining_history with
-      | Flambda.Closure_stack.Call _ :: l -> l
-      | _l -> if !Clflags.inlining_report then assert false else _l
-    in { t with inlining_history = stack }
-
   let add_inlining_history t substats =
     { t with inlining_history =
                Flambda.Closure_stack.add
@@ -378,6 +361,7 @@ module Env = struct
       { t with
         inlining_stats_closure_stack =
           Closure_stack.note_entering_call
+            ~absolute_inlining_history:None
             t.inlining_stats_closure_stack ~closure_id ~dbg;
       }
 
@@ -385,6 +369,7 @@ module Env = struct
       { t with
         inlining_history =
           Closure_stack.note_entering_call
+            ~absolute_inlining_history:None
             t.inlining_history ~closure_id ~dbg
       }
 

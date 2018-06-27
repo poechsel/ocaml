@@ -57,6 +57,10 @@ module Inlining_report = struct
 
   module Place_map = Map.Make(Place)
 
+  type decision =
+    | Decision of Inlining_stats_types.Decision.t
+    | Reference of Closure_stack.t
+
   type t = node Place_map.t
 
   and node =
@@ -64,12 +68,16 @@ module Inlining_report = struct
     | Call of call
 
   and call =
-    { decision: Inlining_stats_types.Decision.t option;
+    { decision: decision;
       inlined: t option;
       specialised: t option; }
 
-  let empty_call =
-    { decision = None;
+  let empty_call path =
+    let path = match path with
+      | None -> []
+      | Some p -> p
+    in
+    { decision = Reference path;
       inlined = None;
       specialised = None; }
 
@@ -78,14 +86,14 @@ module Inlining_report = struct
      uniquely identified. *)
   let add_call_decision call (decision : Inlining_stats_types.Decision.t) =
     match call.decision, decision with
-    | None, _ -> { call with decision = Some decision }
-    | Some _, Prevented _ -> call
-    | Some (Prevented _), _ -> { call with decision = Some decision }
-    | Some (Specialised _), _ -> call
-    | Some _, Specialised _ -> { call with decision = Some decision }
-    | Some (Inlined _), _ -> call
-    | Some _, Inlined _ -> { call with decision = Some decision }
-    | Some Unchanged _, Unchanged _ -> call
+    | Reference _, _ -> { call with decision = Decision decision }
+    | Decision _, Prevented _ -> call
+    | Decision (Prevented _), _ -> { call with decision = Decision decision }
+    | Decision (Specialised _), _ -> call
+    | Decision _, Specialised _ -> { call with decision = Decision decision }
+    | Decision (Inlined _), _ -> call
+    | Decision _, Inlined _ -> { call with decision = Decision decision }
+    | Decision Unchanged _, Unchanged _ -> call
 
   let add_decision t (stack, decision) =
     let rec loop t : Closure_stack.t -> _ = function
@@ -100,14 +108,14 @@ module Inlining_report = struct
           in
           let v = loop v rest in
           Place_map.add key (Closure v) t
-      | Call(cl, dbg) :: rest ->
+      | Call(cl, dbg, path) :: rest ->
           let key : Place.t = (dbg, cl, Call) in
           let v =
             try
               match Place_map.find key t with
               | Call v -> v
               | Closure _ -> assert false
-            with Not_found -> empty_call
+            with Not_found -> empty_call path
           in
           let v =
             match rest with
@@ -145,6 +153,10 @@ module Inlining_report = struct
     let s = String.make n '*' in
     Format.fprintf ppf "%s" s
 
+  let print_reference ppf reference =
+    Format.fprintf ppf "The decision for this site was taken at:@;  %a"
+      Closure_stack.print reference
+
   let rec print ~depth ppf t =
     Place_map.iter (fun (dbg, cl, _) v ->
        match v with
@@ -157,9 +169,31 @@ module Inlining_report = struct
          if depth = 0 then Format.pp_print_newline ppf ()
        | Call c ->
          match c.decision with
-         | None ->
-           Misc.fatal_error "Inlining_report.print: missing call decision"
-         | Some decision ->
+         | Reference reference ->
+           begin
+           Format.pp_open_vbox ppf (depth + 2);
+           Format.fprintf ppf "@[<h>%a Application of %a%s@]@;@;@[%a@]"
+             print_stars (depth + 1)
+             Closure_id.print cl
+             (Debuginfo.to_string dbg)
+             print_reference reference;
+           Format.pp_close_box ppf ();
+           Format.pp_print_newline ppf ();
+           Format.pp_print_newline ppf ();
+           begin
+             match c.specialised with
+             | None -> ()
+             | Some specialised ->
+               print ppf ~depth:(depth + 1) specialised
+           end;
+           begin
+             match c.inlined with
+             | None -> ()
+             | Some inlined ->
+               print ppf ~depth:(depth + 1) inlined
+           end;
+             end
+         | Decision decision ->
            Format.pp_open_vbox ppf (depth + 2);
            Format.fprintf ppf "@[<h>%a Application of %a%s@]@;@;@[%a@]"
              print_stars (depth + 1)

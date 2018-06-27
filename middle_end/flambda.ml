@@ -22,13 +22,15 @@ module Closure_stack = struct
 
   and node =
     | Closure of Closure_id.t * Debuginfo.t
-    | Call of Closure_id.t * Debuginfo.t
+    | Call of Closure_id.t * Debuginfo.t * t option
     | Inlined
     | Specialised of Closure_id.Set.t
 
   let create () = []
 
-  let compare a b =
+  (* beware, the following are more to check equality than true
+     order *)
+  let rec compare_node a b =
     match a, b with
     | Inlined, Inlined ->
       0
@@ -36,25 +38,46 @@ module Closure_stack = struct
       let c = Closure_id.compare a a' in
       if c <> 0 then c else
       Debuginfo.compare b b'
-    | Call(a, b), Call(a', b') ->
+    | Call(a, b, p), Call(a', b', p') ->
       let c = Closure_id.compare a a' in
       if c <> 0 then c else
-      Debuginfo.compare b b'
+        let c = Debuginfo.compare b b' in
+        if c <> 0 then c else begin
+          match p, p' with
+          | None, None -> 0
+          | Some l, Some l' ->
+            compare l l'
+          | _ -> -1
+          end
     | Specialised(a), Specialised(a') ->
       Closure_id.Set.compare a a'
     | _ -> -1
 
+  and compare l l' =
+    let c = List.compare_lengths l l' in
+    if c <> 0 then c else
+      List.fold_left2 (fun p e e' ->
+        if p <> 0 then p
+        else compare_node e e')
+        0 l l'
 
-  let print x =
+  let strip_history hist =
+    List.map (function | Call(a, b, _) -> Call (a, b, None)
+                       | x -> x) hist
+
+  let print_node ppf x =
     match x with
     | Inlined ->
-      Printf.printf "inlined "
-    | Call (c, _) ->
-      Printf.printf "call(%s)" (Closure_id.unique_name c)
+      Format.fprintf ppf "inlined "
+    | Call (c, _, _) ->
+      Format.fprintf ppf "call(%s) " (Closure_id.unique_name c)
     | Closure (c, _) ->
-      Printf.printf "closure(%s)" (Closure_id.unique_name c)
+      Format.fprintf ppf "closure(%s) " (Closure_id.unique_name c)
     | _ ->
-      Printf.printf "specialise "
+      Format.fprintf ppf "specialise "
+
+  let print ppf l =
+    List.iter (print_node ppf) l
 
   let add a b =
     (* order is important. If b= [1; 2] and a = [3;4;5],
@@ -72,10 +95,10 @@ module Closure_stack = struct
 
   (* CR-someday lwhite: since calls do not have a unique id it is possible
      some calls will end up sharing nodes. *)
-  let note_entering_call t ~closure_id ~dbg =
+  let note_entering_call t ~closure_id ~dbg ~absolute_inlining_history =
     if not !Clflags.inlining_report then t
     else
-        (Call (closure_id, dbg)) :: t
+        (Call (closure_id, dbg, absolute_inlining_history)) :: t
 
   let note_entering_inlined t =
     if not !Clflags.inlining_report then t
@@ -1412,11 +1435,11 @@ let map_stats_stack_id subst stack =
                |> Closure_id.wrap
       in
       Closure_stack.Closure(id, dbg)
-    | Closure_stack.Call(id, dbg) ->
+    | Closure_stack.Call(id, dbg, h) ->
       let id = subst (Closure_id.unwrap id)
                |> Closure_id.wrap
       in
-      Closure_stack.Call(id, dbg)
+      Closure_stack.Call(id, dbg, h)
     | x -> x)
     stack
 
