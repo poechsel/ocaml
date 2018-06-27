@@ -22,17 +22,23 @@ module Closure_stack : sig
 
   and node =
     | Closure of Closure_id.t * Debuginfo.t
-    | Call of Closure_id.t * Debuginfo.t
+    | Call of Closure_id.t * Debuginfo.t * t option
     | Inlined
     | Specialised of Closure_id.Set.t
 
   val create : unit -> t
 
-  val compare : node -> node -> int
+  val compare_node : node -> node -> int
 
-  val print : node -> unit
+  val compare : t -> t -> int
+
+  val print_node : Format.formatter -> node -> unit
+
+  val print : Format.formatter -> t -> unit
 
   val add : t -> t -> t
+
+  val strip_history : t -> t
 
   val note_entering_closure
      : t
@@ -44,6 +50,7 @@ module Closure_stack : sig
     : t
     -> closure_id:Closure_id.t
     -> dbg:Debuginfo.t
+    -> absolute_inlining_history:t option
     -> t
 
   val note_entering_inlined : t -> t

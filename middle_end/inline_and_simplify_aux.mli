@@ -204,10 +204,6 @@ module Env : sig
 
   val inlining_history : t -> Flambda.Closure_stack.t
 
-  val remove_stats_parts : t -> Flambda.Closure_stack.t -> t
-
-  val remove_stats_last_call : t -> t
-
   val add_inlining_history_parts : t -> Flambda.Closure_stack.t -> t
 
   val add_inlining_history_part : t -> Flambda.Closure_stack.node -> t

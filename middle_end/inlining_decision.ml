@@ -769,6 +769,8 @@ let for_call_site ~env ~r ~(call : call_informations)
         let inlining_history_next_part =
           Flambda.Closure_stack.note_entering_call
             ~dbg:call.dbg ~closure_id:callee.closure_id_being_applied
+            ~absolute_inlining_history:
+              (Some (Flambda.Closure_stack.strip_history (E.inlining_history env)))
             call.inlining_history
         in
         let inlining_history_without_call = E.inlining_history env in
