@@ -38,7 +38,7 @@ let assign_symbols_and_collect_constant_definitions
   let var_to_symbol_tbl = Variable.Tbl.create 42 in
   let var_to_definition_tbl = Variable.Tbl.create 42 in
   let module AA = Alias_analysis in
-  let assign_symbol var (named : Flambda.named) =
+  let rec assign_symbol_loop inlining_history var (named : Flambda.named) =
     if not (Inconstant_idents.variable var inconstants) then begin
       let assign_symbol () =
         let symbol = Symbol.of_variable (Variable.rename var) in
@@ -71,6 +71,22 @@ let assign_symbols_and_collect_constant_definitions
         assert (not (Inconstant_idents.closure set_of_closures_id
                        inconstants));
         assign_symbol ();
+
+        let set =
+          let funs =
+            Variable.Map.map (fun (decl : Flambda.function_declaration) : Flambda.function_declaration ->
+              Flambda.update_function_declaration decl
+                ~params:decl.params ~inlining_history:(Flambda.Closure_stack.add
+                                                         decl.inlining_history
+                                                         inlining_history)
+                ~body:decl.body
+            ) set.function_decls.funs
+          in
+          let function_decls =
+            Flambda.update_function_declarations set.function_decls ~funs
+          in
+          Flambda.update_set_of_closure_decls set ~function_decls
+        in
         record_definition (AA.Set_of_closures set);
         Variable.Map.iter (fun fun_var _ ->
             let closure_id = Closure_id.wrap fun_var in
@@ -90,8 +106,8 @@ let assign_symbols_and_collect_constant_definitions
                 { set_of_closures = var; closure_id }
             in
             record_definition_of fun_var rec_def;
-            record_definition_of rec_tgt_var closure_def)
-          funs
+            record_definition_of rec_tgt_var closure_def;
+        ) funs
       | Move_within_set_of_closures ({ closure = _; start_from = _; move_to; }
           as move) ->
         assign_existing_symbol (closure_symbol ~backend  move_to);
@@ -123,13 +139,21 @@ let assign_symbols_and_collect_constant_definitions
         match tail_variable e with
         | None -> assert false  (* See [Inconstant_idents]. *)
         | Some v -> record_definition (AA.Variable v)
-    end
+    end;
+    match named with
+      | Set_of_closures { function_decls = { funs }; } ->
+        Variable.Map.iter (fun _ (decl : Flambda.function_declaration) ->
+          let inlining_history =
+            Flambda.Closure_stack.add decl.inlining_history inlining_history
+          in
+          assign_symbol_program inlining_history decl.body;
+        ) funs
+      | _ -> ()
+  and assign_symbol_program inlining_history expr =
+    Flambda_iterators.iter_all_toplevel_immutable_let_and_let_rec_bindings expr
+      ~f:(assign_symbol_loop inlining_history)
   in
-  let assign_symbol_program expr =
-    Flambda_iterators.iter_all_immutable_let_and_let_rec_bindings expr
-      ~f:assign_symbol
-  in
-  Flambda_iterators.iter_exprs_at_toplevel_of_program program
+  Flambda_iterators.iter_exprs_at_toplevel_of_program_with_history program
     ~f:assign_symbol_program;
   let let_symbol_to_definition_tbl = Symbol.Tbl.create 42 in
   let initialize_symbol_to_definition_tbl = Symbol.Tbl.create 42 in
@@ -140,7 +164,7 @@ let assign_symbols_and_collect_constant_definitions
       collect_let_and_initialize_symbols program
     | Let_rec_symbol (decls, program) ->
       List.iter (fun (symbol, decl) ->
-          Symbol.Tbl.add let_symbol_to_definition_tbl symbol decl)
+        Symbol.Tbl.add let_symbol_to_definition_tbl symbol decl)
         decls;
       collect_let_and_initialize_symbols program
     | Effect (_, program) -> collect_let_and_initialize_symbols program
@@ -154,13 +178,13 @@ let assign_symbols_and_collect_constant_definitions
   let record_set_of_closure_equalities
         (set_of_closures : Flambda.set_of_closures) =
     Variable.Map.iter (fun arg (var : Flambda.specialised_to) ->
-        if not (Inconstant_idents.variable arg inconstants) then
-          Variable.Tbl.add var_to_definition_tbl arg (AA.Variable var.var))
+      if not (Inconstant_idents.variable arg inconstants) then
+        Variable.Tbl.add var_to_definition_tbl arg (AA.Variable var.var))
       set_of_closures.free_vars;
     Variable.Map.iter (fun arg (spec_to : Flambda.specialised_to) ->
-        if not (Inconstant_idents.variable arg inconstants) then
-          Variable.Tbl.add var_to_definition_tbl arg
-            (AA.Variable spec_to.var))
+      if not (Inconstant_idents.variable arg inconstants) then
+        Variable.Tbl.add var_to_definition_tbl arg
+          (AA.Variable spec_to.var))
       set_of_closures.specialised_args
   in
   Flambda_iterators.iter_on_set_of_closures_of_program program
@@ -168,15 +192,15 @@ let assign_symbols_and_collect_constant_definitions
       record_set_of_closure_equalities set_of_closures;
       if constant then begin
         Variable.Map.iter (fun fun_var _ ->
-            let closure_id = Closure_id.wrap fun_var in
-            let closure_symbol = closure_symbol ~backend closure_id in
-            Variable.Tbl.add var_to_definition_tbl fun_var
-              (AA.Symbol closure_symbol);
-            Variable.Tbl.add var_to_symbol_tbl fun_var closure_symbol)
+          let closure_id = Closure_id.wrap fun_var in
+          let closure_symbol = closure_symbol ~backend closure_id in
+          Variable.Tbl.add var_to_definition_tbl fun_var
+            (AA.Symbol closure_symbol);
+          Variable.Tbl.add var_to_symbol_tbl fun_var closure_symbol)
           set_of_closures.Flambda.function_decls.funs
       end);
   var_to_symbol_tbl, var_to_definition_tbl,
-    let_symbol_to_definition_tbl, initialize_symbol_to_definition_tbl
+  let_symbol_to_definition_tbl, initialize_symbol_to_definition_tbl
 
 let variable_field_definition
     (var_to_symbol_tbl : Symbol.t Variable.Tbl.t)

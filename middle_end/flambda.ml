@@ -801,8 +801,9 @@ and print_function_declaration ppf var (f : function_declaration) =
     | Never_specialise -> " *never_specialise*"
     | Default_specialise -> ""
   in
-  fprintf ppf "@[<2>(%a%s%s%s%s%s@ =@ fun@[<2>%a@] ->@ @[<2>%a@])@]@ "
+  fprintf ppf "@[<2>(%a%s%s%s%s%s[%a]@ =@ fun@[<2>%a@] ->@ @[<2>%a@])@]@ "
     Variable.print var recursive stub is_a_functor inline specialise
+    Closure_stack.print f.inlining_history
     params f.params lam f.body
 
 and print_set_of_closures ppf (set_of_closures : set_of_closures) =
@@ -1720,3 +1721,7 @@ let compare_project_var = Projection.compare_project_var
 let compare_project_closure = Projection.compare_project_closure
 let compare_move_within_set_of_closures =
   Projection.compare_move_within_set_of_closures
+
+
+let update_set_of_closure_decls set ~function_decls =
+  { set with function_decls }

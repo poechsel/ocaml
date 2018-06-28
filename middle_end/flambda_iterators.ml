@@ -200,6 +200,37 @@ let iter_on_sets_of_closures f t =
       | Prim _ | Expr _ -> ())
     t
 
+
+let iter_exprs_at_toplevel_of_program_with_history (program : Flambda.program) ~f =
+  let rec loop (program : Flambda.program_body) =
+    match program with
+    | Let_symbol (_, Set_of_closures set_of_closures, program) ->
+      Variable.Map.iter (fun _ (function_decl : Flambda.function_declaration) ->
+        f function_decl.inlining_history function_decl.body)
+        set_of_closures.function_decls.funs;
+      loop program
+    | Let_rec_symbol (defs, program) ->
+      List.iter (function
+          | (_, Flambda.Set_of_closures set_of_closures) ->
+            Variable.Map.iter
+              (fun _ (function_decl : Flambda.function_declaration) ->
+                f function_decl.inlining_history function_decl.body)
+              set_of_closures.function_decls.funs
+          | _ -> ()) defs;
+      loop program
+    | Let_symbol (_, _, program) ->
+      loop program
+    | Initialize_symbol (_, _, fields, program) ->
+        List.iter (f [])fields;
+      loop program
+    | Effect (expr, program) ->
+        f [] expr;
+      loop program
+    | End _ -> ()
+  in
+  loop program.program_body
+
+
 let iter_exprs_at_toplevel_of_program (program : Flambda.program) ~f =
   let rec loop (program : Flambda.program_body) =
     match program with
