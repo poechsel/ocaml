@@ -870,3 +870,8 @@ val compare_move_within_set_of_closures
   -> int
 
 val compare_project_closure : project_closure -> project_closure -> int
+
+val update_set_of_closure_decls :
+  set_of_closures
+  -> function_decls:function_declarations
+  -> set_of_closures
