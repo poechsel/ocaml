@@ -400,9 +400,11 @@ module Env = struct
     f (note_entering_closure t ~closure_id ~dbg)
 
   let record_decision t decision =
-    (* let p = Flambda.Closure_stack.print Format.std_formatter in
-    Printf.printf "--> "; p t.inlining_history; Printf.printf "\n";
-    p t.inlining_stats_closure_stack; Printf.printf "\n";
+    (*
+    let pf = Format.fprintf Format.std_formatter in
+    let p = Flambda.Closure_stack.print Format.std_formatter in
+    pf "--> "; p t.inlining_history; pf "\n";
+    p t.inlining_stats_closure_stack; pf "\n";
     *)
 
     Inlining_stats.record_decision decision
