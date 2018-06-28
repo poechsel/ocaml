@@ -317,11 +317,6 @@ let inline env r ~call ~callee ~annotations ~original
       (* First we construct the code that would result from copying the body of
          the function, without doing any further inlining upon it, to the call
          site. *)
-      let env =
-        E.add_inlining_history_parts env inlining_history_next_part in
-      let env =
-        E.add_inlining_history_part env Flambda.Closure_stack.Inlined
-      in
       Inlining_transforms.inline_by_copying_function_body ~env
         ~r:(R.reset_benefit r) ~function_decls:callee.function_decls
         ~lhs_of_application:call.callee ~unroll_to
@@ -331,6 +326,7 @@ let inline env r ~call ~callee ~annotations ~original
         ~args:call.args ~dbg:call.dbg ~simplify
         ~function_body:(get_function_body callee.function_decl)
         ~inlining_history:call.inlining_history
+        ~inlining_history_next_part:(Some inlining_history_next_part)
     in
     let num_direct_applications_seen =
       (R.num_direct_applications r_inlined) - (R.num_direct_applications r)
@@ -641,11 +637,6 @@ let classic_mode_inlining env r ~simplify ~callee ~call ~annotations
       | Don't_try_it decision -> Original decision
       | Try_it ->
         let body, r =
-          let env =
-            E.add_inlining_history_parts env inlining_history_next_part in
-          let env =
-            E.add_inlining_history_part env Flambda.Closure_stack.Inlined
-          in
           Inlining_transforms.inline_by_copying_function_body ~env
             ~unroll_to:0 ~r ~function_body
             ~lhs_of_application:call.callee
@@ -654,6 +645,7 @@ let classic_mode_inlining env r ~simplify ~callee ~call ~annotations
             ~inline_requested:annotations.caller_inline
             ~function_decls:callee.function_decls ~args:call.args ~dbg:call.dbg ~simplify
             ~inlining_history:call.inlining_history
+            ~inlining_history_next_part:(Some inlining_history_next_part)
         in
         let env = E.note_entering_inlined env in
         let env = E.inside_inlined_function env in
@@ -697,7 +689,8 @@ let flambda_mode_inlining env r ~simplify ~callee ~call ~annotations
              ~size_from_approximation:None)
       in
       let specialise_result =
-        specialise env r ~call ~callee ~annotations ~args_approxs
+        specialise (E.add_inlining_history env inlining_history_next_part)
+          r ~call ~callee ~annotations ~args_approxs
           ~simplify ~original ~fun_cost ~inlining_threshold
       in
       let out = match specialise_result with
@@ -759,6 +752,7 @@ let for_call_site ~env ~r ~(call : call_informations)
           ~closure_id_being_applied ~specialise_requested ~inline_requested
           ~function_decls ~function_body ~args ~dbg ~simplify
           ~inlining_history:call.inlining_history
+          ~inlining_history_next_part:None
       in
       simplify env r body
     end else if E.never_inline env then
