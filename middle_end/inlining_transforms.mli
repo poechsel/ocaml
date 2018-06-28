@@ -73,6 +73,7 @@ val inline_by_copying_function_body
   -> closure_id_being_applied:Closure_id.t
   -> function_decls:Simple_value_approx.function_declarations
   -> function_body:Simple_value_approx.function_body
+  -> inlining_history:Flambda.Closure_stack.t
   -> unroll_to:int
   -> args:Variable.t list
   -> dbg:Debuginfo.t

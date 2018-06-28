@@ -218,20 +218,7 @@ module Inlining_report = struct
            Format.pp_close_box ppf ();
            Format.pp_print_newline ppf ();
            Format.pp_print_newline ppf ();
-           Inlining_stats_types.Decision.calculation ~depth:(depth + 1)
-             ppf decision;
-           begin
-             match c.specialised with
-             | None -> ()
-             | Some specialised ->
-               print ppf ~depth:(depth + 1) specialised
-           end;
-           begin
-             match c.inlined with
-             | None -> ()
-             | Some inlined ->
-               print ppf ~depth:(depth + 1) inlined
-           end;
+           Inlining_stats_types.Decision.meta_print ~specialised:c.specialised ~inlined:c.inlined ~print:print ~depth:(depth + 1)  ppf decision;
            if depth = 0 then Format.pp_print_newline ppf ())
       t
 

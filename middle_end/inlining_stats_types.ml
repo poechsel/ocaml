@@ -74,6 +74,12 @@ module Inlined = struct
         ~depth ~title:"Inlining benefit calculation"
         ~subfunctions:true ppf wsb
 
+  let need_precisions = function
+    | Classic_mode | Annotation | Decl_local_to_application
+      -> false
+    | Without_subfunctions _ | With_subfunctions _
+      -> true
+
 end
 
 module Not_inlined = struct
@@ -140,6 +146,14 @@ module Not_inlined = struct
         ~depth ~title:"Inlining benefit calculation"
         ~subfunctions:true ppf wsb
 
+  let need_precisions = function
+    | Classic_mode | Above_threshold _ | Annotation
+    | No_useful_approximations | Inlining_depth_exceeded
+    | Unrolling_depth_exceeded
+      -> false
+    | Without_subfunctions _ | With_subfunctions _
+      -> true
+
 end
 
 module Specialised = struct
@@ -172,6 +186,12 @@ module Specialised = struct
         print_calculation
           ~depth ~title:"Specialising benefit calculation"
           ~subfunctions:true ppf wsb
+
+  let need_precisions = function
+    | Annotation
+      -> false
+    | Without_subfunctions _ | With_subfunctions _
+      -> true
 end
 
 module Not_specialised = struct
@@ -240,6 +260,13 @@ module Not_specialised = struct
         ~depth ~title:"Specialising benefit calculation"
         ~subfunctions:true ppf wsb
 
+  let need_precisions = function
+    | Classic_mode | Above_threshold _ | Annotation | Not_recursive
+    | Not_closed | No_invariant_parameters | Specialised_depth_exceeded
+    | No_useful_approximations
+      -> false
+    | Not_beneficial _
+      -> true
 end
 
 module Prevented = struct
@@ -286,4 +313,64 @@ module Decision = struct
     | Unchanged (s, i) ->
       Not_specialised.calculation ~depth ppf s;
       Not_inlined.calculation ~depth ppf i
+
+
+  let meta_print ~depth ppf ~specialised ~inlined
+        ~print
+        decision =
+    match decision with
+    | Prevented _ ->
+      ()
+    | Specialised s ->
+      begin
+        if Specialised.need_precisions s || specialised <> None then begin
+          Format.fprintf ppf "@[<h>%a Specialisation@]@."
+            print_stars (depth + 1);
+          Specialised.calculation ~depth:(depth+1) ppf s;
+          match specialised with
+          | None -> ()
+          | Some s -> print ~depth:(depth+1) ppf s
+        end
+      end
+    | Inlined(s, i) ->
+      begin
+        if Not_specialised.need_precisions s || specialised <> None then begin
+          Format.fprintf ppf "@[<h>%a Speculative specialisation@]@."
+            print_stars (depth + 1);
+          Not_specialised.calculation ~depth:(depth+1) ppf s;
+          match specialised with
+          | None -> ()
+          | Some s -> print ~depth:(depth+1) ppf s
+        end;
+
+        if Inlined.need_precisions i || inlined <> None then begin
+          Format.fprintf ppf "@[<h>%a Inlining@]@."
+            print_stars (depth + 1);
+          Inlined.calculation ~depth:(depth+1) ppf i;
+          match inlined with
+          | None -> ()
+          | Some i -> print ~depth:(depth+1) ppf i
+        end
+      end
+    | Unchanged (s, i) ->
+      begin
+        if Not_specialised.need_precisions s || specialised <> None then begin
+          Format.fprintf ppf "@[<h>%a Speculative specialisation@]@."
+            print_stars (depth + 1);
+          Not_specialised.calculation ~depth:(depth+1) ppf s;
+          match specialised with
+          | None -> ()
+          | Some s -> print ~depth:(depth+1) ppf s
+        end;
+
+        if Not_inlined.need_precisions i || inlined <> None then begin
+          Format.fprintf ppf "@[<h>%a Speculative inlining@]@."
+            print_stars (depth + 1);
+          Not_inlined.calculation ~depth:(depth+1) ppf i;
+          match inlined with
+          | None -> ()
+          | Some i -> print ~depth:(depth+1) ppf i
+        end
+      end
+
 end
