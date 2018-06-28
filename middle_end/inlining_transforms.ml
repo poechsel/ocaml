@@ -118,6 +118,7 @@ let inline_by_copying_function_body ~env ~r
       ~(function_decls : A.function_declarations)
       ~(function_body : A.function_body)
       ~(inlining_history : Flambda.Closure_stack.t)
+      ~(inlining_history_next_part : Flambda.Closure_stack.t option)
       ~unroll_to ~args ~dbg ~simplify =
   assert (E.mem env lhs_of_application);
   assert (List.for_all (E.mem env) args);
@@ -217,6 +218,17 @@ let inline_by_copying_function_body ~env ~r
       else expr)
       function_decls.funs
       bindings_for_vars_bound_by_closure_and_params_to_args
+  in
+  (* Set the bit of inlining history we want to move down on apply and
+     function_declaration nodes *)
+
+  let env =
+  (* option because sometimes we don't want to move down something (ex:stubs) *)
+    match inlining_history_next_part with
+    | None -> env
+    | Some x ->
+      let env = E.add_inlining_history_parts env x in
+      E.add_inlining_history_part env Flambda.Closure_stack.Inlined
   in
   let env = E.set_never_inline env in
   let env = E.activate_freshening env in

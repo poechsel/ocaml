@@ -74,6 +74,7 @@ val inline_by_copying_function_body
   -> function_decls:Simple_value_approx.function_declarations
   -> function_body:Simple_value_approx.function_body
   -> inlining_history:Flambda.Closure_stack.t
+  -> inlining_history_next_part:Flambda.Closure_stack.t option
   -> unroll_to:int
   -> args:Variable.t list
   -> dbg:Debuginfo.t
