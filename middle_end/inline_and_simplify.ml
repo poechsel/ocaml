@@ -664,6 +664,7 @@ and simplify_set_of_closures original_env r
         ~body ~stub:function_decl.stub ~dbg:function_decl.dbg
         ~inline:function_decl.inline ~specialise:function_decl.specialise
         ~is_a_functor:function_decl.is_a_functor
+        ~dbg_name:None
         ~inlining_history
     in
     let used_params' = Flambda.used_params function_decl in
@@ -1586,6 +1587,7 @@ and duplicate_function ~env ~(set_of_closures : Flambda.set_of_closures)
       ~inline:function_decl.inline ~specialise:function_decl.specialise
       ~is_a_functor:function_decl.is_a_functor ~recursive:function_decl.recursive
       ~inlining_history:function_decl.inlining_history
+      ~dbg_name:None
   in
   function_decl, specialised_args
 
