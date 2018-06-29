@@ -41,9 +41,9 @@ module Inlining_report = struct
       | Closure
       | Call
 
-    type t = Debuginfo.t * Closure_id.t * kind
+    type t = Debuginfo.t * Closure_id.t * Lambda.DebugNames.t * kind
 
-    let compare ((d1, cl1, k1) : t) ((d2, cl2, k2) : t) =
+    let compare ((d1, cl1, _, k1) : t) ((d2, cl2, _, k2) : t) =
       let c = Debuginfo.compare d1 d2 in
       if c <> 0 then c else
       let c = Closure_id.compare cl1 cl2 in
@@ -107,7 +107,7 @@ module Inlining_report = struct
       let uid = uid_of_history seen in
       match stack with
       | (Closure(cl, dbg) as x) :: rest ->
-          let key : Place.t = (dbg, cl, Closure) in
+          let key : Place.t = (dbg, cl, Lambda.DebugNames.empty, Closure) in
           let v =
             try
               match Place_map.find key t with
@@ -117,8 +117,8 @@ module Inlining_report = struct
           in
           let v = loop (x :: seen) v rest in
           Place_map.add key (Closure v, uid) t
-      | (Call(cl, dbg, path) as x) :: rest ->
-          let key : Place.t = (dbg, cl, Call) in
+      | (Call(cl, name, dbg, path) as x) :: rest ->
+          let key : Place.t = (dbg, cl, name, Call) in
           let v =
             try
               match Place_map.find key t with
@@ -170,7 +170,7 @@ module Inlining_report = struct
     Format.fprintf ppf "[[id:<<%s>>][ ]]" anchor
 
   let rec print ~depth ppf t =
-    Place_map.iter (fun (dbg, cl, _) (v, uid) ->
+    Place_map.iter (fun (dbg, cl, name, _) (v, uid) ->
        match v with
        | Closure t ->
          Format.fprintf ppf "@[<h>%a Definition of %a%s %a@]@."
@@ -187,7 +187,7 @@ module Inlining_report = struct
            Format.pp_open_vbox ppf (depth + 2);
            Format.fprintf ppf "@[<h>%a Application of %a%s %a@]@;@;@[%a@]"
              print_stars (depth + 1)
-             Closure_id.print cl
+             Lambda.DebugNames.print name
              (Debuginfo.to_string dbg)
              print_anchor uid
              print_reference reference;
@@ -211,14 +211,16 @@ module Inlining_report = struct
            Format.pp_open_vbox ppf (depth + 2);
            Format.fprintf ppf "@[<h>%a Application of %a%s %a@]@;@;@[%a@]"
              print_stars (depth + 1)
-             Closure_id.print cl
+             Lambda.DebugNames.print name
              (Debuginfo.to_string dbg)
              print_anchor uid
              Inlining_stats_types.Decision.summary decision;
            Format.pp_close_box ppf ();
            Format.pp_print_newline ppf ();
            Format.pp_print_newline ppf ();
-           Inlining_stats_types.Decision.meta_print ~specialised:c.specialised ~inlined:c.inlined ~print:print ~depth:(depth + 1)  ppf decision;
+           Inlining_stats_types.Decision.meta_print
+             ~specialised:c.specialised ~inlined:c.inlined
+             ~print:print ~depth:(depth + 1)  ppf decision;
            if depth = 0 then Format.pp_print_newline ppf ())
       t
 

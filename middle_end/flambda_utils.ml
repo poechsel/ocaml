@@ -367,7 +367,7 @@ let make_closure_declaration ~is_classic_mode ~id
       ~specialise:Default_specialise ~is_a_functor:false
       ~inlining_history:(Flambda.create_declaration_stats_stack ~dbg:Debuginfo.none
                                ~id:id)
-      ~dbg_name:None
+      ~dbg_name:Lambda.DebugNames.empty
   in
   assert (Variable.Set.equal (Variable.Set.map subst free_variables)
     function_declaration.free_variables);
