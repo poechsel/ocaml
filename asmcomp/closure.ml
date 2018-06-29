@@ -906,6 +906,7 @@ let rec close fenv cenv = function
                              ap_inlined=Default_inline;
                              ap_specialised=Default_specialise};
                loc;
+               debugging_informations = DebugNames.empty;
                attr = default_function_attribute})
         in
         let new_fun =
@@ -1139,9 +1140,10 @@ and close_functions fenv cenv fun_defs =
     List.flatten
       (List.map
          (function
-           | (id, Lfunction{kind; params; body; attr; loc}) ->
+           | (id, Lfunction{kind; params; body; attr; loc;
+                           debugging_informations}) ->
                Simplif.split_default_wrapper ~id ~kind ~params
-                 ~body ~attr ~loc
+                 ~body ~attr ~loc ~debugging_informations
            | _ -> assert false
          )
          fun_defs)

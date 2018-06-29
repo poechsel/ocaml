@@ -672,7 +672,7 @@ let lambda_of_prim prim_name prim loc args arg_exps =
 
 (* Eta-expand a primitive *)
 
-let transl_primitive loc p env ty path =
+let transl_primitive name loc p env ty path =
   let prim = lookup_primitive loc p env path in
   let has_constant_constructor = false in
   let prim =
@@ -692,7 +692,10 @@ let transl_primitive loc p env ty path =
       Lfunction{ kind = Curried; params;
                  attr = default_stub_attribute;
                  loc = loc;
-                 body = body; }
+                 body = body;
+                 debugging_informations =
+                   DebugNames.create ~name ~path
+               }
 
 (* Determine if a primitive is a Pccall or will be turned later into
    a C function call that may raise an exception *)

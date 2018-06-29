@@ -30,12 +30,20 @@ type error =
 
 exception Error of Location.t * error
 
+
+let function_name_from_pattern ({pat_desc=desc} : Typedtree.pattern) =
+    match desc with
+    | Tpat_var (id, _) ->
+      DebugNames.Function(Ident.name id)
+    | _ ->
+      DebugNames.Anonymous
+
 let use_dup_for_constant_arrays_bigger_than = 4
 
 (* Forward declaration -- to be filled in by Translmod.transl_module *)
 let transl_module =
   ref((fun _cc _rootpath _modl -> assert false) :
-      module_coercion -> Path.t option -> module_expr -> lambda)
+        Ident.t option -> module_coercion -> Path.t option -> module_expr -> lambda)
 
 let transl_object =
   ref (fun _id _s _cl -> assert false :
@@ -180,7 +188,7 @@ let rec cut n l =
 
 (* Translation of expressions *)
 
-let rec transl_exp e =
+let rec transl_exp name e =
   List.iter (Translattribute.check_attribute e) e.exp_attributes;
   let eval_once =
     (* Whether classes for immediate objects must be cached *)
@@ -188,13 +196,13 @@ let rec transl_exp e =
       Texp_function _ | Texp_for _ | Texp_while _ -> false
     | _ -> true
   in
-  if eval_once then transl_exp0 e else
-  Translobj.oo_wrap e.exp_env true transl_exp0 e
+  if eval_once then transl_exp0 name e else
+  Translobj.oo_wrap e.exp_env true (transl_exp0 name) e
 
-and transl_exp0 e =
+and transl_exp0 name e =
   match e.exp_desc with
   | Texp_ident(path, _, {val_kind = Val_prim p}) ->
-      Translprim.transl_primitive e.exp_loc p e.exp_env e.exp_type (Some path)
+      Translprim.transl_primitive name e.exp_loc p e.exp_env e.exp_type (Some path)
   | Texp_ident(_, _, {val_kind = Val_anc _}) ->
       raise(Error(e.exp_loc, Free_super_var))
   | Texp_ident(path, _, {val_kind = Val_reg | Val_self _}) ->
@@ -203,7 +211,7 @@ and transl_exp0 e =
   | Texp_constant cst ->
       Lconst(Const_base cst)
   | Texp_let(rec_flag, pat_expr_list, body) ->
-      transl_let rec_flag pat_expr_list (event_before body (transl_exp body))
+      transl_let rec_flag pat_expr_list (event_before body (transl_exp DebugNames.Anonymous body))
   | Texp_function { arg_label = _; param; cases; partial; } ->
       let ((kind, params), body) =
         event_function e
@@ -218,8 +226,12 @@ and transl_exp0 e =
         specialise = Translattribute.get_specialise_attribute e.exp_attributes;
       }
       in
+      let debugging_informations =
+        DebugNames.create ~name ~path:None
+      in
       let loc = e.exp_loc in
-      Lfunction{kind; params; body; attr; loc}
+      Lfunction{kind; params; body; attr; loc;
+               debugging_informations}
   | Texp_apply({ exp_desc = Texp_ident(path, _, {val_kind = Val_prim p});
                 exp_type = prim_type } as funct, oargs)
     when List.length oargs >= p.prim_arity
@@ -264,12 +276,12 @@ and transl_exp0 e =
       let e = { e with exp_desc = Texp_apply(funct, oargs) } in
       event_after e
         (transl_apply ~should_be_tailcall ~inlined ~specialised
-           (transl_exp funct) oargs e.exp_loc)
+           (transl_exp DebugNames.Anonymous funct) oargs e.exp_loc)
   | Texp_match(arg, pat_expr_list, exn_pat_expr_list, partial) ->
     transl_match e arg pat_expr_list exn_pat_expr_list partial
   | Texp_try(body, pat_expr_list) ->
       let id = Typecore.name_pattern "exn" pat_expr_list in
-      Ltrywith(transl_exp body, id,
+      Ltrywith(transl_exp DebugNames.Anonymous body, id,
                Matching.for_trywith (Lvar id) (transl_cases_try pat_expr_list))
   | Texp_tuple el ->
       let ll, shape = transl_list_with_shape el in
@@ -308,7 +320,7 @@ and transl_exp0 e =
       begin match arg with
         None -> Lconst(Const_pointer tag)
       | Some arg ->
-          let lam = transl_exp arg in
+          let lam = transl_exp DebugNames.Anonymous arg in
           try
             Lconst(Const_block(0, [Const_base(Const_int tag);
                                    extract_constant lam]))
@@ -320,7 +332,7 @@ and transl_exp0 e =
       transl_record e.exp_loc e.exp_env fields representation
         extended_expression
   | Texp_field(arg, _, lbl) ->
-      let targ = transl_exp arg in
+      let targ = transl_exp DebugNames.Anonymous arg in
       begin match lbl.lbl_repres with
           Record_regular | Record_inlined _ ->
           Lprim (Pfield lbl.lbl_pos, [targ], e.exp_loc)
@@ -340,7 +352,7 @@ and transl_exp0 e =
         | Record_extension ->
           Psetfield (lbl.lbl_pos + 1, maybe_pointer newval, Assignment)
       in
-      Lprim(access, [transl_exp arg; transl_exp newval], e.exp_loc)
+      Lprim(access, [transl_exp DebugNames.Anonymous arg; transl_exp DebugNames.Anonymous newval], e.exp_loc)
   | Texp_array expr_list ->
       let kind = array_kind e in
       let ll = transl_list expr_list in
@@ -387,23 +399,23 @@ and transl_exp0 e =
         Lprim(Pmakearray (kind, Mutable), ll, e.exp_loc)
       end
   | Texp_ifthenelse(cond, ifso, Some ifnot) ->
-      Lifthenelse(transl_exp cond,
-                  event_before ifso (transl_exp ifso),
-                  event_before ifnot (transl_exp ifnot))
+      Lifthenelse(transl_exp DebugNames.Anonymous cond,
+                  event_before ifso (transl_exp DebugNames.Anonymous ifso),
+                  event_before ifnot (transl_exp DebugNames.Anonymous ifnot))
   | Texp_ifthenelse(cond, ifso, None) ->
-      Lifthenelse(transl_exp cond,
-                  event_before ifso (transl_exp ifso),
+      Lifthenelse(transl_exp DebugNames.Anonymous cond,
+                  event_before ifso (transl_exp DebugNames.Anonymous ifso),
                   lambda_unit)
   | Texp_sequence(expr1, expr2) ->
-      Lsequence(transl_exp expr1, event_before expr2 (transl_exp expr2))
+      Lsequence(transl_exp DebugNames.Anonymous expr1, event_before expr2 (transl_exp DebugNames.Anonymous expr2))
   | Texp_while(cond, body) ->
-      Lwhile(transl_exp cond, event_before body (transl_exp body))
+      Lwhile(transl_exp DebugNames.Anonymous cond, event_before body (transl_exp DebugNames.Anonymous body))
   | Texp_for(param, _, low, high, dir, body) ->
-      Lfor(param, transl_exp low, transl_exp high, dir,
-           event_before body (transl_exp body))
-  | Texp_send(_, _, Some exp) -> transl_exp exp
+      Lfor(param, transl_exp DebugNames.Anonymous low, transl_exp DebugNames.Anonymous high, dir,
+           event_before body (transl_exp DebugNames.Anonymous body))
+  | Texp_send(_, _, Some exp) -> transl_exp DebugNames.Anonymous exp
   | Texp_send(expr, met, None) ->
-      let obj = transl_exp expr in
+      let obj = transl_exp DebugNames.Anonymous expr in
       let lam =
         match met with
           Tmeth_val id -> Lsend (Self, Lvar id, obj, [], e.exp_loc)
@@ -442,26 +454,26 @@ and transl_exp0 e =
              (Lvar cpy))
   | Texp_letmodule(id, loc, modl, body) ->
       let defining_expr =
-        Levent (!transl_module Tcoerce_none None modl, {
+        Levent (!transl_module (Some id) Tcoerce_none None modl, {
           lev_loc = loc.loc;
           lev_kind = Lev_module_definition id;
           lev_repr = None;
           lev_env = Env.summary Env.empty;
         })
       in
-      Llet(Strict, Pgenval, id, defining_expr, transl_exp body)
+      Llet(Strict, Pgenval, id, defining_expr, transl_exp DebugNames.Anonymous body)
   | Texp_letexception(cd, body) ->
       Llet(Strict, Pgenval,
            cd.ext_id, transl_extension_constructor e.exp_env None cd,
-           transl_exp body)
+           transl_exp DebugNames.Anonymous body)
   | Texp_pack modl ->
-      !transl_module Tcoerce_none None modl
+      !transl_module None Tcoerce_none None modl
   | Texp_assert {exp_desc=Texp_construct(_, {cstr_name="false"}, _)} ->
       assert_failed e
   | Texp_assert (cond) ->
       if !Clflags.noassert
       then lambda_unit
-      else Lifthenelse (transl_exp cond, lambda_unit, assert_failed e)
+      else Lifthenelse (transl_exp DebugNames.Anonymous cond, lambda_unit, assert_failed e)
   | Texp_lazy e ->
       (* when e needs no computation (constants, identifiers, ...), we
          optimize the translation just as Lazy.lazy_from_val would
@@ -470,13 +482,13 @@ and transl_exp0 e =
       | `Constant_or_function ->
         (* A constant expr (of type <> float if [Config.flat_float_array] is
            true) gets compiled as itself. *)
-         transl_exp e
+         transl_exp DebugNames.Anonymous e
       | `Float_that_cannot_be_shortcut ->
           (* We don't need to wrap with Popaque: this forward
              block will never be shortcutted since it points to a float
              and Config.flat_float_array is true. *)
           Lprim(Pmakeblock(Obj.forward_tag, Immutable, None),
-                [transl_exp e], e.exp_loc)
+                [transl_exp DebugNames.Anonymous e], e.exp_loc)
       | `Identifier `Forward_value ->
          (* CR-someday mshinwell: Consider adding a new primitive
             that expresses the construction of forward_tag blocks.
@@ -486,16 +498,18 @@ and transl_exp0 e =
             value may subsequently turn into an immediate... *)
          Lprim (Popaque,
                 [Lprim(Pmakeblock(Obj.forward_tag, Immutable, None),
-                       [transl_exp e], e.exp_loc)],
+                       [transl_exp DebugNames.Anonymous e], e.exp_loc)],
                 e.exp_loc)
       | `Identifier `Other ->
-         transl_exp e
+         transl_exp DebugNames.Anonymous e
       | `Other ->
          (* other cases compile to a lazy block holding a function *)
          let fn = Lfunction {kind = Curried; params = [Ident.create "param"];
                              attr = default_function_attribute;
+                             debugging_informations =
+                               DebugNames.empty;
                              loc = e.exp_loc;
-                             body = transl_exp e} in
+                             body = transl_exp DebugNames.Anonymous e} in
           Lprim(Pmakeblock(Config.lazy_tag, Mutable, None), [fn], e.exp_loc)
       end
   | Texp_object (cs, meths) ->
@@ -512,21 +526,21 @@ and transl_exp0 e =
       raise (Error (e.exp_loc, Unreachable_reached))
 
 and transl_list expr_list =
-  List.map transl_exp expr_list
+  List.map (transl_exp DebugNames.Anonymous) expr_list
 
 and transl_list_with_shape expr_list =
   let transl_with_shape e =
     let shape = Typeopt.value_kind e.exp_env e.exp_type in
-    transl_exp e, shape
+    transl_exp DebugNames.Anonymous e, shape
   in
   List.split (List.map transl_with_shape expr_list)
 
 and transl_guard guard rhs =
-  let expr = event_before rhs (transl_exp rhs) in
+  let expr = event_before rhs ((transl_exp DebugNames.Anonymous) rhs) in
   match guard with
   | None -> expr
   | Some cond ->
-      event_before cond (Lifthenelse(transl_exp cond, expr, staticfail))
+      event_before cond (Lifthenelse((transl_exp DebugNames.Anonymous) cond, expr, staticfail))
 
 and transl_case {c_lhs; c_guard; c_rhs} =
   c_lhs, transl_guard c_guard c_rhs
@@ -602,16 +616,18 @@ and transl_apply ?(should_be_tailcall=false) ?(inlined = Default_inline)
         and id_arg = Ident.create "param" in
         let body =
           match build_apply handle ((Lvar id_arg, optional)::args') l with
-            Lfunction{kind = Curried; params = ids; body = lam; attr; loc} ->
+          | Lfunction{kind = Curried; params = ids; body = lam; attr; loc;
+                     debugging_informations} ->
               Lfunction{kind = Curried; params = id_arg::ids; body = lam; attr;
-                        loc}
-          | Levent(Lfunction{kind = Curried; params = ids;
-                             body = lam; attr; loc}, _) ->
+                        loc; debugging_informations}
+          | Levent(Lfunction{kind = Curried; params = ids; body = lam;
+                             attr; loc; debugging_informations}, _) ->
               Lfunction{kind = Curried; params = id_arg::ids; body = lam; attr;
-                        loc}
+                        loc; debugging_informations}
           | lam ->
               Lfunction{kind = Curried; params = [id_arg]; body = lam;
-                        attr = default_stub_attribute; loc = loc}
+                        attr = default_stub_attribute; loc = loc;
+                        debugging_informations = DebugNames.empty}
         in
         List.fold_left
           (fun body (id, lam) -> Llet(Strict, Pgenval, id, lam, body))
@@ -622,7 +638,7 @@ and transl_apply ?(should_be_tailcall=false) ?(inlined = Default_inline)
         lapply lam (List.rev_map fst args)
   in
   (build_apply lam [] (List.map (fun (l, x) ->
-                                   may_map transl_exp x, Btype.is_optional l)
+                                   may_map (transl_exp DebugNames.Anonymous) x, Btype.is_optional l)
                                 sargs)
      : Lambda.lambda)
 
@@ -658,6 +674,7 @@ and transl_function loc untuplify_fn repr partial param cases =
        Matching.for_function loc repr (Lvar param)
          (transl_cases cases) partial)
 
+
 (*
   Notice: transl_let consumes (ie compiles) its pat_expr_list argument,
   and returns a function that will take the body of the lambda-let construct.
@@ -667,45 +684,47 @@ and transl_function loc untuplify_fn repr partial param cases =
 and transl_let rec_flag pat_expr_list =
   match rec_flag with
     Nonrecursive ->
-      let rec transl = function
+    let rec transl = function
         [] ->
-          fun body -> body
+        fun body -> body
       | {vb_pat=pat; vb_expr=expr; vb_attributes=attr; vb_loc} :: rem ->
-          let lam = transl_exp expr in
-          let lam =
-            Translattribute.add_inline_attribute lam vb_loc attr
-          in
-          let lam =
-            Translattribute.add_specialise_attribute lam vb_loc attr
-          in
-          let mk_body = transl rem in
-          fun body -> Matching.for_let pat.pat_loc lam pat (mk_body body)
-      in transl pat_expr_list
+        let name = function_name_from_pattern pat in
+        let lam = transl_exp name expr in
+        let lam =
+          Translattribute.add_inline_attribute lam vb_loc attr
+        in
+        let lam =
+          Translattribute.add_specialise_attribute lam vb_loc attr
+        in
+        let mk_body = transl rem in
+        fun body -> Matching.for_let pat.pat_loc lam pat (mk_body body)
+    in transl pat_expr_list
   | Recursive ->
-      let idlist =
-        List.map
-          (fun {vb_pat=pat} -> match pat.pat_desc with
-              Tpat_var (id,_) -> id
-            | Tpat_alias ({pat_desc=Tpat_any}, id,_) -> id
-            | _ -> assert false)
+    let idlist =
+      List.map
+        (fun {vb_pat=pat} -> match pat.pat_desc with
+             Tpat_var (id,_) -> id
+           | Tpat_alias ({pat_desc=Tpat_any}, id,_) -> id
+           | _ -> assert false)
         pat_expr_list in
-      let transl_case {vb_expr=expr; vb_attributes; vb_loc} id =
-        let lam = transl_exp expr in
-        let lam =
-          Translattribute.add_inline_attribute lam vb_loc
-            vb_attributes
-        in
-        let lam =
-          Translattribute.add_specialise_attribute lam vb_loc
-            vb_attributes
-        in
-        (id, lam) in
-      let lam_bds = List.map2 transl_case pat_expr_list idlist in
-      fun body -> Lletrec(lam_bds, body)
+    let transl_case {vb_pat; vb_expr=expr; vb_attributes; vb_loc} id =
+      let name = function_name_from_pattern vb_pat in
+      let lam = transl_exp name expr in
+      let lam =
+        Translattribute.add_inline_attribute lam vb_loc
+          vb_attributes
+      in
+      let lam =
+        Translattribute.add_specialise_attribute lam vb_loc
+          vb_attributes
+      in
+      (id, lam) in
+    let lam_bds = List.map2 transl_case pat_expr_list idlist in
+    fun body -> Lletrec(lam_bds, body)
 
 and transl_setinstvar loc self var expr =
   Lprim(Psetfield_computed (maybe_pointer expr, Assignment),
-    [self; transl_normal_path var; transl_exp expr], loc)
+    [self; transl_normal_path var; transl_exp DebugNames.Anonymous expr], loc)
 
 and transl_record loc env fields repres opt_init_expr =
   let size = Array.length fields in
@@ -732,7 +751,7 @@ and transl_record loc env fields repres opt_init_expr =
                Lprim(access, [Lvar init_id], loc), field_kind
            | Overridden (_lid, expr) ->
                let field_kind = value_kind expr.exp_env expr.exp_type in
-               transl_exp expr, field_kind)
+               transl_exp DebugNames.Anonymous expr, field_kind)
         fields
     in
     let ll, shape = List.split (Array.to_list lv) in
@@ -774,7 +793,7 @@ and transl_record loc env fields repres opt_init_expr =
     begin match opt_init_expr with
       None -> lam
     | Some init_expr -> Llet(Strict, Pgenval, init_id,
-                             transl_exp init_expr, lam)
+                             transl_exp DebugNames.Anonymous init_expr, lam)
     end
   end else begin
     (* Take a shallow copy of the init record, then mutate the fields
@@ -794,13 +813,13 @@ and transl_record loc env fields repres opt_init_expr =
             | Record_extension ->
                 Psetfield(lbl.lbl_pos + 1, maybe_pointer expr, Assignment)
           in
-          Lsequence(Lprim(upd, [Lvar copy_id; transl_exp expr], loc), cont)
+          Lsequence(Lprim(upd, [Lvar copy_id; transl_exp DebugNames.Anonymous expr], loc), cont)
     in
     begin match opt_init_expr with
       None -> assert false
     | Some init_expr ->
         Llet(Strict, Pgenval, copy_id,
-             Lprim(Pduprecord (repres, size), [transl_exp init_expr], loc),
+             Lprim(Pduprecord (repres, size), [transl_exp DebugNames.Anonymous init_expr], loc),
              Array.fold_left update_field (Lvar copy_id) fields)
     end
   end
@@ -826,10 +845,10 @@ and transl_match e arg pat_expr_list exn_pat_expr_list partial =
     static_catch (transl_list argl) val_ids
       (Matching.for_multiple_match e.exp_loc lvars cases partial)
   | arg, [] ->
-    Matching.for_function e.exp_loc None (transl_exp arg) cases partial
+    Matching.for_function e.exp_loc None (transl_exp DebugNames.Anonymous arg) cases partial
   | arg, _ :: _ ->
     let val_id = Typecore.name_pattern "val" pat_expr_list in
-    static_catch [transl_exp arg] [val_id]
+    static_catch [transl_exp DebugNames.Anonymous arg] [val_id]
       (Matching.for_function e.exp_loc None (Lvar val_id) cases partial)
 
 

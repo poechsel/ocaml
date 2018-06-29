@@ -17,6 +17,37 @@ open Misc
 open Path
 open Asttypes
 
+module DebugNames =
+struct
+  type class_name_type =
+    | ObjInit
+    | NewInit
+    | ClassInit
+    | ClassRebind
+    | EnvInit
+
+  type name =
+    | Function of string
+    | Functor of string
+    | Class of string * class_name_type
+    | Anonymous
+    | Coerce
+    | Method of string * string
+
+  type t =
+    { name : name; path : Path.t option }
+
+  let empty =
+    { name = Anonymous; path = None }
+
+  let set_name ~name t =
+    { t with name }
+
+  let create ~name ~path =
+    { name; path }
+
+end
+
 type compile_time_constant =
   | Big_endian
   | Word_size
@@ -242,6 +273,7 @@ and lfunction =
     params: Ident.t list;
     body: lambda;
     attr: function_attribute; (* specified with [@inline] attribute *)
+    debugging_informations : DebugNames.t;
     loc: Location.t; }
 
 and lambda_apply =
@@ -602,9 +634,10 @@ let rec subst s lam =
   | Lapply ap ->
       Lapply{ap with ap_func = subst s ap.ap_func;
                      ap_args = subst_list s ap.ap_args}
-  | Lfunction{kind; params; body; attr; loc} ->
+  | Lfunction{kind; params; body; attr; loc; debugging_informations} ->
       let s = List.fold_right Ident.Map.remove params s in
-      Lfunction{kind; params; body = subst s body; attr; loc}
+      Lfunction{kind; params; body = subst s body; attr; loc;
+               debugging_informations}
   | Llet(str, k, id, arg, body) ->
       Llet(str, k, id, subst s arg, subst (Ident.Map.remove id s) body)
   | Lletrec(decl, body) ->
@@ -666,8 +699,9 @@ let rec map f lam =
           ap_inlined;
           ap_specialised;
         }
-    | Lfunction { kind; params; body; attr; loc; } ->
-        Lfunction { kind; params; body = map f body; attr; loc; }
+    | Lfunction { kind; params; body; attr; loc; debugging_informations} ->
+      Lfunction { kind; params; body = map f body; attr; loc;
+                  debugging_informations}
     | Llet (str, k, v, e1, e2) ->
         Llet (str, k, v, map f e1, map f e2)
     | Lletrec (idel, e2) ->

@@ -26,17 +26,23 @@ type error = Tags of label * label
 
 exception Error of Location.t * error
 
-let lfunction params body =
+let lfunction_debug debugging_informations params body =
   if params = [] then body else
-  match body with
-  | Lfunction {kind = Curried; params = params'; body = body'; attr; loc} ->
+    match body with
+    | Lfunction {kind = Curried; params = params'; body = body'; attr; loc;
+                 debugging_informations} ->
       Lfunction {kind = Curried; params = params @ params'; body = body'; attr;
-                 loc}
-  |  _ ->
+                 loc; debugging_informations}
+    |  _ ->
       Lfunction {kind = Curried; params;
                  body;
                  attr = default_function_attribute;
-                 loc = Location.none}
+                 debugging_informations;
+                 loc = Location.none;
+                }
+
+let lfunction name params body =
+  lfunction_debug (DebugNames.create ~name ~path:None) params body
 
 let lapply ap =
   match ap.ap_func with
@@ -67,7 +73,7 @@ let transl_meth_list lst =
 
 let set_inst_var obj id expr =
   Lprim(Psetfield_computed (Typeopt.maybe_pointer expr, Assignment),
-    [Lvar obj; Lvar id; transl_exp expr], Location.none)
+    [Lvar obj; Lvar id; transl_exp DebugNames.Anonymous expr], Location.none)
 
 let transl_val tbl create name =
   mkappl (oo_prim (if create then "new_variable" else "get_variable"),
@@ -174,9 +180,14 @@ let rec build_object_init cl_table obj params inh_init obj_init cl =
       (inh_init,
        let build params rem =
          let param = name_pattern "param" pat in
+         let name = DebugNames.Class(Ident.name cl_table,
+                                     DebugNames.ObjInit)
+         in
          Lfunction {kind = Curried; params = param::params;
                     attr = default_function_attribute;
                     loc = pat.pat_loc;
+                    debugging_informations =
+                      DebugNames.create ~name ~path:None;
                     body = Matching.for_function
                              pat.pat_loc None (Lvar param) [pat, rem] partial}
        in
@@ -211,9 +222,10 @@ let rec build_object_init_0 cl_table params cl copy_env subst_env top ids =
       let envs = if top then None else Some env in
       let ((_,inh_init), obj_init) =
         build_object_init cl_table obj params (envs,[]) copy_env cl in
+      let name = DebugNames.Class(Ident.name cl_table, DebugNames.ObjInit) in
       let obj_init =
-        if ids = [] then obj_init else lfunction [self] obj_init in
-      (inh_init, lfunction [env] (subst_env env inh_init obj_init))
+        if ids = [] then obj_init else lfunction name [self] obj_init in
+      (inh_init, lfunction name [env] (subst_env env inh_init obj_init))
 
 
 let bind_method tbl lab id cl_init =
@@ -302,21 +314,23 @@ let rec build_class_init cla cstr super inh_init cl_init msubst top cl =
               ->
                 (inh_init, cl_init, methods, values)
             | Tcf_method (name, _, Tcfk_concrete (_, exp)) ->
-                let met_code = msubst true (transl_exp exp) in
-                let met_code =
-                  if !Clflags.native_code && List.length met_code = 1 then
-                    (* Force correct naming of method for profiles *)
-                    let met = Ident.create ("method_" ^ name.txt) in
-                    [Llet(Strict, Pgenval, met, List.hd met_code, Lvar met)]
-                  else met_code
-                in
-                (inh_init, cl_init,
-                 Lvar(Meths.find name.txt str.cstr_meths) :: met_code @ methods,
-                 values)
+              let met_name = DebugNames.Method(Ident.name cla, name.txt) in
+              let met_code = msubst true (transl_exp met_name exp) in
+              let met_code =
+                if !Clflags.native_code && List.length met_code = 1 then
+                  (* Force correct naming of method for profiles *)
+                  let met = Ident.create ("method_" ^ name.txt) in
+                  [Llet(Strict, Pgenval, met, List.hd met_code, Lvar met)]
+                else met_code
+              in
+              (inh_init, cl_init,
+               Lvar(Meths.find name.txt str.cstr_meths) :: met_code @ methods,
+               values)
             | Tcf_initializer exp ->
+                let exp = transl_exp DebugNames.Anonymous exp in
                 (inh_init,
                  Lsequence(mkappl (oo_prim "add_initializer",
-                                   Lvar cla :: msubst false (transl_exp exp)),
+                                   Lvar cla :: msubst false exp),
                            cl_init),
                  methods, values)
             | Tcf_attribute _ ->
@@ -415,7 +429,7 @@ let rec get_class_meths cl =
    |   Writing classes should be cheap
      class c x y = d e f
 *)
-let rec transl_class_rebind obj_init cl vf =
+let rec transl_class_rebind cl_id obj_init cl vf =
   match cl.cl_desc with
     Tcl_ident (path, _, _) ->
       if vf = Concrete then begin
@@ -424,12 +438,16 @@ let rec transl_class_rebind obj_init cl vf =
       end;
       (normalize_cl_path cl path, obj_init)
   | Tcl_fun (_, pat, _, cl, partial) ->
-      let path, obj_init = transl_class_rebind obj_init cl vf in
+      let path, obj_init = transl_class_rebind cl_id obj_init cl vf in
       let build params rem =
+        let d_name = DebugNames.Class(Ident.name cl_id,
+                                      DebugNames.ClassRebind) in
         let param = name_pattern "param" pat in
         Lfunction {kind = Curried; params = param::params;
                    attr = default_function_attribute;
                    loc = pat.pat_loc;
+                   debugging_informations =
+                     DebugNames.create ~name:d_name ~path:None;
                    body = Matching.for_function
                             pat.pat_loc None (Lvar param) [pat, rem] partial}
       in
@@ -438,14 +456,14 @@ let rec transl_class_rebind obj_init cl vf =
          Lfunction {kind = Curried; params; body} -> build params body
        | rem                                      -> build [] rem)
   | Tcl_apply (cl, oexprs) ->
-      let path, obj_init = transl_class_rebind obj_init cl vf in
+      let path, obj_init = transl_class_rebind cl_id obj_init cl vf in
       (path, transl_apply obj_init oexprs Location.none)
   | Tcl_let (rec_flag, defs, _vals, cl) ->
-      let path, obj_init = transl_class_rebind obj_init cl vf in
+      let path, obj_init = transl_class_rebind cl_id obj_init cl vf in
       (path, Translcore.transl_let rec_flag defs obj_init)
   | Tcl_structure _ -> raise Exit
   | Tcl_constraint (cl', _, _, _, _) ->
-      let path, obj_init = transl_class_rebind obj_init cl' vf in
+      let path, obj_init = transl_class_rebind cl_id obj_init cl' vf in
       let rec check_constraint = function
           Cty_constr(path', _, _) when Path.same path path' -> ()
         | Cty_arrow (_, _, cty) -> check_constraint cty
@@ -454,18 +472,29 @@ let rec transl_class_rebind obj_init cl vf =
       check_constraint cl.cl_type;
       (path, obj_init)
   | Tcl_open (_, _, _, _, cl) ->
-      transl_class_rebind obj_init cl vf
+      transl_class_rebind cl_id obj_init cl vf
 
-let rec transl_class_rebind_0 self obj_init cl vf =
+let rec transl_class_rebind_0 cl_id self obj_init cl vf =
   match cl.cl_desc with
     Tcl_let (rec_flag, defs, _vals, cl) ->
-      let path, obj_init = transl_class_rebind_0 self obj_init cl vf in
+      let path, obj_init = transl_class_rebind_0 cl_id self obj_init cl vf in
       (path, Translcore.transl_let rec_flag defs obj_init)
   | _ ->
-      let path, obj_init = transl_class_rebind obj_init cl vf in
-      (path, lfunction [self] obj_init)
+    let d_name = DebugNames.Class(Ident.name cl_id,
+                                  DebugNames.ClassRebind) in
+    let path, obj_init = transl_class_rebind cl_id obj_init cl vf in
+      (path, lfunction d_name [self] obj_init)
 
-let transl_class_rebind cl vf =
+
+let same_with_ignore_debug a b =
+  match a, b with
+  | Lfunction a, Lfunction b ->
+    a.kind = b.kind && a.params = b.params &&
+    a.body = b.body && a.attr = b.attr &&
+    a.loc = b.loc
+  | _ -> a = b
+
+let transl_class_rebind cl_id cl vf =
   try
     let obj_init = Ident.create "obj_init"
     and self = Ident.create "self" in
@@ -477,8 +506,9 @@ let transl_class_rebind cl vf =
               ap_inlined=Default_inline;
               ap_specialised=Default_specialise}
     in
-    let path, obj_init' = transl_class_rebind_0 self obj_init0 cl vf in
-    let id = (obj_init' = lfunction [self] obj_init0) in
+    let path, obj_init' = transl_class_rebind_0 cl_id self obj_init0 cl vf in
+    let obj_init0_fn = lfunction DebugNames.Anonymous [self] obj_init0 in
+    let id = same_with_ignore_debug obj_init' obj_init0_fn in
     if id then transl_normal_path path else
 
     let cla = Ident.create "class"
@@ -487,15 +517,19 @@ let transl_class_rebind cl vf =
     and table = Ident.create "table"
     and envs = Ident.create "envs" in
     Llet(
-    Strict, Pgenval, new_init, lfunction [obj_init] obj_init',
-    Llet(
+      Strict, Pgenval, new_init,
+      lfunction (DebugNames.Class(Ident.name cl_id, DebugNames.NewInit))
+        [obj_init] obj_init',
+      Llet(
     Alias, Pgenval, cla, transl_normal_path path,
     Lprim(Pmakeblock(0, Immutable, None),
           [mkappl(Lvar new_init, [lfield cla 0]);
-           lfunction [table]
+           lfunction DebugNames.Anonymous [table]
              (Llet(Strict, Pgenval, env_init,
                    mkappl(lfield cla 1, [Lvar table]),
-                   lfunction [envs]
+                   lfunction
+                   (DebugNames.Class(Ident.name cl_id, DebugNames.EnvInit))
+                     [envs]
                      (mkappl(Lvar new_init,
                              [mkappl(Lvar env_init, [Lvar envs])]))));
            lfield cla 2;
@@ -659,7 +693,7 @@ let free_methods l =
 
 let transl_class ids cl_id pub_meths cl vflag =
   (* First check if it is not only a rebind *)
-  let rebind = transl_class_rebind cl vflag in
+  let rebind = transl_class_rebind cl_id cl vflag in
   if rebind <> lambda_unit then rebind else
 
   (* Prepare for heavy environment handling *)
@@ -694,7 +728,8 @@ let transl_class ids cl_id pub_meths cl vflag =
   in
   let new_ids_meths = ref [] in
   let msubst arr = function
-      Lfunction {kind = Curried; params = self :: args; body} ->
+      Lfunction {kind = Curried; params = self :: args; body;
+                 debugging_informations} ->
         let env = Ident.create "env" in
         let body' =
           if new_ids = [] then body else
@@ -703,9 +738,10 @@ let transl_class ids cl_id pub_meths cl vflag =
           (* Doesn't seem to improve size for bytecode *)
           (* if not !Clflags.native_code then raise Not_found; *)
           if not arr || !Clflags.debug then raise Not_found;
-          builtin_meths [self] env env2 (lfunction args body')
+          builtin_meths [self] env env2 (lfunction_debug debugging_informations
+                                           args body')
         with Not_found ->
-          [lfunction (self :: args)
+          [lfunction_debug debugging_informations (self :: args)
              (if not (Ident.Set.mem env (free_variables body')) then body' else
               Llet(Alias, Pgenval, env,
                    Lprim(Pfield_computed,
@@ -769,9 +805,14 @@ let transl_class ids cl_id pub_meths cl vflag =
 
   let concrete = (vflag = Concrete)
   and lclass lam =
+    let cl_name =
+      DebugNames.Class(Ident.name cl_id, DebugNames.ClassInit)
+    in
+    let debug = DebugNames.create ~name:cl_name ~path:None in
     let cl_init = llets (Lfunction{kind = Curried;
                                    attr = default_function_attribute;
                                    loc = Location.none;
+                                   debugging_informations = debug;
                                    params = [cla]; body = cl_init}) in
     Llet(Strict, Pgenval, class_init, cl_init, lam (free_variables cl_init))
   and lbody fv =
@@ -791,6 +832,9 @@ let transl_class ids cl_id pub_meths cl vflag =
   and lbody_virt lenvs =
     Lprim(Pmakeblock(0, Immutable, None),
           [lambda_unit; Lfunction{kind = Curried;
+                                  debugging_informations =
+                                    DebugNames.create ~path:None
+                                      ~name:DebugNames.Anonymous;
                                   attr = default_function_attribute;
                                   loc = Location.none;
                                   params = [cla]; body = cl_init};
@@ -844,9 +888,14 @@ let transl_class ids cl_id pub_meths cl vflag =
       inh_paths
   in
   let lclass lam =
+    let cl_name =
+      DebugNames.Class(Ident.name cl_id, DebugNames.ClassInit)
+    in
+    let debug = DebugNames.create ~name:cl_name ~path:None in
     Llet(Strict, Pgenval, class_init,
          Lfunction{kind = Curried; params = [cla];
                    attr = default_function_attribute;
+                   debugging_informations = debug;
                    loc = Location.none;
                    body = def_ids cla cl_init}, lam)
   and lcache lam =
@@ -867,6 +916,9 @@ let transl_class ids cl_id pub_meths cl vflag =
                       lset cached 0 (Lvar env_init))))
   and lclass_virt () =
     lset cached 0 (Lfunction{kind = Curried; attr = default_function_attribute;
+                             debugging_informations =
+                               DebugNames.create ~path:None
+                                 ~name:DebugNames.Anonymous;
                              loc = Location.none;
                              params = [cla]; body = def_ids cla cl_init})
   in
