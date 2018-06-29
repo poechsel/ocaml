@@ -664,6 +664,7 @@ and simplify_set_of_closures original_env r
         ~body ~stub:function_decl.stub ~dbg:function_decl.dbg
         ~inline:function_decl.inline ~specialise:function_decl.specialise
         ~is_a_functor:function_decl.is_a_functor
+        ~dbg_name:function_decl.dbg_name
         ~inlining_history
     in
     let used_params' = Flambda.used_params function_decl in
@@ -942,6 +943,7 @@ and simplify_partial_application env r ~lhs_of_application
       ~rec_info:{ depth = 0; unroll_to = 0; }
       ~stub:true
       ~unboxing_arguments
+      ~dbg_name:Lambda.DebugNames.empty
   in
   let with_known_args =
     Flambda_utils.bind
@@ -1586,6 +1588,7 @@ and duplicate_function ~env ~(set_of_closures : Flambda.set_of_closures)
       ~inline:function_decl.inline ~specialise:function_decl.specialise
       ~is_a_functor:function_decl.is_a_functor ~recursive:function_decl.recursive
       ~inlining_history:function_decl.inlining_history
+      ~dbg_name:function_decl.dbg_name
   in
   function_decl, specialised_args
 

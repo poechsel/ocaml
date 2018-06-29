@@ -225,12 +225,7 @@ module Env : sig
   val note_entering_call
      : t
     -> closure_id:Closure_id.t
-    -> dbg:Debuginfo.t
-    -> t
-
-  val note_entering_call2
-     : t
-    -> closure_id:Closure_id.t
+    -> dbg_name:Lambda.DebugNames.t
     -> dbg:Debuginfo.t
     -> t
 

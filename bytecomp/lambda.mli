@@ -17,6 +17,43 @@
 
 open Asttypes
 
+module DebugNames : sig
+  type class_name_type =
+    | ObjInit
+    | NewInit
+    | ClassInit
+    | ClassRebind
+    | EnvInit
+
+  type name =
+    | Function of string
+    | Functor of string
+    | Class of string * class_name_type
+    | Anonymous
+    | Coerce
+    | Method of string * string
+
+  type t =
+    { name : name; path : Path.t option }
+
+  val empty : t
+
+  val set_name :
+    name:name
+    -> t
+    -> t
+
+  val create :
+    name:name
+    -> path:Path.t option
+    -> t
+
+  val print :
+    Format.formatter
+    -> t
+    -> unit
+end
+
 type compile_time_constant =
   | Big_endian
   | Word_size
@@ -261,6 +298,7 @@ and lfunction =
     params: Ident.t list;
     body: lambda;
     attr: function_attribute; (* specified with [@inline] attribute *)
+    debugging_informations: DebugNames.t;
     loc : Location.t; }
 
 and lambda_apply =

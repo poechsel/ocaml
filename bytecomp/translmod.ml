@@ -60,7 +60,7 @@ let transl_type_extension env rootpath tyext body =
 
 (* Compile a coercion *)
 
-let rec apply_coercion loc strict restr arg =
+let rec apply_coercion rootpath loc strict restr arg =
   match restr with
     Tcoerce_none ->
       arg
@@ -69,29 +69,30 @@ let rec apply_coercion loc strict restr arg =
         let get_field pos = Lprim(Pfield pos,[Lvar id], loc) in
         let lam =
           Lprim(Pmakeblock(0, Immutable, None),
-                List.map (apply_coercion_field loc get_field) pos_cc_list,
+                List.map (apply_coercion_field rootpath loc get_field) pos_cc_list,
                 loc)
         in
-        wrap_id_pos_list loc id_pos_list get_field lam)
+        wrap_id_pos_list rootpath loc id_pos_list get_field lam)
   | Tcoerce_functor(cc_arg, cc_res) ->
       let param = Ident.create "funarg" in
-      let carg = apply_coercion loc Alias cc_arg (Lvar param) in
-      apply_coercion_result loc strict arg [param] [carg] cc_res
+      let carg = apply_coercion rootpath loc Alias cc_arg (Lvar param) in
+      apply_coercion_result rootpath loc strict arg [param] [carg] cc_res
   | Tcoerce_primitive { pc_loc; pc_desc; pc_env; pc_type; } ->
-      Translprim.transl_primitive pc_loc pc_desc pc_env pc_type None
+    Translprim.transl_primitive DebugNames.Coerce
+      pc_loc pc_desc pc_env pc_type None
   | Tcoerce_alias (path, cc) ->
       name_lambda strict arg
-        (fun _ -> apply_coercion loc Alias cc (transl_normal_path path))
+        (fun _ -> apply_coercion rootpath loc Alias cc (transl_normal_path path))
 
-and apply_coercion_field loc get_field (pos, cc) =
-  apply_coercion loc Alias cc (get_field pos)
+and apply_coercion_field rootpath loc get_field (pos, cc) =
+  apply_coercion rootpath loc Alias cc (get_field pos)
 
-and apply_coercion_result loc strict funct params args cc_res =
+and apply_coercion_result rootpath loc strict funct params args cc_res =
   match cc_res with
   | Tcoerce_functor(cc_arg, cc_res) ->
     let param = Ident.create "funarg" in
-    let arg = apply_coercion loc Alias cc_arg (Lvar param) in
-    apply_coercion_result loc strict funct
+    let arg = apply_coercion rootpath loc Alias cc_arg (Lvar param) in
+    apply_coercion_result rootpath loc strict funct
       (param :: params) (arg :: args) cc_res
   | _ ->
     name_lambda strict funct (fun id ->
@@ -100,7 +101,9 @@ and apply_coercion_result loc strict funct params args cc_res =
                          is_a_functor = true;
                          stub = true; };
                 loc = loc;
-                body = apply_coercion
+                debugging_informations =
+                  DebugNames.create ~name:DebugNames.Coerce ~path:rootpath;
+                body = apply_coercion rootpath
                          loc Strict cc_res
                          (Lapply{ap_should_be_tailcall=false;
                                  ap_loc=loc;
@@ -109,7 +112,7 @@ and apply_coercion_result loc strict funct params args cc_res =
                                  ap_inlined=Default_inline;
                                  ap_specialised=Default_specialise})})
 
-and wrap_id_pos_list loc id_pos_list get_field lam =
+and wrap_id_pos_list rootpath loc id_pos_list get_field lam =
   let fv = free_variables lam in
   (*Format.eprintf "%a@." Printlambda.lambda lam;
   Ident.Set.iter (fun id -> Format.eprintf "%a " Ident.print id) fv;
@@ -119,7 +122,7 @@ and wrap_id_pos_list loc id_pos_list get_field lam =
       if Ident.Set.mem id' fv then
         let id'' = Ident.create (Ident.name id') in
         (Llet(Alias, Pgenval, id'',
-              apply_coercion loc Alias c (get_field pos),lam),
+              apply_coercion rootpath loc Alias c (get_field pos),lam),
          Ident.Map.add id' (Lvar id'') s)
       else (lam,s))
       (lam, Ident.Map.empty) id_pos_list
@@ -362,12 +365,12 @@ let rec bound_value_identifiers = function
 
 (* Code to translate class entries in a structure *)
 
-let transl_class_bindings cl_list =
+let transl_class_bindings rootpath cl_list =
   let ids = List.map (fun (ci, _) -> ci.ci_id_class) cl_list in
   (ids,
    List.map
      (fun ({ci_id_class=id; ci_expr=cl; ci_virt=vf}, meths) ->
-       (id, transl_class ids id meths cl vf))
+       (id, transl_class rootpath ids id meths cl vf))
      cl_list)
 
 (* Compile one or more functors, merging curried functors to produce
@@ -407,7 +410,7 @@ let merge_functors mexp coercion root_path =
   in
   merge mexp coercion root_path [] Default_inline
 
-let rec compile_functor mexp coercion root_path loc =
+let rec compile_functor name mexp coercion root_path loc =
   let functor_params_rev, body, body_path, res_coercion, inline_attribute =
     merge_functors mexp coercion root_path
   in
@@ -415,12 +418,19 @@ let rec compile_functor mexp coercion root_path loc =
   let params, body =
     List.fold_left (fun (params, body) (param, loc, arg_coercion) ->
         let param' = Ident.rename param in
-        let arg = apply_coercion loc Alias arg_coercion (Lvar param') in
+        let arg = apply_coercion root_path loc Alias arg_coercion (Lvar param') in
         let params = param' :: params in
         let body = Llet (Alias, Pgenval, param, arg, body) in
         params, body)
-      ([], transl_module res_coercion body_path body)
+      ([], transl_module None res_coercion body_path body)
       functor_params_rev
+  in
+  let name =
+    match name with
+    | Some name ->
+      DebugNames.Functor(Ident.name name)
+    | _ ->
+      DebugNames.Functor("")
   in
   Lfunction {
     kind = Curried;
@@ -431,44 +441,47 @@ let rec compile_functor mexp coercion root_path loc =
       is_a_functor = true;
       stub = false;
     };
+    debugging_informations =
+      DebugNames.create ~name ~path:root_path;
     loc;
     body;
   }
 
 (* Compile a module expression *)
 
-and transl_module cc rootpath mexp =
+and transl_module name cc rootpath mexp =
   List.iter (Translattribute.check_attribute_on_module mexp)
     mexp.mod_attributes;
   let loc = mexp.mod_loc in
   match mexp.mod_type with
-    Mty_alias (Mta_absent, _) -> apply_coercion loc Alias cc lambda_unit
+    Mty_alias (Mta_absent, _) -> apply_coercion rootpath loc Alias cc lambda_unit
   | _ ->
       match mexp.mod_desc with
         Tmod_ident (path,_) ->
-          apply_coercion loc Strict cc
+          apply_coercion rootpath loc Strict cc
             (transl_module_path ~loc mexp.mod_env path)
       | Tmod_structure str ->
           fst (transl_struct loc [] cc rootpath str)
       | Tmod_functor _ ->
           oo_wrap mexp.mod_env true (fun () ->
-            compile_functor mexp cc rootpath loc) ()
+            compile_functor name mexp cc rootpath loc) ()
       | Tmod_apply(funct, arg, ccarg) ->
           let inlined_attribute, funct =
             Translattribute.get_and_remove_inlined_attribute_on_module funct
           in
           oo_wrap mexp.mod_env true
-            (apply_coercion loc Strict cc)
+            (apply_coercion rootpath loc Strict cc)
             (Lapply{ap_should_be_tailcall=false;
                     ap_loc=loc;
-                    ap_func=transl_module Tcoerce_none None funct;
-                    ap_args=[transl_module ccarg None arg];
+                    ap_func=transl_module None Tcoerce_none None funct;
+                    ap_args=[transl_module None ccarg None arg];
                     ap_inlined=inlined_attribute;
                     ap_specialised=Default_specialise})
       | Tmod_constraint(arg, _, _, ccarg) ->
-          transl_module (compose_coercions cc ccarg) rootpath arg
+          transl_module name (compose_coercions cc ccarg) rootpath arg
       | Tmod_unpack(arg, _) ->
-          apply_coercion loc Strict cc (Translcore.transl_exp arg)
+        apply_coercion rootpath loc Strict cc
+          (Translcore.transl_exp rootpath DebugNames.Anonymous arg)
 
 and transl_struct loc fields cc rootpath str =
   transl_structure loc fields cc rootpath str.str_final_env str.str_items
@@ -499,15 +512,17 @@ and transl_structure loc fields cc rootpath final_env = function
                     (fun (pos, cc) ->
                       match cc with
                         Tcoerce_primitive p ->
-                          Translprim.transl_primitive p.pc_loc
+                        Translprim.transl_primitive
+                          DebugNames.Coerce
+                          p.pc_loc
                             p.pc_desc p.pc_env p.pc_type None
-                      | _ -> apply_coercion loc Strict cc (get_field pos))
+                      | _ -> apply_coercion rootpath loc Strict cc (get_field pos))
                     pos_cc_list, loc)
             and id_pos_list =
               List.filter (fun (id,_,_) -> not (Ident.Set.mem id ids))
                 id_pos_list
             in
-            wrap_id_pos_list loc id_pos_list get_field lam,
+            wrap_id_pos_list rootpath loc id_pos_list get_field lam,
               List.length pos_cc_list
         | _ ->
             fatal_error "Translmod.transl_structure"
@@ -530,10 +545,10 @@ and transl_structure loc fields cc rootpath final_env = function
           let body, size =
             transl_structure loc fields cc rootpath final_env rem
           in
-          Lsequence(transl_exp expr, body), size
+          Lsequence(transl_exp rootpath DebugNames.Anonymous expr, body), size
       | Tstr_value(rec_flag, pat_expr_list) ->
           (* Translate bindings first *)
-          let mk_lam_let =  transl_let rec_flag pat_expr_list in
+          let mk_lam_let =  transl_let rootpath rec_flag pat_expr_list in
           let ext_fields = rev_let_bound_idents pat_expr_list @ fields in
           (* Then, translate remainder of struct *)
           let body, size =
@@ -565,7 +580,7 @@ and transl_structure loc fields cc rootpath final_env = function
           let id = mb.mb_id in
           (* Translate module first *)
           let module_body =
-            transl_module Tcoerce_none (field_path rootpath id) mb.mb_expr
+            transl_module None Tcoerce_none (field_path rootpath id) mb.mb_expr
           in
           let module_body =
             Translattribute.add_inline_attribute module_body mb.mb_loc
@@ -597,7 +612,7 @@ and transl_structure loc fields cc rootpath final_env = function
             compile_recmodule
               (fun id modl loc ->
                  let module_body =
-                   transl_module Tcoerce_none (field_path rootpath id) modl
+                   transl_module None Tcoerce_none (field_path rootpath id) modl
                  in
                  Levent (module_body, {
                    lev_loc = loc;
@@ -610,7 +625,7 @@ and transl_structure loc fields cc rootpath final_env = function
           in
           lam, size
       | Tstr_class cl_list ->
-          let (ids, class_bindings) = transl_class_bindings cl_list in
+          let (ids, class_bindings) = transl_class_bindings rootpath cl_list in
           let body, size =
             transl_structure loc (List.rev_append ids fields)
               cc rootpath final_env rem
@@ -633,7 +648,7 @@ and transl_structure loc fields cc rootpath final_env = function
           in
           let body, size = rebind_idents 0 fields ids in
           Llet(pure_module modl, Pgenval, mid,
-               transl_module Tcoerce_none None modl, body),
+               transl_module None Tcoerce_none None modl, body),
           size
 
       | Tstr_modtype _
@@ -829,13 +844,14 @@ let nat_toplevel_name id =
   with Not_found ->
     fatal_error("Translmod.nat_toplevel_name: " ^ Ident.unique_name id)
 
-let field_of_str loc str =
+let field_of_str rootpath loc str =
   let ids = Array.of_list (defined_idents str.str_items) in
   fun (pos, cc) ->
     match cc with
     | Tcoerce_primitive { pc_loc; pc_desc; pc_env; pc_type; } ->
-        Translprim.transl_primitive pc_loc pc_desc pc_env pc_type None
-    | _ -> apply_coercion loc Strict cc (Lvar ids.(pos))
+      Translprim.transl_primitive DebugNames.Coerce
+        pc_loc pc_desc pc_env pc_type None
+    | _ -> apply_coercion rootpath loc Strict cc (Lvar ids.(pos))
 
 
 let transl_store_structure glob map prims str =
@@ -846,12 +862,14 @@ let transl_store_structure glob map prims str =
     | item :: rem ->
         match item.str_desc with
         | Tstr_eval (expr, _attrs) ->
-            Lsequence(Lambda.subst subst (transl_exp expr),
+          Lsequence(Lambda.subst subst (transl_exp rootpath
+                                          DebugNames.Anonymous expr),
                       transl_store rootpath subst rem)
         | Tstr_value(rec_flag, pat_expr_list) ->
             let ids = let_bound_idents pat_expr_list in
             let lam =
-              transl_let rec_flag pat_expr_list (store_idents Location.none ids)
+              transl_let rootpath rec_flag pat_expr_list
+                (store_idents rootpath Location.none ids)
             in
             Lsequence(Lambda.subst subst lam,
                       transl_store rootpath (add_idents false ids subst) rem)
@@ -866,7 +884,7 @@ let transl_store_structure glob map prims str =
             in
             let lam =
               transl_type_extension item.str_env rootpath tyext
-                                    (store_idents Location.none ids)
+                                    (store_idents rootpath Location.none ids)
             in
             Lsequence(Lambda.subst subst lam,
                       transl_store rootpath (add_idents false ids subst) rem)
@@ -875,7 +893,7 @@ let transl_store_structure glob map prims str =
             let path = field_path rootpath id in
             let lam = transl_extension_constructor item.str_env path ext in
             Lsequence(Llet(Strict, Pgenval, id, Lambda.subst subst lam,
-                           store_ident ext.ext_loc id),
+                           store_ident rootpath ext.ext_loc id),
                       transl_store rootpath (add_ident false id subst) rem)
         | Tstr_module{mb_id=id;mb_loc=loc;
                       mb_expr={mod_desc = Tmod_structure str} as mexp;
@@ -893,7 +911,7 @@ let transl_store_structure glob map prims str =
                              (Lprim(Pmakeblock(0, Immutable, None),
                                     List.map (fun id -> Lvar id)
                                       (defined_idents str.str_items), loc)),
-                           Lsequence(store_ident loc id,
+                           Lsequence(store_ident rootpath loc id,
                                      transl_store rootpath
                                                   (add_ident true id subst)
                                                   rem)))
@@ -914,20 +932,20 @@ let transl_store_structure glob map prims str =
             in
             (* Careful: see next case *)
             let subst = !transl_store_subst in
-            let field = field_of_str loc str in
+            let field = field_of_str rootpath loc str in
             Lsequence(lam,
                       Llet(Strict, Pgenval, id,
                            Lambda.subst subst
                              (Lprim(Pmakeblock(0, Immutable, None),
                                     List.map field map, loc)),
-                           Lsequence(store_ident loc id,
+                           Lsequence(store_ident rootpath loc id,
                                      transl_store rootpath
                                                   (add_ident true id subst)
                                                   rem)))
         | Tstr_module{mb_id=id; mb_expr=modl; mb_loc=loc; mb_attributes} ->
             let lam =
               Translattribute.add_inline_attribute
-                (transl_module Tcoerce_none (field_path rootpath id) modl)
+                (transl_module (Some id) Tcoerce_none (field_path rootpath id) modl)
                 loc mb_attributes
             in
             (* Careful: the module value stored in the global may be different
@@ -937,22 +955,22 @@ let transl_store_structure glob map prims str =
                If not, we can use the value from the global
                (add_ident true adds id -> Pgetglobal... to subst). *)
             Llet(Strict, Pgenval, id, Lambda.subst subst lam,
-                 Lsequence(store_ident loc id,
+                 Lsequence(store_ident rootpath loc id,
                            transl_store rootpath (add_ident true id subst) rem))
         | Tstr_recmodule bindings ->
             let ids = List.map (fun mb -> mb.mb_id) bindings in
             compile_recmodule
               (fun id modl _loc ->
                  Lambda.subst subst
-                   (transl_module Tcoerce_none
+                   (transl_module None Tcoerce_none
                       (field_path rootpath id) modl))
               bindings
-              (Lsequence(store_idents Location.none ids,
+              (Lsequence(store_idents rootpath Location.none ids,
                          transl_store rootpath (add_idents true ids subst) rem))
         | Tstr_class cl_list ->
-            let (ids, class_bindings) = transl_class_bindings cl_list in
+            let (ids, class_bindings) = transl_class_bindings rootpath cl_list in
             let lam =
-              Lletrec(class_bindings, store_idents Location.none ids)
+              Lletrec(class_bindings, store_idents rootpath Location.none ids)
             in
             Lsequence(Lambda.subst subst lam,
                       transl_store rootpath (add_idents false ids subst) rem)
@@ -978,7 +996,7 @@ let transl_store_structure glob map prims str =
                    a difference of behavior compared to bytecode. *)
             in
             let subst = !transl_store_subst in
-            let field = field_of_str loc str in
+            let field = field_of_str rootpath loc str in
             let ids0 = bound_value_identifiers incl_type in
             let rec loop ids args =
               match ids, args with
@@ -986,7 +1004,7 @@ let transl_store_structure glob map prims str =
                   transl_store rootpath (add_idents true ids0 subst) rem
               | id :: ids, arg :: args ->
                   Llet(Alias, Pgenval, id, Lambda.subst subst (field arg),
-                       Lsequence(store_ident loc id,
+                       Lsequence(store_ident rootpath loc id,
                                  loop ids args))
               | _ -> assert false
             in
@@ -1002,11 +1020,11 @@ let transl_store_structure glob map prims str =
                 [] -> transl_store rootpath (add_idents true ids subst) rem
               | id :: idl ->
                   Llet(Alias, Pgenval, id, Lprim(Pfield pos, [Lvar mid], loc),
-                       Lsequence(store_ident loc id,
+                       Lsequence(store_ident rootpath loc id,
                                  store_idents (pos + 1) idl))
             in
             Llet(Strict, Pgenval, mid,
-                 Lambda.subst subst (transl_module Tcoerce_none None modl),
+                 Lambda.subst subst (transl_module (Some mid) Tcoerce_none None modl),
                  store_idents 0 ids)
         | Tstr_modtype _
         | Tstr_open _
@@ -1014,18 +1032,18 @@ let transl_store_structure glob map prims str =
         | Tstr_attribute _ ->
             transl_store rootpath subst rem
 
-  and store_ident loc id =
+  and store_ident rootpath loc id =
     try
       let (pos, cc) = Ident.find_same id map in
-      let init_val = apply_coercion loc Alias cc (Lvar id) in
+      let init_val = apply_coercion rootpath  loc Alias cc (Lvar id) in
       Lprim(Psetfield(pos, Pointer, Root_initialization),
             [Lprim(Pgetglobal glob, [], loc); init_val],
             loc)
     with Not_found ->
       fatal_error("Translmod.store_ident: " ^ Ident.unique_name id)
 
-  and store_idents loc idlist =
-    make_sequence (store_ident loc) idlist
+  and store_idents rootpath loc idlist =
+    make_sequence (store_ident rootpath loc) idlist
 
   and add_ident may_coerce id subst =
     try
@@ -1048,7 +1066,8 @@ let transl_store_structure glob map prims str =
   and store_primitive (pos, prim) cont =
     Lsequence(Lprim(Psetfield(pos, Pointer, Root_initialization),
                     [Lprim(Pgetglobal glob, [], Location.none);
-                     Translprim.transl_primitive Location.none
+                     Translprim.transl_primitive DebugNames.Anonymous
+                       Location.none
                        prim.pc_desc prim.pc_env prim.pc_type None],
                     Location.none),
               cont)
@@ -1099,7 +1118,7 @@ let build_ident_map restr idlist more_ids =
 (* Compile an implementation using transl_store_structure
    (for the native-code compiler). *)
 
-let transl_store_gen module_name ({ str_items = str }, restr) topl =
+let transl_store_gen rootpath module_name ({ str_items = str }, restr) topl =
   reset_labels ();
   primitive_declarations := [];
   Translprim.clear_used_primitives ();
@@ -1109,18 +1128,19 @@ let transl_store_gen module_name ({ str_items = str }, restr) topl =
   let f = function
     | [ { str_desc = Tstr_eval (expr, _attrs) } ] when topl ->
         assert (size = 0);
-        Lambda.subst !transl_store_subst (transl_exp expr)
+        Lambda.subst !transl_store_subst (transl_exp rootpath
+                                            DebugNames.Anonymous expr)
     | str -> transl_store_structure module_id map prims str in
   transl_store_label_init module_id size f str
   (*size, transl_label_init (transl_store_structure module_id map prims str)*)
 
-let transl_store_phrases module_name str =
-  transl_store_gen module_name (str,Tcoerce_none) true
+let transl_store_phrases rootpath module_name str =
+  transl_store_gen rootpath module_name (str,Tcoerce_none) true
 
 let transl_store_implementation module_name (str, restr) =
   let s = !transl_store_subst in
   transl_store_subst := Ident.Map.empty;
-  let (i, code) = transl_store_gen module_name (str, restr) false in
+  let (i, code) = transl_store_gen None module_name (str, restr) false in
   transl_store_subst := s;
   { Lambda.main_module_block_size = i;
     code;
@@ -1173,7 +1193,7 @@ let close_toplevel_term (lam, ()) =
                                   toploop_getvalue id, l))
                 (free_variables lam) lam
 
-let transl_toplevel_item item =
+let transl_toplevel_item rootpath item =
   match item.str_desc with
     Tstr_eval (expr, _)
   | Tstr_value(Nonrecursive,
@@ -1182,10 +1202,10 @@ let transl_toplevel_item item =
          that Toploop can display the result of the expression.
          Otherwise, the normal compilation would result
          in a Lsequence returning unit. *)
-      transl_exp expr
+      transl_exp rootpath DebugNames.Anonymous expr
   | Tstr_value(rec_flag, pat_expr_list) ->
       let idents = let_bound_idents pat_expr_list in
-      transl_let rec_flag pat_expr_list
+      transl_let rootpath rec_flag pat_expr_list
         (make_sequence toploop_setvalue_id idents)
   | Tstr_typext(tyext) ->
       let idents =
@@ -1204,18 +1224,18 @@ let transl_toplevel_item item =
       (* we need to use the unique name for the module because of issues
          with "open" (PR#1672) *)
       set_toplevel_unique_name id;
-      let lam = transl_module Tcoerce_none (Some(Pident id)) modl in
+      let lam = transl_module None Tcoerce_none (Some(Pident id)) modl in
       toploop_setvalue id lam
   | Tstr_recmodule bindings ->
       let idents = List.map (fun mb -> mb.mb_id) bindings in
       compile_recmodule
-        (fun id modl _loc -> transl_module Tcoerce_none (Some(Pident id)) modl)
+        (fun id modl _loc -> transl_module None Tcoerce_none (Some(Pident id)) modl)
         bindings
         (make_sequence toploop_setvalue_id idents)
   | Tstr_class cl_list ->
       (* we need to use unique names for the classes because there might
          be a value named identically *)
-      let (ids, class_bindings) = transl_class_bindings cl_list in
+      let (ids, class_bindings) = transl_class_bindings rootpath cl_list in
       List.iter set_toplevel_unique_name ids;
       Lletrec(class_bindings, make_sequence toploop_setvalue_id ids)
   | Tstr_include incl ->
@@ -1230,7 +1250,7 @@ let transl_toplevel_item item =
                       (Lprim(Pfield pos, [Lvar mid], Location.none)),
                     set_idents (pos + 1) ids) in
       Llet(Strict, Pgenval, mid,
-           transl_module Tcoerce_none None modl, set_idents 0 ids)
+           transl_module (Some mid) Tcoerce_none None modl, set_idents 0 ids)
   | Tstr_modtype _
   | Tstr_open _
   | Tstr_primitive _
@@ -1239,14 +1259,14 @@ let transl_toplevel_item item =
   | Tstr_attribute _ ->
       lambda_unit
 
-let transl_toplevel_item_and_close itm =
+let transl_toplevel_item_and_close rootpath itm =
   close_toplevel_term
-    (transl_label_init (fun () -> transl_toplevel_item itm, ()))
+    (transl_label_init (fun () -> transl_toplevel_item rootpath itm, ()))
 
 let transl_toplevel_definition str =
   reset_labels ();
   Translprim.clear_used_primitives ();
-  make_sequence transl_toplevel_item_and_close str.str_items
+  make_sequence (transl_toplevel_item_and_close None) str.str_items
 
 (* Compile the initialization code for a packed library *)
 
@@ -1264,7 +1284,7 @@ let transl_package_flambda component_names coercion =
     | Tcoerce_alias _ -> assert false
   in
   size,
-  apply_coercion Location.none Strict coercion
+  apply_coercion None Location.none Strict coercion
     (Lprim(Pmakeblock(0, Immutable, None),
            List.map get_component component_names,
            Location.none))
@@ -1274,7 +1294,7 @@ let transl_package component_names target_name coercion =
     Lprim(Pmakeblock(0, Immutable, None),
           List.map get_component component_names, Location.none) in
   Lprim(Psetglobal target_name,
-        [apply_coercion Location.none Strict coercion components],
+        [apply_coercion None Location.none Strict coercion components],
         Location.none)
   (*
   let components =
@@ -1316,7 +1336,7 @@ let transl_store_package component_names target_name coercion =
       let blk = Ident.create "block" in
       (List.length pos_cc_list,
        Llet (Strict, Pgenval, blk,
-             apply_coercion Location.none Strict coercion components,
+             apply_coercion None Location.none Strict coercion components,
              make_sequence
                (fun pos _id ->
                  Lprim(Psetfield(pos, Pointer, Root_initialization),

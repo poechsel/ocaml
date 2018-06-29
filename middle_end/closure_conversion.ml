@@ -39,10 +39,11 @@ let add_default_argument_wrappers lam =
   let f (lam : Lambda.lambda) : Lambda.lambda =
     match lam with
     | Llet (( Strict | Alias | StrictOpt), _k, id,
-        Lfunction {kind; params; body = fbody; attr; loc}, body) ->
+            Lfunction {kind; params; body = fbody; attr; loc;
+                      debugging_informations}, body) ->
       begin match
         Simplif.split_default_wrapper ~id ~kind ~params
-          ~body:fbody ~attr ~loc
+          ~body:fbody ~attr ~loc ~debugging_informations
       with
       | [fun_id, def] -> Llet (Alias, Pgenval, fun_id, def, body)
       | [fun_id, def; inner_fun_id, def_inner] ->
@@ -56,9 +57,10 @@ let add_default_argument_wrappers lam =
           List.flatten
             (List.map
                (function
-                 | (id, Lambda.Lfunction {kind; params; body; attr; loc}) ->
+                 | (id, Lambda.Lfunction {kind; params; body; attr; loc;
+                                         debugging_informations}) ->
                    Simplif.split_default_wrapper ~id ~kind ~params ~body
-                     ~attr ~loc
+                     ~attr ~loc ~debugging_informations
                  | _ -> assert false)
                defs)
         in
@@ -94,6 +96,7 @@ let tupled_function_call_stub original_params unboxed_version ~recursive
     ~body ~stub:true ~dbg:Debuginfo.none ~inline:Default_inline
     ~specialise:Default_specialise ~is_a_functor:false
     ~inlining_history:[]
+    ~dbg_name:Lambda.DebugNames.empty
 
 let register_const t (constant:Flambda.constant_defining_value) name
     : Flambda.constant_defining_value_block_field * Internal_variable_names.t =
@@ -189,7 +192,7 @@ let rec close t env (lam : Lambda.lambda) : Flambda.t =
            initial_value = var;
            body;
            contents_kind = block_kind })
-  | Lfunction { kind; params; body; attr; loc; } ->
+  | Lfunction { kind; params; body; attr; loc; debugging_informations} ->
     let name = Names.anon_fn_with_loc loc in
     let closure_bound_var = Variable.create name in
     (* CR-soon mshinwell: some of this is now very similar to the let rec case
@@ -198,7 +201,7 @@ let rec close t env (lam : Lambda.lambda) : Flambda.t =
     let set_of_closures =
       let decl =
         Function_decl.create ~let_rec_ident:None ~closure_bound_var ~kind
-          ~params ~body ~attr ~loc
+          ~params ~body ~attr ~loc ~dbg_name:debugging_informations
       in
       close_functions t env (Function_decls.create [decl])
     in
@@ -241,14 +244,15 @@ let rec close t env (lam : Lambda.lambda) : Flambda.t =
          will be named after the corresponding identifier in the [let rec]. *)
       List.map (function
           | (let_rec_ident,
-             Lambda.Lfunction { kind; params; body; attr; loc }) ->
+             Lambda.Lfunction { kind; params; body; attr; loc;
+                              debugging_informations}) ->
             let closure_bound_var =
               Variable.create_with_same_name_as_ident let_rec_ident
             in
             let function_declaration =
               Function_decl.create ~let_rec_ident:(Some let_rec_ident)
                 ~closure_bound_var ~kind ~params ~body
-                ~attr ~loc
+                ~attr ~loc ~dbg_name:debugging_informations
             in
             Some function_declaration
           | _ -> None)
@@ -591,6 +595,7 @@ and close_functions t external_env function_declarations : Flambda.named =
         ~is_a_functor:(Function_decl.is_a_functor decl)
         ~inlining_history:(Flambda.create_declaration_stats_stack
                                  ~id:closure_bound_var ~dbg)
+        ~dbg_name:(Function_decl.dbg_name decl)
     in
     match Function_decl.kind decl with
     | Curried -> Variable.Map.add closure_bound_var fun_decl map
@@ -645,13 +650,14 @@ and close_list t sb l = List.map (close t sb) l
 and close_let_bound_expression t ?let_rec_ident let_bound_var env
       (lam : Lambda.lambda) : Flambda.named =
   match lam with
-  | Lfunction { kind; params; body; attr; loc; } ->
+  | Lfunction { kind; params; body; attr; loc; debugging_informations } ->
     (* Ensure that [let] and [let rec]-bound functions have appropriate
        names. *)
     let closure_bound_var = Variable.rename let_bound_var in
     let decl =
       Function_decl.create ~let_rec_ident ~closure_bound_var ~kind ~params
         ~body ~attr ~loc
+        ~dbg_name:debugging_informations
     in
     let set_of_closures_var = Variable.rename let_bound_var in
     let set_of_closures =

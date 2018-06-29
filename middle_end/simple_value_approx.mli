@@ -165,6 +165,7 @@ and function_body = private {
   body : Flambda.t;
   recursive : bool;
   inlining_history : Flambda.Closure_stack.t;
+  dbg_name : Lambda.DebugNames.t;
 }
 
 and function_declaration = private {
@@ -507,6 +508,11 @@ val update_function_declaration_body
     : function_declaration
    -> (Flambda.t -> Flambda.t)
    -> function_declaration
+
+val update_function_declaration_scope
+  : Compilation_unit.t
+    -> function_declaration
+    -> function_declaration
 
 val find_declaration
   : Closure_id.t

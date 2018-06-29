@@ -17,6 +17,78 @@ open Misc
 open Path
 open Asttypes
 
+module DebugNames =
+struct
+  type class_name_type =
+    | ObjInit
+    | NewInit
+    | ClassInit
+    | ClassRebind
+    | EnvInit
+
+  type name =
+    | Function of string
+    | Functor of string
+    | Class of string * class_name_type
+    | Anonymous
+    | Coerce
+    | Method of string * string
+
+  type t =
+    { name : name; path : Path.t option }
+
+  let empty =
+    { name = Anonymous; path = None }
+
+  let set_name ~name t =
+    { t with name }
+
+  let create ~name ~path =
+    { name; path }
+
+  let print_name ppf name =
+    match name with
+    | Function n ->
+      Format.fprintf ppf "%s" n
+    | Functor n ->
+      Format.fprintf ppf "functor %s" n
+    | Anonymous ->
+      Format.fprintf ppf "anonymous"
+    | Coerce ->
+      Format.fprintf ppf "coercion"
+    | Method(a, b) ->
+      Format.fprintf ppf "method %s of %s" b a
+    | Class(n, w) ->
+      let w =
+        match w with
+        | ObjInit ->
+          "object init"
+        | NewInit ->
+          "new init"
+        | ClassInit ->
+          "class init"
+        | ClassRebind ->
+          "class rebind"
+        | EnvInit ->
+          "env init"
+      in
+      Format.fprintf ppf "%s of %s" w n
+
+  let print ppf t =
+    match t.path with
+    | None ->
+      Format.fprintf ppf
+        "%a"
+        print_name t.name
+    | Some path ->
+      Format.fprintf ppf
+        "%s.%a"
+        (Path.name path)
+        print_name t.name
+
+
+end
+
 type compile_time_constant =
   | Big_endian
   | Word_size
@@ -242,6 +314,7 @@ and lfunction =
     params: Ident.t list;
     body: lambda;
     attr: function_attribute; (* specified with [@inline] attribute *)
+    debugging_informations : DebugNames.t;
     loc: Location.t; }
 
 and lambda_apply =
@@ -602,9 +675,10 @@ let rec subst s lam =
   | Lapply ap ->
       Lapply{ap with ap_func = subst s ap.ap_func;
                      ap_args = subst_list s ap.ap_args}
-  | Lfunction{kind; params; body; attr; loc} ->
+  | Lfunction{kind; params; body; attr; loc; debugging_informations} ->
       let s = List.fold_right Ident.Map.remove params s in
-      Lfunction{kind; params; body = subst s body; attr; loc}
+      Lfunction{kind; params; body = subst s body; attr; loc;
+               debugging_informations}
   | Llet(str, k, id, arg, body) ->
       Llet(str, k, id, subst s arg, subst (Ident.Map.remove id s) body)
   | Lletrec(decl, body) ->
@@ -666,8 +740,9 @@ let rec map f lam =
           ap_inlined;
           ap_specialised;
         }
-    | Lfunction { kind; params; body; attr; loc; } ->
-        Lfunction { kind; params; body = map f body; attr; loc; }
+    | Lfunction { kind; params; body; attr; loc; debugging_informations} ->
+      Lfunction { kind; params; body = map f body; attr; loc;
+                  debugging_informations}
     | Llet (str, k, v, e1, e2) ->
         Llet (str, k, v, map f e1, map f e2)
     | Lletrec (idel, e2) ->

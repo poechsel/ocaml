@@ -18,7 +18,7 @@
 
 module A = Simple_value_approx
 
-let import_set_of_closures =
+let import_set_of_closures ex =
   let import_function_declarations (clos : A.function_declarations)
         : A.function_declarations =
     (* CR-soon mshinwell for pchambart: Do we still need to do this
@@ -39,10 +39,13 @@ let import_set_of_closures =
         end
       | named -> named
     in
+  let compilation_unit = Export_id.get_compilation_unit ex in
     let funs =
       Variable.Map.map (fun (function_decl : A.function_declaration) ->
         A.update_function_declaration_body function_decl
-          (Flambda_iterators.map_toplevel_named f_named))
+          (Flambda_iterators.map_toplevel_named f_named)
+        |> A.update_function_declaration_scope compilation_unit
+      )
         clos.funs
     in
     A.update_function_declarations clos ~funs
@@ -71,7 +74,7 @@ let rec import_ex ex =
         ~(ex_info : Export_info.t) ~unboxing_arguments
         ~what : A.value_set_of_closures option =
     let bound_vars = Var_within_closure.Map.map import_approx bound_vars in
-    match import_set_of_closures set_of_closures_id with
+    match import_set_of_closures ex set_of_closures_id with
     | None -> None
     | Some function_decls ->
       (* CR-someday xclerc: add a test to the test suite to ensure that
