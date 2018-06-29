@@ -507,6 +507,7 @@ and function_declaration = {
   specialise : Lambda.specialise_attribute;
   is_a_functor : bool;
   inlining_history : Closure_stack.t;
+  dbg_name : Lambda.DebugNames.t;
 }
 
 and switch = {
@@ -1450,7 +1451,13 @@ let create_function_declaration ~recursive ~params ~body ~stub ~dbg
       ~(inline : Lambda.inline_attribute)
       ~(specialise : Lambda.specialise_attribute) ~is_a_functor
       ~inlining_history
+      ~dbg_name
       : function_declaration =
+  let dbg_name =
+    match dbg_name with
+    | None -> Lambda.DebugNames.empty
+    | Some x -> x
+  in
   begin match stub, inline with
   | true, (Never_inline | Default_inline)
   | false, (Never_inline | Default_inline | Always_inline | Unroll _) -> ()
@@ -1478,19 +1485,9 @@ let create_function_declaration ~recursive ~params ~body ~stub ~dbg
     specialise;
     is_a_functor;
     inlining_history;
+    dbg_name;
   }
 
-(*let update_function_body func_decl body =
-  create_function_declaration ~body
-    ~recursive:func_decl.recursive
-    ~params:func_decl.params
-    ~stub:func_decl.stub
-    ~dbg:func_decl.dbg
-    ~inline:func_decl.inline
-    ~specialise:func_decl.specialise
-    ~is_a_functor:func_decl.is_a_functor
-    ~inlining_history:func_decl.inlining_history
-*)
 let update_function_declaration fun_decl ~params ~body ~inlining_history =
   let free_variables = free_variables body in
   let free_symbols = free_symbols body in

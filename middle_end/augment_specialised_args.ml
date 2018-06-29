@@ -532,6 +532,7 @@ module Make (T : S) = struct
         ~is_a_functor:false
         ~inlining_history:(Flambda.create_declaration_stats_stack
                                  ~id:new_fun_var ~dbg:Debuginfo.none)
+        ~dbg_name:None
     in
     new_fun_var, new_function_decl, rewritten_existing_specialised_args,
       benefit
@@ -620,6 +621,7 @@ module Make (T : S) = struct
           ~inlining_history:(Flambda.replace_declaration_in_stats_stack
                                    ~old_id:fun_var ~new_id:new_fun_var
                                    function_decl.inlining_history)
+          ~dbg_name:None
       in
       let funs, direct_call_surrogates =
         if for_one_function.make_direct_call_surrogates then

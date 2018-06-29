@@ -60,6 +60,7 @@ module Function_decls : sig
       -> body:Lambda.lambda
       -> attr:Lambda.function_attribute
       -> loc:Location.t
+      -> dbg_name:Lambda.DebugNames.t
       -> t
 
     val let_rec_ident : t -> Ident.t
@@ -72,6 +73,7 @@ module Function_decls : sig
     val is_a_functor : t -> bool
     val stub : t -> bool
     val loc : t -> Location.t
+    val dbg_name : t -> Lambda.DebugNames.t
 
     (* Like [all_free_idents], but for just one function. *)
     val free_idents : t -> Ident.Set.t

@@ -92,10 +92,11 @@ module Function_decls = struct
       free_idents_of_body : Ident.Set.t;
       attr : Lambda.function_attribute;
       loc : Location.t;
+      dbg_name : Lambda.DebugNames.t;
     }
 
     let create ~let_rec_ident ~closure_bound_var ~kind ~params ~body
-        ~attr ~loc =
+        ~attr ~loc ~dbg_name =
       let let_rec_ident =
         match let_rec_ident with
         | None -> Ident.create "unnamed_function"
@@ -109,6 +110,7 @@ module Function_decls = struct
         free_idents_of_body = Lambda.free_variables body;
         attr;
         loc;
+        dbg_name;
       }
 
     let let_rec_ident t = t.let_rec_ident
@@ -122,6 +124,7 @@ module Function_decls = struct
     let is_a_functor t = t.attr.is_a_functor
     let stub t = t.attr.stub
     let loc t = t.loc
+    let dbg_name t = t.dbg_name
 
   end
 
