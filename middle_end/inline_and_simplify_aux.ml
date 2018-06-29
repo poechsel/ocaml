@@ -355,22 +355,15 @@ module Env = struct
             t.inlining_stats_closure_stack ~closure_id ~dbg;
       }
 
-  let note_entering_call t ~closure_id ~dbg =
+  let note_entering_call t ~closure_id ~dbg_name ~dbg =
     if t.never_inline then t
     else
       { t with
         inlining_stats_closure_stack =
           Closure_stack.note_entering_call
+            ~dbg_name:dbg_name
             ~absolute_inlining_history:None
             t.inlining_stats_closure_stack ~closure_id ~dbg;
-      }
-
-  let note_entering_call2 t ~closure_id ~dbg =
-      { t with
-        inlining_history =
-          Closure_stack.note_entering_call
-            ~absolute_inlining_history:None
-            t.inlining_history ~closure_id ~dbg
       }
 
   let note_entering_inlined t =

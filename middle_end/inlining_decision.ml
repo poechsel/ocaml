@@ -767,6 +767,7 @@ let for_call_site ~env ~r ~(call : call_informations)
       let inlining_history_next_part =
         Flambda.Closure_stack.note_entering_call
           ~dbg:call.dbg ~closure_id:callee.closure_id_being_applied
+          ~dbg_name:function_body.dbg_name
           ~absolute_inlining_history:
             (Some (Flambda.Closure_stack.strip_history (E.inlining_history env)))
           call.inlining_history
@@ -774,6 +775,7 @@ let for_call_site ~env ~r ~(call : call_informations)
       let env =
         E.note_entering_call env
           ~closure_id:callee.closure_id_being_applied ~dbg:call.dbg
+          ~dbg_name:function_body.dbg_name
       in
       let simpl =
         if function_decls.is_classic_mode > 0.0 then begin

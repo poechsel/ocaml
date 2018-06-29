@@ -22,7 +22,7 @@ module Closure_stack : sig
 
   and node =
     | Closure of Closure_id.t * Debuginfo.t
-    | Call of Closure_id.t * Debuginfo.t * t option
+    | Call of Closure_id.t * Lambda.DebugNames.t * Debuginfo.t * t option
     | Inlined
     | Specialised of Closure_id.Set.t
 
@@ -49,6 +49,7 @@ module Closure_stack : sig
   val note_entering_call
     : t
     -> closure_id:Closure_id.t
+    -> dbg_name:Lambda.DebugNames.t
     -> dbg:Debuginfo.t
     -> absolute_inlining_history:t option
     -> t
@@ -709,7 +710,7 @@ val create_function_declaration
   -> specialise:Lambda.specialise_attribute
   -> is_a_functor:bool
   -> inlining_history:Closure_stack.t
-  -> dbg_name:Lambda.DebugNames.t option
+  -> dbg_name:Lambda.DebugNames.t
   -> function_declaration
 
 (** Create a function declaration based on another function declaration *)

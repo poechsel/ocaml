@@ -46,6 +46,11 @@ module DebugNames : sig
     name:name
     -> path:Path.t option
     -> t
+
+  val print :
+    Format.formatter
+    -> t
+    -> unit
 end
 
 type compile_time_constant =

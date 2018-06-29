@@ -22,7 +22,7 @@ module Closure_stack = struct
 
   and node =
     | Closure of Closure_id.t * Debuginfo.t
-    | Call of Closure_id.t * Debuginfo.t * t option
+    | Call of Closure_id.t * Lambda.DebugNames.t * Debuginfo.t * t option
     | Inlined
     | Specialised of Closure_id.Set.t
 
@@ -38,7 +38,7 @@ module Closure_stack = struct
       let c = Closure_id.compare a a' in
       if c <> 0 then c else
       Debuginfo.compare b b'
-    | Call(a, b, p), Call(a', b', p') ->
+    | Call(a, _, b, p), Call(a', _, b', p') ->
       let c = Closure_id.compare a a' in
       if c <> 0 then c else
         let c = Debuginfo.compare b b' in
@@ -62,14 +62,14 @@ module Closure_stack = struct
         0 l l'
 
   let strip_history hist =
-    List.map (function | Call(a, b, _) -> Call (a, b, None)
+    List.map (function | Call(a, c, b, _) -> Call (a, c, b, None)
                        | x -> x) hist
 
   let print_node ppf x =
     match x with
     | Inlined ->
       Format.fprintf ppf "inlined "
-    | Call (c, _, _) ->
+    | Call (c, _, _, _) ->
       Format.fprintf ppf "call(%s) " (Closure_id.unique_name c)
     | Closure (c, _) ->
       Format.fprintf ppf "closure(%s) " (Closure_id.unique_name c)
@@ -95,8 +95,9 @@ module Closure_stack = struct
 
   (* CR-someday lwhite: since calls do not have a unique id it is possible
      some calls will end up sharing nodes. *)
-  let note_entering_call t ~closure_id ~dbg ~absolute_inlining_history =
-        (Call (closure_id, dbg, absolute_inlining_history)) :: t
+  let note_entering_call t ~closure_id ~dbg_name ~dbg
+        ~absolute_inlining_history =
+        (Call (closure_id, dbg_name, dbg, absolute_inlining_history)) :: t
 
   let note_entering_inlined t =
     if not !Clflags.inlining_report then t
@@ -1436,11 +1437,11 @@ let map_stats_stack_id subst stack =
                |> Closure_id.wrap
       in
       Closure_stack.Closure(id, dbg)
-    | Closure_stack.Call(id, dbg, h) ->
+    | Closure_stack.Call(id,x, dbg, h) ->
       let id = subst (Closure_id.unwrap id)
                |> Closure_id.wrap
       in
-      Closure_stack.Call(id, dbg, h)
+      Closure_stack.Call(id,x, dbg, h)
     | x -> x)
     stack
 
@@ -1453,11 +1454,6 @@ let create_function_declaration ~recursive ~params ~body ~stub ~dbg
       ~inlining_history
       ~dbg_name
       : function_declaration =
-  let dbg_name =
-    match dbg_name with
-    | None -> Lambda.DebugNames.empty
-    | Some x -> x
-  in
   begin match stub, inline with
   | true, (Never_inline | Default_inline)
   | false, (Never_inline | Default_inline | Always_inline | Unroll _) -> ()

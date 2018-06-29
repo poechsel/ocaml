@@ -88,6 +88,7 @@ and function_body = {
   body : Flambda.t;
   recursive : bool;
   inlining_history : Flambda.Closure_stack.t;
+  dbg_name : Lambda.DebugNames.t;
 }
 
 and function_declaration = {
@@ -1094,6 +1095,7 @@ let function_declaration_approx ~keep_body
              free_variables = fun_decl.free_variables;
              free_symbols = fun_decl.free_symbols;
              recursive = fun_decl.recursive;
+             dbg_name = fun_decl.dbg_name;
              inlining_history = fun_decl.inlining_history;}
     end
   in

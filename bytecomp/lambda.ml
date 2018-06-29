@@ -46,6 +46,47 @@ struct
   let create ~name ~path =
     { name; path }
 
+  let print_name ppf name =
+    match name with
+    | Function n ->
+      Format.fprintf ppf "%s" n
+    | Functor n ->
+      Format.fprintf ppf "functor %s" n
+    | Anonymous ->
+      Format.fprintf ppf "anonymous"
+    | Coerce ->
+      Format.fprintf ppf "coercion"
+    | Method(a, b) ->
+      Format.fprintf ppf "method %s of %s" b a
+    | Class(n, w) ->
+      let w =
+        match w with
+        | ObjInit ->
+          "object init"
+        | NewInit ->
+          "new init"
+        | ClassInit ->
+          "class init"
+        | ClassRebind ->
+          "class rebind"
+        | EnvInit ->
+          "env init"
+      in
+      Format.fprintf ppf "%s of %s" w n
+
+  let print ppf t =
+    match t.path with
+    | None ->
+      Format.fprintf ppf
+        "%a"
+        print_name t.name
+    | Some path ->
+      Format.fprintf ppf
+        "%s.%a"
+        (Path.name path)
+        print_name t.name
+
+
 end
 
 type compile_time_constant =
