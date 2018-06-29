@@ -206,8 +206,9 @@ let simplify_exits lam =
   | Lapply ap ->
       Lapply{ap with ap_func = simplif ap.ap_func;
                      ap_args = List.map simplif ap.ap_args}
-  | Lfunction{kind; params; body = l; attr; loc} ->
-     Lfunction{kind; params; body = simplif l; attr; loc}
+  | Lfunction{kind; params; body = l; attr; loc; debugging_informations} ->
+    Lfunction{kind; params; body = simplif l; attr; loc;
+              debugging_informations}
   | Llet(str, kind, v, l1, l2) -> Llet(str, kind, v, simplif l1, simplif l2)
   | Lletrec(bindings, body) ->
       Lletrec(List.map (fun (v, l) -> (v, simplif l)) bindings, simplif body)
@@ -472,14 +473,17 @@ let simplify_lets lam =
       simplif (beta_reduce params body args)
   | Lapply ap -> Lapply {ap with ap_func = simplif ap.ap_func;
                                  ap_args = List.map simplif ap.ap_args}
-  | Lfunction{kind; params; body = l; attr; loc} ->
-      begin match simplif l with
-        Lfunction{kind=Curried; params=params'; body; attr; loc}
-        when kind = Curried && optimize ->
-          Lfunction{kind; params = params @ params'; body; attr; loc}
-      | body ->
-          Lfunction{kind; params; body; attr; loc}
-      end
+  | Lfunction{kind; params; body = l; attr; loc; debugging_informations} ->
+    begin match simplif l with
+    | Lfunction{kind=Curried; params=params'; body; attr; loc;
+               debugging_informations}
+      when kind = Curried && optimize ->
+      Lfunction{kind; params = params @ params'; body; attr; loc;
+                debugging_informations}
+    | body ->
+      Lfunction{kind; params; body; attr; loc;
+                debugging_informations}
+    end
   | Llet(_str, _k, v, Lvar w, l2) when optimize ->
       Hashtbl.add subst v (simplif (Lvar w));
       simplif l2
@@ -650,7 +654,8 @@ and list_emit_tail_infos is_tail =
    'Some' constructor, only to deconstruct it immediately in the
    function's body. *)
 
-let split_default_wrapper ~id:fun_id ~kind ~params ~body ~attr ~loc =
+let split_default_wrapper ~id:fun_id ~kind ~params ~body ~attr ~loc
+  ~debugging_informations =
   let rec aux map = function
     | Llet(Strict, k, id, (Lifthenelse(Lvar optparam, _, _) as def), rest) when
         Ident.name optparam = "*opt*" && List.mem optparam params
@@ -687,16 +692,19 @@ let split_default_wrapper ~id:fun_id ~kind ~params ~body ~attr ~loc =
         in
         let body = Lambda.subst subst body in
         let inner_fun =
-          Lfunction { kind = Curried; params = new_ids; body; attr; loc; }
+          Lfunction { kind = Curried; params = new_ids; body; attr; loc;
+                    debugging_informations}
         in
         (wrapper_body, (inner_id, inner_fun))
   in
   try
     let body, inner = aux [] body in
     let attr = default_stub_attribute in
-    [(fun_id, Lfunction{kind; params; body; attr; loc}); inner]
+    [(fun_id, Lfunction{kind; params; body; attr; loc;
+                       debugging_informations}); inner]
   with Exit ->
-    [(fun_id, Lfunction{kind; params; body; attr; loc})]
+    [(fun_id, Lfunction{kind; params; body; attr; loc;
+                       debugging_informations})]
 
 module Hooks = Misc.MakeHooks(struct
     type t = lambda
