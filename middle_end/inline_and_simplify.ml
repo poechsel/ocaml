@@ -943,6 +943,7 @@ and simplify_partial_application env r ~lhs_of_application
       ~rec_info:{ depth = 0; unroll_to = 0; }
       ~stub:true
       ~unboxing_arguments
+      ~dbg_name:Lambda.DebugNames.empty
   in
   let with_known_args =
     Flambda_utils.bind

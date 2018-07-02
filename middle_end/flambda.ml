@@ -802,9 +802,10 @@ and print_function_declaration ppf var (f : function_declaration) =
     | Never_specialise -> " *never_specialise*"
     | Default_specialise -> ""
   in
-  fprintf ppf "@[<2>(%a%s%s%s%s%s[%a]@ =@ fun@[<2>%a@] ->@ @[<2>%a@])@]@ "
+  fprintf ppf "@[<2>(%a%s%s%s%s%s[%a | %a]@ =@ fun@[<2>%a@] ->@ @[<2>%a@])@]@ "
     Variable.print var recursive stub is_a_functor inline specialise
     Closure_stack.print f.inlining_history
+    Lambda.DebugNames.print f.dbg_name
     params f.params lam f.body
 
 and print_set_of_closures ppf (set_of_closures : set_of_closures) =

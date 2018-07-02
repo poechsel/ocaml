@@ -46,8 +46,8 @@ let transl_module =
         Ident.t option -> module_coercion -> Path.t option -> module_expr -> lambda)
 
 let transl_object =
-  ref (fun _id _s _cl -> assert false :
-       Ident.t -> string list -> class_expr -> lambda)
+  ref (fun _path _id _s _cl -> assert false :
+       Path.t option -> Ident.t -> string list -> class_expr -> lambda)
 
 (* Compile an exception/extension definition *)
 
@@ -188,7 +188,7 @@ let rec cut n l =
 
 (* Translation of expressions *)
 
-let rec transl_exp name e =
+let rec transl_exp rootpath name e =
   List.iter (Translattribute.check_attribute e) e.exp_attributes;
   let eval_once =
     (* Whether classes for immediate objects must be cached *)
@@ -196,10 +196,10 @@ let rec transl_exp name e =
       Texp_function _ | Texp_for _ | Texp_while _ -> false
     | _ -> true
   in
-  if eval_once then transl_exp0 name e else
-  Translobj.oo_wrap e.exp_env true (transl_exp0 name) e
+  if eval_once then transl_exp0 rootpath name e else
+  Translobj.oo_wrap e.exp_env true (transl_exp0 rootpath name) e
 
-and transl_exp0 name e =
+and transl_exp0 rootpath name e =
   match e.exp_desc with
   | Texp_ident(path, _, {val_kind = Val_prim p}) ->
       Translprim.transl_primitive name e.exp_loc p e.exp_env e.exp_type (Some path)
@@ -211,13 +211,15 @@ and transl_exp0 name e =
   | Texp_constant cst ->
       Lconst(Const_base cst)
   | Texp_let(rec_flag, pat_expr_list, body) ->
-      transl_let rec_flag pat_expr_list (event_before body (transl_exp DebugNames.Anonymous body))
+    transl_let rootpath rec_flag pat_expr_list
+      (event_before body
+         (transl_exp rootpath DebugNames.Anonymous body))
   | Texp_function { arg_label = _; param; cases; partial; } ->
       let ((kind, params), body) =
         event_function e
           (function repr ->
             let pl = push_defaults e.exp_loc [] cases partial in
-            transl_function e.exp_loc !Clflags.native_code repr partial
+            transl_function rootpath e.exp_loc !Clflags.native_code repr partial
               param pl)
       in
       let attr = {
@@ -227,7 +229,7 @@ and transl_exp0 name e =
       }
       in
       let debugging_informations =
-        DebugNames.create ~name ~path:None
+        DebugNames.create ~name ~path:rootpath
       in
       let loc = e.exp_loc in
       Lfunction{kind; params; body; attr; loc;
@@ -240,7 +242,7 @@ and transl_exp0 name e =
       let arg_exps =
          List.map (function _, Some x -> x | _ -> assert false) argl
       in
-      let args = transl_list arg_exps in
+      let args = transl_list rootpath arg_exps in
       let prim_exp = if extra_args = [] then Some e else None in
       let lam =
         Translprim.transl_primitive_application
@@ -261,7 +263,7 @@ and transl_exp0 name e =
         let e = { e with exp_desc = Texp_apply(funct, oargs) } in
         event_after e
           (transl_apply ~should_be_tailcall ~inlined ~specialised
-             lam extra_args e.exp_loc)
+             rootpath lam extra_args e.exp_loc)
       end
   | Texp_apply(funct, oargs) ->
       let should_be_tailcall, funct =
@@ -276,22 +278,23 @@ and transl_exp0 name e =
       let e = { e with exp_desc = Texp_apply(funct, oargs) } in
       event_after e
         (transl_apply ~should_be_tailcall ~inlined ~specialised
-           (transl_exp DebugNames.Anonymous funct) oargs e.exp_loc)
+           rootpath (transl_exp rootpath DebugNames.Anonymous funct) oargs e.exp_loc)
   | Texp_match(arg, pat_expr_list, exn_pat_expr_list, partial) ->
-    transl_match e arg pat_expr_list exn_pat_expr_list partial
+    transl_match rootpath e arg pat_expr_list exn_pat_expr_list partial
   | Texp_try(body, pat_expr_list) ->
       let id = Typecore.name_pattern "exn" pat_expr_list in
-      Ltrywith(transl_exp DebugNames.Anonymous body, id,
-               Matching.for_trywith (Lvar id) (transl_cases_try pat_expr_list))
+      Ltrywith(transl_exp rootpath DebugNames.Anonymous body, id,
+               Matching.for_trywith (Lvar id) (transl_cases_try rootpath
+                                                 pat_expr_list))
   | Texp_tuple el ->
-      let ll, shape = transl_list_with_shape el in
+      let ll, shape = transl_list_with_shape rootpath el in
       begin try
         Lconst(Const_block(0, List.map extract_constant ll))
       with Not_constant ->
         Lprim(Pmakeblock(0, Immutable, Some shape), ll, e.exp_loc)
       end
   | Texp_construct(_, cstr, args) ->
-      let ll, shape = transl_list_with_shape args in
+      let ll, shape = transl_list_with_shape rootpath args in
       if cstr.cstr_inlined <> None then begin match ll with
         | [x] -> x
         | _ -> assert false
@@ -320,7 +323,7 @@ and transl_exp0 name e =
       begin match arg with
         None -> Lconst(Const_pointer tag)
       | Some arg ->
-          let lam = transl_exp DebugNames.Anonymous arg in
+          let lam = transl_exp rootpath DebugNames.Anonymous arg in
           try
             Lconst(Const_block(0, [Const_base(Const_int tag);
                                    extract_constant lam]))
@@ -329,10 +332,10 @@ and transl_exp0 name e =
                   [Lconst(Const_base(Const_int tag)); lam], e.exp_loc)
       end
   | Texp_record {fields; representation; extended_expression} ->
-      transl_record e.exp_loc e.exp_env fields representation
+      transl_record rootpath e.exp_loc e.exp_env fields representation
         extended_expression
   | Texp_field(arg, _, lbl) ->
-      let targ = transl_exp DebugNames.Anonymous arg in
+      let targ = transl_exp rootpath DebugNames.Anonymous arg in
       begin match lbl.lbl_repres with
           Record_regular | Record_inlined _ ->
           Lprim (Pfield lbl.lbl_pos, [targ], e.exp_loc)
@@ -352,10 +355,11 @@ and transl_exp0 name e =
         | Record_extension ->
           Psetfield (lbl.lbl_pos + 1, maybe_pointer newval, Assignment)
       in
-      Lprim(access, [transl_exp DebugNames.Anonymous arg; transl_exp DebugNames.Anonymous newval], e.exp_loc)
+      Lprim(access, [transl_exp rootpath DebugNames.Anonymous arg;
+                     transl_exp rootpath DebugNames.Anonymous newval], e.exp_loc)
   | Texp_array expr_list ->
       let kind = array_kind e in
-      let ll = transl_list expr_list in
+      let ll = transl_list rootpath expr_list in
       begin try
         (* For native code the decision as to which compilation strategy to
            use is made later.  This enables the Flambda passes to lift certain
@@ -399,23 +403,28 @@ and transl_exp0 name e =
         Lprim(Pmakearray (kind, Mutable), ll, e.exp_loc)
       end
   | Texp_ifthenelse(cond, ifso, Some ifnot) ->
-      Lifthenelse(transl_exp DebugNames.Anonymous cond,
-                  event_before ifso (transl_exp DebugNames.Anonymous ifso),
-                  event_before ifnot (transl_exp DebugNames.Anonymous ifnot))
+      Lifthenelse(transl_exp rootpath DebugNames.Anonymous cond,
+                  event_before ifso (transl_exp rootpath DebugNames.Anonymous ifso),
+                  event_before ifnot (transl_exp rootpath DebugNames.Anonymous ifnot))
   | Texp_ifthenelse(cond, ifso, None) ->
-      Lifthenelse(transl_exp DebugNames.Anonymous cond,
-                  event_before ifso (transl_exp DebugNames.Anonymous ifso),
+      Lifthenelse(transl_exp rootpath DebugNames.Anonymous cond,
+                  event_before ifso (transl_exp rootpath DebugNames.Anonymous ifso),
                   lambda_unit)
   | Texp_sequence(expr1, expr2) ->
-      Lsequence(transl_exp DebugNames.Anonymous expr1, event_before expr2 (transl_exp DebugNames.Anonymous expr2))
+    Lsequence(transl_exp rootpath DebugNames.Anonymous expr1,
+              event_before expr2
+                (transl_exp rootpath DebugNames.Anonymous expr2))
   | Texp_while(cond, body) ->
-      Lwhile(transl_exp DebugNames.Anonymous cond, event_before body (transl_exp DebugNames.Anonymous body))
+    Lwhile(transl_exp rootpath DebugNames.Anonymous cond,
+           event_before body
+             (transl_exp rootpath DebugNames.Anonymous body))
   | Texp_for(param, _, low, high, dir, body) ->
-      Lfor(param, transl_exp DebugNames.Anonymous low, transl_exp DebugNames.Anonymous high, dir,
-           event_before body (transl_exp DebugNames.Anonymous body))
-  | Texp_send(_, _, Some exp) -> transl_exp DebugNames.Anonymous exp
+    Lfor(param, transl_exp rootpath DebugNames.Anonymous low,
+         transl_exp rootpath DebugNames.Anonymous high, dir,
+           event_before body (transl_exp rootpath DebugNames.Anonymous body))
+  | Texp_send(_, _, Some exp) -> transl_exp rootpath DebugNames.Anonymous exp
   | Texp_send(expr, met, None) ->
-      let obj = transl_exp DebugNames.Anonymous expr in
+      let obj = transl_exp rootpath DebugNames.Anonymous expr in
       let lam =
         match met with
           Tmeth_val id -> Lsend (Self, Lvar id, obj, [], e.exp_loc)
@@ -436,7 +445,7 @@ and transl_exp0 name e =
       Lprim(Pfield_computed,
             [transl_normal_path path_self; transl_normal_path path], e.exp_loc)
   | Texp_setinstvar(path_self, path, _, expr) ->
-      transl_setinstvar e.exp_loc (transl_normal_path path_self) path expr
+      transl_setinstvar rootpath e.exp_loc (transl_normal_path path_self) path expr
   | Texp_override(path_self, modifs) ->
       let cpy = Ident.create "copy" in
       Llet(Strict, Pgenval, cpy,
@@ -448,7 +457,7 @@ and transl_exp0 name e =
                   ap_specialised=Default_specialise},
            List.fold_right
              (fun (path, _, expr) rem ->
-                Lsequence(transl_setinstvar Location.none
+                Lsequence(transl_setinstvar rootpath Location.none
                             (Lvar cpy) path expr, rem))
              modifs
              (Lvar cpy))
@@ -461,11 +470,11 @@ and transl_exp0 name e =
           lev_env = Env.summary Env.empty;
         })
       in
-      Llet(Strict, Pgenval, id, defining_expr, transl_exp DebugNames.Anonymous body)
+      Llet(Strict, Pgenval, id, defining_expr, transl_exp rootpath DebugNames.Anonymous body)
   | Texp_letexception(cd, body) ->
       Llet(Strict, Pgenval,
            cd.ext_id, transl_extension_constructor e.exp_env None cd,
-           transl_exp DebugNames.Anonymous body)
+           transl_exp rootpath DebugNames.Anonymous body)
   | Texp_pack modl ->
       !transl_module None Tcoerce_none None modl
   | Texp_assert {exp_desc=Texp_construct(_, {cstr_name="false"}, _)} ->
@@ -473,7 +482,7 @@ and transl_exp0 name e =
   | Texp_assert (cond) ->
       if !Clflags.noassert
       then lambda_unit
-      else Lifthenelse (transl_exp DebugNames.Anonymous cond, lambda_unit, assert_failed e)
+      else Lifthenelse (transl_exp rootpath DebugNames.Anonymous cond, lambda_unit, assert_failed e)
   | Texp_lazy e ->
       (* when e needs no computation (constants, identifiers, ...), we
          optimize the translation just as Lazy.lazy_from_val would
@@ -482,13 +491,13 @@ and transl_exp0 name e =
       | `Constant_or_function ->
         (* A constant expr (of type <> float if [Config.flat_float_array] is
            true) gets compiled as itself. *)
-         transl_exp DebugNames.Anonymous e
+         transl_exp rootpath DebugNames.Anonymous e
       | `Float_that_cannot_be_shortcut ->
           (* We don't need to wrap with Popaque: this forward
              block will never be shortcutted since it points to a float
              and Config.flat_float_array is true. *)
           Lprim(Pmakeblock(Obj.forward_tag, Immutable, None),
-                [transl_exp DebugNames.Anonymous e], e.exp_loc)
+                [transl_exp rootpath DebugNames.Anonymous e], e.exp_loc)
       | `Identifier `Forward_value ->
          (* CR-someday mshinwell: Consider adding a new primitive
             that expresses the construction of forward_tag blocks.
@@ -498,10 +507,10 @@ and transl_exp0 name e =
             value may subsequently turn into an immediate... *)
          Lprim (Popaque,
                 [Lprim(Pmakeblock(Obj.forward_tag, Immutable, None),
-                       [transl_exp DebugNames.Anonymous e], e.exp_loc)],
+                       [transl_exp rootpath DebugNames.Anonymous e], e.exp_loc)],
                 e.exp_loc)
       | `Identifier `Other ->
-         transl_exp DebugNames.Anonymous e
+         transl_exp rootpath DebugNames.Anonymous e
       | `Other ->
          (* other cases compile to a lazy block holding a function *)
          let fn = Lfunction {kind = Curried; params = [Ident.create "param"];
@@ -509,13 +518,13 @@ and transl_exp0 name e =
                              debugging_informations =
                                DebugNames.empty;
                              loc = e.exp_loc;
-                             body = transl_exp DebugNames.Anonymous e} in
+                             body = transl_exp rootpath DebugNames.Anonymous e} in
           Lprim(Pmakeblock(Config.lazy_tag, Mutable, None), [fn], e.exp_loc)
       end
   | Texp_object (cs, meths) ->
       let cty = cs.cstr_type in
       let cl = Ident.create "class" in
-      !transl_object cl meths
+      !transl_object rootpath cl meths
         { cl_desc = Tcl_structure cs;
           cl_loc = e.exp_loc;
           cl_type = Cty_signature cty;
@@ -525,32 +534,32 @@ and transl_exp0 name e =
   | Texp_unreachable ->
       raise (Error (e.exp_loc, Unreachable_reached))
 
-and transl_list expr_list =
-  List.map (transl_exp DebugNames.Anonymous) expr_list
+and transl_list rootpath expr_list =
+  List.map (transl_exp rootpath DebugNames.Anonymous) expr_list
 
-and transl_list_with_shape expr_list =
+and transl_list_with_shape rootpath expr_list =
   let transl_with_shape e =
     let shape = Typeopt.value_kind e.exp_env e.exp_type in
-    transl_exp DebugNames.Anonymous e, shape
+    transl_exp rootpath DebugNames.Anonymous e, shape
   in
   List.split (List.map transl_with_shape expr_list)
 
-and transl_guard guard rhs =
-  let expr = event_before rhs ((transl_exp DebugNames.Anonymous) rhs) in
+and transl_guard rootpath guard rhs =
+  let expr = event_before rhs ((transl_exp rootpath DebugNames.Anonymous) rhs) in
   match guard with
   | None -> expr
   | Some cond ->
-      event_before cond (Lifthenelse((transl_exp DebugNames.Anonymous) cond, expr, staticfail))
+      event_before cond (Lifthenelse((transl_exp rootpath DebugNames.Anonymous) cond, expr, staticfail))
 
-and transl_case {c_lhs; c_guard; c_rhs} =
-  c_lhs, transl_guard c_guard c_rhs
+and transl_case rootpath {c_lhs; c_guard; c_rhs} =
+  c_lhs, transl_guard rootpath c_guard c_rhs
 
-and transl_cases cases =
+and transl_cases rootpath cases =
   let cases =
     List.filter (fun c -> c.c_rhs.exp_desc <> Texp_unreachable) cases in
-  List.map transl_case cases
+  List.map (transl_case rootpath) cases
 
-and transl_case_try {c_lhs; c_guard; c_rhs} =
+and transl_case_try rootpath {c_lhs; c_guard; c_rhs} =
   let rec iter_exn_names f pat =
     match pat.pat_desc with
     | Tpat_var (id, _) -> f id
@@ -561,24 +570,24 @@ and transl_case_try {c_lhs; c_guard; c_rhs} =
   in
   iter_exn_names Translprim.add_exception_ident c_lhs;
   Misc.try_finally
-    (fun () -> c_lhs, transl_guard c_guard c_rhs)
+    (fun () -> c_lhs, transl_guard rootpath c_guard c_rhs)
     (fun () ->
        iter_exn_names Translprim.remove_exception_ident c_lhs)
 
-and transl_cases_try cases =
+and transl_cases_try rootpath cases =
   let cases =
     List.filter (fun c -> c.c_rhs.exp_desc <> Texp_unreachable) cases in
-  List.map transl_case_try cases
+  List.map (transl_case_try rootpath) cases
 
-and transl_tupled_cases patl_expr_list =
+and transl_tupled_cases rootpath patl_expr_list =
   let patl_expr_list =
     List.filter (fun (_,_,e) -> e.exp_desc <> Texp_unreachable)
       patl_expr_list in
-  List.map (fun (patl, guard, expr) -> (patl, transl_guard guard expr))
+  List.map (fun (patl, guard, expr) -> (patl, transl_guard rootpath guard expr))
     patl_expr_list
 
 and transl_apply ?(should_be_tailcall=false) ?(inlined = Default_inline)
-      ?(specialised = Default_specialise) lam sargs loc =
+      ?(specialised = Default_specialise) rootpath lam sargs loc =
   let lapply funct args =
     match funct with
       Lsend(k, lmet, lobj, largs, loc) ->
@@ -638,18 +647,18 @@ and transl_apply ?(should_be_tailcall=false) ?(inlined = Default_inline)
         lapply lam (List.rev_map fst args)
   in
   (build_apply lam [] (List.map (fun (l, x) ->
-                                   may_map (transl_exp DebugNames.Anonymous) x, Btype.is_optional l)
+                                   may_map (transl_exp rootpath DebugNames.Anonymous) x, Btype.is_optional l)
                                 sargs)
      : Lambda.lambda)
 
-and transl_function loc untuplify_fn repr partial param cases =
+and transl_function rootpath loc untuplify_fn repr partial param cases =
   match cases with
     [{c_lhs=pat; c_guard=None;
       c_rhs={exp_desc = Texp_function { arg_label = _; param = param'; cases;
         partial = partial'; }} as exp}]
     when Parmatch.inactive ~partial pat ->
       let ((_, params), body) =
-        transl_function exp.exp_loc false repr partial' param' cases in
+        transl_function rootpath exp.exp_loc false repr partial' param' cases in
       ((Curried, param :: params),
        Matching.for_function loc None (Lvar param) [pat, body] partial)
   | {c_lhs={pat_desc = Tpat_tuple pl}} :: _ when untuplify_fn ->
@@ -663,16 +672,16 @@ and transl_function loc untuplify_fn repr partial param cases =
         let params = List.map (fun _ -> Ident.create "param") pl in
         ((Tupled, params),
          Matching.for_tupled_function loc params
-           (transl_tupled_cases pats_expr_list) partial)
+           (transl_tupled_cases rootpath pats_expr_list) partial)
       with Matching.Cannot_flatten ->
         ((Curried, [param]),
          Matching.for_function loc repr (Lvar param)
-           (transl_cases cases) partial)
+           (transl_cases rootpath cases) partial)
       end
   | _ ->
       ((Curried, [param]),
        Matching.for_function loc repr (Lvar param)
-         (transl_cases cases) partial)
+         (transl_cases rootpath cases) partial)
 
 
 (*
@@ -681,7 +690,7 @@ and transl_function loc untuplify_fn repr partial param cases =
   This complication allows choosing any compilation order for the
   bindings and body of let constructs.
 *)
-and transl_let rec_flag pat_expr_list =
+and transl_let rootpath rec_flag pat_expr_list =
   match rec_flag with
     Nonrecursive ->
     let rec transl = function
@@ -689,7 +698,7 @@ and transl_let rec_flag pat_expr_list =
         fun body -> body
       | {vb_pat=pat; vb_expr=expr; vb_attributes=attr; vb_loc} :: rem ->
         let name = function_name_from_pattern pat in
-        let lam = transl_exp name expr in
+        let lam = transl_exp rootpath name expr in
         let lam =
           Translattribute.add_inline_attribute lam vb_loc attr
         in
@@ -709,7 +718,7 @@ and transl_let rec_flag pat_expr_list =
         pat_expr_list in
     let transl_case {vb_pat; vb_expr=expr; vb_attributes; vb_loc} id =
       let name = function_name_from_pattern vb_pat in
-      let lam = transl_exp name expr in
+      let lam = transl_exp rootpath name expr in
       let lam =
         Translattribute.add_inline_attribute lam vb_loc
           vb_attributes
@@ -722,11 +731,11 @@ and transl_let rec_flag pat_expr_list =
     let lam_bds = List.map2 transl_case pat_expr_list idlist in
     fun body -> Lletrec(lam_bds, body)
 
-and transl_setinstvar loc self var expr =
+and transl_setinstvar rootpath loc self var expr =
   Lprim(Psetfield_computed (maybe_pointer expr, Assignment),
-    [self; transl_normal_path var; transl_exp DebugNames.Anonymous expr], loc)
+    [self; transl_normal_path var; transl_exp rootpath DebugNames.Anonymous expr], loc)
 
-and transl_record loc env fields repres opt_init_expr =
+and transl_record rootpath loc env fields repres opt_init_expr =
   let size = Array.length fields in
   (* Determine if there are "enough" fields (only relevant if this is a
      functional-style record update *)
@@ -751,7 +760,7 @@ and transl_record loc env fields repres opt_init_expr =
                Lprim(access, [Lvar init_id], loc), field_kind
            | Overridden (_lid, expr) ->
                let field_kind = value_kind expr.exp_env expr.exp_type in
-               transl_exp DebugNames.Anonymous expr, field_kind)
+               transl_exp rootpath DebugNames.Anonymous expr, field_kind)
         fields
     in
     let ll, shape = List.split (Array.to_list lv) in
@@ -793,7 +802,7 @@ and transl_record loc env fields repres opt_init_expr =
     begin match opt_init_expr with
       None -> lam
     | Some init_expr -> Llet(Strict, Pgenval, init_id,
-                             transl_exp DebugNames.Anonymous init_expr, lam)
+                             transl_exp rootpath DebugNames.Anonymous init_expr, lam)
     end
   end else begin
     (* Take a shallow copy of the init record, then mutate the fields
@@ -813,21 +822,21 @@ and transl_record loc env fields repres opt_init_expr =
             | Record_extension ->
                 Psetfield(lbl.lbl_pos + 1, maybe_pointer expr, Assignment)
           in
-          Lsequence(Lprim(upd, [Lvar copy_id; transl_exp DebugNames.Anonymous expr], loc), cont)
+          Lsequence(Lprim(upd, [Lvar copy_id; transl_exp rootpath DebugNames.Anonymous expr], loc), cont)
     in
     begin match opt_init_expr with
       None -> assert false
     | Some init_expr ->
         Llet(Strict, Pgenval, copy_id,
-             Lprim(Pduprecord (repres, size), [transl_exp DebugNames.Anonymous init_expr], loc),
+             Lprim(Pduprecord (repres, size), [transl_exp rootpath DebugNames.Anonymous init_expr], loc),
              Array.fold_left update_field (Lvar copy_id) fields)
     end
   end
 
-and transl_match e arg pat_expr_list exn_pat_expr_list partial =
+and transl_match rootpath e arg pat_expr_list exn_pat_expr_list partial =
   let id = Typecore.name_pattern "exn" exn_pat_expr_list
-  and cases = transl_cases pat_expr_list
-  and exn_cases = transl_cases_try exn_pat_expr_list in
+  and cases = transl_cases rootpath pat_expr_list
+  and exn_cases = transl_cases_try rootpath exn_pat_expr_list in
   let static_catch body val_ids handler =
     let static_exception_id = next_raise_count () in
     Lstaticcatch
@@ -838,17 +847,17 @@ and transl_match e arg pat_expr_list exn_pat_expr_list partial =
   in
   match arg, exn_cases with
   | {exp_desc = Texp_tuple argl}, [] ->
-    Matching.for_multiple_match e.exp_loc (transl_list argl) cases partial
+    Matching.for_multiple_match e.exp_loc (transl_list rootpath argl) cases partial
   | {exp_desc = Texp_tuple argl}, _ :: _ ->
     let val_ids = List.map (fun _ -> Typecore.name_pattern "val" []) argl in
     let lvars = List.map (fun id -> Lvar id) val_ids in
-    static_catch (transl_list argl) val_ids
+    static_catch (transl_list rootpath argl) val_ids
       (Matching.for_multiple_match e.exp_loc lvars cases partial)
   | arg, [] ->
-    Matching.for_function e.exp_loc None (transl_exp DebugNames.Anonymous arg) cases partial
+    Matching.for_function e.exp_loc None (transl_exp rootpath DebugNames.Anonymous arg) cases partial
   | arg, _ :: _ ->
     let val_id = Typecore.name_pattern "val" pat_expr_list in
-    static_catch [transl_exp DebugNames.Anonymous arg] [val_id]
+    static_catch [transl_exp rootpath DebugNames.Anonymous arg] [val_id]
       (Matching.for_function e.exp_loc None (Lvar val_id) cases partial)
 
 

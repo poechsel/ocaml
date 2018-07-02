@@ -173,8 +173,8 @@ let print_function_declaration ppf var (f : function_declaration) =
     let print_body ppf _ =
       Format.fprintf ppf "<Function Body>"
     in
-    Format.fprintf ppf "@[<2>(%a%s%s%s%s@ =@ fun@[<2>%a@] ->@ @[<2><%a>@])@]@ "
-      Variable.print var stub is_a_functor inline specialise
+    Format.fprintf ppf "@[<2>(%a[%a]%s%s%s%s@ =@ fun@[<2>%a@] ->@ @[<2><%a>@])@]@ "
+      Variable.print var Lambda.DebugNames.print b.dbg_name stub is_a_functor inline specialise
       params f.params
       print_body b
 

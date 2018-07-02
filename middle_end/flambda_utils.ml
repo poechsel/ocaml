@@ -343,7 +343,7 @@ let toplevel_substitution_named sb named =
 
 let make_closure_declaration ~is_classic_mode ~id
       ~body ~params ~recursive ~rec_info ~stub
-      ~unboxing_arguments
+      ~unboxing_arguments ~dbg_name
     : Flambda.t =
   let free_variables = Flambda.free_variables body in
   let param_set = Parameter.Set.vars params in
@@ -367,7 +367,7 @@ let make_closure_declaration ~is_classic_mode ~id
       ~specialise:Default_specialise ~is_a_functor:false
       ~inlining_history:(Flambda.create_declaration_stats_stack ~dbg:Debuginfo.none
                                ~id:id)
-      ~dbg_name:Lambda.DebugNames.empty
+      ~dbg_name:dbg_name
   in
   assert (Variable.Set.equal (Variable.Set.map subst free_variables)
     function_declaration.free_variables);
