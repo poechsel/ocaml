@@ -16,21 +16,19 @@
 
 [@@@ocaml.warning "+a-4-9-30-40-41-42"]
 
-module Closure_stack = Flambda.Closure_stack
-
 let log
-  : (Closure_stack.t * Inlining_stats_types.Decision.t) list ref
+  : (Inlining_history.t * Inlining_stats_types.Decision.t) list ref
   = ref []
 
 let record_decision decision ~closure_stack =
   if !Clflags.inlining_report then begin
     match closure_stack with
     | []
-    | Closure_stack.Closure _ :: _
-    | Closure_stack.Inlined :: _
-    | Closure_stack.Specialised _ :: _ ->
+    | Inlining_history.Closure _ :: _
+    | Inlining_history.Inlined :: _
+    | Inlining_history.Specialised _ :: _ ->
       Misc.fatal_errorf "record_decision: missing Call node"
-    | Closure_stack.Call _ :: _ ->
+    | Inlining_history.Call _ :: _ ->
       log := (closure_stack, decision) :: !log
   end
 
@@ -59,7 +57,7 @@ module Inlining_report = struct
 
   type decision =
     | Decision of Inlining_stats_types.Decision.t
-    | Reference of Closure_stack.t
+    | Reference of Inlining_history.t
 
   type t = (node * string) Place_map.t
 
@@ -83,7 +81,7 @@ module Inlining_report = struct
 
   let uid_of_history h =
     let str_uid =
-      Format.asprintf "%a" Closure_stack.print h
+      Format.asprintf "%a" Inlining_history.print h
     in
     Digest.string str_uid
     |> Digest.to_hex
@@ -103,7 +101,7 @@ module Inlining_report = struct
     | Decision Unchanged _, Unchanged _ -> call
 
   let add_decision t (stack, decision) : (node * string) Place_map.t =
-    let rec loop seen t (stack : Closure_stack.t) =
+    let rec loop seen t (stack : Inlining_history.t) =
       let uid = uid_of_history seen in
       match stack with
       | (Closure(cl, dbg) as x) :: rest ->

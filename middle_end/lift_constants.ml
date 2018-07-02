@@ -76,7 +76,7 @@ let assign_symbols_and_collect_constant_definitions
           let funs =
             Variable.Map.map (fun (decl : Flambda.function_declaration) : Flambda.function_declaration ->
               Flambda.update_function_declaration decl
-                ~params:decl.params ~inlining_history:(Flambda.Closure_stack.add
+                ~params:decl.params ~inlining_history:(Inlining_history.add
                                                          decl.inlining_history
                                                          inlining_history)
                 ~body:decl.body
@@ -144,7 +144,7 @@ let assign_symbols_and_collect_constant_definitions
       | Set_of_closures { function_decls = { funs }; } ->
         Variable.Map.iter (fun _ (decl : Flambda.function_declaration) ->
           let inlining_history =
-            Flambda.Closure_stack.add decl.inlining_history inlining_history
+            Inlining_history.add decl.inlining_history inlining_history
           in
           assign_symbol_program inlining_history decl.body;
         ) funs
@@ -154,7 +154,7 @@ let assign_symbols_and_collect_constant_definitions
       ~f:(assign_symbol inlining_history)
   in
   Flambda_iterators.iter_exprs_at_toplevel_of_program program
-    ~f:(assign_symbol_program (Flambda.Closure_stack.create()));
+    ~f:(assign_symbol_program (Inlining_history.create()));
   let let_symbol_to_definition_tbl = Symbol.Tbl.create 42 in
   let initialize_symbol_to_definition_tbl = Symbol.Tbl.create 42 in
   let rec collect_let_and_initialize_symbols (program : Flambda.program_body) =

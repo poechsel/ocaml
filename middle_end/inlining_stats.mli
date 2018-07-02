@@ -19,7 +19,7 @@
 
 val record_decision
    : Inlining_stats_types.Decision.t
-  -> closure_stack:Flambda.Closure_stack.t
+  -> closure_stack:Inlining_history.t
   -> unit
 
 val save_then_forget_decisions : output_prefix:string -> unit
