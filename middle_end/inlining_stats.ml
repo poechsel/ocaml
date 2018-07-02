@@ -25,6 +25,7 @@ let record_decision decision ~closure_stack =
     match closure_stack with
     | []
     | Inlining_history.Closure _ :: _
+    | Inlining_history.Module _ :: _
     | Inlining_history.Inlined :: _
     | Inlining_history.Specialised _ :: _ ->
       Misc.fatal_errorf "record_decision: missing Call node"
@@ -37,6 +38,7 @@ module Inlining_report = struct
   module Place = struct
     type kind =
       | Closure
+      | Module
       | Call
 
     type t = Debuginfo.t * Closure_id.t * Lambda.DebugNames.t * kind
@@ -49,8 +51,11 @@ module Inlining_report = struct
         match k1, k2 with
         | Closure, Closure -> 0
         | Call, Call -> 0
+        | Module, Module -> 0
         | Closure, Call -> 1
         | Call, Closure -> -1
+        | Module, _ -> 1
+        | _, Module -> -1
   end
 
   module Place_map = Map.Make(Place)
@@ -63,6 +68,7 @@ module Inlining_report = struct
 
   and node =
     | Closure of t
+    | Module of t
     | Call of call
 
   and call =
@@ -110,18 +116,33 @@ module Inlining_report = struct
             try
               match Place_map.find key t with
               | Closure v, _ -> v
-              | Call _, _ -> assert false
+              | _ -> assert false
             with Not_found -> Place_map.empty
           in
           let v = loop (x :: seen) v rest in
           Place_map.add key (Closure v, uid) t
+      | (Module(s, dbg) as x) :: rest ->
+        let cl = Ident.create s
+                 |> Variable.create_with_same_name_as_ident
+                 |> Closure_id.wrap
+        in
+          let key : Place.t = (dbg, cl, Lambda.DebugNames.empty, Module) in
+          let v =
+            try
+              match Place_map.find key t with
+              | Module v, _ -> v
+              | _ -> assert false
+            with Not_found -> Place_map.empty
+          in
+          let v = loop (x :: seen) v rest in
+          Place_map.add key (Module v, uid) t
       | (Call(cl, name, dbg, path) as x) :: rest ->
           let key : Place.t = (dbg, cl, name, Call) in
           let v =
             try
               match Place_map.find key t with
               | Call v, _ -> v
-              | Closure _, _ -> assert false
+              |_ -> assert false
             with Not_found -> empty_call path
           in
           let v =
@@ -145,6 +166,7 @@ module Inlining_report = struct
                 { v with specialised = Some specialised }
             | Call _ :: _ -> assert false
             | Closure _ :: _ -> assert false
+            | Module _ :: _ -> assert false
           in
           Place_map.add key (Call v, uid) t
       | [] -> assert false
@@ -170,6 +192,14 @@ module Inlining_report = struct
   let rec print ~depth ppf t =
     Place_map.iter (fun (dbg, cl, name, _) (v, uid) ->
        match v with
+       | Module t ->
+         Format.fprintf ppf "@[<h>%a Module %a%s %a@]@."
+           print_stars (depth + 1)
+           Closure_id.print cl
+           (Debuginfo.to_string dbg)
+           print_anchor uid;
+         print ppf ~depth:(depth + 1) t;
+         if depth = 0 then Format.pp_print_newline ppf ()
        | Closure t ->
          Format.fprintf ppf "@[<h>%a Definition of %a%s %a@]@."
            print_stars (depth + 1)
