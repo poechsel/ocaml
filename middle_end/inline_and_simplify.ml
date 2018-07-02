@@ -650,7 +650,7 @@ and simplify_set_of_closures original_env r
       Inlining_history.add function_decl.inlining_history parts_inlining_stack
     in
     let body, r =
-      E.enter_closure closure_env ~closure_id:(Closure_id.wrap fun_var)
+      E.enter_closure closure_env ~name:(Variable.name fun_var)
         ~inline_inside:
           (Inlining_decision.should_inline_inside_declaration function_decl)
         ~dbg:function_decl.dbg
@@ -1576,7 +1576,7 @@ and duplicate_function ~env ~(set_of_closures : Flambda.set_of_closures)
   in
   let body, _r =
     E.enter_closure closure_env
-      ~closure_id:(Closure_id.wrap fun_var)
+      ~name:(Variable.name fun_var)
       ~inline_inside:false
       ~dbg:function_decl.dbg
       ~f:(fun body_env ->

@@ -385,15 +385,9 @@ let inline env r ~call ~callee ~annotations ~original
       end
     end
 
-let stat_note_specialise_closures env callee =
-  (* CR-someday lwhite: could avoid calculating this if stats is turned
-     off *)
-  let closure_ids =
-    Closure_id.Set.of_list (
-      List.map Closure_id.wrap
-        (Variable.Set.elements (Variable.Map.keys callee.function_decls.funs)))
-  in
-  E.note_entering_specialised env ~closure_ids
+let stat_note_specialise_closures env _callee =
+  (* CR poechsel: for now the string is just a placeholder. Change that *)
+  E.note_entering_specialised env ~name:"spec"
 
 let compute_params_informations callee args_approxs =
   let free_vars = callee.value_set_of_closures.free_vars in
@@ -520,13 +514,8 @@ let specialise env r ~(call : call_informations)
         R.set_inlining_threshold r (Some remaining_inlining_threshold)
       in
       let copied_function_declaration =
-        let closure_ids =
-          Closure_id.Set.of_list (
-            List.map Closure_id.wrap
-              (Variable.Set.elements (Variable.Map.keys callee.function_decls.funs)))
-        in
         let env =
-          E.add_inlining_history_part env (Inlining_history.Specialised closure_ids)
+          E.add_inlining_history_part env (Inlining_history.Specialised "")
         in
         Inlining_transforms.inline_by_copying_function_declaration ~env
           ~r:(R.reset_benefit r) ~lhs_of_application:call.callee
@@ -766,7 +755,7 @@ let for_call_site ~env ~r ~(call : call_informations)
       in
       let inlining_history_next_part =
         Inlining_history.note_entering_call
-          ~dbg:call.dbg ~closure_id:callee.closure_id_being_applied
+          ~dbg:call.dbg ~name:(Closure_id.unique_name callee.closure_id_being_applied)
           ~dbg_name:function_body.dbg_name
           ~absolute_inlining_history:
             (Some (Inlining_history.strip_history (E.inlining_history env)))
@@ -774,7 +763,7 @@ let for_call_site ~env ~r ~(call : call_informations)
       in
       let env =
         E.note_entering_call env
-          ~closure_id:callee.closure_id_being_applied ~dbg:call.dbg
+          ~name:(Closure_id.unique_name callee.closure_id_being_applied) ~dbg:call.dbg
           ~dbg_name:function_body.dbg_name
       in
       let simpl =

@@ -20,10 +20,10 @@ type t = node list
 
 and node =
   | Module of string * Debuginfo.t
-  | Closure of Closure_id.t * Debuginfo.t
-  | Call of Closure_id.t * Lambda.DebugNames.t * Debuginfo.t * t option
+  | Closure of string * Debuginfo.t
+  | Call of string * Lambda.DebugNames.t * Debuginfo.t * t option
   | Inlined
-  | Specialised of Closure_id.Set.t
+  | Specialised of string
 
 val create : unit -> t
 
@@ -41,17 +41,17 @@ val strip_history : t -> t
 
 val note_entering_closure
   : t
-  -> closure_id:Closure_id.t
+  -> name:string
   -> dbg:Debuginfo.t
   -> t
 
 val note_entering_call
   : t
-  -> closure_id:Closure_id.t
+  -> name:string
   -> dbg_name:Lambda.DebugNames.t
   -> dbg:Debuginfo.t
   -> absolute_inlining_history:t option
   -> t
 
 val note_entering_inlined : t -> t
-val note_entering_specialised : t -> closure_ids:Closure_id.Set.t -> t
+val note_entering_specialised : t -> name:string -> t

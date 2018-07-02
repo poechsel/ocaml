@@ -1319,35 +1319,8 @@ let free_symbols_program (program : program) =
   !symbols
 
 
-let replace_declaration_in_stats_stack ~old_id ~new_id stack =
-  List.map (function
-    | Inlining_history.Closure (c, dbg) when Closure_id.unwrap c = old_id ->
-      Inlining_history.Closure (Closure_id.wrap new_id, dbg)
-    | x -> x) stack
-
-let update_id_declaration_stats_stack ~old_id ~new_id decl =
-  { decl with inlining_history =
-                replace_declaration_in_stats_stack
-                  ~old_id ~new_id
-                  decl.inlining_history }
-
-let map_stats_stack_id subst stack =
-  List.map (function
-    | Inlining_history.Closure(id, dbg) ->
-      let id = subst (Closure_id.unwrap id)
-               |> Closure_id.wrap
-      in
-      Inlining_history.Closure(id, dbg)
-    | Inlining_history.Call(id,x, dbg, h) ->
-      let id = subst (Closure_id.unwrap id)
-               |> Closure_id.wrap
-      in
-      Inlining_history.Call(id,x, dbg, h)
-    | x -> x)
-    stack
-
-let create_declaration_stats_stack ~id ~dbg =
-  Inlining_history.Closure (Closure_id.wrap id, dbg) :: []
+let create_declaration_stats_stack ~name ~dbg =
+  Inlining_history.Closure (name, dbg) :: []
 
 let create_function_declaration ~recursive ~params ~body ~stub ~dbg
       ~(inline : Lambda.inline_attribute)
