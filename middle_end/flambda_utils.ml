@@ -258,7 +258,6 @@ let toplevel_substitution sb tree =
     | Apply { func; args; kind; dbg; inlining_depth; inline; specialise;
               max_inlining_arguments; inlining_history } ->
       let func = sb func in
-      let inlining_history = Flambda.map_stats_stack_id sb inlining_history in
       let args = List.map sb args in
       Apply { func; args; kind; dbg; inlining_depth; inline; specialise;
               max_inlining_arguments; inlining_history }
@@ -366,7 +365,7 @@ let make_closure_declaration ~is_classic_mode ~id
       ~body ~recursive ~stub ~dbg:Debuginfo.none ~inline:Default_inline
       ~specialise:Default_specialise ~is_a_functor:false
       ~inlining_history:(Flambda.create_declaration_stats_stack ~dbg:Debuginfo.none
-                               ~id:id)
+                               ~name:(Variable.name id))
       ~dbg_name:dbg_name
   in
   assert (Variable.Set.equal (Variable.Set.map subst free_variables)

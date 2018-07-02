@@ -16,21 +16,20 @@
 
 [@@@ocaml.warning "+a-4-9-30-40-41-42"]
 
-module Closure_stack = Flambda.Closure_stack
-
 let log
-  : (Closure_stack.t * Inlining_stats_types.Decision.t) list ref
+  : (Inlining_history.t * Inlining_stats_types.Decision.t) list ref
   = ref []
 
 let record_decision decision ~closure_stack =
   if !Clflags.inlining_report then begin
     match closure_stack with
     | []
-    | Closure_stack.Closure _ :: _
-    | Closure_stack.Inlined :: _
-    | Closure_stack.Specialised _ :: _ ->
+    | Inlining_history.Closure _ :: _
+    | Inlining_history.Module _ :: _
+    | Inlining_history.Inlined :: _
+    | Inlining_history.Specialised _ :: _ ->
       Misc.fatal_errorf "record_decision: missing Call node"
-    | Closure_stack.Call _ :: _ ->
+    | Inlining_history.Call _ :: _ ->
       log := (closure_stack, decision) :: !log
   end
 
@@ -39,32 +38,37 @@ module Inlining_report = struct
   module Place = struct
     type kind =
       | Closure
+      | Module
       | Call
 
-    type t = Debuginfo.t * Closure_id.t * Lambda.DebugNames.t * kind
+    type t = Debuginfo.t * string * Lambda.DebugNames.t * kind
 
     let compare ((d1, cl1, _, k1) : t) ((d2, cl2, _, k2) : t) =
       let c = Debuginfo.compare d1 d2 in
       if c <> 0 then c else
-      let c = Closure_id.compare cl1 cl2 in
+      let c = Pervasives.compare cl1 cl2 in
       if c <> 0 then c else
         match k1, k2 with
         | Closure, Closure -> 0
         | Call, Call -> 0
+        | Module, Module -> 0
         | Closure, Call -> 1
         | Call, Closure -> -1
+        | Module, _ -> 1
+        | _, Module -> -1
   end
 
   module Place_map = Map.Make(Place)
 
   type decision =
     | Decision of Inlining_stats_types.Decision.t
-    | Reference of Closure_stack.t
+    | Reference of Inlining_history.t
 
   type t = (node * string) Place_map.t
 
   and node =
     | Closure of t
+    | Module of t
     | Call of call
 
   and call =
@@ -83,7 +87,7 @@ module Inlining_report = struct
 
   let uid_of_history h =
     let str_uid =
-      Format.asprintf "%a" Closure_stack.print h
+      Format.asprintf "%a" Inlining_history.print h
     in
     Digest.string str_uid
     |> Digest.to_hex
@@ -103,7 +107,7 @@ module Inlining_report = struct
     | Decision Unchanged _, Unchanged _ -> call
 
   let add_decision t (stack, decision) : (node * string) Place_map.t =
-    let rec loop seen t (stack : Closure_stack.t) =
+    let rec loop seen t (stack : Inlining_history.t) =
       let uid = uid_of_history seen in
       match stack with
       | (Closure(cl, dbg) as x) :: rest ->
@@ -112,18 +116,29 @@ module Inlining_report = struct
             try
               match Place_map.find key t with
               | Closure v, _ -> v
-              | Call _, _ -> assert false
+              | _ -> assert false
             with Not_found -> Place_map.empty
           in
           let v = loop (x :: seen) v rest in
           Place_map.add key (Closure v, uid) t
+      | (Module(s, dbg) as x) :: rest ->
+          let key : Place.t = (dbg, s, Lambda.DebugNames.empty, Module) in
+          let v =
+            try
+              match Place_map.find key t with
+              | Module v, _ -> v
+              | _ -> assert false
+            with Not_found -> Place_map.empty
+          in
+          let v = loop (x :: seen) v rest in
+          Place_map.add key (Module v, uid) t
       | (Call(cl, name, dbg, path) as x) :: rest ->
           let key : Place.t = (dbg, cl, name, Call) in
           let v =
             try
               match Place_map.find key t with
               | Call v, _ -> v
-              | Closure _, _ -> assert false
+              |_ -> assert false
             with Not_found -> empty_call path
           in
           let v =
@@ -147,6 +162,7 @@ module Inlining_report = struct
                 { v with specialised = Some specialised }
             | Call _ :: _ -> assert false
             | Closure _ :: _ -> assert false
+            | Module _ :: _ -> assert false
           in
           Place_map.add key (Call v, uid) t
       | [] -> assert false
@@ -172,10 +188,18 @@ module Inlining_report = struct
   let rec print ~depth ppf t =
     Place_map.iter (fun (dbg, cl, name, _) (v, uid) ->
        match v with
-       | Closure t ->
-         Format.fprintf ppf "@[<h>%a Definition of %a%s %a@]@."
+       | Module t ->
+         Format.fprintf ppf "@[<h>%a Module %s%s %a@]@."
            print_stars (depth + 1)
-           Closure_id.print cl
+           cl
+           (Debuginfo.to_string dbg)
+           print_anchor uid;
+         print ppf ~depth:(depth + 1) t;
+         if depth = 0 then Format.pp_print_newline ppf ()
+       | Closure t ->
+         Format.fprintf ppf "@[<h>%a Definition of %s%s %a@]@."
+           print_stars (depth + 1)
+           cl
            (Debuginfo.to_string dbg)
            print_anchor uid;
          print ppf ~depth:(depth + 1) t;

@@ -308,10 +308,7 @@ module Project_var = struct
     match subst with
     | Inactive -> func_decls, subst, t
     | Active subst ->
-      let subst_inlining_history (old_id, new_id) stack =
-       Flambda.replace_declaration_in_stats_stack ~old_id ~new_id stack
-      in
-      let subst_func_decl ids (func_decl : Flambda.function_declaration)
+      let subst_func_decl (func_decl : Flambda.function_declaration)
           subst =
         let params, subst = active_add_parameters' subst func_decl.params in
         (* Since all parameters are distinct, even between functions, we can
@@ -321,8 +318,7 @@ module Project_var = struct
         in
         let function_decl =
           Flambda.update_function_declaration func_decl ~params ~body
-            ~inlining_history:(subst_inlining_history
-                                     ids func_decl.inlining_history)
+            ~inlining_history:func_decl.inlining_history
         in
         function_decl, subst
       in
@@ -342,7 +338,7 @@ module Project_var = struct
               if only_freshen_parameters then orig_id
               else active_find_var_exn subst orig_id
             in
-            let func_decl, subst = subst_func_decl (orig_id, id) func_decl subst in
+            let func_decl, subst = subst_func_decl func_decl subst in
             let funs = Variable.Map.add id func_decl funs in
             funs, subst)
           func_decls.funs

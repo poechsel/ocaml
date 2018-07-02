@@ -18,7 +18,6 @@
 
 module InliningArgs = Flambda.InliningArgs
 module UnboxingArgs = Flambda.UnboxingArgs
-module Closure_stack = Flambda.Closure_stack
 
 module Env = struct
   type scope = Current | Outer
@@ -42,12 +41,11 @@ module Env = struct
     inlining_depth : int;
     specialise_depth : int;
     closure_depth : int;
-    inlining_stats_closure_stack : Closure_stack.t;
     inlined_debuginfo : Debuginfo.t;
     inlining_arguments : InliningArgs.t;
     max_inlining_arguments : InliningArgs.t;
-    inlining_history : Closure_stack.t;
-    inlining_history_next_parts : Closure_stack.t;
+    inlining_history : Inlining_history.t;
+    inlining_history_next_parts : Inlining_history.t;
   }
 
   let create ~never_inline ~backend ~round =
@@ -66,13 +64,11 @@ module Env = struct
       inlining_depth = 0;
       specialise_depth = 0;
       closure_depth = 0;
-      inlining_stats_closure_stack =
-        Closure_stack.create ();
       inlined_debuginfo = Debuginfo.none;
       inlining_arguments = InliningArgs.get round;
       max_inlining_arguments = InliningArgs.get_max ();
-      inlining_history = Closure_stack.create ();
-      inlining_history_next_parts = Closure_stack.create ();
+      inlining_history = Inlining_history.create ();
+      inlining_history_next_parts = Inlining_history.create ();
     }
 
   let backend t = t.backend
@@ -323,7 +319,7 @@ module Env = struct
 
   let pop_inlining_history_next_parts t =
     t.inlining_history_next_parts,
-    { t with inlining_history_next_parts = Flambda.Closure_stack.create ()}
+    { t with inlining_history_next_parts = Inlining_history.create ()}
 
   let inlining_history t =
     t.inlining_history
@@ -333,73 +329,27 @@ module Env = struct
 
   let add_inlining_history t substats =
     { t with inlining_history =
-               Flambda.Closure_stack.add
+               Inlining_history.add
                  substats t.inlining_history
                  }
 
   let add_inlining_history_parts t parts =
     { t with inlining_history_next_parts =
-               Flambda.Closure_stack.add
+               Inlining_history.add
                  parts t.inlining_history_next_parts }
 
   let add_inlining_history_part t part =
     { t with inlining_history_next_parts =
                part :: t.inlining_history_next_parts }
 
-  let note_entering_closure t ~closure_id ~dbg =
-    if t.never_inline then t
-    else
-      { t with
-        inlining_stats_closure_stack =
-          Closure_stack.note_entering_closure
-            t.inlining_stats_closure_stack ~closure_id ~dbg;
-      }
-
-  let note_entering_call t ~closure_id ~dbg_name ~dbg =
-    if t.never_inline then t
-    else
-      { t with
-        inlining_stats_closure_stack =
-          Closure_stack.note_entering_call
-            ~dbg_name:dbg_name
-            ~absolute_inlining_history:None
-            t.inlining_stats_closure_stack ~closure_id ~dbg;
-      }
-
-  let note_entering_inlined t =
-    if t.never_inline then t
-    else
-      { t with
-        inlining_stats_closure_stack =
-          Closure_stack.note_entering_inlined
-            t.inlining_stats_closure_stack;
-      }
-
-  let note_entering_specialised t ~closure_ids =
-    if t.never_inline then t
-    else
-      { t with
-        inlining_stats_closure_stack =
-          Closure_stack.note_entering_specialised
-            t.inlining_stats_closure_stack ~closure_ids;
-      }
-
-  let enter_closure t ~closure_id ~inline_inside ~dbg ~f =
+  let enter_closure t ~inline_inside =
     let t =
       if inline_inside && not t.never_inline_inside_closures then t
       else set_never_inline t
     in
-    let t = unset_never_inline_outside_closures t in
-    f (note_entering_closure t ~closure_id ~dbg)
+    unset_never_inline_outside_closures t
 
   let record_decision t decision =
-    (*
-    let pf = Format.fprintf Format.std_formatter in
-    let p = Flambda.Closure_stack.print Format.std_formatter in
-    pf "--> "; p t.inlining_history; pf "\n";
-    p t.inlining_stats_closure_stack; pf "\n";
-    *)
-
     Inlining_stats.record_decision decision
       ~closure_stack:t.inlining_history
 

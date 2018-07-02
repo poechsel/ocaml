@@ -115,7 +115,9 @@ TYPING=typing/ident.cmo typing/path.cmo \
   typing/parmatch.cmo typing/stypes.cmo typing/typedecl.cmo typing/typeopt.cmo \
   typing/typecore.cmo typing/typeclass.cmo typing/typemod.cmo
 
-COMP=bytecomp/lambda.cmo bytecomp/printlambda.cmo \
+COMP=bytecomp/debuginfo.cmo \
+	bytecomp/inlining_history.cmo \
+	bytecomp/lambda.cmo bytecomp/printlambda.cmo \
   bytecomp/semantics_of_primitives.cmo \
   bytecomp/switch.cmo bytecomp/matching.cmo \
   bytecomp/translobj.cmo bytecomp/translattribute.cmo \
@@ -196,7 +198,6 @@ ASMCOMP=\
   driver/opterrors.cmo driver/optcompile.cmo
 
 MIDDLE_END=\
-  middle_end/debuginfo.cmo \
   middle_end/base_types/tag.cmo \
   middle_end/base_types/linkage_name.cmo \
   middle_end/base_types/compilation_unit.cmo \
@@ -211,7 +212,7 @@ MIDDLE_END=\
   middle_end/base_types/static_exception.cmo \
   middle_end/base_types/export_id.cmo \
   middle_end/base_types/symbol.cmo \
-  middle_end/pass_wrapper.cmo \
+	middle_end/pass_wrapper.cmo \
   middle_end/allocated_const.cmo \
   middle_end/parameter.cmo \
   middle_end/projection.cmo \

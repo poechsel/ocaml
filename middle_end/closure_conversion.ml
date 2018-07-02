@@ -594,7 +594,7 @@ and close_functions t external_env function_declarations : Flambda.named =
         ~specialise:(Function_decl.specialise decl)
         ~is_a_functor:(Function_decl.is_a_functor decl)
         ~inlining_history:(Flambda.create_declaration_stats_stack
-                                 ~id:closure_bound_var ~dbg)
+                                 ~name:(Variable.name closure_bound_var) ~dbg)
         ~dbg_name:(Function_decl.dbg_name decl)
     in
     match Function_decl.kind decl with

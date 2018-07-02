@@ -50,7 +50,7 @@ type call_informations = {
   args : Variable.t list;
   dbg : Debuginfo.t;
   rec_info : Flambda.rec_info;
-  inlining_history : Flambda.Closure_stack.t;
+  inlining_history : Inlining_history.t;
 }
 
 type callee_informations = {
@@ -223,7 +223,6 @@ let keep_inlined_version decision ~env ~always_inline ~r_inlined ~body
   let r =
     R.map_benefit r_inlined (Inlining_cost.Benefit.(+) previous_benefit)
   in
-  let env = E.note_entering_inlined env in
   let env = E.inside_inlined_function env in
   let env =
     if E.speculation_depth env = 0
@@ -237,10 +236,7 @@ let keep_inlined_version decision ~env ~always_inline ~r_inlined ~body
 
 
 let evaluate_speculative_inline env ~callee ~r_inlined ~body ~original ~simplify=
-  let env =
-    E.speculation_depth_up env
-    |> E.note_entering_inlined
-  in
+  let env = E.speculation_depth_up env in
   let body, r_inlined = simplify env r_inlined body in
   let wsb_with_subfunctions =
     W.create ~original body
@@ -385,16 +381,6 @@ let inline env r ~call ~callee ~annotations ~original
       end
     end
 
-let stat_note_specialise_closures env callee =
-  (* CR-someday lwhite: could avoid calculating this if stats is turned
-     off *)
-  let closure_ids =
-    Closure_id.Set.of_list (
-      List.map Closure_id.wrap
-        (Variable.Set.elements (Variable.Map.keys callee.function_decls.funs)))
-  in
-  E.note_entering_specialised env ~closure_ids
-
 let compute_params_informations callee args_approxs =
   let free_vars = callee.value_set_of_closures.free_vars in
   let invariant_params = callee.value_set_of_closures.invariant_params in
@@ -520,13 +506,8 @@ let specialise env r ~(call : call_informations)
         R.set_inlining_threshold r (Some remaining_inlining_threshold)
       in
       let copied_function_declaration =
-        let closure_ids =
-          Closure_id.Set.of_list (
-            List.map Closure_id.wrap
-              (Variable.Set.elements (Variable.Map.keys callee.function_decls.funs)))
-        in
         let env =
-          E.add_inlining_history_part env (Flambda.Closure_stack.Specialised closure_ids)
+          E.add_inlining_history_part env (Inlining_history.Specialised "")
         in
         Inlining_transforms.inline_by_copying_function_declaration ~env
           ~r:(R.reset_benefit r) ~lhs_of_application:call.callee
@@ -552,8 +533,7 @@ let specialise env r ~(call : call_informations)
             ~args:(E.get_inlining_arguments env)
             ~benefit:(R.benefit r_inlined)
         in
-        let env = stat_note_specialise_closures env callee
-        in let keep_specialised decision =
+        let keep_specialised decision =
              keep_specialised decision ~env ~r_inlined ~expr ~simplify ~always_specialise
                ~previous_benefit:(R.benefit r)
         in
@@ -647,7 +627,6 @@ let classic_mode_inlining env r ~simplify ~callee ~call ~annotations
             ~inlining_history:call.inlining_history
             ~inlining_history_next_part:(Some inlining_history_next_part)
         in
-        let env = E.note_entering_inlined env in
         let env = E.inside_inlined_function env in
         Changed ((simplify env r body), S.Inlined.Classic_mode)
   in
@@ -765,17 +744,12 @@ let for_call_site ~env ~r ~(call : call_informations)
         compute_thresholding_for_call env r inlining_arguments
       in
       let inlining_history_next_part =
-        Flambda.Closure_stack.note_entering_call
-          ~dbg:call.dbg ~closure_id:callee.closure_id_being_applied
+        Inlining_history.note_entering_call
+          ~dbg:call.dbg ~name:(Closure_id.unique_name callee.closure_id_being_applied)
           ~dbg_name:function_body.dbg_name
           ~absolute_inlining_history:
-            (Some (Flambda.Closure_stack.strip_history (E.inlining_history env)))
+            (Some (Inlining_history.strip_history (E.inlining_history env)))
           call.inlining_history
-      in
-      let env =
-        E.note_entering_call env
-          ~closure_id:callee.closure_id_being_applied ~dbg:call.dbg
-          ~dbg_name:function_body.dbg_name
       in
       let simpl =
         if function_decls.is_classic_mode > 0.0 then begin

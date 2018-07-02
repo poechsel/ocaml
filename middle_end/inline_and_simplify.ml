@@ -647,16 +647,18 @@ and simplify_set_of_closures original_env r
         ~nonrec_closure_env ~rec_closure_env
     in
     let inlining_history =
-      Flambda.Closure_stack.add function_decl.inlining_history parts_inlining_stack
+      Inlining_history.add function_decl.inlining_history parts_inlining_stack
     in
-    let body, r =
-      E.enter_closure closure_env ~closure_id:(Closure_id.wrap fun_var)
-        ~inline_inside:
-          (Inlining_decision.should_inline_inside_declaration function_decl)
-        ~dbg:function_decl.dbg
-        ~f:(fun body_env ->
-          let body_env = E.add_inlining_history body_env inlining_history in
-          simplify body_env r function_decl.body)
+    let (body, r), _full_history =
+      let body_env =
+        E.enter_closure closure_env
+          ~inline_inside:
+            (Inlining_decision.should_inline_inside_declaration function_decl)
+      in
+      let body_env =
+        E.add_inlining_history body_env inlining_history
+      in
+      simplify body_env r function_decl.body, E.inlining_history body_env
     in
     let function_decl =
       Flambda.create_function_declaration ~recursive:function_decl.recursive
@@ -747,7 +749,7 @@ and simplify_apply env r ~(apply : Flambda.apply) : Flambda.t * R.t =
   let parts, env = E.pop_inlining_history_next_parts env in
   (* the parts we had defines previous history. We must add them at the end *)
   let inlining_history =
-    Flambda.Closure_stack.add inlining_history parts
+    Inlining_history.add inlining_history parts
   in
   let env =
     let max_env_args = E.get_max_inlining_arguments env in
@@ -1574,13 +1576,15 @@ and duplicate_function ~env ~(set_of_closures : Flambda.set_of_closures)
       ~free_vars ~specialised_args ~parameter_approximations
       ~nonrec_closure_env ~rec_closure_env
   in
-  let body, _r =
-    E.enter_closure closure_env
-      ~closure_id:(Closure_id.wrap fun_var)
-      ~inline_inside:false
-      ~dbg:function_decl.dbg
-      ~f:(fun body_env ->
-        simplify body_env (R.create ()) function_decl.body)
+  let (body, _r), _full_history =
+    let body_env =
+      E.enter_closure closure_env ~inline_inside:false
+    in
+    let body_env =
+      E.add_inlining_history body_env function_decl.inlining_history
+    in
+    simplify body_env (R.create ()) function_decl.body,
+    E.inlining_history body_env
   in
   let function_decl =
     Flambda.create_function_declaration ~params:function_decl.params

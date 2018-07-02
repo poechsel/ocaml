@@ -16,10 +16,42 @@
 
 [@@@ocaml.warning "+a-4-9-30-40-41-42"]
 
+type t = node list
 
-val record_decision
-   : Inlining_stats_types.Decision.t
-  -> closure_stack:Inlining_history.t
-  -> unit
+and node =
+  | Module of string * Debuginfo.t
+  | Closure of string * Debuginfo.t
+  | Call of string * Lambda.DebugNames.t * Debuginfo.t * t option
+  | Inlined
+  | Specialised of string
 
-val save_then_forget_decisions : output_prefix:string -> unit
+val create : unit -> t
+
+val compare_node : node -> node -> int
+
+val compare : t -> t -> int
+
+val print_node : Format.formatter -> node -> unit
+
+val print : Format.formatter -> t -> unit
+
+val add : t -> t -> t
+
+val strip_history : t -> t
+
+val note_entering_closure
+  : t
+  -> name:string
+  -> dbg:Debuginfo.t
+  -> t
+
+val note_entering_call
+  : t
+  -> name:string
+  -> dbg_name:Lambda.DebugNames.t
+  -> dbg:Debuginfo.t
+  -> absolute_inlining_history:t option
+  -> t
+
+val note_entering_inlined : t -> t
+val note_entering_specialised : t -> name:string -> t

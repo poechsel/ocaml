@@ -16,49 +16,6 @@
 
 [@@@ocaml.warning "+a-4-9-30-40-41-42"]
 
-
-module Closure_stack : sig
-  type t = node list
-
-  and node =
-    | Closure of Closure_id.t * Debuginfo.t
-    | Call of Closure_id.t * Lambda.DebugNames.t * Debuginfo.t * t option
-    | Inlined
-    | Specialised of Closure_id.Set.t
-
-  val create : unit -> t
-
-  val compare_node : node -> node -> int
-
-  val compare : t -> t -> int
-
-  val print_node : Format.formatter -> node -> unit
-
-  val print : Format.formatter -> t -> unit
-
-  val add : t -> t -> t
-
-  val strip_history : t -> t
-
-  val note_entering_closure
-     : t
-    -> closure_id:Closure_id.t
-    -> dbg:Debuginfo.t
-    -> t
-
-  val note_entering_call
-    : t
-    -> closure_id:Closure_id.t
-    -> dbg_name:Lambda.DebugNames.t
-    -> dbg:Debuginfo.t
-    -> absolute_inlining_history:t option
-    -> t
-
-  val note_entering_inlined : t -> t
-  val note_entering_specialised : t -> closure_ids:Closure_id.Set.t -> t
-
-end
-
 module UnboxingArgs : sig
   type t = {
     unbox_specialised_args : bool;
@@ -153,7 +110,7 @@ type apply = {
   max_inlining_arguments : InliningArgs.t option;
   (** Informations about the maximum value of the inlining arguments we can used
       to inline this function call. *)
-  inlining_history : Closure_stack.t;
+  inlining_history : Inlining_history.t;
 }
 
 (** The update of a mutable variable.  Mutable variables are distinct from
@@ -447,7 +404,7 @@ and function_declaration = private {
   (** Specialising requirements from the source code. *)
   is_a_functor : bool;
   (** Whether the function is known definitively to be a functor. *)
-  inlining_history : Closure_stack.t;
+  inlining_history : Inlining_history.t;
   dbg_name : Lambda.DebugNames.t;
 }
 
@@ -671,32 +628,12 @@ module With_free_variables : sig
   val free_variables : _ t -> Variable.Set.t
 end
 
-(* Replace stat of the form Closure(old_id) by Closure(new_id) in the stack *)
-val replace_declaration_in_stats_stack
-  : old_id:Variable.t
-  -> new_id:Variable.t
-  -> Closure_stack.t
-  -> Closure_stack.t
-
-(* update an id in the stats stack of a function declaration and return
-   the function declaration *)
-val update_id_declaration_stats_stack
-  : old_id:Variable.t
-  -> new_id:Variable.t
-  -> function_declaration
-  -> function_declaration
-
-val map_stats_stack_id :
-  (Variable.t -> Variable.t)
-  -> Closure_stack.t
-  -> Closure_stack.t
-
 (* create an inlining stats stack corresponding to a
    function declaration *)
 val create_declaration_stats_stack :
-  id:Variable.t
+  name:string
   -> dbg:Debuginfo.t
-  -> Closure_stack.t
+  -> Inlining_history.t
 
 (** Create a function declaration.  This calculates the free variables and
     symbols occurring in the specified [body]. *)
@@ -709,7 +646,7 @@ val create_function_declaration
   -> inline:Lambda.inline_attribute
   -> specialise:Lambda.specialise_attribute
   -> is_a_functor:bool
-  -> inlining_history:Closure_stack.t
+  -> inlining_history:Inlining_history.t
   -> dbg_name:Lambda.DebugNames.t
   -> function_declaration
 
@@ -718,7 +655,7 @@ val update_function_declaration
   : function_declaration
   -> params:Parameter.t list
   -> body:t
-  -> inlining_history:Closure_stack.t
+  -> inlining_history:Inlining_history.t
   -> function_declaration
 
 (** Change only the code of a function declaration. *)
