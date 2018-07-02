@@ -214,7 +214,7 @@ module Env : sig
       decision point. *)
   val note_entering_closure
      : t
-    -> closure_id:Closure_id.t
+    -> name:string
     -> dbg:Debuginfo.t
     -> t
 
@@ -224,7 +224,7 @@ module Env : sig
        inlining decision point. *)
   val note_entering_call
      : t
-    -> closure_id:Closure_id.t
+    -> name:string
     -> dbg_name:Lambda.DebugNames.t
     -> dbg:Debuginfo.t
     -> t
@@ -237,7 +237,7 @@ module Env : sig
    (** If collecting inlining statistics, record that the inliner is about to
        descend into a specialised function definition.  This requires that the
        inliner has already entered the call with [note_entering_call]. *)
-  val note_entering_specialised : t -> closure_ids:Closure_id.Set.t -> t
+  val note_entering_specialised : t -> name:string -> t
 
   (** Update a given environment to record that the inliner is about to
       descend into [closure_id] and pass the resulting environment to [f].
@@ -245,7 +245,7 @@ module Env : sig
       marked as [never_inline] (see above). *)
   val enter_closure
      : t
-    -> closure_id:Closure_id.t
+    -> name:string
     -> inline_inside:bool
     -> dbg:Debuginfo.t
     -> f:(t -> 'a)

@@ -41,12 +41,12 @@ module Inlining_report = struct
       | Module
       | Call
 
-    type t = Debuginfo.t * Closure_id.t * Lambda.DebugNames.t * kind
+    type t = Debuginfo.t * string * Lambda.DebugNames.t * kind
 
     let compare ((d1, cl1, _, k1) : t) ((d2, cl2, _, k2) : t) =
       let c = Debuginfo.compare d1 d2 in
       if c <> 0 then c else
-      let c = Closure_id.compare cl1 cl2 in
+      let c = Pervasives.compare cl1 cl2 in
       if c <> 0 then c else
         match k1, k2 with
         | Closure, Closure -> 0
@@ -122,11 +122,7 @@ module Inlining_report = struct
           let v = loop (x :: seen) v rest in
           Place_map.add key (Closure v, uid) t
       | (Module(s, dbg) as x) :: rest ->
-        let cl = Ident.create s
-                 |> Variable.create_with_same_name_as_ident
-                 |> Closure_id.wrap
-        in
-          let key : Place.t = (dbg, cl, Lambda.DebugNames.empty, Module) in
+          let key : Place.t = (dbg, s, Lambda.DebugNames.empty, Module) in
           let v =
             try
               match Place_map.find key t with
@@ -193,17 +189,17 @@ module Inlining_report = struct
     Place_map.iter (fun (dbg, cl, name, _) (v, uid) ->
        match v with
        | Module t ->
-         Format.fprintf ppf "@[<h>%a Module %a%s %a@]@."
+         Format.fprintf ppf "@[<h>%a Module %s%s %a@]@."
            print_stars (depth + 1)
-           Closure_id.print cl
+           cl
            (Debuginfo.to_string dbg)
            print_anchor uid;
          print ppf ~depth:(depth + 1) t;
          if depth = 0 then Format.pp_print_newline ppf ()
        | Closure t ->
-         Format.fprintf ppf "@[<h>%a Definition of %a%s %a@]@."
+         Format.fprintf ppf "@[<h>%a Definition of %s%s %a@]@."
            print_stars (depth + 1)
-           Closure_id.print cl
+           cl
            (Debuginfo.to_string dbg)
            print_anchor uid;
          print ppf ~depth:(depth + 1) t;

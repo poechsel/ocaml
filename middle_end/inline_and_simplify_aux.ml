@@ -345,16 +345,16 @@ module Env = struct
     { t with inlining_history_next_parts =
                part :: t.inlining_history_next_parts }
 
-  let note_entering_closure t ~closure_id ~dbg =
+  let note_entering_closure t ~name ~dbg =
     if t.never_inline then t
     else
       { t with
         inlining_stats_closure_stack =
           Inlining_history.note_entering_closure
-            t.inlining_stats_closure_stack ~closure_id ~dbg;
+            t.inlining_stats_closure_stack ~name ~dbg;
       }
 
-  let note_entering_call t ~closure_id ~dbg_name ~dbg =
+  let note_entering_call t ~name ~dbg_name ~dbg =
     if t.never_inline then t
     else
       { t with
@@ -362,7 +362,7 @@ module Env = struct
           Inlining_history.note_entering_call
             ~dbg_name:dbg_name
             ~absolute_inlining_history:None
-            t.inlining_stats_closure_stack ~closure_id ~dbg;
+            t.inlining_stats_closure_stack ~name ~dbg;
       }
 
   let note_entering_inlined t =
@@ -374,22 +374,22 @@ module Env = struct
             t.inlining_stats_closure_stack;
       }
 
-  let note_entering_specialised t ~closure_ids =
+  let note_entering_specialised t ~name =
     if t.never_inline then t
     else
       { t with
         inlining_stats_closure_stack =
           Inlining_history.note_entering_specialised
-            t.inlining_stats_closure_stack ~closure_ids;
+            t.inlining_stats_closure_stack ~name;
       }
 
-  let enter_closure t ~closure_id ~inline_inside ~dbg ~f =
+  let enter_closure t ~name ~inline_inside ~dbg ~f =
     let t =
       if inline_inside && not t.never_inline_inside_closures then t
       else set_never_inline t
     in
     let t = unset_never_inline_outside_closures t in
-    f (note_entering_closure t ~closure_id ~dbg)
+    f (note_entering_closure t ~name ~dbg)
 
   let record_decision t decision =
     (*

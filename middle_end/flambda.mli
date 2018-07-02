@@ -628,30 +628,10 @@ module With_free_variables : sig
   val free_variables : _ t -> Variable.Set.t
 end
 
-(* Replace stat of the form Closure(old_id) by Closure(new_id) in the stack *)
-val replace_declaration_in_stats_stack
-  : old_id:Variable.t
-  -> new_id:Variable.t
-  -> Inlining_history.t
-  -> Inlining_history.t
-
-(* update an id in the stats stack of a function declaration and return
-   the function declaration *)
-val update_id_declaration_stats_stack
-  : old_id:Variable.t
-  -> new_id:Variable.t
-  -> function_declaration
-  -> function_declaration
-
-val map_stats_stack_id :
-  (Variable.t -> Variable.t)
-  -> Inlining_history.t
-  -> Inlining_history.t
-
 (* create an inlining stats stack corresponding to a
    function declaration *)
 val create_declaration_stats_stack :
-  id:Variable.t
+  name:string
   -> dbg:Debuginfo.t
   -> Inlining_history.t
 

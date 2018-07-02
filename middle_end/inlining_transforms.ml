@@ -625,14 +625,7 @@ let rewrite_function ~lhs_of_application ~closure_id_being_applied
   let body =
     Flambda_utils.toplevel_substitution state.old_inside_to_new_inside body
   in
-  let inlining_history =
-    List.map (
-      function
-      | Inlining_history.Closure(c, dbg) when Closure_id.unwrap c = fun_var ->
-        Inlining_history.Closure(Closure_id.wrap new_fun_var, dbg)
-      | x -> x
-    ) function_body.inlining_history
-  in
+  let inlining_history = function_body.inlining_history in
   let new_function_decl =
     Flambda.create_function_declaration
       ~params ~body ~recursive:function_body.recursive
