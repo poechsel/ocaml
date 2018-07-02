@@ -71,9 +71,9 @@ let transl_meth_list lst =
   share (Const_block
             (0, List.map (fun lab -> Const_immstring lab) lst))
 
-let set_inst_var obj id expr =
+let set_inst_var rootpath obj id expr =
   Lprim(Psetfield_computed (Typeopt.maybe_pointer expr, Assignment),
-    [Lvar obj; Lvar id; transl_exp DebugNames.Anonymous expr], Location.none)
+    [Lvar obj; Lvar id; transl_exp rootpath DebugNames.Anonymous expr], Location.none)
 
 let transl_val tbl create name =
   mkappl (oo_prim (if create then "new_variable" else "get_variable"),
@@ -128,7 +128,7 @@ let name_pattern default p =
 let normalize_cl_path cl path =
   Env.normalize_path (Some cl.cl_loc) cl.cl_env path
 
-let rec build_object_init cl_table obj params inh_init obj_init cl =
+let rec build_object_init rootpath cl_table obj params inh_init obj_init cl =
   match cl.cl_desc with
     Tcl_ident ( path, _, _) ->
       let obj_init = Ident.create "obj_init" in
@@ -151,12 +151,12 @@ let rec build_object_init cl_table obj params inh_init obj_init cl =
                match field.cf_desc with
                  Tcf_inherit (_, cl, _, _, _) ->
                    let (inh_init, obj_init') =
-                     build_object_init cl_table (Lvar obj) [] inh_init
+                     build_object_init rootpath cl_table (Lvar obj) [] inh_init
                        (fun _ -> lambda_unit) cl
                    in
                    (inh_init, lsequence obj_init' obj_init, true)
                | Tcf_val (_, _, id, Tcfk_concrete (_, exp), _) ->
-                   (inh_init, lsequence (set_inst_var obj id exp) obj_init,
+                   (inh_init, lsequence (set_inst_var rootpath obj id exp) obj_init,
                     has_init)
                | Tcf_method _ | Tcf_val _ | Tcf_constraint _ | Tcf_attribute _->
                    (inh_init, obj_init, has_init)
@@ -169,13 +169,13 @@ let rec build_object_init cl_table obj params inh_init obj_init cl =
         (inh_init,
          List.fold_right
            (fun (id, expr) rem ->
-              lsequence (Lifused (id, set_inst_var obj id expr)) rem)
+              lsequence (Lifused (id, set_inst_var rootpath obj id expr)) rem)
            params obj_init,
          has_init))
   | Tcl_fun (_, pat, vals, cl, partial) ->
       let vals = List.map (fun (id, _, e) -> id,e) vals in
       let (inh_init, obj_init) =
-        build_object_init cl_table obj (vals @ params) inh_init obj_init cl
+        build_object_init rootpath cl_table obj (vals @ params) inh_init obj_init cl
       in
       (inh_init,
        let build params rem =
@@ -187,7 +187,7 @@ let rec build_object_init cl_table obj params inh_init obj_init cl =
                     attr = default_function_attribute;
                     loc = pat.pat_loc;
                     debugging_informations =
-                      DebugNames.create ~name ~path:None;
+                      DebugNames.create ~name ~path:rootpath;
                     body = Matching.for_function
                              pat.pat_loc None (Lvar param) [pat, rem] partial}
        in
@@ -197,31 +197,31 @@ let rec build_object_init cl_table obj params inh_init obj_init cl =
        end)
   | Tcl_apply (cl, oexprs) ->
       let (inh_init, obj_init) =
-        build_object_init cl_table obj params inh_init obj_init cl
+        build_object_init rootpath cl_table obj params inh_init obj_init cl
       in
-      (inh_init, transl_apply obj_init oexprs Location.none)
+      (inh_init, transl_apply rootpath obj_init oexprs Location.none)
   | Tcl_let (rec_flag, defs, vals, cl) ->
       let vals = List.map (fun (id, _, e) -> id,e) vals in
       let (inh_init, obj_init) =
-        build_object_init cl_table obj (vals @ params) inh_init obj_init cl
+        build_object_init rootpath cl_table obj (vals @ params) inh_init obj_init cl
       in
-      (inh_init, Translcore.transl_let rec_flag defs obj_init)
+      (inh_init, Translcore.transl_let rootpath rec_flag defs obj_init)
   | Tcl_open (_, _, _, _, cl)
   | Tcl_constraint (cl, _, _, _, _) ->
-      build_object_init cl_table obj params inh_init obj_init cl
+      build_object_init rootpath cl_table obj params inh_init obj_init cl
 
-let rec build_object_init_0 cl_table params cl copy_env subst_env top ids =
+let rec build_object_init_0 rootpath cl_table params cl copy_env subst_env top ids =
   match cl.cl_desc with
     Tcl_let (_rec_flag, _defs, vals, cl) ->
       let vals = List.map (fun (id, _, e) -> id,e) vals in
-      build_object_init_0 cl_table (vals@params) cl copy_env subst_env top ids
+      build_object_init_0 rootpath cl_table (vals@params) cl copy_env subst_env top ids
   | _ ->
       let self = Ident.create "self" in
       let env = Ident.create "env" in
       let obj = if ids = [] then lambda_unit else Lvar self in
       let envs = if top then None else Some env in
       let ((_,inh_init), obj_init) =
-        build_object_init cl_table obj params (envs,[]) copy_env cl in
+        build_object_init rootpath cl_table obj params (envs,[]) copy_env cl in
       let name = DebugNames.Class(Ident.name cl_table, DebugNames.ObjInit) in
       let obj_init =
         if ids = [] then obj_init else lfunction name [self] obj_init in
@@ -276,7 +276,7 @@ let rec index a = function
 
 let bind_id_as_val (id, _, _) = ("", id)
 
-let rec build_class_init cla cstr super inh_init cl_init msubst top cl =
+let rec build_class_init rootpath cla cstr super inh_init cl_init msubst top cl =
   match cl.cl_desc with
     Tcl_ident ( path, _, _) ->
       begin match inh_init with
@@ -300,7 +300,7 @@ let rec build_class_init cla cstr super inh_init cl_init msubst top cl =
               Tcf_inherit (_, cl, _, vals, meths) ->
                 let cl_init = output_methods cla methods cl_init in
                 let inh_init, cl_init =
-                  build_class_init cla false
+                  build_class_init rootpath cla false
                     (vals, meths_super cla str.cstr_meths meths)
                     inh_init cl_init msubst top cl in
                 (inh_init, cl_init, [], values)
@@ -315,7 +315,7 @@ let rec build_class_init cla cstr super inh_init cl_init msubst top cl =
                 (inh_init, cl_init, methods, values)
             | Tcf_method (name, _, Tcfk_concrete (_, exp)) ->
               let met_name = DebugNames.Method(Ident.name cla, name.txt) in
-              let met_code = msubst true (transl_exp met_name exp) in
+              let met_code = msubst true (transl_exp rootpath met_name exp) in
               let met_code =
                 if !Clflags.native_code && List.length met_code = 1 then
                   (* Force correct naming of method for profiles *)
@@ -327,7 +327,7 @@ let rec build_class_init cla cstr super inh_init cl_init msubst top cl =
                Lvar(Meths.find name.txt str.cstr_meths) :: met_code @ methods,
                values)
             | Tcf_initializer exp ->
-                let exp = transl_exp DebugNames.Anonymous exp in
+                let exp = transl_exp rootpath DebugNames.Anonymous exp in
                 (inh_init,
                  Lsequence(mkappl (oo_prim "add_initializer",
                                    Lvar cla :: msubst false exp),
@@ -342,15 +342,15 @@ let rec build_class_init cla cstr super inh_init cl_init msubst top cl =
       (inh_init, bind_methods cla str.cstr_meths values cl_init)
   | Tcl_fun (_, _pat, vals, cl, _) ->
       let (inh_init, cl_init) =
-        build_class_init cla cstr super inh_init cl_init msubst top cl
+        build_class_init rootpath cla cstr super inh_init cl_init msubst top cl
       in
       let vals = List.map bind_id_as_val vals in
       (inh_init, transl_vals cla true StrictOpt vals cl_init)
   | Tcl_apply (cl, _exprs) ->
-      build_class_init cla cstr super inh_init cl_init msubst top cl
+      build_class_init rootpath cla cstr super inh_init cl_init msubst top cl
   | Tcl_let (_rec_flag, _defs, vals, cl) ->
       let (inh_init, cl_init) =
-        build_class_init cla cstr super inh_init cl_init msubst top cl
+        build_class_init rootpath cla cstr super inh_init cl_init msubst top cl
       in
       let vals = List.map bind_id_as_val vals in
       (inh_init, transl_vals cla true StrictOpt vals cl_init)
@@ -391,7 +391,7 @@ let rec build_class_init cla cstr super inh_init cl_init msubst top cl =
                  Llet(StrictOpt, Pgenval, obj_init, lfield inh 0, cl_init)))
       | _ ->
           let core cl_init =
-            build_class_init cla true super inh_init cl_init msubst top cl
+            build_class_init rootpath cla true super inh_init cl_init msubst top cl
           in
           if cstr then core cl_init else
           let (inh_init, cl_init) =
@@ -402,14 +402,14 @@ let rec build_class_init cla cstr super inh_init cl_init msubst top cl =
                      cl_init))
       end
   | Tcl_open (_, _, _, _, cl) ->
-      build_class_init cla cstr super inh_init cl_init msubst top cl
+      build_class_init rootpath cla cstr super inh_init cl_init msubst top cl
 
-let rec build_class_lets cl =
+let rec build_class_lets rootpath cl =
   match cl.cl_desc with
     Tcl_let (rec_flag, defs, _vals, cl') ->
-      let env, wrap = build_class_lets cl' in
+      let env, wrap = build_class_lets rootpath cl' in
       (env, fun x ->
-          Translcore.transl_let rec_flag defs (wrap x))
+          Translcore.transl_let rootpath rec_flag defs (wrap x))
   | _ ->
       (cl.cl_env, fun x -> x)
 
@@ -429,7 +429,7 @@ let rec get_class_meths cl =
    |   Writing classes should be cheap
      class c x y = d e f
 *)
-let rec transl_class_rebind cl_id obj_init cl vf =
+let rec transl_class_rebind rootpath cl_id obj_init cl vf =
   match cl.cl_desc with
     Tcl_ident (path, _, _) ->
       if vf = Concrete then begin
@@ -438,7 +438,7 @@ let rec transl_class_rebind cl_id obj_init cl vf =
       end;
       (normalize_cl_path cl path, obj_init)
   | Tcl_fun (_, pat, _, cl, partial) ->
-      let path, obj_init = transl_class_rebind cl_id obj_init cl vf in
+      let path, obj_init = transl_class_rebind rootpath cl_id obj_init cl vf in
       let build params rem =
         let d_name = DebugNames.Class(Ident.name cl_id,
                                       DebugNames.ClassRebind) in
@@ -447,7 +447,7 @@ let rec transl_class_rebind cl_id obj_init cl vf =
                    attr = default_function_attribute;
                    loc = pat.pat_loc;
                    debugging_informations =
-                     DebugNames.create ~name:d_name ~path:None;
+                     DebugNames.create ~name:d_name ~path:rootpath;
                    body = Matching.for_function
                             pat.pat_loc None (Lvar param) [pat, rem] partial}
       in
@@ -456,14 +456,14 @@ let rec transl_class_rebind cl_id obj_init cl vf =
          Lfunction {kind = Curried; params; body} -> build params body
        | rem                                      -> build [] rem)
   | Tcl_apply (cl, oexprs) ->
-      let path, obj_init = transl_class_rebind cl_id obj_init cl vf in
-      (path, transl_apply obj_init oexprs Location.none)
+      let path, obj_init = transl_class_rebind rootpath cl_id obj_init cl vf in
+      (path, transl_apply rootpath obj_init oexprs Location.none)
   | Tcl_let (rec_flag, defs, _vals, cl) ->
-      let path, obj_init = transl_class_rebind cl_id obj_init cl vf in
-      (path, Translcore.transl_let rec_flag defs obj_init)
+      let path, obj_init = transl_class_rebind rootpath cl_id obj_init cl vf in
+      (path, Translcore.transl_let rootpath rec_flag defs obj_init)
   | Tcl_structure _ -> raise Exit
   | Tcl_constraint (cl', _, _, _, _) ->
-      let path, obj_init = transl_class_rebind cl_id obj_init cl' vf in
+      let path, obj_init = transl_class_rebind rootpath cl_id obj_init cl' vf in
       let rec check_constraint = function
           Cty_constr(path', _, _) when Path.same path path' -> ()
         | Cty_arrow (_, _, cty) -> check_constraint cty
@@ -472,17 +472,18 @@ let rec transl_class_rebind cl_id obj_init cl vf =
       check_constraint cl.cl_type;
       (path, obj_init)
   | Tcl_open (_, _, _, _, cl) ->
-      transl_class_rebind cl_id obj_init cl vf
+      transl_class_rebind rootpath cl_id obj_init cl vf
 
-let rec transl_class_rebind_0 cl_id self obj_init cl vf =
+let rec transl_class_rebind_0 rootpath cl_id self obj_init cl vf =
   match cl.cl_desc with
     Tcl_let (rec_flag, defs, _vals, cl) ->
-      let path, obj_init = transl_class_rebind_0 cl_id self obj_init cl vf in
-      (path, Translcore.transl_let rec_flag defs obj_init)
+    let path, obj_init = transl_class_rebind_0 rootpath
+                           cl_id self obj_init cl vf in
+      (path, Translcore.transl_let rootpath rec_flag defs obj_init)
   | _ ->
     let d_name = DebugNames.Class(Ident.name cl_id,
                                   DebugNames.ClassRebind) in
-    let path, obj_init = transl_class_rebind cl_id obj_init cl vf in
+    let path, obj_init = transl_class_rebind rootpath cl_id obj_init cl vf in
       (path, lfunction d_name [self] obj_init)
 
 
@@ -494,7 +495,7 @@ let same_with_ignore_debug a b =
     a.loc = b.loc
   | _ -> a = b
 
-let transl_class_rebind cl_id cl vf =
+let transl_class_rebind rootpath cl_id cl vf =
   try
     let obj_init = Ident.create "obj_init"
     and self = Ident.create "self" in
@@ -506,7 +507,7 @@ let transl_class_rebind cl_id cl vf =
               ap_inlined=Default_inline;
               ap_specialised=Default_specialise}
     in
-    let path, obj_init' = transl_class_rebind_0 cl_id self obj_init0 cl vf in
+    let path, obj_init' = transl_class_rebind_0 rootpath cl_id self obj_init0 cl vf in
     let obj_init0_fn = lfunction DebugNames.Anonymous [self] obj_init0 in
     let id = same_with_ignore_debug obj_init' obj_init0_fn in
     if id then transl_normal_path path else
@@ -691,16 +692,16 @@ let free_methods l =
     | Levent _ | Lifused _ -> ()
   in free l; !fv
 
-let transl_class ids cl_id pub_meths cl vflag =
+let transl_class rootpath ids cl_id pub_meths cl vflag =
   (* First check if it is not only a rebind *)
-  let rebind = transl_class_rebind cl_id cl vflag in
+  let rebind = transl_class_rebind rootpath cl_id cl vflag in
   if rebind <> lambda_unit then rebind else
 
   (* Prepare for heavy environment handling *)
   let tables = Ident.create (Ident.name cl_id ^ "_tables") in
   let (top_env, req) = oo_add_class tables in
   let top = not req in
-  let cl_env, llets = build_class_lets cl in
+  let cl_env, llets = build_class_lets rootpath cl in
   let new_ids = if top then [] else Env.diff top_env cl_env in
   let env2 = Ident.create "env" in
   let meth_ids = get_class_meths cl in
@@ -771,10 +772,10 @@ let transl_class ids cl_id pub_meths cl vflag =
   (* Now we start compiling the class *)
   let cla = Ident.create "class" in
   let (inh_init, obj_init) =
-    build_object_init_0 cla [] cl copy_env subst_env top ids in
+    build_object_init_0 rootpath cla [] cl copy_env subst_env top ids in
   let inh_init' = List.rev inh_init in
   let (inh_init', cl_init) =
-    build_class_init cla true ([],[]) inh_init' obj_init msubst top cl
+    build_class_init rootpath cla true ([],[]) inh_init' obj_init msubst top cl
   in
   assert (inh_init' = []);
   let table = Ident.create "table"
@@ -808,7 +809,7 @@ let transl_class ids cl_id pub_meths cl vflag =
     let cl_name =
       DebugNames.Class(Ident.name cl_id, DebugNames.ClassInit)
     in
-    let debug = DebugNames.create ~name:cl_name ~path:None in
+    let debug = DebugNames.create ~name:cl_name ~path:rootpath in
     let cl_init = llets (Lfunction{kind = Curried;
                                    attr = default_function_attribute;
                                    loc = Location.none;
@@ -833,7 +834,7 @@ let transl_class ids cl_id pub_meths cl vflag =
     Lprim(Pmakeblock(0, Immutable, None),
           [lambda_unit; Lfunction{kind = Curried;
                                   debugging_informations =
-                                    DebugNames.create ~path:None
+                                    DebugNames.create ~path:rootpath
                                       ~name:DebugNames.Anonymous;
                                   attr = default_function_attribute;
                                   loc = Location.none;
@@ -891,7 +892,7 @@ let transl_class ids cl_id pub_meths cl vflag =
     let cl_name =
       DebugNames.Class(Ident.name cl_id, DebugNames.ClassInit)
     in
-    let debug = DebugNames.create ~name:cl_name ~path:None in
+    let debug = DebugNames.create ~name:cl_name ~path:rootpath in
     Llet(Strict, Pgenval, class_init,
          Lfunction{kind = Curried; params = [cla];
                    attr = default_function_attribute;
@@ -917,7 +918,7 @@ let transl_class ids cl_id pub_meths cl vflag =
   and lclass_virt () =
     lset cached 0 (Lfunction{kind = Curried; attr = default_function_attribute;
                              debugging_informations =
-                               DebugNames.create ~path:None
+                               DebugNames.create ~path:rootpath
                                  ~name:DebugNames.Anonymous;
                              loc = Location.none;
                              params = [cla]; body = def_ids cla cl_init})
@@ -961,11 +962,11 @@ let transl_class ids cl_id pub_meths cl vflag =
   let vflag = vf in
 *)
 
-let transl_class ids id pub_meths cl vf =
-  oo_wrap cl.cl_env false (transl_class ids id pub_meths cl) vf
+let transl_class rootpath ids id pub_meths cl vf =
+  oo_wrap cl.cl_env false (transl_class rootpath ids id pub_meths cl) vf
 
 let () =
-  transl_object := (fun id meths cl -> transl_class [] id meths cl Concrete)
+  transl_object := (fun rootpath id meths cl -> transl_class rootpath [] id meths cl Concrete)
 
 (* Error report *)
 
