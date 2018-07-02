@@ -509,6 +509,11 @@ val update_function_declaration_body
    -> (Flambda.t -> Flambda.t)
    -> function_declaration
 
+val update_function_declaration_scope
+  : Compilation_unit.t
+    -> function_declaration
+    -> function_declaration
+
 val find_declaration
   : Closure_id.t
   -> function_declarations

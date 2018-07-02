@@ -33,7 +33,8 @@ module DebugNames : sig
     | Coerce
     | Method of string * string
 
-  type t
+  type t =
+    { name : name; path : Path.t option }
 
   val empty : t
 

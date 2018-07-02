@@ -1154,6 +1154,21 @@ let update_function_declaration_body
     in
     { function_decl with function_body = Some new_function_body }
 
+let update_function_declaration_scope
+      scope
+      function_decl =
+  match function_decl.function_body with
+  | None -> function_decl
+  | Some function_body ->
+    let (dbg_name : Lambda.DebugNames.t) = function_body.dbg_name in
+    let path = match dbg_name.path with
+      | None -> Path.Pident (Compilation_unit.get_persistent_ident scope)
+      | Some p -> Path.Pdot (p, Ident.name (Compilation_unit.get_persistent_ident scope), 0)
+    in
+    let dbg_name = { dbg_name with path = Some path } in
+    let function_body = Some { function_body with dbg_name } in
+    {function_decl with function_body}
+
 let find_declaration cf ({ funs } : function_declarations) =
   Variable.Map.find (Closure_id.unwrap cf) funs
 
