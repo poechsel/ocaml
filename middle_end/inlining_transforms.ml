@@ -117,8 +117,8 @@ let inline_by_copying_function_body ~env ~r
       ~closure_id_being_applied
       ~(function_decls : A.function_declarations)
       ~(function_body : A.function_body)
-      ~(inlining_history : Flambda.Closure_stack.t)
-      ~(inlining_history_next_part : Flambda.Closure_stack.t option)
+      ~(inlining_history : Inlining_history.t)
+      ~(inlining_history_next_part : Inlining_history.t option)
       ~unroll_to ~args ~dbg ~simplify =
   assert (E.mem env lhs_of_application);
   assert (List.for_all (E.mem env) args);
@@ -144,7 +144,7 @@ let inline_by_copying_function_body ~env ~r
        ((inline_requested <> Lambda.Default_inline)
         || (specialise_requested <> Lambda.Default_specialise)
         || (E.inlining_depth env <> 0)
-        || (inlining_history <> Flambda.Closure_stack.create ())) then
+        || (inlining_history <> Inlining_history.create ())) then
       (* When the function inlined function is a stub, the annotation
          is reported to the function applications inside the stub.
          This allows to report the annotation to the application the
@@ -228,7 +228,7 @@ let inline_by_copying_function_body ~env ~r
     | None -> env
     | Some x ->
       let env = E.add_inlining_history_parts env x in
-      E.add_inlining_history_part env Flambda.Closure_stack.Inlined
+      E.add_inlining_history_part env Inlining_history.Inlined
   in
   let env = E.set_never_inline env in
   let env = E.activate_freshening env in
@@ -628,8 +628,8 @@ let rewrite_function ~lhs_of_application ~closure_id_being_applied
   let inlining_history =
     List.map (
       function
-      | Flambda.Closure_stack.Closure(c, dbg) when Closure_id.unwrap c = fun_var ->
-        Flambda.Closure_stack.Closure(Closure_id.wrap new_fun_var, dbg)
+      | Inlining_history.Closure(c, dbg) when Closure_id.unwrap c = fun_var ->
+        Inlining_history.Closure(Closure_id.wrap new_fun_var, dbg)
       | x -> x
     ) function_body.inlining_history
   in
@@ -767,7 +767,7 @@ let inline_by_copying_function_declaration
           inlining_depth = E.inlining_depth env;
           inline = inline_requested; specialise = Default_specialise;
           max_inlining_arguments = Some (E.get_max_inlining_arguments env);
-          inlining_history = Flambda.Closure_stack.create ();
+          inlining_history = Inlining_history.create ();
         }
       in
       let body =

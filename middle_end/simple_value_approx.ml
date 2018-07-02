@@ -87,7 +87,7 @@ and function_body = {
   is_a_functor : bool;
   body : Flambda.t;
   recursive : bool;
-  inlining_history : Flambda.Closure_stack.t;
+  inlining_history : Inlining_history.t;
   dbg_name : Lambda.DebugNames.t;
 }
 

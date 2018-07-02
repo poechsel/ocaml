@@ -647,7 +647,7 @@ and simplify_set_of_closures original_env r
         ~nonrec_closure_env ~rec_closure_env
     in
     let inlining_history =
-      Flambda.Closure_stack.add function_decl.inlining_history parts_inlining_stack
+      Inlining_history.add function_decl.inlining_history parts_inlining_stack
     in
     let body, r =
       E.enter_closure closure_env ~closure_id:(Closure_id.wrap fun_var)
@@ -747,7 +747,7 @@ and simplify_apply env r ~(apply : Flambda.apply) : Flambda.t * R.t =
   let parts, env = E.pop_inlining_history_next_parts env in
   (* the parts we had defines previous history. We must add them at the end *)
   let inlining_history =
-    Flambda.Closure_stack.add inlining_history parts
+    Inlining_history.add inlining_history parts
   in
   let env =
     let max_env_args = E.get_max_inlining_arguments env in

@@ -50,7 +50,7 @@ type call_informations = {
   args : Variable.t list;
   dbg : Debuginfo.t;
   rec_info : Flambda.rec_info;
-  inlining_history : Flambda.Closure_stack.t;
+  inlining_history : Inlining_history.t;
 }
 
 type callee_informations = {
@@ -526,7 +526,7 @@ let specialise env r ~(call : call_informations)
               (Variable.Set.elements (Variable.Map.keys callee.function_decls.funs)))
         in
         let env =
-          E.add_inlining_history_part env (Flambda.Closure_stack.Specialised closure_ids)
+          E.add_inlining_history_part env (Inlining_history.Specialised closure_ids)
         in
         Inlining_transforms.inline_by_copying_function_declaration ~env
           ~r:(R.reset_benefit r) ~lhs_of_application:call.callee
@@ -765,11 +765,11 @@ let for_call_site ~env ~r ~(call : call_informations)
         compute_thresholding_for_call env r inlining_arguments
       in
       let inlining_history_next_part =
-        Flambda.Closure_stack.note_entering_call
+        Inlining_history.note_entering_call
           ~dbg:call.dbg ~closure_id:callee.closure_id_being_applied
           ~dbg_name:function_body.dbg_name
           ~absolute_inlining_history:
-            (Some (Flambda.Closure_stack.strip_history (E.inlining_history env)))
+            (Some (Inlining_history.strip_history (E.inlining_history env)))
           call.inlining_history
       in
       let env =
