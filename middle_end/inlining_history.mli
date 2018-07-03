@@ -68,7 +68,7 @@ val note_entering_closure
 val note_entering_call
   : t
   -> name:string
-  -> dbg_name:t
+  -> dbg_name:t option
   -> dbg:Debuginfo.t
   -> absolute_inlining_history:t option
   -> t

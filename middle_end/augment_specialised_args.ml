@@ -530,9 +530,8 @@ module Make (T : S) = struct
         ~inline:Default_inline
         ~specialise:Default_specialise
         ~is_a_functor:false
-        ~inlining_history:(Flambda.create_declaration_stats_stack
-                                 ~name:(Variable.name new_fun_var) ~dbg:Debuginfo.none)
-        ~dbg_name:Inlining_history.empty
+        ~inlining_history:Inlining_history.empty
+        ~dbg_name:None
     in
     new_fun_var, new_function_decl, rewritten_existing_specialised_args,
       benefit
@@ -619,7 +618,7 @@ module Make (T : S) = struct
           ~specialise:function_decl.specialise
           ~is_a_functor:function_decl.is_a_functor
           ~inlining_history:function_decl.inlining_history
-          ~dbg_name:function_decl.dbg_name
+          ~dbg_name:None
       in
       let funs, direct_call_surrogates =
         if for_one_function.make_direct_call_surrogates then

@@ -158,6 +158,13 @@ let note_entering_closure t ~name ~dbg =
    some calls will end up sharing nodes. *)
 let note_entering_call t ~name ~dbg_name ~dbg
       ~absolute_inlining_history =
+  let dbg_name =
+    match dbg_name with
+    | None ->
+      (*CR poechsel: examine why puttin an assert false here fails*)
+      empty
+    | Some x -> x
+  in
   (Call (name, dbg_name, dbg, absolute_inlining_history)) :: t
 
 let note_entering_inlined t =

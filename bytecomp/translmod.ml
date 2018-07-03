@@ -109,7 +109,7 @@ and apply_coercion_result modpath loc strict funct params args cc_res =
                 loc = loc;
                 debugging_informations =
                   IH.add_fn_def ~name:IH.Coerce ~path:modpath ~loc;
-                body = apply_coercion modpath
+                body = apply_coercion IH.empty
                          loc Strict cc_res
                          (Lapply{ap_should_be_tailcall=false;
                                  ap_loc=loc;
@@ -441,7 +441,7 @@ let rec compile_functor modpath name mexp coercion root_path loc =
         let params = param' :: params in
         let body = Llet (Alias, Pgenval, param, arg, body) in
         params, body)
-      ([], transl_module modpath None res_coercion body_path body)
+      ([], transl_module IH.empty None res_coercion body_path body)
       functor_params_rev
   in
   let name = IH.Functor(name) in
