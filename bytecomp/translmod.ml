@@ -421,22 +421,14 @@ let rec compile_functor modpath name mexp coercion root_path loc =
     merge_functors mexp coercion root_path
   in
   assert (List.length functor_params_rev >= 1);  (* cf. [transl_module] *)
-  let params_string =
-    List.map (fun (a, _, _) -> Ident.name a) functor_params_rev
-  in
   let name =
     match name with
     | None -> ""
     | Some x -> Ident.name x
   in
-
-  let modpath =
-    IH.Module(name, Debuginfo.none, params_string) :: modpath
-  in
   let params, body =
     List.fold_left (fun (params, body) (param, loc, arg_coercion) ->
         let param' = Ident.rename param in
-        let _ = Format.fprintf Format.std_formatter "[%s]\n" (Ident.name param) in
         let arg = apply_coercion modpath loc Alias arg_coercion (Lvar param') in
         let params = param' :: params in
         let body = Llet (Alias, Pgenval, param, arg, body) in
@@ -444,6 +436,7 @@ let rec compile_functor modpath name mexp coercion root_path loc =
       ([], transl_module IH.empty None res_coercion body_path body)
       functor_params_rev
   in
+  let modpath = List.tl modpath in
   let name = IH.Functor(name) in
   Lfunction {
     kind = Curried;
@@ -471,18 +464,14 @@ and transl_module modpath name cc rootpath mexp =
   | _ ->
       match mexp.mod_desc with
       | Tmod_ident (path,_) ->
-        let _ = Format.fprintf Format.std_formatter "mod ident \n" in
         apply_coercion modpath loc Strict cc
           (transl_module_path ~loc mexp.mod_env path)
       | Tmod_structure str ->
-        let _ = Format.fprintf Format.std_formatter "mod struct \n" in
           fst (transl_struct modpath loc [] cc rootpath str)
       | Tmod_functor _ ->
-        let _ = Format.fprintf Format.std_formatter "functor name %s\n" (match name with None -> "" | Some x -> Ident.name x) in
           oo_wrap mexp.mod_env true (fun () ->
             compile_functor modpath name mexp cc rootpath loc) ()
       | Tmod_apply(funct, arg, ccarg) ->
-        let _ = Format.fprintf Format.std_formatter "mod apply \n" in
           let inlined_attribute, funct =
             Translattribute.get_and_remove_inlined_attribute_on_module funct
           in
@@ -596,7 +585,6 @@ and transl_structure modpath loc fields cc rootpath final_env = function
           size
       | Tstr_module mb ->
           let id = mb.mb_id in
-      let _ = Format.fprintf Format.std_formatter "a==> %s %s\n" (Ident.name id) mb.mb_name.txt in
           (* Translate module first *)
           let module_body =
             transl_module

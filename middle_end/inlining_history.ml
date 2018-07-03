@@ -119,12 +119,12 @@ let string_of_name name =
   Format.asprintf "%a" print_name name
 
 
-let print_node ppf x =
+let rec print_node ppf x =
   match x with
   | Inlined ->
     Format.fprintf ppf "inlined "
-  | Call (c, _, _, _) ->
-    Format.fprintf ppf "call(%s) " c
+  | Call (_, c, _, _) ->
+    Format.fprintf ppf "call(%a) " print c
   | Closure (c, _) ->
     Format.fprintf ppf "closure(%a) " print_name c
   | Module (c, _, params) ->
@@ -136,8 +136,7 @@ let print_node ppf x =
     Format.fprintf ppf "module(%s%s) " c params
   | _ ->
     Format.fprintf ppf "specialise "
-
-let print ppf l =
+and print ppf l =
   List.iter (print_node ppf) l
 
 let add a b =
