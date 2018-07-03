@@ -85,7 +85,8 @@ OCAMLDOC_OPT=$(WITH_OCAMLDOC:=.opt)
 
 UTILS=utils/config.cmo utils/misc.cmo \
   utils/identifiable.cmo utils/numbers.cmo utils/arg_helper.cmo \
-  utils/clflags.cmo utils/tbl.cmo utils/profile.cmo \
+	utils/clflags.cmo \
+	utils/tbl.cmo utils/profile.cmo \
   utils/terminfo.cmo utils/ccomp.cmo utils/warnings.cmo \
   utils/consistbl.cmo \
   utils/strongly_connected_components.cmo \
@@ -115,6 +116,9 @@ TYPING=typing/ident.cmo typing/path.cmo \
   typing/parmatch.cmo typing/stypes.cmo typing/typedecl.cmo typing/typeopt.cmo \
   typing/typecore.cmo typing/typeclass.cmo typing/typemod.cmo
 
+INLINING_DEBUG=middle_end/debuginfo.cmo \
+	middle_end/inlining_history.cmo
+
 COMP=bytecomp/lambda.cmo bytecomp/printlambda.cmo \
   bytecomp/semantics_of_primitives.cmo \
   bytecomp/switch.cmo bytecomp/matching.cmo \
@@ -130,7 +134,7 @@ COMP=bytecomp/lambda.cmo bytecomp/printlambda.cmo \
   driver/compdynlink.cmo driver/compplugin.cmo driver/makedepend.cmo
 
 
-COMMON=$(UTILS) $(PARSING) $(TYPING) $(COMP)
+COMMON=$(UTILS) $(PARSING) $(TYPING) $(INLINING_DEBUG) $(COMP)
 
 BYTECOMP=bytecomp/instruct.cmo bytecomp/bytegen.cmo \
   bytecomp/printinstr.cmo bytecomp/emitcode.cmo \
@@ -196,7 +200,6 @@ ASMCOMP=\
   driver/opterrors.cmo driver/optcompile.cmo
 
 MIDDLE_END=\
-  middle_end/debuginfo.cmo \
   middle_end/base_types/tag.cmo \
   middle_end/base_types/linkage_name.cmo \
   middle_end/base_types/compilation_unit.cmo \
@@ -211,7 +214,6 @@ MIDDLE_END=\
   middle_end/base_types/static_exception.cmo \
   middle_end/base_types/export_id.cmo \
   middle_end/base_types/symbol.cmo \
-	middle_end/inlining_history.cmo \
 	middle_end/pass_wrapper.cmo \
   middle_end/allocated_const.cmo \
   middle_end/parameter.cmo \

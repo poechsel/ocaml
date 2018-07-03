@@ -214,7 +214,7 @@ module Env : sig
       decision point. *)
   val note_entering_closure
      : t
-    -> name:string
+    -> name:Inlining_history.name
     -> dbg:Debuginfo.t
     -> t
 
@@ -225,7 +225,7 @@ module Env : sig
   val note_entering_call
      : t
     -> name:string
-    -> dbg_name:Lambda.DebugNames.t
+    -> dbg_name:Inlining_history.t
     -> dbg:Debuginfo.t
     -> t
 
@@ -245,7 +245,7 @@ module Env : sig
       marked as [never_inline] (see above). *)
   val enter_closure
      : t
-    -> name:string
+    -> name:Inlining_history.name
     -> inline_inside:bool
     -> dbg:Debuginfo.t
     -> f:(t -> 'a)
