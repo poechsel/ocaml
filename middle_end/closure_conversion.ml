@@ -96,7 +96,7 @@ let tupled_function_call_stub original_params unboxed_version ~recursive
     ~body ~stub:true ~dbg:Debuginfo.none ~inline:Default_inline
     ~specialise:Default_specialise ~is_a_functor:false
     ~inlining_history:[]
-    ~dbg_name:Lambda.DebugNames.empty
+    ~dbg_name:Inlining_history.empty
 
 let register_const t (constant:Flambda.constant_defining_value) name
     : Flambda.constant_defining_value_block_field * Internal_variable_names.t =

@@ -532,7 +532,7 @@ module Make (T : S) = struct
         ~is_a_functor:false
         ~inlining_history:(Flambda.create_declaration_stats_stack
                                  ~name:(Variable.name new_fun_var) ~dbg:Debuginfo.none)
-        ~dbg_name:Lambda.DebugNames.empty
+        ~dbg_name:Inlining_history.empty
     in
     new_fun_var, new_function_decl, rewritten_existing_specialised_args,
       benefit

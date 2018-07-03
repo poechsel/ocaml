@@ -165,7 +165,7 @@ and function_body = private {
   body : Flambda.t;
   recursive : bool;
   inlining_history : Inlining_history.t;
-  dbg_name : Lambda.DebugNames.t;
+  dbg_name : Inlining_history.t;
 }
 
 and function_declaration = private {

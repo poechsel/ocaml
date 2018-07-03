@@ -650,7 +650,7 @@ and simplify_set_of_closures original_env r
       Inlining_history.add function_decl.inlining_history parts_inlining_stack
     in
     let body, r =
-      E.enter_closure closure_env ~name:(Variable.name fun_var)
+      E.enter_closure closure_env ~name:(Inlining_history.Function(Variable.name fun_var))
         ~inline_inside:
           (Inlining_decision.should_inline_inside_declaration function_decl)
         ~dbg:function_decl.dbg
@@ -943,7 +943,7 @@ and simplify_partial_application env r ~lhs_of_application
       ~rec_info:{ depth = 0; unroll_to = 0; }
       ~stub:true
       ~unboxing_arguments
-      ~dbg_name:Lambda.DebugNames.empty
+      ~dbg_name:Inlining_history.empty
   in
   let with_known_args =
     Flambda_utils.bind
@@ -1576,7 +1576,7 @@ and duplicate_function ~env ~(set_of_closures : Flambda.set_of_closures)
   in
   let body, _r =
     E.enter_closure closure_env
-      ~name:(Variable.name fun_var)
+      ~name:(Inlining_history.Function (Variable.name fun_var))
       ~inline_inside:false
       ~dbg:function_decl.dbg
       ~f:(fun body_env ->

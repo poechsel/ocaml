@@ -405,7 +405,7 @@ and function_declaration = private {
   is_a_functor : bool;
   (** Whether the function is known definitively to be a functor. *)
   inlining_history : Inlining_history.t;
-  dbg_name : Lambda.DebugNames.t;
+  dbg_name : Inlining_history.t;
 }
 
 (** Equivalent to the similar type in [Lambda]. *)
@@ -647,7 +647,7 @@ val create_function_declaration
   -> specialise:Lambda.specialise_attribute
   -> is_a_functor:bool
   -> inlining_history:Inlining_history.t
-  -> dbg_name:Lambda.DebugNames.t
+  -> dbg_name:Inlining_history.t
   -> function_declaration
 
 (** Create a function declaration based on another function declaration *)
