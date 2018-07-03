@@ -88,7 +88,7 @@ and function_body = {
   body : Flambda.t;
   recursive : bool;
   inlining_history : Inlining_history.t;
-  dbg_name : Inlining_history.t;
+  dbg_name : Inlining_history.t option;
 }
 
 and function_declaration = {
@@ -173,8 +173,8 @@ let print_function_declaration ppf var (f : function_declaration) =
     let print_body ppf _ =
       Format.fprintf ppf "<Function Body>"
     in
-    Format.fprintf ppf "@[<2>(%a[%a]%s%s%s%s@ =@ fun@[<2>%a@] ->@ @[<2><%a>@])@]@ "
-      Variable.print var Inlining_history.print b.dbg_name stub is_a_functor inline specialise
+    Format.fprintf ppf "@[<2>(%a%s%s%s%s@ =@ fun@[<2>%a@] ->@ @[<2><%a>@])@]@ "
+      Variable.print var stub is_a_functor inline specialise
       params f.params
       print_body b
 
@@ -1160,7 +1160,7 @@ let update_function_declaration_scope
   match function_decl.function_body with
   | None -> function_decl
   | Some function_body ->
-    let (dbg_name : Inlining_history.t) = function_body.dbg_name in
+    let (dbg_name : Inlining_history.t option) = function_body.dbg_name in
     (*
     let path = match dbg_name.path with
       | None -> Path.Pident (Compilation_unit.get_persistent_ident scope)

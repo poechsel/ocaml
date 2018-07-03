@@ -221,7 +221,7 @@ and transl_exp0 modpath name e =
         event_function e
           (function repr ->
             let pl = push_defaults e.exp_loc [] cases partial in
-            transl_function modpath e.exp_loc !Clflags.native_code repr partial
+            transl_function IH.empty e.exp_loc !Clflags.native_code repr partial
               param pl)
       in
       let attr = {
@@ -658,35 +658,35 @@ and transl_apply ?(should_be_tailcall=false) ?(inlined = Default_inline)
 
 and transl_function modpath loc untuplify_fn repr partial param cases =
   match cases with
-    [{c_lhs=pat; c_guard=None;
+  | [{c_lhs=pat; c_guard=None;
       c_rhs={exp_desc = Texp_function { arg_label = _; param = param'; cases;
-        partial = partial'; }} as exp}]
+                                        partial = partial'; }} as exp}]
     when Parmatch.inactive ~partial pat ->
-      let ((_, params), body) =
-        transl_function modpath exp.exp_loc false repr partial' param' cases in
-      ((Curried, param :: params),
-       Matching.for_function loc None (Lvar param) [pat, body] partial)
+    let ((_, params), body) =
+      transl_function modpath exp.exp_loc false repr partial' param' cases in
+    ((Curried, param :: params),
+     Matching.for_function loc None (Lvar param) [pat, body] partial)
   | {c_lhs={pat_desc = Tpat_tuple pl}} :: _ when untuplify_fn ->
-      begin try
-        let size = List.length pl in
-        let pats_expr_list =
-          List.map
-            (fun {c_lhs; c_guard; c_rhs} ->
-              (Matching.flatten_pattern size c_lhs, c_guard, c_rhs))
-            cases in
-        let params = List.map (fun _ -> Ident.create "param") pl in
-        ((Tupled, params),
-         Matching.for_tupled_function loc params
-           (transl_tupled_cases modpath pats_expr_list) partial)
-      with Matching.Cannot_flatten ->
-        ((Curried, [param]),
-         Matching.for_function loc repr (Lvar param)
-           (transl_cases modpath cases) partial)
-      end
-  | _ ->
+    begin try
+      let size = List.length pl in
+      let pats_expr_list =
+        List.map
+          (fun {c_lhs; c_guard; c_rhs} ->
+             (Matching.flatten_pattern size c_lhs, c_guard, c_rhs))
+          cases in
+      let params = List.map (fun _ -> Ident.create "param") pl in
+      ((Tupled, params),
+       Matching.for_tupled_function loc params
+         (transl_tupled_cases modpath pats_expr_list) partial)
+    with Matching.Cannot_flatten ->
       ((Curried, [param]),
        Matching.for_function loc repr (Lvar param)
          (transl_cases modpath cases) partial)
+    end
+  | _ ->
+    ((Curried, [param]),
+     Matching.for_function loc repr (Lvar param)
+       (transl_cases modpath cases) partial)
 
 
 (*

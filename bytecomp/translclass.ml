@@ -229,7 +229,7 @@ let rec build_object_init_0 modpath cl_table params cl copy_env subst_env top id
       let obj = if ids = [] then lambda_unit else Lvar self in
       let envs = if top then None else Some env in
       let ((_,inh_init), obj_init) =
-        build_object_init modpath cl_table obj params (envs,[]) copy_env cl in
+        build_object_init IH.empty cl_table obj params (envs,[]) copy_env cl in
       let name = IH.Class(Ident.name cl_table, IH.ObjInit) in
       let obj_init =
         if ids = [] then obj_init else lfunction modpath name [self] obj_init in
@@ -446,7 +446,7 @@ let rec transl_class_rebind modpath cl_id obj_init cl vf =
       end;
       (normalize_cl_path cl path, obj_init)
   | Tcl_fun (_, pat, _, cl, partial) ->
-      let path, obj_init = transl_class_rebind modpath cl_id obj_init cl vf in
+      let path, obj_init = transl_class_rebind IH.empty cl_id obj_init cl vf in
       let build params rem =
         let d_name = IH.Class(Ident.name cl_id,
                                       IH.ClassRebind) in
@@ -491,7 +491,7 @@ let rec transl_class_rebind_0 modpath cl_id self obj_init cl vf =
   | _ ->
     let d_name = IH.Class(Ident.name cl_id,
                                   IH.ClassRebind) in
-    let path, obj_init = transl_class_rebind modpath cl_id obj_init cl vf in
+    let path, obj_init = transl_class_rebind IH.empty cl_id obj_init cl vf in
       (path, lfunction modpath d_name [self] obj_init)
 
 
@@ -515,7 +515,7 @@ let transl_class_rebind modpath cl_id cl vf =
               ap_inlined=Default_inline;
               ap_specialised=Default_specialise}
     in
-    let path, obj_init' = transl_class_rebind_0 modpath cl_id self obj_init0 cl vf in
+    let path, obj_init' = transl_class_rebind_0 IH.empty cl_id self obj_init0 cl vf in
     let obj_init0_fn = lfunction modpath IH.Anonymous [self] obj_init0 in
     let id = same_with_ignore_debug obj_init' obj_init0_fn in
     if id then transl_normal_path path else
@@ -533,10 +533,10 @@ let transl_class_rebind modpath cl_id cl vf =
     Alias, Pgenval, cla, transl_normal_path path,
     Lprim(Pmakeblock(0, Immutable, None),
           [mkappl(Lvar new_init, [lfield cla 0]);
-           lfunction modpath IH.Anonymous [table]
+           lfunction IH.empty IH.Anonymous [table]
              (Llet(Strict, Pgenval, env_init,
                    mkappl(lfield cla 1, [Lvar table]),
-                   lfunction modpath
+                   lfunction IH.empty
                    (IH.Class(Ident.name cl_id, IH.EnvInit))
                      [envs]
                      (mkappl(Lvar new_init,
@@ -780,10 +780,10 @@ let transl_class modpath ids cl_id pub_meths cl vflag =
   (* Now we start compiling the class *)
   let cla = Ident.create "class" in
   let (inh_init, obj_init) =
-    build_object_init_0 modpath cla [] cl copy_env subst_env top ids in
+    build_object_init_0 IH.empty cla [] cl copy_env subst_env top ids in
   let inh_init' = List.rev inh_init in
   let (inh_init', cl_init) =
-    build_class_init modpath cla true ([],[]) inh_init' obj_init msubst top cl
+    build_class_init IH.empty cla true ([],[]) inh_init' obj_init msubst top cl
   in
   assert (inh_init' = []);
   let table = Ident.create "table"

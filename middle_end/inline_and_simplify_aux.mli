@@ -225,7 +225,7 @@ module Env : sig
   val note_entering_call
      : t
     -> name:string
-    -> dbg_name:Inlining_history.t
+    -> dbg_name:Inlining_history.t option
     -> dbg:Debuginfo.t
     -> t
 

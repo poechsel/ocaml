@@ -408,7 +408,7 @@ and function_declaration = {
   specialise : Lambda.specialise_attribute;
   is_a_functor : bool;
   inlining_history : Inlining_history.t;
-  dbg_name : Inlining_history.t;
+  dbg_name : Inlining_history.t option;
 }
 
 and switch = {
@@ -702,10 +702,9 @@ and print_function_declaration ppf var (f : function_declaration) =
     | Never_specialise -> " *never_specialise*"
     | Default_specialise -> ""
   in
-  fprintf ppf "@[<2>(%a%s%s%s%s%s[%a | %a]@ =@ fun@[<2>%a@] ->@ @[<2>%a@])@]@ "
+  fprintf ppf "@[<2>(%a%s%s%s%s%s[%a]@ =@ fun@[<2>%a@] ->@ @[<2>%a@])@]@ "
     Variable.print var recursive stub is_a_functor inline specialise
     Inlining_history.print f.inlining_history
-    Inlining_history.print f.dbg_name
     params f.params lam f.body
 
 and print_set_of_closures ppf (set_of_closures : set_of_closures) =
@@ -1325,8 +1324,7 @@ let create_declaration_stats_stack ~name ~dbg =
 let create_function_declaration ~recursive ~params ~body ~stub ~dbg
       ~(inline : Lambda.inline_attribute)
       ~(specialise : Lambda.specialise_attribute) ~is_a_functor
-      ~inlining_history
-      ~dbg_name
+      ~inlining_history ~dbg_name
       : function_declaration =
   begin match stub, inline with
   | true, (Never_inline | Default_inline)
