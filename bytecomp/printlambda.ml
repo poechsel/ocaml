@@ -497,7 +497,8 @@ let rec lam ppf = function
                 Ident.print ppf param)
               params;
             fprintf ppf ")" in
-      fprintf ppf "@[<2>(function[%a]%a@ %a%a)@]" DebugNames.print debugging_informations pr_params params
+      fprintf ppf "@[<2>(function[%a]%a@ %a%a)@]"
+        Inlining_history.print debugging_informations pr_params params
         function_attribute attr lam body
   | Llet(str, k, id, arg, body) ->
       let kind = function

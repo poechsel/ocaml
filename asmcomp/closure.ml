@@ -906,7 +906,7 @@ let rec close fenv cenv = function
                              ap_inlined=Default_inline;
                              ap_specialised=Default_specialise};
                loc;
-               debugging_informations = DebugNames.empty;
+               debugging_informations = Inlining_history.empty;
                attr = default_function_attribute})
         in
         let new_fun =

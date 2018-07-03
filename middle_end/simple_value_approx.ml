@@ -88,7 +88,7 @@ and function_body = {
   body : Flambda.t;
   recursive : bool;
   inlining_history : Inlining_history.t;
-  dbg_name : Lambda.DebugNames.t;
+  dbg_name : Inlining_history.t option;
 }
 
 and function_declaration = {
@@ -173,8 +173,8 @@ let print_function_declaration ppf var (f : function_declaration) =
     let print_body ppf _ =
       Format.fprintf ppf "<Function Body>"
     in
-    Format.fprintf ppf "@[<2>(%a[%a]%s%s%s%s@ =@ fun@[<2>%a@] ->@ @[<2><%a>@])@]@ "
-      Variable.print var Lambda.DebugNames.print b.dbg_name stub is_a_functor inline specialise
+    Format.fprintf ppf "@[<2>(%a%s%s%s%s@ =@ fun@[<2>%a@] ->@ @[<2><%a>@])@]@ "
+      Variable.print var stub is_a_functor inline specialise
       params f.params
       print_body b
 
@@ -1155,17 +1155,17 @@ let update_function_declaration_body
     { function_decl with function_body = Some new_function_body }
 
 let update_function_declaration_scope
-      scope
+      _scope
       function_decl =
   match function_decl.function_body with
   | None -> function_decl
   | Some function_body ->
-    let (dbg_name : Lambda.DebugNames.t) = function_body.dbg_name in
+    let (dbg_name : Inlining_history.t option) = function_body.dbg_name in
+    (*
     let path = match dbg_name.path with
       | None -> Path.Pident (Compilation_unit.get_persistent_ident scope)
       | Some p -> Path.Pdot (p, Ident.name (Compilation_unit.get_persistent_ident scope), 0)
-    in
-    let dbg_name = { dbg_name with path = Some path } in
+       in*)
     let function_body = Some { function_body with dbg_name } in
     {function_decl with function_body}
 

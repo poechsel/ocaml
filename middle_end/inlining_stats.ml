@@ -41,7 +41,7 @@ module Inlining_report = struct
       | Module
       | Call
 
-    type t = Debuginfo.t * string * Lambda.DebugNames.t * kind
+    type t = Debuginfo.t * string * Inlining_history.t * kind
 
     let compare ((d1, cl1, _, k1) : t) ((d2, cl2, _, k2) : t) =
       let c = Debuginfo.compare d1 d2 in
@@ -107,11 +107,12 @@ module Inlining_report = struct
     | Decision Unchanged _, Unchanged _ -> call
 
   let add_decision t (stack, decision) : (node * string) Place_map.t =
+    let debug_empty = Inlining_history.empty in
     let rec loop seen t (stack : Inlining_history.t) =
       let uid = uid_of_history seen in
       match stack with
       | (Closure(cl, dbg) as x) :: rest ->
-          let key : Place.t = (dbg, cl, Lambda.DebugNames.empty, Closure) in
+          let key : Place.t = (dbg, Inlining_history.string_of_name cl, debug_empty, Closure) in
           let v =
             try
               match Place_map.find key t with
@@ -121,8 +122,9 @@ module Inlining_report = struct
           in
           let v = loop (x :: seen) v rest in
           Place_map.add key (Closure v, uid) t
-      | (Module(s, dbg) as x) :: rest ->
-          let key : Place.t = (dbg, s, Lambda.DebugNames.empty, Module) in
+      (* CR poechsel: deal with modules params *)
+      | (Module(s, dbg, _) as x) :: rest ->
+          let key : Place.t = (dbg, s, debug_empty, Module) in
           let v =
             try
               match Place_map.find key t with
@@ -211,7 +213,7 @@ module Inlining_report = struct
            Format.pp_open_vbox ppf (depth + 2);
            Format.fprintf ppf "@[<h>%a Application of %a%s %a@]@;@;@[%a@]"
              print_stars (depth + 1)
-             Lambda.DebugNames.print name
+             Inlining_history.print name
              (Debuginfo.to_string dbg)
              print_anchor uid
              print_reference reference;
@@ -235,7 +237,7 @@ module Inlining_report = struct
            Format.pp_open_vbox ppf (depth + 2);
            Format.fprintf ppf "@[<h>%a Application of %a%s %a@]@;@;@[%a@]"
              print_stars (depth + 1)
-             Lambda.DebugNames.print name
+             Inlining_history.print name
              (Debuginfo.to_string dbg)
              print_anchor uid
              Inlining_stats_types.Decision.summary decision;
