@@ -24,11 +24,11 @@ let record_decision decision ~closure_stack =
   if !Clflags.inlining_report then begin
     match closure_stack with
     | []
-    | Inlining_history.Closure _ :: _
     | Inlining_history.Module _ :: _
     | Inlining_history.Inlined :: _
     | Inlining_history.Specialised _ :: _ ->
       Misc.fatal_errorf "record_decision: missing Call node"
+    | Inlining_history.Closure _ :: _
     | Inlining_history.Call _ :: _ ->
       log := (closure_stack, decision) :: !log
   end
@@ -88,6 +88,8 @@ module Inlining_report = struct
   let add_call_decision call (decision : Inlining_stats_types.Decision.t) =
     match call.decision, decision with
     | Reference _, _ -> { call with decision = Decision decision }
+    | Decision Definition, _ -> { call with decision = Decision decision }
+    | _, Definition -> call
     | Decision _, Prevented _ -> call
     | Decision (Prevented _), _ -> { call with decision = Decision decision }
     | Decision (Specialised _), _ -> call
@@ -163,7 +165,7 @@ module Inlining_report = struct
             | Module _ :: _ -> assert false
           in
           Place_map.add key (Call v, uid seen) t
-      | [] -> assert false
+      | [] -> t
       | Inlined :: _ -> assert false
       | Specialised _ :: _ -> assert false
     in

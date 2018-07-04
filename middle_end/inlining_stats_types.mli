@@ -79,6 +79,7 @@ end
 module Decision : sig
 
   type t =
+    | Definition
     | Prevented of Prevented.t
     | Specialised of Specialised.t
     | Inlined of Not_specialised.t * Inlined.t

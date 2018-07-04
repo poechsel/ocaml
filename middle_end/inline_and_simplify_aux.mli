@@ -221,6 +221,10 @@ module Env : sig
     -> Inlining_stats_types.Decision.t
     -> unit
 
+  val record_definition
+     : t
+    -> unit
+
   (** Print a human-readable version of the given environment. *)
   val print : Format.formatter -> t -> unit
 
