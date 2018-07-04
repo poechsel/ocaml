@@ -353,6 +353,10 @@ module Env = struct
     Inlining_stats.record_decision decision
       ~closure_stack:t.inlining_history
 
+  let record_definition t =
+    Inlining_stats.record_decision Inlining_stats_types.Decision.Definition
+      ~closure_stack:t.inlining_history
+
   let set_inline_debuginfo t ~dbg =
     { t with inlined_debuginfo = dbg }
 
