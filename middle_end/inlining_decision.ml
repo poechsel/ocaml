@@ -755,16 +755,19 @@ let for_call_site ~env ~r ~(call : call_informations)
       in
       let inlining_history_next_part =
         Inlining_history.note_entering_call
-          ~dbg:call.dbg ~name:(Closure_id.unique_name callee.closure_id_being_applied)
-          ~dbg_name:function_body.dbg_name
-          ~absolute_inlining_history:
-            (Some (Inlining_history.strip_history (E.inlining_history env)))
+          ~dbg:call.dbg
+          ~dbg_name:(match function_body.dbg_name with
+            | None -> None
+            | Some x -> Some (Inlining_history.history_to_path x))
+          ~absolute_inlining_history:(E.inlining_history env)
           call.inlining_history
       in
       let env =
         E.note_entering_call env
-          ~name:(Closure_id.unique_name callee.closure_id_being_applied) ~dbg:call.dbg
-          ~dbg_name:function_body.dbg_name
+          ~dbg:call.dbg
+          ~dbg_name:(match function_body.dbg_name with
+            | None -> None
+            | Some x -> Some(Inlining_history.history_to_path x))
       in
       let simpl =
         if function_decls.is_classic_mode > 0.0 then begin

@@ -41,7 +41,7 @@ module Inlining_report = struct
       | Module
       | Call
 
-    type t = Debuginfo.t * string * Inlining_history.t * kind
+    type t = Debuginfo.t * string * Inlining_history.path * kind
 
     let compare ((d1, cl1, _, k1) : t) ((d2, cl2, _, k2) : t) =
       let c = Debuginfo.compare d1 d2 in
@@ -62,7 +62,7 @@ module Inlining_report = struct
 
   type decision =
     | Decision of Inlining_stats_types.Decision.t
-    | Reference of Inlining_history.t
+    | Reference of Inlining_history.path
 
   type t = (node * string) Place_map.t
 
@@ -77,20 +77,10 @@ module Inlining_report = struct
       specialised: t option; }
 
   let empty_call path =
-    let path = match path with
-      | None -> []
-      | Some p -> p
-    in
     { decision = Reference path;
       inlined = None;
       specialised = None; }
 
-  let uid_of_history h =
-    let str_uid =
-      Format.asprintf "%a" Inlining_history.print h
-    in
-    Digest.string str_uid
-    |> Digest.to_hex
 
   (* Prevented or unchanged decisions may be overridden by a later look at the
      same call. Other decisions may also be "overridden" because calls are not
@@ -107,9 +97,11 @@ module Inlining_report = struct
     | Decision Unchanged _, Unchanged _ -> call
 
   let add_decision t (stack, decision) : (node * string) Place_map.t =
-    let debug_empty = Inlining_history.empty in
+    let debug_empty = Inlining_history.empty_path in
     let rec loop seen t (stack : Inlining_history.t) =
-      let uid = uid_of_history seen in
+      let uid seen =
+        Inlining_history.uid_of_path (Inlining_history.history_to_path seen)
+      in
       match stack with
       | (Closure(cl, dbg) as x) :: rest ->
           let key : Place.t = (dbg, Inlining_history.string_of_name cl, debug_empty, Closure) in
@@ -120,8 +112,9 @@ module Inlining_report = struct
               | _ -> assert false
             with Not_found -> Place_map.empty
           in
-          let v = loop (x :: seen) v rest in
-          Place_map.add key (Closure v, uid) t
+          let seen = x :: seen in
+          let v = loop seen v rest in
+          Place_map.add key (Closure v, uid seen) t
       (* CR poechsel: deal with modules params *)
       | (Module(s, dbg, _) as x) :: rest ->
           let key : Place.t = (dbg, s, debug_empty, Module) in
@@ -132,10 +125,11 @@ module Inlining_report = struct
               | _ -> assert false
             with Not_found -> Place_map.empty
           in
-          let v = loop (x :: seen) v rest in
-          Place_map.add key (Module v, uid) t
-      | (Call(cl, name, dbg, path) as x) :: rest ->
-          let key : Place.t = (dbg, cl, name, Call) in
+          let seen = x :: seen in
+          let v = loop seen v rest in
+          Place_map.add key (Module v, uid seen) t
+      | (Call(name, dbg, path) as x) :: rest ->
+          let key : Place.t = (dbg, Format.asprintf "%a" Inlining_history.print name, name, Call) in
           let v =
             try
               match Place_map.find key t with
@@ -143,30 +137,32 @@ module Inlining_report = struct
               |_ -> assert false
             with Not_found -> empty_call path
           in
-          let v =
+          let v, seen =
             match rest with
-            | [] -> add_call_decision v decision
+            | [] -> add_call_decision v decision, x :: seen
             | (Inlined as y) :: rest ->
                 let inlined =
                   match v.inlined with
                   | None -> Place_map.empty
                   | Some inlined -> inlined
                 in
-                let inlined = loop (y :: x :: seen) inlined rest in
-                { v with inlined = Some inlined }
+                let seen = y :: x :: seen in
+                let inlined = loop seen inlined rest in
+                { v with inlined = Some inlined }, seen
             | (Specialised _ as y) :: rest ->
                 let specialised =
                   match v.specialised with
                   | None -> Place_map.empty
                   | Some specialised -> specialised
                 in
-                let specialised = loop (y :: x :: seen) specialised rest in
-                { v with specialised = Some specialised }
+                let seen = y :: x :: seen in
+                let specialised = loop seen specialised rest in
+                { v with specialised = Some specialised }, seen
             | Call _ :: _ -> assert false
             | Closure _ :: _ -> assert false
             | Module _ :: _ -> assert false
           in
-          Place_map.add key (Call v, uid) t
+          Place_map.add key (Call v, uid seen) t
       | [] -> assert false
       | Inlined :: _ -> assert false
       | Specialised _ :: _ -> assert false
@@ -181,7 +177,7 @@ module Inlining_report = struct
     Format.fprintf ppf "%s" s
 
   let print_reference ppf reference =
-    uid_of_history reference
+    Inlining_history.uid_of_path reference
     |> Format.fprintf ppf "The decision for this site was taken at:@;  [[%s][decision site]]"
 
   let print_anchor ppf anchor =
@@ -211,8 +207,9 @@ module Inlining_report = struct
          | Reference reference ->
            begin
            Format.pp_open_vbox ppf (depth + 2);
-           Format.fprintf ppf "@[<h>%a Application of %a%s %a@]@;@;@[%a@]"
+           Format.fprintf ppf "@[<h>%a Application of [[%s][%a]]%s %a@]@;@;@[%a@]"
              print_stars (depth + 1)
+             (Inlining_history.uid_of_path name)
              Inlining_history.print name
              (Debuginfo.to_string dbg)
              print_anchor uid
@@ -235,8 +232,9 @@ module Inlining_report = struct
              end
          | Decision decision ->
            Format.pp_open_vbox ppf (depth + 2);
-           Format.fprintf ppf "@[<h>%a Application of %a%s %a@]@;@;@[%a@]"
+           Format.fprintf ppf "@[<h>%a Application of [[%s][%a]]%s %a@]@;@;@[%a@]"
              print_stars (depth + 1)
+             (Inlining_history.uid_of_path name)
              Inlining_history.print name
              (Debuginfo.to_string dbg)
              print_anchor uid

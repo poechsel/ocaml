@@ -498,7 +498,7 @@ let rec lam ppf (flam : t) =
   match flam with
   | Var (id) ->
       Variable.print ppf id
-  | Apply({func; args; kind; inline; inlining_depth; dbg; inlining_history}) ->
+  | Apply({func; args; kind; inline; inlining_depth; dbg;}) ->
     let direct ppf () =
       match kind with
       | Indirect -> ()
@@ -511,11 +511,10 @@ let rec lam ppf (flam : t) =
       | Unroll i -> fprintf ppf "<unroll %i>" i
       | Default_inline -> ()
     in
-    fprintf ppf "@[<2>(apply%a%a<%s>@,%a@ %a%a)  hist=[%a]@]" direct () inline ()
+    fprintf ppf "@[<2>(apply%a%a<%s>@,%a@ %a%a)@]" direct () inline ()
       (Debuginfo.to_string dbg)
       print_inlining_depth inlining_depth
       Variable.print func Variable.print_list args
-      Inlining_history.print inlining_history
   | Assign { being_assigned; new_value; } ->
     fprintf ppf "@[<2>(assign@ %a@ %a)@]"
       Mutable_variable.print being_assigned
@@ -702,9 +701,8 @@ and print_function_declaration ppf var (f : function_declaration) =
     | Never_specialise -> " *never_specialise*"
     | Default_specialise -> ""
   in
-  fprintf ppf "@[<2>(%a%s%s%s%s%s[%a]@ =@ fun@[<2>%a@] ->@ @[<2>%a@])@]@ "
+  fprintf ppf "@[<2>(%a%s%s%s%s%s@ =@ fun@[<2>%a@] ->@ @[<2>%a@])@]@ "
     Variable.print var recursive stub is_a_functor inline specialise
-    Inlining_history.print f.inlining_history
     params f.params lam f.body
 
 and print_set_of_closures ppf (set_of_closures : set_of_closures) =
