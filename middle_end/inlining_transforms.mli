@@ -106,4 +106,5 @@ val inline_by_copying_function_declaration
   -> unboxing_arguments:Flambda.UnboxingArgs.t
   -> dbg:Debuginfo.t
   -> simplify:Inlining_decision_intf.simplify
+  -> inlining_history:Inlining_history.t
   -> (Flambda.t * Inline_and_simplify_aux.Result.t) option

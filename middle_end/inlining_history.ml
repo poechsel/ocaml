@@ -41,7 +41,8 @@ and node =
   | Closure of name * Debuginfo.t
   | Call of path * Debuginfo.t * path
   | Inlined
-  | Specialised of string
+  | Specialised of name
+  | SpecialisedCall
 
 (* shorten representation *)
 and path = atom list
@@ -50,7 +51,8 @@ and atom =
   | AClosure of name * Debuginfo.t
   | ACall of path * Debuginfo.t
   | AInlined
-  | ASpecialised of string
+  | ASpecialised of name
+  | ASpecialisedCall
 
 let create () = []
 let empty = []
@@ -63,6 +65,7 @@ let history_to_path (history : t) : path =
     | Call(p, d, _) -> ACall(p, d)
     | Inlined -> AInlined
     | Specialised s -> ASpecialised s
+    | SpecialisedCall -> ASpecialisedCall
   )
 |> List.rev
 
@@ -86,6 +89,8 @@ let rec compare_atom a b =
       c
   | ASpecialised(a), ASpecialised(a') ->
     Pervasives.compare a a'
+  | ASpecialisedCall, ASpecialisedCall ->
+    0
   | _ -> -1
 
 and compare l l' =
@@ -139,7 +144,7 @@ and print_atom ppf x =
   | AInlined ->
     Format.fprintf ppf " inlined "
   | ACall (c, _) ->
-    Format.fprintf ppf "%a" print c
+    Format.fprintf ppf "(%a) " print c
   | AClosure (c, _) ->
     Format.fprintf ppf "%a" print_name c
   | AModule (c, _) ->
@@ -149,14 +154,16 @@ and print_atom ppf x =
       | _ -> "(" ^ String.concat ", " params ^ ")"
       *)in
     Format.fprintf ppf "%s%s." c params
-  | _ ->
-    Format.fprintf ppf " specialise "
+  | ASpecialised name ->
+    Format.fprintf ppf " specialise of %a " print_name name
+  | ASpecialisedCall ->
+    Format.fprintf ppf " specialised call "
 and print ppf l =
   List.iter (print_atom ppf) l
 
 
 let add a b =
-  (* order is important. If b= [1; 2] and a = [3;4;5],
+  (* order is important. If a= [1; 2] and b = [3;4;5],
      we want the result to be [1;2;3;4;5] *)
   a @ b
 
@@ -164,7 +171,7 @@ let note_entering_closure t ~name ~dbg =
   if not !Clflags.inlining_report then t
   else
     match t with
-    | [] | (Closure _ | Inlined | Specialised _ | Module _)  :: _->
+    | [] | (Closure _ | Inlined | Specialised _ | SpecialisedCall | Module _)  :: _->
       (Closure (name, dbg)) :: t
     | (Call _) :: _ ->
       Misc.fatal_errorf "note_entering_closure: unexpected Call node"
@@ -189,21 +196,13 @@ let note_entering_call t ~dbg_name ~dbg
   in
   (Call (dbg_name, dbg, absolute_inlining_history)) :: t
 
-let note_entering_inlined t =
-  if not !Clflags.inlining_report then t
-  else
-    match t with
-    | [] | (Closure _ | Inlined | Specialised _ | Module _) :: _->
-      Misc.fatal_errorf "anote_entering_inlined: missing Call node"
-    | (Call _) :: _ -> Inlined :: t
-
-let note_entering_specialised t ~name =
-  if not !Clflags.inlining_report then t
-  else
-    match t with
-    | [] | (Closure _ | Inlined | Specialised _ | Module _) :: _ ->
-      Misc.fatal_errorf "bnote_entering_specialised: missing Call node"
-    | (Call _) :: _ -> Specialised name :: t
-
 let add_fn_def ~name ~loc ~path =
   Closure(name, Debuginfo.from_location loc) :: path
+
+let extract_def_name history =
+  match history with
+  | Closure (x, _) :: _
+  | Specialised x :: _ ->
+    x
+  | _ ->
+    assert(false)

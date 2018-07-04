@@ -16,9 +16,7 @@
 
 [@@@ocaml.warning "+a-4-9-30-40-41-42"]
 
-let log
-  : (Inlining_history.t * Inlining_stats_types.Decision.t) list ref
-  = ref []
+let log = Hashtbl.create 5
 
 let record_decision decision ~closure_stack =
   if !Clflags.inlining_report then begin
@@ -26,11 +24,12 @@ let record_decision decision ~closure_stack =
     | []
     | Inlining_history.Module _ :: _
     | Inlining_history.Inlined :: _
-    | Inlining_history.Specialised _ :: _ ->
+    | Inlining_history.SpecialisedCall :: _ ->
       Misc.fatal_errorf "record_decision: missing Call node"
+    | Inlining_history.Specialised _ :: _
     | Inlining_history.Closure _ :: _
     | Inlining_history.Call _ :: _ ->
-      log := (closure_stack, decision) :: !log
+      Hashtbl.replace log closure_stack decision
   end
 
 module Inlining_report = struct
@@ -98,7 +97,7 @@ module Inlining_report = struct
     | Decision _, Inlined _ -> { call with decision = Decision decision }
     | Decision Unchanged _, Unchanged _ -> call
 
-  let add_decision t (stack, decision) : (node * string) Place_map.t =
+  let add_decision stack decision t : (node * string) Place_map.t =
     let debug_empty = Inlining_history.empty_path in
     let rec loop seen t (stack : Inlining_history.t) =
       let uid seen =
@@ -151,7 +150,7 @@ module Inlining_report = struct
                 let seen = y :: x :: seen in
                 let inlined = loop seen inlined rest in
                 { v with inlined = Some inlined }, seen
-            | (Specialised _ as y) :: rest ->
+            | ((Specialised _ | SpecialisedCall) as y) :: rest ->
                 let specialised =
                   match v.specialised with
                   | None -> Place_map.empty
@@ -168,11 +167,12 @@ module Inlining_report = struct
       | [] -> t
       | Inlined :: _ -> assert false
       | Specialised _ :: _ -> assert false
+      | SpecialisedCall :: _ -> assert false
     in
     loop [] t (List.rev stack)
 
   let build log =
-      List.fold_left add_decision Place_map.empty log
+    Hashtbl.fold add_decision log Place_map.empty
 
   let print_stars ppf n =
     let s = String.make n '*' in
@@ -255,7 +255,7 @@ module Inlining_report = struct
 end
 
 let really_save_then_forget_decisions ~output_prefix =
-  let report = Inlining_report.build !log in
+  let report = Inlining_report.build log in
   let out_channel = open_out (output_prefix ^ ".inlining.org") in
   let ppf = Format.formatter_of_out_channel out_channel in
   Inlining_report.print ppf report;
