@@ -32,32 +32,41 @@ type name =
   | Method of string * string
 
 type t = node list
-
-
 and node =
   | Module of string * Debuginfo.t * string list
   | Closure of name * Debuginfo.t
-  | Call of string * t * Debuginfo.t * t option
+  | Call of path * Debuginfo.t * path
   | Inlined
   | Specialised of string
+
+and path
+and atom
 
 val create : unit -> t
 
 val empty : t
 
-val compare_node : node -> node -> int
+val compare : path -> path -> int
 
-val compare : t -> t -> int
+val print_atom :
+  Format.formatter
+  -> atom
+  -> unit
 
-val print_node : Format.formatter -> node -> unit
+val print :
+  Format.formatter
+  -> path
+  -> unit
 
-val print : Format.formatter -> t -> unit
+val uid_of_path :
+  path
+  -> string
 
 val add : t -> t -> t
 
-val strip_history : t -> t
-
 val string_of_name : name -> string
+
+val empty_path : path
 
 val note_entering_closure
   : t
@@ -67,10 +76,9 @@ val note_entering_closure
 
 val note_entering_call
   : t
-  -> name:string
-  -> dbg_name:t option
+  -> dbg_name:path option
   -> dbg:Debuginfo.t
-  -> absolute_inlining_history:t option
+  -> absolute_inlining_history:t
   -> t
 
 val note_entering_inlined : t -> t
@@ -81,3 +89,6 @@ val add_fn_def
   -> loc:Location.t
   -> path:t
   -> t
+
+val history_to_path:
+  t -> path

@@ -224,8 +224,7 @@ module Env : sig
        inlining decision point. *)
   val note_entering_call
      : t
-    -> name:string
-    -> dbg_name:Inlining_history.t option
+    -> dbg_name:Inlining_history.path option
     -> dbg:Debuginfo.t
     -> t
 

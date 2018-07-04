@@ -39,38 +39,52 @@ type t = node list
 and node =
   | Module of string * Debuginfo.t * string list
   | Closure of name * Debuginfo.t
-  | Call of string * t * Debuginfo.t * t option
+  | Call of path * Debuginfo.t * path
   | Inlined
   | Specialised of string
+
+(* shorten representation *)
+and path = atom list
+and atom =
+  | AModule of string * Debuginfo.t
+  | AClosure of name * Debuginfo.t
+  | ACall of path * Debuginfo.t
+  | AInlined
+  | ASpecialised of string
 
 let create () = []
 let empty = []
 
+let history_to_path (history : t) : path =
+  history
+  |> List.map (function
+    | Module(s, d, _) -> AModule(s, d)
+    | Closure(n, d) -> AClosure(n, d)
+    | Call(p, d, _) -> ACall(p, d)
+    | Inlined -> AInlined
+    | Specialised s -> ASpecialised s
+  )
+|> List.rev
+
 (* beware, the following are more to check equality than true
    order *)
-let rec compare_node a b =
+let rec compare_atom a b =
   match a, b with
-  | Inlined, Inlined ->
+  | AInlined, AInlined ->
     0
-  | Module (a, b, l), Module(a', b', l') ->
+  | AModule (a, b), AModule(a', b') ->
     if a = a' then 0
     else let c = Debuginfo.compare b b' in
-      if c <> 0 then c
-      else Pervasives.compare l l'
-  | Closure(a, b), Closure(a', b') ->
+      c
+  | AClosure(a, b), AClosure(a', b') ->
     if a = a' then 0 else
       Debuginfo.compare b b'
-  | Call(a, _, b, p), Call(a', _, b', p') ->
-    if a = a' then 0 else
+  | ACall(a, b), ACall(a', b') ->
+    let c = compare a a' in
+    if c <> 0 then c else
       let c = Debuginfo.compare b b' in
-      if c <> 0 then c else begin
-        match p, p' with
-        | None, None -> 0
-        | Some l, Some l' ->
-          compare l l'
-        | _ -> -1
-      end
-  | Specialised(a), Specialised(a') ->
+      c
+  | ASpecialised(a), ASpecialised(a') ->
     Pervasives.compare a a'
   | _ -> -1
 
@@ -79,13 +93,10 @@ and compare l l' =
   if c <> 0 then c else
     List.fold_left2 (fun p e e' ->
       if p <> 0 then p
-      else compare_node e e')
+      else compare_atom e e')
       0 l l'
 
-let strip_history hist =
-  List.map (function | Call(a, c, b, _) -> Call (a, c, b, None)
-                     | x -> x) hist
-
+let empty_path = []
 
 let print_name ppf name =
   match name with
@@ -118,26 +129,31 @@ let print_name ppf name =
 let string_of_name name =
   Format.asprintf "%a" print_name name
 
+let rec uid_of_path h =
+  Marshal.to_bytes h []
+  |> Digest.bytes
+  |> Digest.to_hex
 
-let rec print_node ppf x =
+and print_atom ppf x =
   match x with
-  | Inlined ->
-    Format.fprintf ppf "inlined "
-  | Call (_, c, _, _) ->
-    Format.fprintf ppf "call(%a) " print c
-  | Closure (c, _) ->
-    Format.fprintf ppf "closure(%a) " print_name c
-  | Module (c, _, params) ->
-    let params =
-      match params with
+  | AInlined ->
+    Format.fprintf ppf " inlined "
+  | ACall (c, _) ->
+    Format.fprintf ppf "%a" print c
+  | AClosure (c, _) ->
+    Format.fprintf ppf "%a" print_name c
+  | AModule (c, _) ->
+    let params = ""
+      (*match params with
       | [] -> ""
       | _ -> "(" ^ String.concat ", " params ^ ")"
-    in
-    Format.fprintf ppf "module(%s%s) " c params
+      *)in
+    Format.fprintf ppf "%s%s." c params
   | _ ->
-    Format.fprintf ppf "specialise "
+    Format.fprintf ppf " specialise "
 and print ppf l =
-  List.iter (print_node ppf) l
+  List.iter (print_atom ppf) l
+
 
 let add a b =
   (* order is important. If b= [1; 2] and a = [3;4;5],
@@ -155,7 +171,7 @@ let note_entering_closure t ~name ~dbg =
 
 (* CR-someday lwhite: since calls do not have a unique id it is possible
    some calls will end up sharing nodes. *)
-let note_entering_call t ~name ~dbg_name ~dbg
+let note_entering_call t ~dbg_name ~dbg
       ~absolute_inlining_history =
   let dbg_name =
     match dbg_name with
@@ -164,7 +180,14 @@ let note_entering_call t ~name ~dbg_name ~dbg
       empty
     | Some x -> x
   in
-  (Call (name, dbg_name, dbg, absolute_inlining_history)) :: t
+  let absolute_inlining_history =
+    (* adding a placeholder call node to represent this call inside the
+       absolute history. Its absolute path does not matters as it will
+       be stripped during the conversion *)
+    Call(dbg_name, dbg, empty) :: absolute_inlining_history
+    |> history_to_path
+  in
+  (Call (dbg_name, dbg, absolute_inlining_history)) :: t
 
 let note_entering_inlined t =
   if not !Clflags.inlining_report then t
