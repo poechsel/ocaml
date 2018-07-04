@@ -223,7 +223,6 @@ let keep_inlined_version decision ~env ~always_inline ~r_inlined ~body
   let r =
     R.map_benefit r_inlined (Inlining_cost.Benefit.(+) previous_benefit)
   in
-  let env = E.note_entering_inlined env in
   let env = E.inside_inlined_function env in
   let env =
     if E.speculation_depth env = 0
@@ -237,10 +236,7 @@ let keep_inlined_version decision ~env ~always_inline ~r_inlined ~body
 
 
 let evaluate_speculative_inline env ~callee ~r_inlined ~body ~original ~simplify=
-  let env =
-    E.speculation_depth_up env
-    |> E.note_entering_inlined
-  in
+  let env = E.speculation_depth_up env in
   let body, r_inlined = simplify env r_inlined body in
   let wsb_with_subfunctions =
     W.create ~original body
@@ -384,10 +380,6 @@ let inline env r ~call ~callee ~annotations ~original
         end
       end
     end
-
-let stat_note_specialise_closures env _callee =
-  (* CR poechsel: for now the string is just a placeholder. Change that *)
-  E.note_entering_specialised env ~name:"spec"
 
 let compute_params_informations callee args_approxs =
   let free_vars = callee.value_set_of_closures.free_vars in
@@ -541,8 +533,7 @@ let specialise env r ~(call : call_informations)
             ~args:(E.get_inlining_arguments env)
             ~benefit:(R.benefit r_inlined)
         in
-        let env = stat_note_specialise_closures env callee
-        in let keep_specialised decision =
+        let keep_specialised decision =
              keep_specialised decision ~env ~r_inlined ~expr ~simplify ~always_specialise
                ~previous_benefit:(R.benefit r)
         in
@@ -636,7 +627,6 @@ let classic_mode_inlining env r ~simplify ~callee ~call ~annotations
             ~inlining_history:call.inlining_history
             ~inlining_history_next_part:(Some inlining_history_next_part)
         in
-        let env = E.note_entering_inlined env in
         let env = E.inside_inlined_function env in
         Changed ((simplify env r body), S.Inlined.Classic_mode)
   in
@@ -761,13 +751,6 @@ let for_call_site ~env ~r ~(call : call_informations)
             | Some x -> Some (Inlining_history.history_to_path x))
           ~absolute_inlining_history:(E.inlining_history env)
           call.inlining_history
-      in
-      let env =
-        E.note_entering_call env
-          ~dbg:call.dbg
-          ~dbg_name:(match function_body.dbg_name with
-            | None -> None
-            | Some x -> Some(Inlining_history.history_to_path x))
       in
       let simpl =
         if function_decls.is_classic_mode > 0.0 then begin
