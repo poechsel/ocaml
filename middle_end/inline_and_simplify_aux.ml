@@ -47,6 +47,7 @@ module Env = struct
     inlining_history : Inlining_history.t;
     inlining_history_next_parts : Inlining_history.t;
   }
+  let inlining_history_next_parts t = t.inlining_history_next_parts
 
   let create ~never_inline ~backend ~round =
     { backend;
@@ -354,6 +355,7 @@ module Env = struct
       ~closure_stack:t.inlining_history
 
   let record_definition t =
+    if t.inlining_history <> Inlining_history.empty then
     Inlining_stats.record_decision Inlining_stats_types.Decision.Definition
       ~closure_stack:t.inlining_history
 

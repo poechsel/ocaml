@@ -37,7 +37,8 @@ and node =
   | Closure of name * Debuginfo.t
   | Call of path * Debuginfo.t * path
   | Inlined
-  | Specialised of string
+  | Specialised of name
+  | SpecialisedCall
 
 and path
 and atom
@@ -81,9 +82,6 @@ val note_entering_call
   -> absolute_inlining_history:t
   -> t
 
-val note_entering_inlined : t -> t
-val note_entering_specialised : t -> name:string -> t
-
 val add_fn_def
   : name:name
   -> loc:Location.t
@@ -92,3 +90,5 @@ val add_fn_def
 
 val history_to_path:
   t -> path
+
+val extract_def_name : t -> name

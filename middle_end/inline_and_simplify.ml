@@ -749,9 +749,7 @@ and simplify_apply env r ~(apply : Flambda.apply) : Flambda.t * R.t =
   *)
   let parts, env = E.pop_inlining_history_next_parts env in
   (* the parts we had defines previous history. We must add them at the end *)
-  let inlining_history =
-    Inlining_history.add inlining_history parts
-  in
+  let inlining_history = Inlining_history.add inlining_history parts in
   let env =
     let max_env_args = E.get_max_inlining_arguments env in
     let env_args = E.get_inlining_arguments env in
