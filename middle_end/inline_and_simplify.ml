@@ -1928,9 +1928,8 @@ let run ~never_inline ~backend ~prefixname ~round program =
       Flambda.print_program result)
   end;
   assert (Static_exception.Set.is_empty (R.used_static_exceptions r));
-  if !Clflags.inlining_report then begin
-    let output_prefix = Printf.sprintf "%s.%d" prefixname round in
-    Inlining_stats.save_then_forget_decisions ~output_prefix
+  if !Clflags.inlining_report && round = Clflags.rounds () - 1 then begin
+    Inlining_stats.save_then_forget_decisions ~output_prefix:prefixname
   end;
   Clflags.inlining_report := report;
   result
