@@ -1513,7 +1513,8 @@ let inline_lazy_force_cond arg loc =
                        ap_func=force_fun;
                        ap_args=[varg];
                        ap_inlined=Default_inline;
-                       ap_specialised=Default_specialise},
+                       ap_specialised=Default_specialise;
+                       ap_dbg_informations=Inlining_history.empty;},
                 (* ... arg *)
                   varg))))
 
@@ -1536,7 +1537,8 @@ let inline_lazy_force_switch arg loc =
                            ap_func=force_fun;
                            ap_args=[varg];
                            ap_inlined=Default_inline;
-                           ap_specialised=Default_specialise}) ];
+                           ap_specialised=Default_specialise;
+                           ap_dbg_informations=Inlining_history.empty;}) ];
                sw_failaction = Some varg }, loc ))))
 
 let inline_lazy_force arg loc =

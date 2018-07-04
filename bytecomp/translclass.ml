@@ -59,13 +59,15 @@ let lapply ap =
   | _ ->
       Lapply ap
 
-let mkappl (func, args) =
+let mkappl modpath (func, args) =
   Lapply {ap_should_be_tailcall=false;
           ap_loc=Location.none;
           ap_func=func;
           ap_args=args;
           ap_inlined=Default_inline;
-          ap_specialised=Default_specialise};;
+          ap_specialised=Default_specialise;
+          ap_dbg_informations=modpath;
+         }
 
 let lsequence l1 l2 =
   if l2 = lambda_unit then l1 else Lsequence(l1, l2)
@@ -83,47 +85,47 @@ let set_inst_var modpath obj id expr =
   Lprim(Psetfield_computed (Typeopt.maybe_pointer expr, Assignment),
     [Lvar obj; Lvar id; transl_exp modpath IH.Anonymous expr], Location.none)
 
-let transl_val tbl create name =
-  mkappl (oo_prim (if create then "new_variable" else "get_variable"),
+let transl_val modpath tbl create name =
+  mkappl modpath (oo_prim (if create then "new_variable" else "get_variable"),
           [Lvar tbl; transl_label name])
 
-let transl_vals tbl create strict vals rem =
+let transl_vals modpath tbl create strict vals rem =
   List.fold_right
     (fun (name, id) rem ->
-      Llet(strict, Pgenval, id, transl_val tbl create name, rem))
+      Llet(strict, Pgenval, id, transl_val modpath tbl create name, rem))
     vals rem
 
-let meths_super tbl meths inh_meths =
+let meths_super modpath tbl meths inh_meths =
   List.fold_right
     (fun (nm, id) rem ->
        try
          (nm, id,
-          mkappl(oo_prim "get_method", [Lvar tbl; Lvar (Meths.find nm meths)]))
+          mkappl modpath (oo_prim "get_method", [Lvar tbl; Lvar (Meths.find nm meths)]))
          :: rem
        with Not_found -> rem)
     inh_meths []
 
-let bind_super tbl (vals, meths) cl_init =
-  transl_vals tbl false StrictOpt vals
+let bind_super modpath tbl (vals, meths) cl_init =
+  transl_vals modpath tbl false StrictOpt vals
     (List.fold_right (fun (_nm, id, def) rem ->
          Llet(StrictOpt, Pgenval, id, def, rem))
        meths cl_init)
 
-let create_object cl obj init =
+let create_object modpath cl obj init =
   let obj' = Ident.create "self" in
-  let (inh_init, obj_init, has_init) = init obj' in
+  let (inh_init, obj_init, has_init) = init obj' modpath in
   if obj_init = lambda_unit then
     (inh_init,
-     mkappl (oo_prim (if has_init then "create_object_and_run_initializers"
+     mkappl modpath (oo_prim (if has_init then "create_object_and_run_initializers"
                       else"create_object_opt"),
              [obj; Lvar cl]))
   else begin
    (inh_init,
     Llet(Strict, Pgenval, obj',
-            mkappl (oo_prim "create_object_opt", [obj; Lvar cl]),
+            mkappl modpath (oo_prim "create_object_opt", [obj; Lvar cl]),
          Lsequence(obj_init,
                    if not has_init then Lvar obj' else
-                   mkappl (oo_prim "run_initializers_opt",
+                   mkappl modpath (oo_prim "run_initializers_opt",
                            [obj; Lvar obj'; Lvar cl]))))
   end
 
@@ -136,7 +138,7 @@ let name_pattern default p =
 let normalize_cl_path cl path =
   Env.normalize_path (Some cl.cl_loc) cl.cl_env path
 
-let rec build_object_init modpath cl_table obj params inh_init obj_init cl =
+let rec build_object_init modpath cl_id cl_table obj params inh_init obj_init cl =
   match cl.cl_desc with
     Tcl_ident ( path, _, _) ->
       let obj_init = Ident.create "obj_init" in
@@ -150,16 +152,16 @@ let rec build_object_init modpath cl_table obj params inh_init obj_init cl =
       in
       ((envs, (obj_init, normalize_cl_path cl path)
         ::inh_init),
-       mkappl(Lvar obj_init, env @ [obj]))
+       mkappl modpath (Lvar obj_init, env @ [obj]))
   | Tcl_structure str ->
-      create_object cl_table obj (fun obj ->
+      create_object modpath cl_table obj (fun obj modpath ->
         let (inh_init, obj_init, has_init) =
           List.fold_right
             (fun field (inh_init, obj_init, has_init) ->
                match field.cf_desc with
                  Tcf_inherit (_, cl, _, _, _) ->
                    let (inh_init, obj_init') =
-                     build_object_init modpath cl_table (Lvar obj) [] inh_init
+                     build_object_init modpath cl_id cl_table (Lvar obj) [] inh_init
                        (fun _ -> lambda_unit) cl
                    in
                    (inh_init, lsequence obj_init' obj_init, true)
@@ -183,12 +185,12 @@ let rec build_object_init modpath cl_table obj params inh_init obj_init cl =
   | Tcl_fun (_, pat, vals, cl, partial) ->
       let vals = List.map (fun (id, _, e) -> id,e) vals in
       let (inh_init, obj_init) =
-        build_object_init modpath cl_table obj (vals @ params) inh_init obj_init cl
+        build_object_init IH.empty cl_id cl_table obj (vals @ params) inh_init obj_init cl
       in
       (inh_init,
        let build params rem =
          let param = name_pattern "param" pat in
-         let name = IH.Class(Ident.name cl_table,
+         let name = IH.Class(Ident.name cl_id,
                                      IH.ObjInit)
          in
          Lfunction {kind = Curried; params = param::params;
@@ -205,47 +207,47 @@ let rec build_object_init modpath cl_table obj params inh_init obj_init cl =
        end)
   | Tcl_apply (cl, oexprs) ->
       let (inh_init, obj_init) =
-        build_object_init modpath cl_table obj params inh_init obj_init cl
+        build_object_init modpath cl_id cl_table obj params inh_init obj_init cl
       in
       (inh_init, transl_apply modpath obj_init oexprs Location.none)
   | Tcl_let (rec_flag, defs, vals, cl) ->
       let vals = List.map (fun (id, _, e) -> id,e) vals in
       let (inh_init, obj_init) =
-        build_object_init modpath cl_table obj (vals @ params) inh_init obj_init cl
+        build_object_init modpath cl_id cl_table obj (vals @ params) inh_init obj_init cl
       in
       (inh_init, Translcore.transl_let modpath rec_flag defs obj_init)
   | Tcl_open (_, _, _, _, cl)
   | Tcl_constraint (cl, _, _, _, _) ->
-      build_object_init modpath cl_table obj params inh_init obj_init cl
+      build_object_init modpath cl_id cl_table obj params inh_init obj_init cl
 
-let rec build_object_init_0 modpath cl_table params cl copy_env subst_env top ids =
+let rec build_object_init_0 modpath cl_id cl_table params cl copy_env subst_env top ids =
   match cl.cl_desc with
     Tcl_let (_rec_flag, _defs, vals, cl) ->
       let vals = List.map (fun (id, _, e) -> id,e) vals in
-      build_object_init_0 modpath cl_table (vals@params) cl copy_env subst_env top ids
+      build_object_init_0 modpath cl_id cl_table (vals@params) cl copy_env subst_env top ids
   | _ ->
       let self = Ident.create "self" in
       let env = Ident.create "env" in
       let obj = if ids = [] then lambda_unit else Lvar self in
       let envs = if top then None else Some env in
       let ((_,inh_init), obj_init) =
-        build_object_init IH.empty cl_table obj params (envs,[]) copy_env cl in
-      let name = IH.Class(Ident.name cl_table, IH.ObjInit) in
+        build_object_init IH.empty cl_id cl_table obj params (envs,[]) copy_env cl in
+      let name = IH.Class(Ident.name cl_id, IH.ObjInit) in
       let obj_init =
         if ids = [] then obj_init else lfunction modpath name [self] obj_init in
       (inh_init, lfunction modpath name [env] (subst_env env inh_init obj_init))
 
 
-let bind_method tbl lab id cl_init =
-  Llet(Strict, Pgenval, id, mkappl (oo_prim "get_method_label",
+let bind_method modpath tbl lab id cl_init =
+  Llet(Strict, Pgenval, id, mkappl modpath (oo_prim "get_method_label",
                            [Lvar tbl; transl_label lab]),
        cl_init)
 
-let bind_methods tbl meths vals cl_init =
+let bind_methods modpath tbl meths vals cl_init =
   let methl = Meths.fold (fun lab id tl -> (lab,id) :: tl) meths [] in
   let len = List.length methl and nvals = List.length vals in
-  if len < 2 && nvals = 0 then Meths.fold (bind_method tbl) meths cl_init else
-  if len = 0 && nvals < 2 then transl_vals tbl true Strict vals cl_init else
+  if len < 2 && nvals = 0 then Meths.fold (bind_method modpath tbl) meths cl_init else
+  if len = 0 && nvals < 2 then transl_vals modpath tbl true Strict vals cl_init else
   let ids = Ident.create "ids" in
   let i = ref (len + nvals) in
   let getter, names =
@@ -253,20 +255,20 @@ let bind_methods tbl meths vals cl_init =
     "new_methods_variables", [transl_meth_list (List.map fst vals)]
   in
   Llet(Strict, Pgenval, ids,
-       mkappl (oo_prim getter,
+       mkappl modpath (oo_prim getter,
                [Lvar tbl; transl_meth_list (List.map fst methl)] @ names),
        List.fold_right
          (fun (_lab,id) lam -> decr i; Llet(StrictOpt, Pgenval, id,
                                            lfield ids !i, lam))
          (methl @ vals) cl_init)
 
-let output_methods tbl methods lam =
+let output_methods modpath tbl methods lam =
   match methods with
     [] -> lam
   | [lab; code] ->
-      lsequence (mkappl(oo_prim "set_method", [Lvar tbl; lab; code])) lam
+      lsequence (mkappl modpath (oo_prim "set_method", [Lvar tbl; lab; code])) lam
   | _ ->
-      lsequence (mkappl(oo_prim "set_methods",
+      lsequence (mkappl modpath (oo_prim "set_methods",
                         [Lvar tbl; Lprim(Pmakeblock(0,Immutable,None),
                                          methods, Location.none)]))
         lam
@@ -284,7 +286,7 @@ let rec index a = function
 
 let bind_id_as_val (id, _, _) = ("", id)
 
-let rec build_class_init modpath cla cstr super inh_init cl_init msubst top cl =
+let rec build_class_init modpath cl_id cla cstr super inh_init cl_init msubst top cl =
   match cl.cl_desc with
     Tcl_ident ( path, _, _) ->
       begin match inh_init with
@@ -292,24 +294,24 @@ let rec build_class_init modpath cla cstr super inh_init cl_init msubst top cl =
           let lpath = transl_class_path ~loc:cl.cl_loc cl.cl_env path in
           (inh_init,
            Llet (Strict, Pgenval, obj_init,
-                 mkappl(Lprim(Pfield 1, [lpath], Location.none), Lvar cla ::
+                 mkappl modpath (Lprim(Pfield 1, [lpath], Location.none), Lvar cla ::
                         if top then [Lprim(Pfield 3, [lpath], Location.none)]
                         else []),
-                 bind_super cla super cl_init))
+                 bind_super modpath cla super cl_init))
       | _ ->
           assert false
       end
   | Tcl_structure str ->
-      let cl_init = bind_super cla super cl_init in
+      let cl_init = bind_super modpath cla super cl_init in
       let (inh_init, cl_init, methods, values) =
         List.fold_right
           (fun field (inh_init, cl_init, methods, values) ->
             match field.cf_desc with
               Tcf_inherit (_, cl, _, vals, meths) ->
-                let cl_init = output_methods cla methods cl_init in
+                let cl_init = output_methods modpath cla methods cl_init in
                 let inh_init, cl_init =
-                  build_class_init modpath cla false
-                    (vals, meths_super cla str.cstr_meths meths)
+                  build_class_init modpath cl_id cla false
+                    (vals, meths_super modpath cla str.cstr_meths meths)
                     inh_init cl_init msubst top cl in
                 (inh_init, cl_init, [], values)
             | Tcf_val (name, _, id, _, over) ->
@@ -322,7 +324,7 @@ let rec build_class_init modpath cla cstr super inh_init cl_init msubst top cl =
               ->
                 (inh_init, cl_init, methods, values)
             | Tcf_method (name, _, Tcfk_concrete (_, exp)) ->
-              let met_name = IH.Method(Ident.name cla, name.txt) in
+              let met_name = IH.Method(Ident.name cl_id, name.txt) in
               let met_code = msubst true (transl_exp modpath met_name exp) in
               let met_code =
                 if !Clflags.native_code && List.length met_code = 1 then
@@ -337,7 +339,7 @@ let rec build_class_init modpath cla cstr super inh_init cl_init msubst top cl =
             | Tcf_initializer exp ->
                 let exp = transl_exp modpath IH.Anonymous exp in
                 (inh_init,
-                 Lsequence(mkappl (oo_prim "add_initializer",
+                 Lsequence(mkappl modpath (oo_prim "add_initializer",
                                    Lvar cla :: msubst false exp),
                            cl_init),
                  methods, values)
@@ -346,22 +348,22 @@ let rec build_class_init modpath cla cstr super inh_init cl_init msubst top cl =
           str.cstr_fields
           (inh_init, cl_init, [], [])
       in
-      let cl_init = output_methods cla methods cl_init in
-      (inh_init, bind_methods cla str.cstr_meths values cl_init)
+      let cl_init = output_methods modpath cla methods cl_init in
+      (inh_init, bind_methods modpath cla str.cstr_meths values cl_init)
   | Tcl_fun (_, _pat, vals, cl, _) ->
       let (inh_init, cl_init) =
-        build_class_init modpath cla cstr super inh_init cl_init msubst top cl
+        build_class_init modpath cl_id cla cstr super inh_init cl_init msubst top cl
       in
       let vals = List.map bind_id_as_val vals in
-      (inh_init, transl_vals cla true StrictOpt vals cl_init)
+      (inh_init, transl_vals modpath cla true StrictOpt vals cl_init)
   | Tcl_apply (cl, _exprs) ->
-      build_class_init modpath cla cstr super inh_init cl_init msubst top cl
+      build_class_init modpath cl_id cla cstr super inh_init cl_init msubst top cl
   | Tcl_let (_rec_flag, _defs, vals, cl) ->
       let (inh_init, cl_init) =
-        build_class_init modpath cla cstr super inh_init cl_init msubst top cl
+        build_class_init modpath cl_id cla cstr super inh_init cl_init msubst top cl
       in
       let vals = List.map bind_id_as_val vals in
-      (inh_init, transl_vals cla true StrictOpt vals cl_init)
+      (inh_init, transl_vals modpath cla true StrictOpt vals cl_init)
   | Tcl_constraint (cl, _, vals, meths, concr_meths) ->
       let virt_meths =
         List.filter (fun lab -> not (Concr.mem lab concr_meths)) meths in
@@ -394,23 +396,23 @@ let rec build_class_init modpath cla cstr super inh_init cl_init msubst top cl =
               cl_init valids in
           (inh_init,
            Llet (Strict, Pgenval, inh,
-                 mkappl(oo_prim "inherits", narrow_args @
+                 mkappl modpath (oo_prim "inherits", narrow_args @
                         [lpath; Lconst(Const_pointer(if top then 1 else 0))]),
                  Llet(StrictOpt, Pgenval, obj_init, lfield inh 0, cl_init)))
       | _ ->
           let core cl_init =
-            build_class_init modpath cla true super inh_init cl_init msubst top cl
+            build_class_init modpath cl_id cla true super inh_init cl_init msubst top cl
           in
           if cstr then core cl_init else
           let (inh_init, cl_init) =
-            core (Lsequence (mkappl (oo_prim "widen", [Lvar cla]), cl_init))
+            core (Lsequence (mkappl modpath (oo_prim "widen", [Lvar cla]), cl_init))
           in
           (inh_init,
-           Lsequence(mkappl (oo_prim "narrow", narrow_args),
+           Lsequence(mkappl modpath (oo_prim "narrow", narrow_args),
                      cl_init))
       end
   | Tcl_open (_, _, _, _, cl) ->
-      build_class_init modpath cla cstr super inh_init cl_init msubst top cl
+      build_class_init modpath cl_id cla cstr super inh_init cl_init msubst top cl
 
 let rec build_class_lets modpath cl =
   match cl.cl_desc with
@@ -513,7 +515,10 @@ let transl_class_rebind modpath cl_id cl vf =
               ap_func=Lvar obj_init;
               ap_args=[Lvar self];
               ap_inlined=Default_inline;
-              ap_specialised=Default_specialise}
+              ap_specialised=Default_specialise;
+              ap_dbg_informations = IH.empty;
+              (* because we put it inside a function *)
+             }
     in
     let path, obj_init' = transl_class_rebind_0 IH.empty cl_id self obj_init0 cl vf in
     let obj_init0_fn = lfunction modpath IH.Anonymous [self] obj_init0 in
@@ -532,15 +537,15 @@ let transl_class_rebind modpath cl_id cl vf =
       Llet(
     Alias, Pgenval, cla, transl_normal_path path,
     Lprim(Pmakeblock(0, Immutable, None),
-          [mkappl(Lvar new_init, [lfield cla 0]);
-           lfunction IH.empty IH.Anonymous [table]
+          [mkappl modpath (Lvar new_init, [lfield cla 0]);
+           lfunction modpath IH.Anonymous [table]
              (Llet(Strict, Pgenval, env_init,
-                   mkappl(lfield cla 1, [Lvar table]),
+                   mkappl IH.empty (lfield cla 1, [Lvar table]),
                    lfunction IH.empty
                    (IH.Class(Ident.name cl_id, IH.EnvInit))
                      [envs]
-                     (mkappl(Lvar new_init,
-                             [mkappl(Lvar env_init, [Lvar envs])]))));
+                     (mkappl IH.empty (Lvar new_init,
+                             [mkappl IH.empty (Lvar env_init, [Lvar envs])]))));
            lfield cla 2;
            lfield cla 3],
           Location.none)))
@@ -780,10 +785,10 @@ let transl_class modpath ids cl_id pub_meths cl vflag =
   (* Now we start compiling the class *)
   let cla = Ident.create "class" in
   let (inh_init, obj_init) =
-    build_object_init_0 IH.empty cla [] cl copy_env subst_env top ids in
+    build_object_init_0 IH.empty cl_id cla [] cl copy_env subst_env top ids in
   let inh_init' = List.rev inh_init in
   let (inh_init', cl_init) =
-    build_class_init IH.empty cla true ([],[]) inh_init' obj_init msubst top cl
+    build_class_init IH.empty cl_id cla true ([],[]) inh_init' obj_init msubst top cl
   in
   assert (inh_init' = []);
   let table = Ident.create "table"
@@ -803,11 +808,11 @@ let transl_class modpath ids cl_id pub_meths cl vflag =
     tags pub_meths;
   let ltable table lam =
     Llet(Strict, Pgenval, table,
-         mkappl (oo_prim "create_table", [transl_meth_list pub_meths]), lam)
+         mkappl modpath (oo_prim "create_table", [transl_meth_list pub_meths]), lam)
   and ldirect obj_init =
     Llet(Strict, Pgenval, obj_init, cl_init,
-         Lsequence(mkappl (oo_prim "init_class", [Lvar cla]),
-                   mkappl (Lvar obj_init, [lambda_unit])))
+         Lsequence(mkappl modpath (oo_prim "init_class", [Lvar cla]),
+                   mkappl modpath (Lvar obj_init, [lambda_unit])))
   in
   (* Simplest case: an object defined at toplevel (ids=[]) *)
   if top && ids = [] then llets (ltable cla (ldirect obj_init)) else
@@ -826,16 +831,16 @@ let transl_class modpath ids cl_id pub_meths cl vflag =
     Llet(Strict, Pgenval, class_init, cl_init, lam (free_variables cl_init))
   and lbody fv =
     if List.for_all (fun id -> not (Ident.Set.mem id fv)) ids then
-      mkappl (oo_prim "make_class",[transl_meth_list pub_meths;
+      mkappl modpath (oo_prim "make_class",[transl_meth_list pub_meths;
                                     Lvar class_init])
     else
       ltable table (
       Llet(
-      Strict, Pgenval, env_init, mkappl (Lvar class_init, [Lvar table]),
+      Strict, Pgenval, env_init, mkappl modpath (Lvar class_init, [Lvar table]),
       Lsequence(
-      mkappl (oo_prim "init_class", [Lvar table]),
+      mkappl modpath (oo_prim "init_class", [Lvar table]),
       Lprim(Pmakeblock(0, Immutable, None),
-            [mkappl (Lvar env_init, [lambda_unit]);
+            [mkappl modpath (Lvar env_init, [lambda_unit]);
              Lvar class_init; Lvar env_init; lambda_unit],
             Location.none))))
   and lbody_virt lenvs =
@@ -882,9 +887,9 @@ let transl_class modpath ids cl_id pub_meths cl vflag =
          Lprim(Pmakeblock(0, Immutable, None),
                lenv :: linh_envs, Location.none)),
          lam)
-  and def_ids cla lam =
+  and def_ids modpath cla lam =
     Llet(StrictOpt, Pgenval, env2,
-         mkappl (oo_prim "new_variable", [Lvar cla; transl_label ""]),
+         mkappl modpath (oo_prim "new_variable", [Lvar cla; transl_label ""]),
          lam)
   in
   let inh_paths =
@@ -908,11 +913,11 @@ let transl_class modpath ids cl_id pub_meths cl vflag =
                    attr = default_function_attribute;
                    debugging_informations = debug;
                    loc = Location.none;
-                   body = def_ids cla cl_init}, lam)
+                   body = def_ids IH.empty cla cl_init}, lam)
   and lcache lam =
     if inh_keys = [] then Llet(Alias, Pgenval, cached, Lvar tables, lam) else
     Llet(Strict, Pgenval, cached,
-         mkappl (oo_prim "lookup_tables",
+         mkappl modpath (oo_prim "lookup_tables",
                 [Lvar tables; Lprim(Pmakeblock(0, Immutable, None),
                                     inh_keys, Location.none)]),
          lam)
@@ -922,8 +927,8 @@ let transl_class modpath ids cl_id pub_meths cl vflag =
   in
   let ldirect () =
     ltable cla
-      (Llet(Strict, Pgenval, env_init, def_ids cla cl_init,
-            Lsequence(mkappl (oo_prim "init_class", [Lvar cla]),
+      (Llet(Strict, Pgenval, env_init, def_ids modpath cla cl_init,
+            Lsequence(mkappl modpath (oo_prim "init_class", [Lvar cla]),
                       lset cached 0 (Lvar env_init))))
   and lclass_virt () =
     lset cached 0 (Lfunction{kind = Curried; attr = default_function_attribute;
@@ -931,13 +936,13 @@ let transl_class modpath ids cl_id pub_meths cl vflag =
                                IH.add_fn_def ~path:modpath ~name:IH.Anonymous
                                  ~loc:Location.none;
                              loc = Location.none;
-                             params = [cla]; body = def_ids cla cl_init})
+                             params = [cla]; body = def_ids IH.empty cla cl_init})
   in
   let lupdate_cache =
     if ids = [] then ldirect () else
       if not concrete then lclass_virt () else
         lclass (
-            mkappl (oo_prim "make_class_store",
+            mkappl modpath (oo_prim "make_class_store",
                     [transl_meth_list pub_meths;
                      Lvar class_init; Lvar cached])) in
   let lcheck_cache =
@@ -951,10 +956,10 @@ let transl_class modpath ids cl_id pub_meths cl vflag =
   lcache (
   Lsequence(lcheck_cache,
   make_envs (
-  if ids = [] then mkappl (lfield cached 0, [lenvs]) else
+  if ids = [] then mkappl modpath (lfield cached 0, [lenvs]) else
   Lprim(Pmakeblock(0, Immutable, None),
         (if concrete then
-          [mkappl (lfield cached 0, [lenvs]);
+          [mkappl modpath (lfield cached 0, [lenvs]);
            lfield cached 1;
            lfield cached 0;
            lenvs]

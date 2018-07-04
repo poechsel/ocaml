@@ -286,12 +286,14 @@ end
 
 module Decision = struct
   type t =
+    | Definition
     | Prevented of Prevented.t
     | Specialised of Specialised.t
     | Inlined of Not_specialised.t * Inlined.t
     | Unchanged of Not_specialised.t * Not_inlined.t
 
   let summary ppf = function
+    | Definition -> ()
     | Prevented p ->
       Prevented.summary ppf p
     | Specialised s ->
@@ -304,6 +306,7 @@ module Decision = struct
         Not_specialised.summary s Not_inlined.summary i
 
   let calculation ~depth ppf = function
+    | Definition -> ()
     | Prevented _ -> ()
     | Specialised s ->
       Specialised.calculation ~depth ppf s
@@ -319,6 +322,8 @@ module Decision = struct
         ~print
         decision =
     match decision with
+    | Definition ->
+      ()
     | Prevented _ ->
       ()
     | Specialised s ->

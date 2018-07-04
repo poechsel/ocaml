@@ -26,6 +26,8 @@ module Env : sig
   (** Environments follow the lexical scopes of the program. *)
   type t
 
+  val inlining_history_next_parts : t -> Inlining_history.t
+
   (** Create a new environment.  If [never_inline] is true then the returned
       environment will prevent [Inline_and_simplify] from inlining.  The
       [backend] parameter is used for passing information about the compiler
@@ -219,6 +221,10 @@ module Env : sig
   val record_decision
      : t
     -> Inlining_stats_types.Decision.t
+    -> unit
+
+  val record_definition
+     : t
     -> unit
 
   (** Print a human-readable version of the given environment. *)

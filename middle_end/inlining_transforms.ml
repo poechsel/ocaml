@@ -573,7 +573,7 @@ let rec rewrite_direct_call ~specialised_args ~funs ~direct_call_surrogates
    closures. *)
 let rewrite_function ~lhs_of_application ~closure_id_being_applied
       ~direct_call_surrogates ~specialised_args ~free_vars ~funs
-      ~state fun_var =
+      ~state ~inlining_history_call fun_var =
   let function_decl : A.function_declaration =
     Variable.Map.find fun_var funs
   in
@@ -625,7 +625,13 @@ let rewrite_function ~lhs_of_application ~closure_id_being_applied
   let body =
     Flambda_utils.toplevel_substitution state.old_inside_to_new_inside body
   in
-  let inlining_history = function_body.inlining_history in
+  let def_name =
+    Inlining_history.extract_def_name function_body.inlining_history
+  in
+  let inlining_history =
+    Inlining_history.Closure(Inlining_history.SpecialisedFunction def_name, Debuginfo.none)
+      :: Inlining_history.Specialised :: inlining_history_call
+  in
   let new_function_decl =
     Flambda.create_function_declaration
       ~params ~body ~recursive:function_body.recursive
@@ -635,7 +641,6 @@ let rewrite_function ~lhs_of_application ~closure_id_being_applied
       ~specialise:function_body.specialise
       ~is_a_functor:function_body.is_a_functor
       ~inlining_history:inlining_history
-      ~dbg_name:None
   in
   let new_funs =
     Variable.Map.add new_fun_var new_function_decl state.new_funs
@@ -698,6 +703,7 @@ let inline_by_copying_function_declaration
     ~(unboxing_arguments:Flambda.UnboxingArgs.t)
     ~(dbg : Debuginfo.t)
     ~(simplify : Inlining_decision_intf.simplify)
+    ~(inlining_history:Inlining_history.t)
   =
   let state = empty_state in
   let state =
@@ -722,7 +728,7 @@ let inline_by_copying_function_declaration
           let state =
             rewrite_function ~lhs_of_application ~closure_id_being_applied
               ~direct_call_surrogates ~specialised_args ~free_vars ~funs
-              ~state next
+              ~state ~inlining_history_call:inlining_history next
           in
           loop state
       in
@@ -760,7 +766,7 @@ let inline_by_copying_function_declaration
           inlining_depth = E.inlining_depth env;
           inline = inline_requested; specialise = Default_specialise;
           max_inlining_arguments = Some (E.get_max_inlining_arguments env);
-          inlining_history = Inlining_history.create ();
+          inlining_history = Inlining_history.SpecialisedCall :: inlining_history;
         }
       in
       let body =

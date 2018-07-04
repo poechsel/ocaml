@@ -459,7 +459,7 @@ let evaluate_speculative_specialisation env r_inlined expr original ~simplify =
 let specialise env r ~(call : call_informations)
       ~(callee : callee_informations) ~(annotations : annotations)
       ~args_approxs ~simplify ~original
-      ~inlining_threshold ~fun_cost =
+      ~inlining_threshold ~fun_cost ~inlining_history_next_part =
   let free_vars, invariant_params, has_no_useful_approxes =
     compute_params_informations callee args_approxs
   in
@@ -506,9 +506,6 @@ let specialise env r ~(call : call_informations)
         R.set_inlining_threshold r (Some remaining_inlining_threshold)
       in
       let copied_function_declaration =
-        let env =
-          E.add_inlining_history_part env (Inlining_history.Specialised "")
-        in
         Inlining_transforms.inline_by_copying_function_declaration ~env
           ~r:(R.reset_benefit r) ~lhs_of_application:call.callee
           ~rec_info:call.rec_info
@@ -521,6 +518,7 @@ let specialise env r ~(call : call_informations)
           ~unboxing_arguments:callee.value_set_of_closures.unboxing_arguments
           ~dbg:call.dbg ~simplify ~inline_requested:annotations.caller_inline
           ~function_decl:callee.function_decl
+          ~inlining_history:inlining_history_next_part
           ~free_vars
       in
       match copied_function_declaration with
@@ -668,9 +666,10 @@ let flambda_mode_inlining env r ~simplify ~callee ~call ~annotations
              ~size_from_approximation:None)
       in
       let specialise_result =
-        specialise (E.add_inlining_history env inlining_history_next_part)
+        specialise env (*E.add_inlining_history env inlining_history_next_part*)
           r ~call ~callee ~annotations ~args_approxs
           ~simplify ~original ~fun_cost ~inlining_threshold
+          ~inlining_history_next_part
       in
       let out = match specialise_result with
         | Changed (res, spec_reason) ->
@@ -745,10 +744,9 @@ let for_call_site ~env ~r ~(call : call_informations)
       in
       let inlining_history_next_part =
         Inlining_history.note_entering_call
-          ~dbg:call.dbg ~name:(Closure_id.unique_name callee.closure_id_being_applied)
+          ~dbg:call.dbg
           ~dbg_name:function_body.dbg_name
-          ~absolute_inlining_history:
-            (Some (Inlining_history.strip_history (E.inlining_history env)))
+          ~absolute_inlining_history:(E.inlining_history env)
           call.inlining_history
       in
       let simpl =
@@ -762,7 +760,7 @@ let for_call_site ~env ~r ~(call : call_informations)
             ~inlining_history_next_part
         end
       in
-      let res, decision, record_decision =
+      let res, decision, _record_decision =
         match simpl with
         | Original decision -> (original, original_r), decision, false
         | Changed ((expr, r), decision) ->
@@ -774,9 +772,7 @@ let for_call_site ~env ~r ~(call : call_informations)
           res, decision, true
       in
       let env = E.add_inlining_history env inlining_history_next_part in
-      if record_decision || (E.round env = Clflags.rounds () - 1) then begin
         E.record_decision env decision;
-        end;
       res
     end
 

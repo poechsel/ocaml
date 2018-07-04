@@ -904,7 +904,9 @@ let rec close fenv cenv = function
                              ap_func=(Lvar funct_var);
                              ap_args=internal_args;
                              ap_inlined=Default_inline;
-                             ap_specialised=Default_specialise};
+                             ap_specialised=Default_specialise;
+                             ap_dbg_informations=Inlining_history.empty;
+                            };
                loc;
                debugging_informations = Inlining_history.empty;
                attr = default_function_attribute})
@@ -1000,7 +1002,9 @@ let rec close fenv cenv = function
                               ap_func=funct;
                               ap_args=[arg];
                               ap_inlined=Default_inline;
-                              ap_specialised=Default_specialise})
+                              ap_specialised=Default_specialise;
+                              ap_dbg_informations=Inlining_history.empty;
+                             })
   | Lprim(Pgetglobal id, [], loc) as lam ->
       let dbg = Debuginfo.from_location loc in
       check_constant_result lam

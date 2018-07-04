@@ -96,7 +96,6 @@ let tupled_function_call_stub original_params unboxed_version ~recursive
     ~body ~stub:true ~dbg:Debuginfo.none ~inline:Default_inline
     ~specialise:Default_specialise ~is_a_functor:false
     ~inlining_history:Inlining_history.empty
-    ~dbg_name:None
 
 let register_const t (constant:Flambda.constant_defining_value) name
     : Flambda.constant_defining_value_block_field * Internal_variable_names.t =
@@ -213,7 +212,7 @@ let rec close t env (lam : Lambda.lambda) : Flambda.t =
     Flambda.create_let set_of_closures_var set_of_closures
       (name_expr (Project_closure (project_closure)) ~name)
   | Lapply { ap_func; ap_args; ap_loc; ap_should_be_tailcall = _;
-        ap_inlined; ap_specialised; } ->
+        ap_inlined; ap_specialised; ap_dbg_informations} ->
     Lift_code.lifting_helper (close_list t env ap_args)
       ~evaluation_order:`Right_to_left
       ~name:Names.apply_arg
@@ -231,7 +230,7 @@ let rec close t env (lam : Lambda.lambda) : Flambda.t =
               inline = ap_inlined;
               specialise = ap_specialised;
               max_inlining_arguments = None;
-              inlining_history = [];
+              inlining_history = ap_dbg_informations;
             })))
   | Lletrec (defs, body) ->
     let env =
@@ -408,6 +407,7 @@ let rec close t env (lam : Lambda.lambda) : Flambda.t =
            operators. *)
         ap_inlined = Default_inline;
         ap_specialised = Default_specialise;
+        ap_dbg_informations=Inlining_history.empty;
       }
     in
     close t env (Lambda.Lapply apply)
@@ -594,7 +594,6 @@ and close_functions t external_env function_declarations : Flambda.named =
         ~specialise:(Function_decl.specialise decl)
         ~is_a_functor:(Function_decl.is_a_functor decl)
         ~inlining_history:(Function_decl.dbg_name decl)
-        ~dbg_name:None
     in
     match Function_decl.kind decl with
     | Curried -> Variable.Map.add closure_bound_var fun_decl map

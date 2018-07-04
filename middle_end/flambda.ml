@@ -408,7 +408,6 @@ and function_declaration = {
   specialise : Lambda.specialise_attribute;
   is_a_functor : bool;
   inlining_history : Inlining_history.t;
-  dbg_name : Inlining_history.t option;
 }
 
 and switch = {
@@ -498,7 +497,7 @@ let rec lam ppf (flam : t) =
   match flam with
   | Var (id) ->
       Variable.print ppf id
-  | Apply({func; args; kind; inline; inlining_depth; dbg; inlining_history}) ->
+  | Apply({func; args; kind; inline; inlining_depth; dbg; inlining_history;}) ->
     let direct ppf () =
       match kind with
       | Indirect -> ()
@@ -511,11 +510,12 @@ let rec lam ppf (flam : t) =
       | Unroll i -> fprintf ppf "<unroll %i>" i
       | Default_inline -> ()
     in
-    fprintf ppf "@[<2>(apply%a%a<%s>@,%a@ %a%a)  hist=[%a]@]" direct () inline ()
+    fprintf ppf "@[<2>(apply[%a]%a%a<%s>@,%a@ %a%a)@]"
+      Inlining_history.print (Inlining_history.history_to_path inlining_history)
+      direct () inline ()
       (Debuginfo.to_string dbg)
       print_inlining_depth inlining_depth
       Variable.print func Variable.print_list args
-      Inlining_history.print inlining_history
   | Assign { being_assigned; new_value; } ->
     fprintf ppf "@[<2>(assign@ %a@ %a)@]"
       Mutable_variable.print being_assigned
@@ -702,9 +702,9 @@ and print_function_declaration ppf var (f : function_declaration) =
     | Never_specialise -> " *never_specialise*"
     | Default_specialise -> ""
   in
-  fprintf ppf "@[<2>(%a%s%s%s%s%s[%a]@ =@ fun@[<2>%a@] ->@ @[<2>%a@])@]@ "
+  fprintf ppf "@[<2>(%a%s%s%s%s%s@ =@ [%a]fun@[<2>%a@] ->@ @[<2>%a@])@]@ "
     Variable.print var recursive stub is_a_functor inline specialise
-    Inlining_history.print f.inlining_history
+    Inlining_history.print (Inlining_history.history_to_path f.inlining_history)
     params f.params lam f.body
 
 and print_set_of_closures ppf (set_of_closures : set_of_closures) =
@@ -1324,7 +1324,7 @@ let create_declaration_stats_stack ~name ~dbg =
 let create_function_declaration ~recursive ~params ~body ~stub ~dbg
       ~(inline : Lambda.inline_attribute)
       ~(specialise : Lambda.specialise_attribute) ~is_a_functor
-      ~inlining_history ~dbg_name
+      ~inlining_history
       : function_declaration =
   begin match stub, inline with
   | true, (Never_inline | Default_inline)
@@ -1353,7 +1353,6 @@ let create_function_declaration ~recursive ~params ~body ~stub ~dbg
     specialise;
     is_a_functor;
     inlining_history;
-    dbg_name;
   }
 
 let update_function_declaration fun_decl ~params ~body ~inlining_history =

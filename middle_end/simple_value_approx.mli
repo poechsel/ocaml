@@ -165,7 +165,7 @@ and function_body = private {
   body : Flambda.t;
   recursive : bool;
   inlining_history : Inlining_history.t;
-  dbg_name : Inlining_history.t option;
+  dbg_name : Inlining_history.path;
 }
 
 and function_declaration = private {
@@ -226,7 +226,8 @@ val print_function_declarations
 
 val function_declarations_approx
    : keep_body:(Flambda.function_declaration -> bool)
-  -> Flambda.function_declarations
+   -> full_history:Inlining_history.t
+   -> Flambda.function_declarations
   -> function_declarations
 
 val create_value_set_of_closures
@@ -499,6 +500,11 @@ val update_function_declarations
   -> funs:function_declaration Variable.Map.t
   -> function_declarations
 
+
+val function_declarations_strip_full_history
+  : function_declarations
+  -> function_declarations
+
 val import_function_declarations_for_pack
    : function_declarations
   -> (Set_of_closures_id.t -> Set_of_closures_id.t)
@@ -508,6 +514,11 @@ val update_function_declaration_body
     : function_declaration
    -> (Flambda.t -> Flambda.t)
    -> function_declaration
+
+val set_function_declaration_full_history
+  : Inlining_history.t
+  -> function_declaration
+  -> function_declaration
 
 val update_function_declaration_scope
   : Compilation_unit.t
