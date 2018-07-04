@@ -41,7 +41,6 @@ module Env = struct
     inlining_depth : int;
     specialise_depth : int;
     closure_depth : int;
-    inlining_stats_closure_stack : Inlining_history.t;
     inlined_debuginfo : Debuginfo.t;
     inlining_arguments : InliningArgs.t;
     max_inlining_arguments : InliningArgs.t;
@@ -65,8 +64,6 @@ module Env = struct
       inlining_depth = 0;
       specialise_depth = 0;
       closure_depth = 0;
-      inlining_stats_closure_stack =
-        Inlining_history.create ();
       inlined_debuginfo = Debuginfo.none;
       inlining_arguments = InliningArgs.get round;
       max_inlining_arguments = InliningArgs.get_max ();
@@ -345,60 +342,14 @@ module Env = struct
     { t with inlining_history_next_parts =
                part :: t.inlining_history_next_parts }
 
-  let note_entering_closure t ~name ~dbg =
-    if t.never_inline then t
-    else
-      { t with
-        inlining_stats_closure_stack =
-          Inlining_history.note_entering_closure
-            t.inlining_stats_closure_stack ~name ~dbg;
-      }
-
-  let note_entering_call t ~dbg_name ~dbg =
-    if t.never_inline then t
-    else
-      { t with
-        inlining_stats_closure_stack =
-          Inlining_history.note_entering_call
-            ~dbg_name:dbg_name
-            ~absolute_inlining_history:Inlining_history.empty
-            t.inlining_stats_closure_stack ~dbg;
-      }
-
-  let note_entering_inlined t =
-    if t.never_inline then t
-    else
-      { t with
-        inlining_stats_closure_stack =
-          Inlining_history.note_entering_inlined
-            t.inlining_stats_closure_stack;
-      }
-
-  let note_entering_specialised t ~name =
-    if t.never_inline then t
-    else
-      { t with
-        inlining_stats_closure_stack =
-          Inlining_history.note_entering_specialised
-            t.inlining_stats_closure_stack ~name;
-      }
-
-  let enter_closure t ~name ~inline_inside ~dbg ~f =
+  let enter_closure t ~inline_inside =
     let t =
       if inline_inside && not t.never_inline_inside_closures then t
       else set_never_inline t
     in
-    let t = unset_never_inline_outside_closures t in
-    f (note_entering_closure t ~name ~dbg)
+    unset_never_inline_outside_closures t
 
   let record_decision t decision =
-    (*
-    let pf = Format.fprintf Format.std_formatter in
-    let p = Inlining_history.print Format.std_formatter in
-    pf "--> "; p t.inlining_history; pf "\n";
-    p t.inlining_stats_closure_stack; pf "\n";
-    *)
-
     Inlining_stats.record_decision decision
       ~closure_stack:t.inlining_history
 

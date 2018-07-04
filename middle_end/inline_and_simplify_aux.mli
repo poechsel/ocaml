@@ -208,47 +208,10 @@ module Env : sig
 
   val add_inlining_history_part : t -> Inlining_history.node -> t
 
-  (** If collecting inlining statistics, record that the inliner is about to
-      descend into [closure_id].  This information enables us to produce a
-      stack of closures that form a kind of context around an inlining
-      decision point. *)
-  val note_entering_closure
-     : t
-    -> name:Inlining_history.name
-    -> dbg:Debuginfo.t
-    -> t
-
-   (** If collecting inlining statistics, record that the inliner is about to
-       descend into a call to [closure_id].  This information enables us to
-       produce a stack of closures that form a kind of context around an
-       inlining decision point. *)
-  val note_entering_call
-     : t
-    -> dbg_name:Inlining_history.path option
-    -> dbg:Debuginfo.t
-    -> t
-
-   (** If collecting inlining statistics, record that the inliner is about to
-       descend into an inlined function call.  This requires that the inliner
-       has already entered the call with [note_entering_call]. *)
-  val note_entering_inlined : t -> t
-
-   (** If collecting inlining statistics, record that the inliner is about to
-       descend into a specialised function definition.  This requires that the
-       inliner has already entered the call with [note_entering_call]. *)
-  val note_entering_specialised : t -> name:string -> t
-
-  (** Update a given environment to record that the inliner is about to
-      descend into [closure_id] and pass the resulting environment to [f].
-      If [inline_inside] is [false] then the environment passed to [f] will be
-      marked as [never_inline] (see above). *)
   val enter_closure
      : t
-    -> name:Inlining_history.name
     -> inline_inside:bool
-    -> dbg:Debuginfo.t
-    -> f:(t -> 'a)
-    -> 'a
+    -> t
 
    (** If collecting inlining statistics, record an inlining decision for the
        call at the top of the closure stack stored inside the given
