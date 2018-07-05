@@ -27,6 +27,7 @@ type class_name_type =
 
 type name =
   | Function of string
+  | SpecialisedFunction of name
   | Functor of string
   | Class of string * class_name_type
   | Anonymous
@@ -41,7 +42,7 @@ and node =
   | Closure of name * Debuginfo.t
   | Call of path * Debuginfo.t * path
   | Inlined
-  | Specialised of name
+  | Specialised
   | SpecialisedCall
 
 (* shorten representation *)
@@ -51,7 +52,7 @@ and atom =
   | AClosure of name * Debuginfo.t
   | ACall of path * Debuginfo.t
   | AInlined
-  | ASpecialised of name
+  | ASpecialised
   | ASpecialisedCall
 
 let create () = []
@@ -64,7 +65,7 @@ let history_to_path (history : t) : path =
     | Closure(n, d) -> AClosure(n, d)
     | Call(p, d, _) -> ACall(p, d)
     | Inlined -> AInlined
-    | Specialised s -> ASpecialised s
+    | Specialised -> ASpecialised
     | SpecialisedCall -> ASpecialisedCall
   )
 |> List.rev
@@ -87,8 +88,8 @@ let rec compare_atom a b =
     if c <> 0 then c else
       let c = Debuginfo.compare b b' in
       c
-  | ASpecialised(a), ASpecialised(a') ->
-    Pervasives.compare a a'
+  | ASpecialised, ASpecialised ->
+    0
   | ASpecialisedCall, ASpecialisedCall ->
     0
   | _ -> -1
@@ -103,8 +104,10 @@ and compare l l' =
 
 let empty_path = []
 
-let print_name ppf name =
+let rec print_name ppf name =
   match name with
+  | SpecialisedFunction n ->
+    Format.fprintf ppf "specialised of %a" print_name n
   | Function n ->
     Format.fprintf ppf "%s" n
   | Functor n ->
@@ -148,14 +151,10 @@ and print_atom ppf x =
   | AClosure (c, _) ->
     Format.fprintf ppf "%a" print_name c
   | AModule (c, _) ->
-    let params = ""
-      (*match params with
-      | [] -> ""
-      | _ -> "(" ^ String.concat ", " params ^ ")"
-      *)in
-    Format.fprintf ppf "%s%s." c params
-  | ASpecialised name ->
-    Format.fprintf ppf " specialise of %a " print_name name
+    Format.fprintf ppf "%s." c
+  | ASpecialised ->
+    (* printing nothing because it's already done in the name *)
+    Format.fprintf ppf ""
   | ASpecialisedCall ->
     Format.fprintf ppf " specialised call "
 and print ppf l =
@@ -171,7 +170,7 @@ let note_entering_closure t ~name ~dbg =
   if not !Clflags.inlining_report then t
   else
     match t with
-    | [] | (Closure _ | Inlined | Specialised _ | SpecialisedCall | Module _)  :: _->
+    | [] | (Closure _ | Inlined | Specialised | SpecialisedCall | Module _)  :: _->
       (Closure (name, dbg)) :: t
     | (Call _) :: _ ->
       Misc.fatal_errorf "note_entering_closure: unexpected Call node"
@@ -194,8 +193,8 @@ let add_fn_def ~name ~loc ~path =
 
 let extract_def_name history =
   match history with
-  | Closure (x, _) :: _
-  | Specialised x :: _ ->
+  | Closure (x, _) :: _ ->
     x
+  | Specialised :: _
   | _ ->
     assert(false)

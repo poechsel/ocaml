@@ -26,7 +26,7 @@ let record_decision decision ~closure_stack =
     | Inlining_history.Inlined :: _
     | Inlining_history.SpecialisedCall :: _ ->
       Misc.fatal_errorf "record_decision: missing Call node"
-    | Inlining_history.Specialised _ :: _
+    | Inlining_history.Specialised :: _
     | Inlining_history.Closure _ :: _
     | Inlining_history.Call _ :: _ ->
       Hashtbl.replace log closure_stack decision
@@ -150,7 +150,7 @@ module Inlining_report = struct
                 let seen = y :: x :: seen in
                 let inlined = loop seen inlined rest in
                 { v with inlined = Some inlined }, seen
-            | ((Specialised _ | SpecialisedCall) as y) :: rest ->
+            | ((Specialised | SpecialisedCall) as y) :: rest ->
                 let specialised =
                   match v.specialised with
                   | None -> Place_map.empty
@@ -166,7 +166,7 @@ module Inlining_report = struct
           Place_map.add key (Call v, uid seen) t
       | [] -> t
       | Inlined :: _ -> assert false
-      | Specialised _ :: _ -> assert false
+      | Specialised :: _ -> assert false
       | SpecialisedCall :: _ -> assert false
     in
     loop [] t (List.rev stack)

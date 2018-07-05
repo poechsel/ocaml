@@ -629,7 +629,8 @@ let rewrite_function ~lhs_of_application ~closure_id_being_applied
     Inlining_history.extract_def_name function_body.inlining_history
   in
   let inlining_history =
-    Inlining_history.Specialised(def_name) :: inlining_history_call
+    Inlining_history.Closure(Inlining_history.SpecialisedFunction def_name, Debuginfo.none)
+      :: Inlining_history.Specialised :: inlining_history_call
   in
   let new_function_decl =
     Flambda.create_function_declaration
