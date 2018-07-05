@@ -25,6 +25,7 @@ type class_name_type =
 
 type name =
   | Function of string
+  | SpecialisedFunction of name
   | Functor of string
   | Class of string * class_name_type
   | Anonymous
@@ -37,7 +38,7 @@ and node =
   | Closure of name * Debuginfo.t
   | Call of path * Debuginfo.t * path
   | Inlined
-  | Specialised of name
+  | Specialised
   | SpecialisedCall
 
 and path
