@@ -408,7 +408,6 @@ and function_declaration = {
   specialise : Lambda.specialise_attribute;
   is_a_functor : bool;
   inlining_history : Inlining_history.t;
-  dbg_name : Inlining_history.t option;
 }
 
 and switch = {
@@ -1325,7 +1324,7 @@ let create_declaration_stats_stack ~name ~dbg =
 let create_function_declaration ~recursive ~params ~body ~stub ~dbg
       ~(inline : Lambda.inline_attribute)
       ~(specialise : Lambda.specialise_attribute) ~is_a_functor
-      ~inlining_history ~dbg_name
+      ~inlining_history
       : function_declaration =
   begin match stub, inline with
   | true, (Never_inline | Default_inline)
@@ -1354,7 +1353,6 @@ let create_function_declaration ~recursive ~params ~body ~stub ~dbg
     specialise;
     is_a_functor;
     inlining_history;
-    dbg_name;
   }
 
 let update_function_declaration fun_decl ~params ~body ~inlining_history =

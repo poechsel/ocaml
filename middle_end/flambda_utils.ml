@@ -365,7 +365,6 @@ let make_closure_declaration ~is_classic_mode ~id
       ~body ~recursive ~stub ~dbg:Debuginfo.none ~inline:Default_inline
       ~specialise:Default_specialise ~is_a_functor:false
       ~inlining_history:inlining_history
-      ~dbg_name:None
   in
   assert (Variable.Set.equal (Variable.Set.map subst free_variables)
     function_declaration.free_variables);

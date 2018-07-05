@@ -96,7 +96,6 @@ let tupled_function_call_stub original_params unboxed_version ~recursive
     ~body ~stub:true ~dbg:Debuginfo.none ~inline:Default_inline
     ~specialise:Default_specialise ~is_a_functor:false
     ~inlining_history:Inlining_history.empty
-    ~dbg_name:None
 
 let register_const t (constant:Flambda.constant_defining_value) name
     : Flambda.constant_defining_value_block_field * Internal_variable_names.t =
@@ -594,7 +593,6 @@ and close_functions t external_env function_declarations : Flambda.named =
         ~specialise:(Function_decl.specialise decl)
         ~is_a_functor:(Function_decl.is_a_functor decl)
         ~inlining_history:(Function_decl.dbg_name decl)
-        ~dbg_name:None
     in
     match Function_decl.kind decl with
     | Curried -> Variable.Map.add closure_bound_var fun_decl map

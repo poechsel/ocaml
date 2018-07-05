@@ -88,7 +88,7 @@ and function_body = {
   body : Flambda.t;
   recursive : bool;
   inlining_history : Inlining_history.t;
-  dbg_name : Inlining_history.t option;
+  dbg_name : Inlining_history.t;
 }
 
 and function_declaration = {
@@ -1082,10 +1082,18 @@ let function_arity (fun_decl : function_declaration) =
   List.length fun_decl.params
 
 let function_declaration_approx ~keep_body
-      (fun_decl : Flambda.function_declaration) =
+      (fun_decl : Flambda.function_declaration)
+      ~full_history
+  =
+
   let function_body =
     if not (keep_body fun_decl) then None
     else begin
+      let history =
+        Inlining_history.add
+          fun_decl.inlining_history
+          full_history
+      in
       Some { body = fun_decl.body;
              stub = fun_decl.stub;
              inline = fun_decl.inline;
@@ -1095,21 +1103,36 @@ let function_declaration_approx ~keep_body
              free_variables = fun_decl.free_variables;
              free_symbols = fun_decl.free_symbols;
              recursive = fun_decl.recursive;
-             dbg_name = fun_decl.dbg_name;
+             dbg_name = history;
              inlining_history = fun_decl.inlining_history;}
     end
   in
   { function_body;
     params = fun_decl.params;  }
 
-let function_declarations_approx ~keep_body
+let function_declarations_approx ~keep_body ~full_history
   (fun_decls : Flambda.function_declarations) =
   let funs =
-    Variable.Map.map (function_declaration_approx ~keep_body) fun_decls.funs
+    Variable.Map.map (function_declaration_approx ~keep_body ~full_history) fun_decls.funs
   in
   { funs;
     is_classic_mode = fun_decls.is_classic_mode;
     set_of_closures_id = fun_decls.set_of_closures_id; }
+
+let function_declarations_strip_full_history
+      (fun_decls : function_declarations) =
+  let funs =
+    Variable.Map.map (fun fun_decl ->
+      match fun_decl.function_body with
+      | None -> fun_decl
+      | Some body ->
+        let function_body =
+          Some {body with dbg_name = Inlining_history.empty }
+        in
+        { fun_decl with function_body }
+    ) fun_decls.funs
+  in
+  { fun_decls with funs }
 
 let import_function_declarations_for_pack function_decls
     import_set_of_closures_id =
@@ -1154,13 +1177,34 @@ let update_function_declaration_body
     in
     { function_decl with function_body = Some new_function_body }
 
-let update_function_declaration_scope
-      _scope
+let set_function_declaration_full_history
+      full_history
       function_decl =
   match function_decl.function_body with
   | None -> function_decl
   | Some function_body ->
-    let (dbg_name : Inlining_history.t option) = function_body.dbg_name in
+    let history =
+      Inlining_history.add function_body.inlining_history full_history
+    in
+    let function_body =
+      { function_body with dbg_name =  history }
+    in
+    { function_decl with function_body = Some function_body }
+
+let update_function_declaration_scope
+      scope
+      function_decl =
+  match function_decl.function_body with
+  | None -> function_decl
+  | Some function_body ->
+    let (dbg_name : Inlining_history.t) = function_body.dbg_name in
+    let dbg_name =
+      Inlining_history.add
+        dbg_name
+        (Inlining_history.Module(
+           Compilation_unit.get_persistent_ident scope |> Ident.name,
+           Debuginfo.none, []) :: [])
+    in
     (*
     let path = match dbg_name.path with
       | None -> Path.Pident (Compilation_unit.get_persistent_ident scope)

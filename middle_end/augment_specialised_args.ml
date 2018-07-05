@@ -531,7 +531,6 @@ module Make (T : S) = struct
         ~specialise:Default_specialise
         ~is_a_functor:false
         ~inlining_history:Inlining_history.empty
-        ~dbg_name:None
     in
     new_fun_var, new_function_decl, rewritten_existing_specialised_args,
       benefit
@@ -618,7 +617,6 @@ module Make (T : S) = struct
           ~specialise:function_decl.specialise
           ~is_a_functor:function_decl.is_a_functor
           ~inlining_history:function_decl.inlining_history
-          ~dbg_name:None
       in
       let funs, direct_call_surrogates =
         if for_one_function.make_direct_call_surrogates then
