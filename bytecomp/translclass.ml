@@ -136,7 +136,7 @@ let name_pattern default p =
 let normalize_cl_path cl path =
   Env.normalize_path (Some cl.cl_loc) cl.cl_env path
 
-let rec build_object_init modpath cl_table obj params inh_init obj_init cl =
+let rec build_object_init modpath cl_id cl_table obj params inh_init obj_init cl =
   match cl.cl_desc with
     Tcl_ident ( path, _, _) ->
       let obj_init = Ident.create "obj_init" in
@@ -159,7 +159,7 @@ let rec build_object_init modpath cl_table obj params inh_init obj_init cl =
                match field.cf_desc with
                  Tcf_inherit (_, cl, _, _, _) ->
                    let (inh_init, obj_init') =
-                     build_object_init modpath cl_table (Lvar obj) [] inh_init
+                     build_object_init modpath cl_id cl_table (Lvar obj) [] inh_init
                        (fun _ -> lambda_unit) cl
                    in
                    (inh_init, lsequence obj_init' obj_init, true)
@@ -183,12 +183,12 @@ let rec build_object_init modpath cl_table obj params inh_init obj_init cl =
   | Tcl_fun (_, pat, vals, cl, partial) ->
       let vals = List.map (fun (id, _, e) -> id,e) vals in
       let (inh_init, obj_init) =
-        build_object_init modpath cl_table obj (vals @ params) inh_init obj_init cl
+        build_object_init modpath cl_id cl_table obj (vals @ params) inh_init obj_init cl
       in
       (inh_init,
        let build params rem =
          let param = name_pattern "param" pat in
-         let name = IH.Class(Ident.name cl_table,
+         let name = IH.Class(Ident.name cl_id,
                                      IH.ObjInit)
          in
          Lfunction {kind = Curried; params = param::params;
@@ -205,32 +205,32 @@ let rec build_object_init modpath cl_table obj params inh_init obj_init cl =
        end)
   | Tcl_apply (cl, oexprs) ->
       let (inh_init, obj_init) =
-        build_object_init modpath cl_table obj params inh_init obj_init cl
+        build_object_init modpath cl_id cl_table obj params inh_init obj_init cl
       in
       (inh_init, transl_apply modpath obj_init oexprs Location.none)
   | Tcl_let (rec_flag, defs, vals, cl) ->
       let vals = List.map (fun (id, _, e) -> id,e) vals in
       let (inh_init, obj_init) =
-        build_object_init modpath cl_table obj (vals @ params) inh_init obj_init cl
+        build_object_init modpath cl_id cl_table obj (vals @ params) inh_init obj_init cl
       in
       (inh_init, Translcore.transl_let modpath rec_flag defs obj_init)
   | Tcl_open (_, _, _, _, cl)
   | Tcl_constraint (cl, _, _, _, _) ->
-      build_object_init modpath cl_table obj params inh_init obj_init cl
+      build_object_init modpath cl_id cl_table obj params inh_init obj_init cl
 
-let rec build_object_init_0 modpath cl_table params cl copy_env subst_env top ids =
+let rec build_object_init_0 modpath cl_id cl_table params cl copy_env subst_env top ids =
   match cl.cl_desc with
     Tcl_let (_rec_flag, _defs, vals, cl) ->
       let vals = List.map (fun (id, _, e) -> id,e) vals in
-      build_object_init_0 modpath cl_table (vals@params) cl copy_env subst_env top ids
+      build_object_init_0 modpath cl_id cl_table (vals@params) cl copy_env subst_env top ids
   | _ ->
       let self = Ident.create "self" in
       let env = Ident.create "env" in
       let obj = if ids = [] then lambda_unit else Lvar self in
       let envs = if top then None else Some env in
       let ((_,inh_init), obj_init) =
-        build_object_init IH.empty cl_table obj params (envs,[]) copy_env cl in
-      let name = IH.Class(Ident.name cl_table, IH.ObjInit) in
+        build_object_init IH.empty cl_id cl_table obj params (envs,[]) copy_env cl in
+      let name = IH.Class(Ident.name cl_id, IH.ObjInit) in
       let obj_init =
         if ids = [] then obj_init else lfunction modpath name [self] obj_init in
       (inh_init, lfunction modpath name [env] (subst_env env inh_init obj_init))
@@ -284,7 +284,7 @@ let rec index a = function
 
 let bind_id_as_val (id, _, _) = ("", id)
 
-let rec build_class_init modpath cla cstr super inh_init cl_init msubst top cl =
+let rec build_class_init modpath cl_id cla cstr super inh_init cl_init msubst top cl =
   match cl.cl_desc with
     Tcl_ident ( path, _, _) ->
       begin match inh_init with
@@ -308,7 +308,7 @@ let rec build_class_init modpath cla cstr super inh_init cl_init msubst top cl =
               Tcf_inherit (_, cl, _, vals, meths) ->
                 let cl_init = output_methods cla methods cl_init in
                 let inh_init, cl_init =
-                  build_class_init modpath cla false
+                  build_class_init modpath cl_id cla false
                     (vals, meths_super cla str.cstr_meths meths)
                     inh_init cl_init msubst top cl in
                 (inh_init, cl_init, [], values)
@@ -322,7 +322,7 @@ let rec build_class_init modpath cla cstr super inh_init cl_init msubst top cl =
               ->
                 (inh_init, cl_init, methods, values)
             | Tcf_method (name, _, Tcfk_concrete (_, exp)) ->
-              let met_name = IH.Method(Ident.name cla, name.txt) in
+              let met_name = IH.Method(Ident.name cl_id, name.txt) in
               let met_code = msubst true (transl_exp modpath met_name exp) in
               let met_code =
                 if !Clflags.native_code && List.length met_code = 1 then
@@ -350,15 +350,15 @@ let rec build_class_init modpath cla cstr super inh_init cl_init msubst top cl =
       (inh_init, bind_methods cla str.cstr_meths values cl_init)
   | Tcl_fun (_, _pat, vals, cl, _) ->
       let (inh_init, cl_init) =
-        build_class_init modpath cla cstr super inh_init cl_init msubst top cl
+        build_class_init modpath cl_id cla cstr super inh_init cl_init msubst top cl
       in
       let vals = List.map bind_id_as_val vals in
       (inh_init, transl_vals cla true StrictOpt vals cl_init)
   | Tcl_apply (cl, _exprs) ->
-      build_class_init modpath cla cstr super inh_init cl_init msubst top cl
+      build_class_init modpath cl_id cla cstr super inh_init cl_init msubst top cl
   | Tcl_let (_rec_flag, _defs, vals, cl) ->
       let (inh_init, cl_init) =
-        build_class_init modpath cla cstr super inh_init cl_init msubst top cl
+        build_class_init modpath cl_id cla cstr super inh_init cl_init msubst top cl
       in
       let vals = List.map bind_id_as_val vals in
       (inh_init, transl_vals cla true StrictOpt vals cl_init)
@@ -399,7 +399,7 @@ let rec build_class_init modpath cla cstr super inh_init cl_init msubst top cl =
                  Llet(StrictOpt, Pgenval, obj_init, lfield inh 0, cl_init)))
       | _ ->
           let core cl_init =
-            build_class_init modpath cla true super inh_init cl_init msubst top cl
+            build_class_init modpath cl_id cla true super inh_init cl_init msubst top cl
           in
           if cstr then core cl_init else
           let (inh_init, cl_init) =
@@ -410,7 +410,7 @@ let rec build_class_init modpath cla cstr super inh_init cl_init msubst top cl =
                      cl_init))
       end
   | Tcl_open (_, _, _, _, cl) ->
-      build_class_init modpath cla cstr super inh_init cl_init msubst top cl
+      build_class_init modpath cl_id cla cstr super inh_init cl_init msubst top cl
 
 let rec build_class_lets modpath cl =
   match cl.cl_desc with
@@ -780,10 +780,10 @@ let transl_class modpath ids cl_id pub_meths cl vflag =
   (* Now we start compiling the class *)
   let cla = Ident.create "class" in
   let (inh_init, obj_init) =
-    build_object_init_0 IH.empty cla [] cl copy_env subst_env top ids in
+    build_object_init_0 IH.empty cl_id cla [] cl copy_env subst_env top ids in
   let inh_init' = List.rev inh_init in
   let (inh_init', cl_init) =
-    build_class_init IH.empty cla true ([],[]) inh_init' obj_init msubst top cl
+    build_class_init IH.empty cl_id cla true ([],[]) inh_init' obj_init msubst top cl
   in
   assert (inh_init' = []);
   let table = Ident.create "table"
