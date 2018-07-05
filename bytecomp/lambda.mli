@@ -270,7 +270,9 @@ and lambda_apply =
     ap_loc : Location.t;
     ap_should_be_tailcall : bool;       (* true if [@tailcall] was specified *)
     ap_inlined : inline_attribute; (* specified with the [@inlined] attribute *)
-    ap_specialised : specialise_attribute; }
+    ap_specialised : specialise_attribute;
+    ap_dbg_informations : Inlining_history.t;
+}
 
 and lambda_switch =
   { sw_numconsts: int;                  (* Number of integer cases *)

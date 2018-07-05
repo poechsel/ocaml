@@ -252,7 +252,9 @@ and lambda_apply =
     ap_loc : Location.t;
     ap_should_be_tailcall : bool;
     ap_inlined : inline_attribute;
-    ap_specialised : specialise_attribute; }
+    ap_specialised : specialise_attribute;
+    ap_dbg_informations : Inlining_history.t;
+  }
 
 and lambda_switch =
   { sw_numconsts: int;
@@ -660,7 +662,7 @@ let rec map f lam =
     | Lvar _ -> lam
     | Lconst _ -> lam
     | Lapply { ap_func; ap_args; ap_loc; ap_should_be_tailcall;
-          ap_inlined; ap_specialised } ->
+               ap_inlined; ap_specialised; ap_dbg_informations } ->
         Lapply {
           ap_func = map f ap_func;
           ap_args = List.map (map f) ap_args;
@@ -668,6 +670,7 @@ let rec map f lam =
           ap_should_be_tailcall;
           ap_inlined;
           ap_specialised;
+          ap_dbg_informations;
         }
     | Lfunction { kind; params; body; attr; loc; debugging_informations} ->
       Lfunction { kind; params; body = map f body; attr; loc;
