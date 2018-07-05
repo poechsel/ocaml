@@ -117,22 +117,22 @@ let rec print_name ppf name =
   | Coerce ->
     Format.fprintf ppf "coercion"
   | Method(a, b) ->
-    Format.fprintf ppf "method %s of %s" b a
+    Format.fprintf ppf "%s#method %s" a b
   | Class(n, w) ->
     let w =
       match w with
       | ObjInit ->
-        "object init"
+        "object_init"
       | NewInit ->
-        "new init"
+        "new_init"
       | ClassInit ->
-        "class init"
+        "class_init"
       | ClassRebind ->
-        "class rebind"
+        "class_rebind"
       | EnvInit ->
-        "env init"
+        "env_init"
     in
-    Format.fprintf ppf "%s of %s" w n
+    Format.fprintf ppf "%s#%s" n w
 
 let string_of_name name =
   Format.asprintf "%a" print_name name
