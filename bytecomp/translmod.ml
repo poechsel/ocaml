@@ -116,7 +116,8 @@ and apply_coercion_result modpath loc strict funct params args cc_res =
                                  ap_func=Lvar id;
                                  ap_args=List.rev args;
                                  ap_inlined=Default_inline;
-                                 ap_specialised=Default_specialise})})
+                                 ap_specialised=Default_specialise;
+                                 ap_dbg_informations=IH.empty;})})
 
 and wrap_id_pos_list modpath loc id_pos_list get_field lam =
   let fv = free_variables lam in
@@ -307,7 +308,7 @@ let reorder_rec_bindings bindings =
 
 (* Generate lambda-code for a reordered list of bindings *)
 
-let eval_rec_bindings bindings cont =
+let eval_rec_bindings modpath bindings cont =
   let rec bind_inits = function
     [] ->
       bind_strict bindings
@@ -320,7 +321,8 @@ let eval_rec_bindings bindings cont =
                   ap_func=mod_prim "init_mod";
                   ap_args=[loc; shape];
                   ap_inlined=Default_inline;
-                  ap_specialised=Default_specialise},
+                  ap_specialised=Default_specialise;
+                  ap_dbg_informations=modpath;},
            bind_inits rem)
   and bind_strict = function
     [] ->
@@ -340,13 +342,14 @@ let eval_rec_bindings bindings cont =
                        ap_func=mod_prim "update_mod";
                        ap_args=[shape; Lvar id; rhs];
                        ap_inlined=Default_inline;
-                       ap_specialised=Default_specialise},
+                       ap_specialised=Default_specialise;
+                       ap_dbg_informations=modpath;},
                 patch_forwards rem)
   in
     bind_inits bindings
 
-let compile_recmodule compile_rhs bindings cont =
-  eval_rec_bindings
+let compile_recmodule modpath compile_rhs bindings cont =
+  eval_rec_bindings modpath
     (reorder_rec_bindings
        (List.map
           (fun {mb_id=id; mb_expr=modl; mb_loc=loc; _} ->
@@ -482,7 +485,9 @@ and transl_module modpath name cc rootpath mexp =
                     ap_func=transl_module modpath None Tcoerce_none None funct;
                     ap_args=[transl_module [] None ccarg None arg];
                     ap_inlined=inlined_attribute;
-                    ap_specialised=Default_specialise})
+                    ap_specialised=Default_specialise;
+                    ap_dbg_informations=modpath;
+                   })
       | Tmod_constraint(arg, _, _, ccarg) ->
           transl_module modpath name (compose_coercions cc ccarg) rootpath arg
       | Tmod_unpack(arg, _) ->
@@ -619,7 +624,7 @@ and transl_structure modpath loc fields cc rootpath final_env = function
             transl_structure modpath loc ext_fields cc rootpath final_env rem
           in
           let lam =
-            compile_recmodule
+            compile_recmodule modpath
               (fun id modl loc ->
                  let module_body =
                    transl_module modpath None Tcoerce_none (field_path rootpath id) modl
@@ -969,7 +974,7 @@ let transl_store_structure glob map prims str =
                            transl_store rootpath (add_ident true id subst) rem))
         | Tstr_recmodule bindings ->
             let ids = List.map (fun mb -> mb.mb_id) bindings in
-            compile_recmodule
+            compile_recmodule IH.empty
               (fun id modl _loc ->
                  Lambda.subst subst
                    (transl_module IH.empty None Tcoerce_none
@@ -1185,7 +1190,8 @@ let toploop_getvalue id =
                        Location.none);
          ap_args=[Lconst(Const_base(Const_string (toplevel_name id, None)))];
          ap_inlined=Default_inline;
-         ap_specialised=Default_specialise}
+         ap_specialised=Default_specialise;
+         ap_dbg_informations=IH.empty;}
 
 let toploop_setvalue id lam =
   Lapply{ap_should_be_tailcall=false;
@@ -1196,7 +1202,8 @@ let toploop_setvalue id lam =
          ap_args=[Lconst(Const_base(Const_string (toplevel_name id, None)));
                   lam];
          ap_inlined=Default_inline;
-         ap_specialised=Default_specialise}
+         ap_specialised=Default_specialise;
+         ap_dbg_informations=IH.empty;}
 
 let toploop_setvalue_id id = toploop_setvalue id (Lvar id)
 
@@ -1242,7 +1249,7 @@ let transl_toplevel_item modpath item =
       toploop_setvalue id lam
   | Tstr_recmodule bindings ->
       let idents = List.map (fun mb -> mb.mb_id) bindings in
-      compile_recmodule
+      compile_recmodule modpath
         (fun id modl loc -> transl_module (inhist_module id loc :: modpath)
                                None Tcoerce_none (Some(Pident id)) modl)
         bindings

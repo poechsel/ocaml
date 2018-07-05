@@ -443,7 +443,9 @@ and transl_exp0 modpath name e =
              ap_func=Lprim(Pfield 0, [transl_class_path ~loc e.exp_env cl], loc);
              ap_args=[lambda_unit];
              ap_inlined=Default_inline;
-             ap_specialised=Default_specialise}
+             ap_specialised=Default_specialise;
+             ap_dbg_informations=modpath;
+            }
   | Texp_instvar(path_self, path, _) ->
       Lprim(Pfield_computed,
             [transl_normal_path path_self; transl_normal_path path], e.exp_loc)
@@ -457,7 +459,9 @@ and transl_exp0 modpath name e =
                   ap_func=Translobj.oo_prim "copy";
                   ap_args=[transl_normal_path path_self];
                   ap_inlined=Default_inline;
-                  ap_specialised=Default_specialise},
+                  ap_specialised=Default_specialise;
+                  ap_dbg_informations=modpath;
+                 },
            List.fold_right
              (fun (path, _, expr) rem ->
                 Lsequence(transl_setinstvar modpath Location.none
@@ -607,7 +611,8 @@ and transl_apply ?(should_be_tailcall=false) ?(inlined = Default_inline)
                 ap_func=lexp;
                 ap_args=args;
                 ap_inlined=inlined;
-                ap_specialised=specialised;}
+                ap_specialised=specialised;
+                ap_dbg_informations=modpath;}
   in
   let rec build_apply lam args = function
       (None, optional) :: l ->
