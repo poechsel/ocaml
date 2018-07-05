@@ -180,13 +180,6 @@ let note_entering_closure t ~name ~dbg =
    some calls will end up sharing nodes. *)
 let note_entering_call t ~dbg_name ~dbg
       ~absolute_inlining_history =
-  let dbg_name =
-    match dbg_name with
-    | None ->
-      (*CR poechsel: examine why puttin an assert false here fails*)
-      empty
-    | Some x -> x
-  in
   let absolute_inlining_history =
     (* adding a placeholder call node to represent this call inside the
        absolute history. Its absolute path does not matters as it will

@@ -513,6 +513,7 @@ let prepare_to_simplify_set_of_closures ~env
       ~(set_of_closures : Flambda.set_of_closures)
       ~function_decls ~freshen
       ~(only_for_function_decl : Flambda.function_declaration option) =
+  assert(E.inlining_history_next_parts env = Inlining_history.empty);
   let free_vars =
     Variable.Map.map (fun (external_var : Flambda.specialised_to) ->
         let var =
@@ -618,6 +619,7 @@ let prepare_to_simplify_set_of_closures ~env
     let keep_body = keep_body_check ~is_classic_mode in
     let function_decls =
       A.function_declarations_approx ~keep_body function_decls
+        ~full_history:(E.inlining_history env)
     in
     A.create_value_set_of_closures ~function_decls ~bound_vars
       ~rec_info ~free_vars ~invariant_params ~specialised_args

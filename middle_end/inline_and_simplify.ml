@@ -649,7 +649,7 @@ and simplify_set_of_closures original_env r
     let inlining_history =
       Inlining_history.add function_decl.inlining_history parts_inlining_stack
     in
-    let (body, r), full_history =
+    let (body, r) =
       let body_env =
         E.enter_closure closure_env
           ~inline_inside:
@@ -659,7 +659,7 @@ and simplify_set_of_closures original_env r
         E.add_inlining_history body_env inlining_history
       in
       E.record_definition body_env;
-      simplify body_env r function_decl.body, E.inlining_history body_env
+      simplify body_env r function_decl.body
     in
     let function_decl =
       Flambda.create_function_declaration ~recursive:function_decl.recursive
@@ -668,7 +668,6 @@ and simplify_set_of_closures original_env r
         ~inline:function_decl.inline ~specialise:function_decl.specialise
         ~is_a_functor:function_decl.is_a_functor
         ~inlining_history
-        ~dbg_name:(Some full_history)
     in
     let used_params' = Flambda.used_params function_decl in
     Variable.Map.add fun_var function_decl funs,
@@ -690,8 +689,10 @@ and simplify_set_of_closures original_env r
       ~is_classic_mode:function_decls.is_classic_mode
   in
   let function_decls_approx =
+    assert(E.inlining_history_next_parts env = Inlining_history.empty);
     A.function_declarations_approx ~keep_body
       function_decls
+      ~full_history:(E.inlining_history env)
   in
   let value_set_of_closures =
     A.create_value_set_of_closures
@@ -1575,7 +1576,7 @@ and duplicate_function ~env ~(set_of_closures : Flambda.set_of_closures)
       ~free_vars ~specialised_args ~parameter_approximations
       ~nonrec_closure_env ~rec_closure_env
   in
-  let (body, _r), full_history =
+  let (body, _r) =
     let body_env =
       E.enter_closure closure_env ~inline_inside:false
     in
@@ -1583,8 +1584,7 @@ and duplicate_function ~env ~(set_of_closures : Flambda.set_of_closures)
       E.add_inlining_history body_env function_decl.inlining_history
     in
     E.record_definition body_env;
-    simplify body_env (R.create ()) function_decl.body,
-    E.inlining_history body_env
+    simplify body_env (R.create ()) function_decl.body
   in
   let function_decl =
     Flambda.create_function_declaration ~params:function_decl.params
@@ -1592,7 +1592,6 @@ and duplicate_function ~env ~(set_of_closures : Flambda.set_of_closures)
       ~inline:function_decl.inline ~specialise:function_decl.specialise
       ~is_a_functor:function_decl.is_a_functor ~recursive:function_decl.recursive
       ~inlining_history:function_decl.inlining_history
-      ~dbg_name:(Some full_history)
   in
   function_decl, specialised_args
 
@@ -1633,7 +1632,9 @@ let constant_defining_value_approx
           ~is_classic_mode:function_decls.is_classic_mode
       in
       let function_decls =
+      assert(E.inlining_history_next_parts env = Inlining_history.empty);
         A.function_declarations_approx ~keep_body function_decls
+          ~full_history:(E.inlining_history env)
       in
       A.create_value_set_of_closures ~function_decls
         ~rec_info
