@@ -36,7 +36,7 @@ type error =
 exception Error of Location.t * error
 
 let inhist_module id loc =
-  IH.Module(Ident.name id, Debuginfo.item_from_location loc, [])
+  IH.Module(Ident.name id, Debuginfo.item_from_location loc)
 
 
 (* Keep track of the root path (from the root of the namespace to the

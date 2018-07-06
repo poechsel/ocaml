@@ -117,7 +117,7 @@ module Inlining_report = struct
           let v = loop seen v rest in
           Place_map.add key (Closure v, uid seen) t
       (* CR poechsel: deal with modules params *)
-      | (Module(s, dbg, _) as x) :: rest ->
+      | (Module(s, dbg) as x) :: rest ->
           let key : Place.t = (dbg, s, debug_empty, Module) in
           let v =
             try
@@ -198,22 +198,26 @@ module Inlining_report = struct
       (Inlining_history.uid_of_path name)
       Inlining_history.print name
 
+  let print_debug ppf (dbg : Debuginfo.item) =
+    if dbg.dinfo_file = "" then ()
+    else Format.fprintf ppf "%s" (Debuginfo.to_string [dbg])
+
   let rec print filename ~depth ppf t =
     Place_map.iter (fun (dbg, cl, name, _) (v, uid) ->
        match v with
        | Module t ->
-         Format.fprintf ppf "@[<h>%a Module %s%s %a@]@."
+         Format.fprintf ppf "@[<h>%a Module %s%a %a@]@."
            print_stars (depth + 1)
            cl
-           (Debuginfo.to_string [dbg])
+           print_debug dbg
            print_anchor uid;
          print filename ppf ~depth:(depth + 1) t;
          if depth = 0 then Format.pp_print_newline ppf ()
        | Closure t ->
-         Format.fprintf ppf "@[<h>%a Definition of %s%s %a@]@."
+         Format.fprintf ppf "@[<h>%a Definition of %s%a %a@]@."
            print_stars (depth + 1)
            cl
-           (Debuginfo.to_string [dbg])
+           print_debug dbg
            print_anchor uid;
          print filename ppf ~depth:(depth + 1) t;
          if depth = 0 then Format.pp_print_newline ppf ()
