@@ -34,18 +34,18 @@ type name =
 
 type t = node list
 and node =
-  | Module of string * Debuginfo.t * string list
-  | Closure of name * Debuginfo.t
-  | Call of path * Debuginfo.t * path
+  | Module of string * Debuginfo.item * string list
+  | Closure of name * Debuginfo.item
+  | Call of path * Debuginfo.item * path
   | Inlined
   | Specialised
   | SpecialisedCall
 
 and path = atom list
 and atom =
-  | AModule of string * Debuginfo.t
-  | AClosure of name * Debuginfo.t
-  | ACall of path * Debuginfo.t
+  | AModule of string * Debuginfo.item
+  | AClosure of name * Debuginfo.item
+  | ACall of path * Debuginfo.item
   | AFile of string option * string
   | AInlined
   | ASpecialised
@@ -83,13 +83,13 @@ val empty_path : path
 val note_entering_closure
   : t
   -> name:name
-  -> dbg:Debuginfo.t
+  -> dbg:Debuginfo.item
   -> t
 
 val note_entering_call
   : t
   -> dbg_name:path
-  -> dbg:Debuginfo.t
+  -> dbg:Debuginfo.item
   -> absolute_inlining_history:t
   -> t
 

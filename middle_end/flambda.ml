@@ -1318,9 +1318,6 @@ let free_symbols_program (program : program) =
   !symbols
 
 
-let create_declaration_stats_stack ~name ~dbg =
-  Inlining_history.Closure (Inlining_history.Function name, dbg) :: []
-
 let create_function_declaration ~recursive ~params ~body ~stub ~dbg
       ~(inline : Lambda.inline_attribute)
       ~(specialise : Lambda.specialise_attribute) ~is_a_functor

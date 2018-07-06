@@ -232,8 +232,7 @@ and transl_exp0 modpath name e =
       in
       let loc = e.exp_loc in
       let debugging_informations =
-        (* CR poechsel: Change this *)
-        IH.Closure (name, Debuginfo.from_location loc) :: modpath
+        IH.Closure (name, Debuginfo.item_from_location loc) :: modpath
       in
       Lfunction{kind; params; body; attr; loc;
                debugging_informations}

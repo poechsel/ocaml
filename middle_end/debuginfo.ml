@@ -27,6 +27,13 @@ type t = item list
 
 let none = []
 
+let none_item = {
+  dinfo_file = "";
+  dinfo_line = 0;
+  dinfo_char_start = 0;
+  dinfo_char_end = 0;
+}
+
 let is_none = function
   | [] -> true
   | _ :: _ -> false
