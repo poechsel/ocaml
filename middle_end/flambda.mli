@@ -627,13 +627,6 @@ module With_free_variables : sig
   val free_variables : _ t -> Variable.Set.t
 end
 
-(* create an inlining stats stack corresponding to a
-   function declaration *)
-val create_declaration_stats_stack :
-  name:string
-  -> dbg:Debuginfo.t
-  -> Inlining_history.t
-
 (** Create a function declaration.  This calculates the free variables and
     symbols occurring in the specified [body]. *)
 val create_function_declaration

@@ -40,12 +40,12 @@ module Inlining_report = struct
       | Module
       | Call
 
-    type t = Debuginfo.t * string * Inlining_history.path * kind
+    type t = Debuginfo.item * string * Inlining_history.path * kind
 
     let compare ((d1, cl1, _, k1) : t) ((d2, cl2, _, k2) : t) =
-      let c = Debuginfo.compare d1 d2 in
+      let c = Debuginfo.compare [d1] [d2] in
       if c <> 0 then c else
-      let c = Pervasives.compare cl1 cl2 in
+      let c = String.compare cl1 cl2 in
       if c <> 0 then c else
         match k1, k2 with
         | Closure, Closure -> 0
@@ -205,7 +205,7 @@ module Inlining_report = struct
          Format.fprintf ppf "@[<h>%a Module %s%s %a@]@."
            print_stars (depth + 1)
            cl
-           (Debuginfo.to_string dbg)
+           (Debuginfo.to_string [dbg])
            print_anchor uid;
          print filename ppf ~depth:(depth + 1) t;
          if depth = 0 then Format.pp_print_newline ppf ()
@@ -213,7 +213,7 @@ module Inlining_report = struct
          Format.fprintf ppf "@[<h>%a Definition of %s%s %a@]@."
            print_stars (depth + 1)
            cl
-           (Debuginfo.to_string dbg)
+           (Debuginfo.to_string [dbg])
            print_anchor uid;
          print filename ppf ~depth:(depth + 1) t;
          if depth = 0 then Format.pp_print_newline ppf ()
@@ -225,7 +225,7 @@ module Inlining_report = struct
            Format.fprintf ppf "@[<h>%a Application of %a%s %a@]@;@;@[%a@]"
              print_stars (depth + 1)
              (print_apply filename) name
-             (Debuginfo.to_string dbg)
+             (Debuginfo.to_string [dbg])
              print_anchor uid
              print_reference reference;
            Format.pp_close_box ppf ();
@@ -249,7 +249,7 @@ module Inlining_report = struct
            Format.fprintf ppf "@[<h>%a Application of %a%s %a@]@;@;@[%a@]"
              print_stars (depth + 1)
              (print_apply filename) name
-             (Debuginfo.to_string dbg)
+             (Debuginfo.to_string [dbg])
              print_anchor uid
              Inlining_stats_types.Decision.summary decision;
            Format.pp_close_box ppf ();

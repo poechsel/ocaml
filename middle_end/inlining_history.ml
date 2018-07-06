@@ -38,9 +38,9 @@ type name =
 type t = node list
 
 and node =
-  | Module of string * Debuginfo.t * string list
-  | Closure of name * Debuginfo.t
-  | Call of path * Debuginfo.t * path
+  | Module of string * Debuginfo.item * string list
+  | Closure of name * Debuginfo.item
+  | Call of path * Debuginfo.item * path
   | Inlined
   | Specialised
   | SpecialisedCall
@@ -48,9 +48,9 @@ and node =
 (* shorten representation *)
 and path = atom list
 and atom =
-  | AModule of string * Debuginfo.t
-  | AClosure of name * Debuginfo.t
-  | ACall of path * Debuginfo.t
+  | AModule of string * Debuginfo.item
+  | AClosure of name * Debuginfo.item
+  | ACall of path * Debuginfo.item
   | AFile of string option * string
   | AInlined
   | ASpecialised
@@ -92,15 +92,15 @@ let rec compare_atom a b =
     0
   | AModule (a, b), AModule(a', b') ->
     if a = a' then 0
-    else let c = Debuginfo.compare b b' in
+    else let c = Debuginfo.compare [b] [b'] in
       c
   | AClosure(a, b), AClosure(a', b') ->
     if a = a' then 0 else
-      Debuginfo.compare b b'
+      Debuginfo.compare [b] [b']
   | ACall(a, b), ACall(a', b') ->
     let c = compare a a' in
     if c <> 0 then c else
-      let c = Debuginfo.compare b b' in
+      let c = Debuginfo.compare [b] [b'] in
       c
   | ASpecialised, ASpecialised ->
     0
@@ -209,7 +209,7 @@ let note_entering_call t ~dbg_name ~dbg
   (Call (dbg_name, dbg, absolute_inlining_history)) :: t
 
 let add_fn_def ~name ~loc ~path =
-  Closure(name, Debuginfo.from_location loc) :: path
+  Closure(name, Debuginfo.item_from_location loc) :: path
 
 let extract_def_name history =
   match history with

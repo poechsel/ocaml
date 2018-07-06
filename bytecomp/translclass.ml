@@ -47,7 +47,7 @@ let lfunction_debug dbg params body =
 
 let lfunction modpath name params body =
   let dbg loc =
-    IH.Closure(name, Debuginfo.from_location loc)::modpath
+    IH.Closure(name, Debuginfo.item_from_location loc)::modpath
   in
   lfunction' dbg params body
 
