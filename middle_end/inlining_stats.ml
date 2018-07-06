@@ -276,5 +276,6 @@ let really_save_then_forget_decisions ~output_prefix =
 
 let save_then_forget_decisions ~output_prefix =
   if !Clflags.inlining_report then begin
-    really_save_then_forget_decisions ~output_prefix
+    really_save_then_forget_decisions ~output_prefix;
+    Hashtbl.clear log
   end
