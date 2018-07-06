@@ -38,7 +38,7 @@ type name =
 type t = node list
 
 and node =
-  | Module of string * Debuginfo.item * string list
+  | Module of string * Debuginfo.item
   | Closure of name * Debuginfo.item
   | Call of path * Debuginfo.item * path
   | Inlined
@@ -62,7 +62,7 @@ let empty = []
 let history_to_path (history : t) : path =
   history
   |> List.map (function
-    | Module(s, d, _) -> AModule(s, d)
+    | Module(s, d) -> AModule(s, d)
     | Closure(n, d) -> AClosure(n, d)
     | Call(p, d, _) -> ACall(p, d)
     | Inlined -> AInlined
@@ -82,21 +82,84 @@ let path_add_import_atoms modname path =
   in
   AFile(filename, modname) :: path
 
-(* beware, the following are more to check equality than true
-   order *)
+
+let rec compare_name a b =
+  let index x =
+    match x with
+    | Function _ -> 0
+    | SpecialisedFunction _ -> 1
+    | Functor _ -> 2
+    | Class _ -> 3
+    | Anonymous -> 4
+    | Coerce -> 5
+    | Method _ -> 6
+  in
+  let index_a = index a in
+  let index_b = index b in
+  if index_a <> index_b then
+    if index_a < index_b then -1 else 1
+  else
+    begin match a, b with
+    | Function a, Function b ->
+      String.compare a b
+    | SpecialisedFunction a, SpecialisedFunction b ->
+      compare_name a b
+    | Functor a, Functor b ->
+      String.compare a b
+    | Class(a, t), Class(a', t') ->
+      let index = function
+        | ObjInit -> 0
+        | NewInit -> 1
+        | ClassInit -> 2
+        | ClassRebind -> 3
+        | EnvInit -> 4
+      in
+      let c = String.compare a a' in
+      if c <> 0 then c else
+        let it = index t in
+        let it' = index t' in
+        if it = it' then 0
+        else if it < it' then -1
+        else 1
+    | Anonymous, Anonymous ->
+      0
+    | Coerce,  Coerce ->
+      0
+    | Method (a, b), Method (a', b') ->
+      let c = String.compare a a' in
+      if c <> 0 then c else
+        String.compare b b'
+    | _ -> assert false
+    end
+
 let rec compare_atom a b =
+  let index = function
+    | AFile _ -> 0
+    | AClosure _ -> 1
+    | AModule _ -> 2
+    | ACall _ -> 3
+    | ASpecialised -> 4
+    | ASpecialisedCall -> 5
+    | AInlined -> 6
+  in
+  let index_a = index a in
+  let index_b = index b in
+  if index_a <> index_b then
+    if index_a < index_b then -1 else 1
+  else
   match a, b with
   | AFile (_, b), AFile (_, b') ->
     String.compare b b'
   | AInlined, AInlined ->
     0
   | AModule (a, b), AModule(a', b') ->
-    if a = a' then 0
-    else let c = Debuginfo.compare [b] [b'] in
-      c
+    let c = Debuginfo.compare [b] [b'] in
+    if c <> 0 then c
+    else String.compare a a'
   | AClosure(a, b), AClosure(a', b') ->
-    if a = a' then 0 else
-      Debuginfo.compare [b] [b']
+    let c = Debuginfo.compare [b] [b'] in
+    if c <> 0 then c else
+      compare_name a a'
   | ACall(a, b), ACall(a', b') ->
     let c = compare a a' in
     if c <> 0 then c else
@@ -106,7 +169,7 @@ let rec compare_atom a b =
     0
   | ASpecialisedCall, ASpecialisedCall ->
     0
-  | _ -> -1
+  | _ -> assert false
 
 and compare l l' =
   let c = List.compare_lengths l l' in

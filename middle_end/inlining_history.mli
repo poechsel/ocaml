@@ -34,7 +34,7 @@ type name =
 
 type t = node list
 and node =
-  | Module of string * Debuginfo.item * string list
+  | Module of string * Debuginfo.item
   | Closure of name * Debuginfo.item
   | Call of path * Debuginfo.item * path
   | Inlined
