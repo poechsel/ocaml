@@ -101,6 +101,15 @@ val show_filename: string -> string
         Otherwise, returns the filename unchanged. *)
 
 
+
+val find_relative_path_from_to: string -> string -> string
+  (** given two filse A and B, builds a relative path from the folder
+      containing A to B.
+      Ex: /foo/bar/baz/hello and /foo/bar/fox/morning returns
+      ../fox/morning
+  *)
+
+
 val absname: bool ref
 
 (** Support for located errors *)

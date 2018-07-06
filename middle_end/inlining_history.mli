@@ -41,14 +41,24 @@ and node =
   | Specialised
   | SpecialisedCall
 
-and path
-and atom
+and path = atom list
+and atom =
+  | AModule of string * Debuginfo.t
+  | AClosure of name * Debuginfo.t
+  | ACall of path * Debuginfo.t
+  | AFile of string option * string
+  | AInlined
+  | ASpecialised
+  | ASpecialisedCall
 
 val create : unit -> t
 
 val empty : t
 
 val compare : path -> path -> int
+
+val path_add_import_atoms :
+  string -> path -> path
 
 val print_atom :
   Format.formatter

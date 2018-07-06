@@ -185,7 +185,20 @@ module Inlining_report = struct
   let print_anchor ppf anchor =
     Format.fprintf ppf "[[id:<<%s>>][ ]]" anchor
 
-  let rec print ~depth ppf t =
+  let print_apply inlining_report_file ppf name =
+    let prefix =
+      match name with
+      | Inlining_history.AFile (Some filename, _) :: _ ->
+        "file:" ^ Location.find_relative_path_from_to inlining_report_file filename ^ "::"
+      | _ ->
+        ""
+    in
+    Format.fprintf ppf "[[%s%s][%a]]"
+      prefix
+      (Inlining_history.uid_of_path name)
+      Inlining_history.print name
+
+  let rec print filename ~depth ppf t =
     Place_map.iter (fun (dbg, cl, name, _) (v, uid) ->
        match v with
        | Module t ->
@@ -194,7 +207,7 @@ module Inlining_report = struct
            cl
            (Debuginfo.to_string dbg)
            print_anchor uid;
-         print ppf ~depth:(depth + 1) t;
+         print filename ppf ~depth:(depth + 1) t;
          if depth = 0 then Format.pp_print_newline ppf ()
        | Closure t ->
          Format.fprintf ppf "@[<h>%a Definition of %s%s %a@]@."
@@ -202,17 +215,16 @@ module Inlining_report = struct
            cl
            (Debuginfo.to_string dbg)
            print_anchor uid;
-         print ppf ~depth:(depth + 1) t;
+         print filename ppf ~depth:(depth + 1) t;
          if depth = 0 then Format.pp_print_newline ppf ()
        | Call c ->
          match c.decision with
          | Reference reference ->
            begin
            Format.pp_open_vbox ppf (depth + 2);
-           Format.fprintf ppf "@[<h>%a Application of [[%s][%a]]%s %a@]@;@;@[%a@]"
+           Format.fprintf ppf "@[<h>%a Application of %a%s %a@]@;@;@[%a@]"
              print_stars (depth + 1)
-             (Inlining_history.uid_of_path name)
-             Inlining_history.print name
+             (print_apply filename) name
              (Debuginfo.to_string dbg)
              print_anchor uid
              print_reference reference;
@@ -223,21 +235,20 @@ module Inlining_report = struct
              match c.specialised with
              | None -> ()
              | Some specialised ->
-               print ppf ~depth:(depth + 1) specialised
+               print filename ppf ~depth:(depth + 1) specialised
            end;
            begin
              match c.inlined with
              | None -> ()
              | Some inlined ->
-               print ppf ~depth:(depth + 1) inlined
+               print filename ppf ~depth:(depth + 1) inlined
            end;
              end
          | Decision decision ->
            Format.pp_open_vbox ppf (depth + 2);
-           Format.fprintf ppf "@[<h>%a Application of [[%s][%a]]%s %a@]@;@;@[%a@]"
+           Format.fprintf ppf "@[<h>%a Application of %a%s %a@]@;@;@[%a@]"
              print_stars (depth + 1)
-             (Inlining_history.uid_of_path name)
-             Inlining_history.print name
+             (print_apply filename) name
              (Debuginfo.to_string dbg)
              print_anchor uid
              Inlining_stats_types.Decision.summary decision;
@@ -246,19 +257,21 @@ module Inlining_report = struct
            Format.pp_print_newline ppf ();
            Inlining_stats_types.Decision.meta_print
              ~specialised:c.specialised ~inlined:c.inlined
-             ~print:print ~depth:(depth + 1)  ppf decision;
+             ~print:(print filename) ~depth:(depth + 1)  ppf decision;
            if depth = 0 then Format.pp_print_newline ppf ())
       t
 
-  let print ppf t = print ~depth:0 ppf t
+  let print ppf t filename = print ~depth:0 filename ppf t
 
 end
 
 let really_save_then_forget_decisions ~output_prefix =
   let report = Inlining_report.build log in
-  let out_channel = open_out (output_prefix ^ ".inlining.org") in
+  let _ = Format.fprintf Format.std_formatter "%s\n" output_prefix in
+  let filename = (output_prefix ^ ".inlining.org") in
+  let out_channel = open_out filename in
   let ppf = Format.formatter_of_out_channel out_channel in
-  Inlining_report.print ppf report;
+  Inlining_report.print ppf report filename;
   close_out out_channel
 
 let save_then_forget_decisions ~output_prefix =

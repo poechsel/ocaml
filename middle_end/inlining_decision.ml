@@ -745,7 +745,7 @@ let for_call_site ~env ~r ~(call : call_informations)
       let inlining_history_next_part =
         Inlining_history.note_entering_call
           ~dbg:call.dbg
-          ~dbg_name:(Inlining_history.history_to_path function_body.dbg_name)
+          ~dbg_name:function_body.dbg_name
           ~absolute_inlining_history:(E.inlining_history env)
           call.inlining_history
       in
