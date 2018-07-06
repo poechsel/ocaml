@@ -17,6 +17,7 @@
 [@@@ocaml.warning "+a-4-9-30-40-41-42"]
 
 module U = Flambda_utils
+module IH = Inlining_history
 
 type 'a boxed_int =
   | Int32 : int32 boxed_int
@@ -87,8 +88,8 @@ and function_body = {
   is_a_functor : bool;
   body : Flambda.t;
   recursive : bool;
-  inlining_history : Inlining_history.t;
-  dbg_name : Inlining_history.t;
+  inlining_history : IH.t;
+  dbg_name : IH.path;
 }
 
 and function_declaration = {
@@ -1090,7 +1091,7 @@ let function_declaration_approx ~keep_body
     if not (keep_body fun_decl) then None
     else begin
       let history =
-        Inlining_history.add
+        IH.add
           fun_decl.inlining_history
           full_history
       in
@@ -1103,7 +1104,7 @@ let function_declaration_approx ~keep_body
              free_variables = fun_decl.free_variables;
              free_symbols = fun_decl.free_symbols;
              recursive = fun_decl.recursive;
-             dbg_name = history;
+             dbg_name = IH.history_to_path history;
              inlining_history = fun_decl.inlining_history;}
     end
   in
@@ -1127,7 +1128,7 @@ let function_declarations_strip_full_history
       | None -> fun_decl
       | Some body ->
         let function_body =
-          Some {body with dbg_name = Inlining_history.empty }
+          Some {body with dbg_name = IH.empty_path }
         in
         { fun_decl with function_body }
     ) fun_decls.funs
@@ -1184,10 +1185,11 @@ let set_function_declaration_full_history
   | None -> function_decl
   | Some function_body ->
     let history =
-      Inlining_history.add function_body.inlining_history full_history
+      IH.add function_body.inlining_history full_history
     in
     let function_body =
-      { function_body with dbg_name =  history }
+      { function_body with dbg_name =
+                             IH.history_to_path history }
     in
     { function_decl with function_body = Some function_body }
 
@@ -1197,14 +1199,11 @@ let update_function_declaration_scope
   match function_decl.function_body with
   | None -> function_decl
   | Some function_body ->
-    let (dbg_name : Inlining_history.t) = function_body.dbg_name in
-    let dbg_name =
-      Inlining_history.add
-        dbg_name
-        (Inlining_history.Module(
-           Compilation_unit.get_persistent_ident scope |> Ident.name,
-           Debuginfo.none, []) :: [])
+    let modname =
+      Compilation_unit.get_persistent_ident scope |> Ident.name
     in
+    let (dbg_name : IH.path) = function_body.dbg_name in
+    let dbg_name = IH.path_add_import_atoms modname dbg_name in
     (*
     let path = match dbg_name.path with
       | None -> Path.Pident (Compilation_unit.get_persistent_ident scope)

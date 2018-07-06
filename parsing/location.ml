@@ -266,6 +266,42 @@ let absolute_path s = (* This function could go into Filename *)
   in
   aux s
 
+let find_relative_path_from_to source destination =
+  let open Filename in
+  let source =
+    if is_relative source then absolute_path source else source
+  in
+  let destination =
+    if is_relative destination then absolute_path destination else destination
+  in
+  let split path =
+    let rec aux prev_l path rev =
+      let dn = dirname path in
+      let bn = basename path in
+      let l = String.length dn in
+      if prev_l <= l then rev else aux l dn (bn :: rev)
+    in
+    let filename = basename path in
+    let path = dirname path in
+    aux (String.length path) path [], filename
+  in
+  let source, _source_name = split source in
+  let destination, destination_name = split destination in
+  let rec find_divergence a b =
+    match a, b with
+    | x::tl, x'::tl' when x = x' ->
+      find_divergence tl tl'
+    | _ ->
+      a, b
+  in
+  let source', destination' = find_divergence source destination in
+  let destination' =
+    List.fold_right(fun x p -> concat x p) destination' destination_name
+  in
+  List.fold_right (fun _ previous ->
+    concat parent_dir_name previous)
+    source' destination'
+
 let show_filename file =
   if !absname then absolute_path file else file
 

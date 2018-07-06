@@ -51,6 +51,7 @@ and atom =
   | AModule of string * Debuginfo.t
   | AClosure of name * Debuginfo.t
   | ACall of path * Debuginfo.t
+  | AFile of string option * string
   | AInlined
   | ASpecialised
   | ASpecialisedCall
@@ -70,10 +71,23 @@ let history_to_path (history : t) : path =
   )
 |> List.rev
 
+let path_add_import_atoms modname path =
+  let filename =
+    try
+      Some (Misc.find_in_path_uncap
+              !Config.load_path
+              (modname ^ ".inlining.org"))
+    with Not_found ->
+      None
+  in
+  AFile(filename, modname) :: path
+
 (* beware, the following are more to check equality than true
    order *)
 let rec compare_atom a b =
   match a, b with
+  | AFile (_, b), AFile (_, b') ->
+    String.compare b b'
   | AInlined, AInlined ->
     0
   | AModule (a, b), AModule(a', b') ->
@@ -138,6 +152,11 @@ let string_of_name name =
   Format.asprintf "%a" print_name name
 
 let rec uid_of_path h =
+  let h =
+    match h with
+        | AFile _ :: h -> h
+        | h -> h
+  in
   Marshal.to_bytes h []
   |> Digest.bytes
   |> Digest.to_hex
@@ -150,7 +169,8 @@ and print_atom ppf x =
     Format.fprintf ppf "(%a) " print c
   | AClosure (c, _) ->
     Format.fprintf ppf "%a" print_name c
-  | AModule (c, _) ->
+  | AModule (c, _)
+  | AFile (_, c) ->
     Format.fprintf ppf "%s." c
   | ASpecialised ->
     (* printing nothing because it's already done in the name *)
