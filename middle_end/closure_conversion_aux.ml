@@ -92,7 +92,7 @@ module Function_decls = struct
       free_idents_of_body : Ident.Set.t;
       attr : Lambda.function_attribute;
       loc : Location.t;
-      dbg_name : Inlining_history.t;
+      dbg_name : Inlining_history.History.t;
     }
 
     let create ~let_rec_ident ~closure_bound_var ~kind ~params ~body

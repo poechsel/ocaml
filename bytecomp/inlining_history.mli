@@ -32,74 +32,110 @@ type name =
   | Coerce
   | Method of string * string
 
-type t = node list
-and node =
-  | Module of string * Debuginfo.t * string list
-  | Closure of name * Debuginfo.t
-  | Call of path * Debuginfo.t * path
-  | Inlined
-  | Specialised
-  | SpecialisedCall
-
-and path = atom list
-and atom =
-  | AModule of string * Debuginfo.t
-  | AClosure of name * Debuginfo.t
-  | ACall of path * Debuginfo.t
-  | AFile of string option * string
-  | AInlined
-  | ASpecialised
-  | ASpecialisedCall
-
-val create : unit -> t
-
-val empty : t
-
-val compare : path -> path -> int
-
-val path_add_import_atoms :
-  string -> path -> path
-
-val print_atom :
+val print_name :
   Format.formatter
-  -> atom
+  -> name
   -> unit
 
-val print :
-  Format.formatter
-  -> path
-  -> unit
 
-val uid_of_path :
-  path
-  -> string
+module Path : sig
+  type t = atom list
+  and atom =
+    | Module of string * Debuginfo.item
+    | Closure of name * Debuginfo.item
+    | Call of t * Debuginfo.item
+    | File of string option * string
+    | Inlined
+    | Specialised
+    | SpecialisedCall
 
-val add : t -> t -> t
+  val compare_atom : atom -> atom -> int
+
+  val compare : t -> t -> int
+
+  val add_import_atoms : string -> t -> t
+
+  val print_atom :
+    Format.formatter
+    -> atom
+    -> unit
+
+  val print :
+    Format.formatter
+    -> t
+    -> unit
+
+  val empty : t
+
+  val to_uid : t -> string
+
+  (* "compress" a path knowing an other path : returns the second path
+     with the prefix of the two paths removed. If the result is empty,
+     returns a path made of the last atom *)
+  val get_compressed_path : t -> t -> t
+
+  (* remove AInlined, ASpecialised and ASpecialisedCall atoms
+     from a path *)
+  val strip_call_attributes : t -> t
+end
+
+module History : sig
+  type atom =
+    | Module of string * Debuginfo.item
+    | Closure of name * Debuginfo.item
+    | Call of Path.t * Debuginfo.item * Path.t
+    | Inlined
+    | Specialised
+    | SpecialisedCall
+  type t = atom list
+
+  val create : unit -> t
+
+  val empty : t
+
+  val extract_def_name : t -> name
+
+  val remove_most_recent_atom : t -> t
+
+  val insert : atom -> t -> t
+
+  val add : t -> t -> t
+end
+
+val node_to_atom : History.atom -> Path.atom
+
 
 val string_of_name : name -> string
 
-val empty_path : path
-
-val note_entering_closure
-  : t
-  -> name:name
-  -> dbg:Debuginfo.t
-  -> t
+val history_to_path: History.t -> Path.t
 
 val note_entering_call
-  : t
-  -> dbg_name:path
-  -> dbg:Debuginfo.t
-  -> absolute_inlining_history:t
-  -> t
+  : History.t
+  -> dbg_name:Path.t
+  -> dbg:Debuginfo.item
+  -> absolute_inlining_history:History.t
+  -> History.t
 
+(* add a function definition node to a history *)
 val add_fn_def
   : name:name
   -> loc:Location.t
-  -> path:t
-  -> t
+  -> path:History.t
+  -> History.t
 
-val history_to_path:
-  t -> path
+(* add a module definition node to a history *)
+val add_mod_def
+  : id:string
+  -> loc:Location.t
+  -> path:History.t
+  -> History.t
 
-val extract_def_name : t -> name
+(* add the declaration of a specialised function to a history *)
+val add_specialise_def
+  : name:name
+  -> path:History.t
+  -> History.t
+
+val add_specialise_apply
+  : path:History.t
+  -> History.t

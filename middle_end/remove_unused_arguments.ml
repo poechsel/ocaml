@@ -94,7 +94,7 @@ let make_stub unused var (fun_decl : Flambda.function_declaration)
       ~params:(List.map snd args') ~body
       ~stub:true ~dbg:fun_decl.dbg ~inline:Default_inline
       ~specialise:Default_specialise ~is_a_functor:fun_decl.is_a_functor
-      ~inlining_history:Inlining_history.empty
+      ~inlining_history:Inlining_history.History.empty
   in
   function_decl, renamed, additional_specialised_args
 

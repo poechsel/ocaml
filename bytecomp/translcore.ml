@@ -44,12 +44,18 @@ let use_dup_for_constant_arrays_bigger_than = 4
 (* Forward declaration -- to be filled in by Translmod.transl_module *)
 let transl_module =
   ref((fun _cc _rootpath _modl -> assert false) :
-        Inlining_history.t ->
-      Ident.t option -> module_coercion -> Path.t option -> module_expr -> lambda)
+        IH.History.t -> Ident.t option
+      -> module_coercion -> Path.t option
+      -> module_expr -> lambda)
 
 let transl_object =
-  ref (fun _path _id _s _cl -> assert false :
-       Inlining_history.t -> Ident.t -> string list -> class_expr -> lambda)
+  ref (fun _path _id _s _cl ->
+    assert false :
+      IH.History.t
+    -> Ident.t
+    -> string list
+    -> class_expr
+    -> lambda)
 
 (* Compile an exception/extension definition *)
 
@@ -107,7 +113,8 @@ let rec push_defaults loc bindings cases partial =
   | [{c_lhs=pat; c_guard=None;
       c_rhs={exp_attributes=[{txt="#default"},_];
              exp_desc = Texp_let
-               (Nonrecursive, binds, ({exp_desc = Texp_function _} as e2))}}] ->
+                          (Nonrecursive, binds,
+                           ({exp_desc = Texp_function _} as e2))}}] ->
       push_defaults loc (Bind_value binds :: bindings)
                    [{c_lhs=pat;c_guard=None;c_rhs=e2}]
                    partial
@@ -204,7 +211,8 @@ let rec transl_exp modpath name e =
 and transl_exp0 modpath name e =
   match e.exp_desc with
   | Texp_ident(path, _, {val_kind = Val_prim p}) ->
-      Translprim.transl_primitive modpath name e.exp_loc p e.exp_env e.exp_type (Some path)
+    Translprim.transl_primitive modpath name e.exp_loc p
+      e.exp_env e.exp_type (Some path)
   | Texp_ident(_, _, {val_kind = Val_anc _}) ->
       raise(Error(e.exp_loc, Free_super_var))
   | Texp_ident(path, _, {val_kind = Val_reg | Val_self _}) ->
@@ -221,7 +229,8 @@ and transl_exp0 modpath name e =
         event_function e
           (function repr ->
             let pl = push_defaults e.exp_loc [] cases partial in
-            transl_function IH.empty e.exp_loc !Clflags.native_code repr partial
+            transl_function IH.History.empty e.exp_loc
+              !Clflags.native_code repr partial
               param pl)
       in
       let attr = {
@@ -232,8 +241,7 @@ and transl_exp0 modpath name e =
       in
       let loc = e.exp_loc in
       let debugging_informations =
-        (* CR poechsel: Change this *)
-        IH.Closure (name, Debuginfo.from_location loc) :: modpath
+        IH.add_fn_def ~name ~loc ~path:modpath
       in
       Lfunction{kind; params; body; attr; loc;
                debugging_informations}
@@ -450,7 +458,8 @@ and transl_exp0 modpath name e =
       Lprim(Pfield_computed,
             [transl_normal_path path_self; transl_normal_path path], e.exp_loc)
   | Texp_setinstvar(path_self, path, _, expr) ->
-      transl_setinstvar modpath e.exp_loc (transl_normal_path path_self) path expr
+    transl_setinstvar modpath e.exp_loc
+      (transl_normal_path path_self) path expr
   | Texp_override(path_self, modifs) ->
       let cpy = Ident.create "copy" in
       Llet(Strict, Pgenval, cpy,
@@ -478,7 +487,8 @@ and transl_exp0 modpath name e =
           lev_env = Env.summary Env.empty;
         })
       in
-      Llet(Strict, Pgenval, id, defining_expr, transl_exp modpath IH.Anonymous body)
+      Llet(Strict, Pgenval, id, defining_expr,
+           transl_exp modpath IH.Anonymous body)
   | Texp_letexception(cd, body) ->
       Llet(Strict, Pgenval,
            cd.ext_id, transl_extension_constructor e.exp_env None cd,
@@ -491,7 +501,9 @@ and transl_exp0 modpath name e =
   | Texp_assert (cond) ->
       if !Clflags.noassert
       then lambda_unit
-      else Lifthenelse (transl_exp modpath IH.Anonymous cond, lambda_unit, assert_failed e)
+      else
+        Lifthenelse (transl_exp modpath IH.Anonymous cond,
+                     lambda_unit, assert_failed e)
   | Texp_lazy e ->
       (* when e needs no computation (constants, identifiers, ...), we
          optimize the translation just as Lazy.lazy_from_val would
@@ -525,7 +537,7 @@ and transl_exp0 modpath name e =
          let fn = Lfunction {kind = Curried; params = [Ident.create "param"];
                              attr = default_function_attribute;
                              debugging_informations =
-                               IH.empty;
+                               IH.History.empty;
                              loc = e.exp_loc;
                              body = transl_exp modpath IH.Anonymous e} in
           Lprim(Pmakeblock(Config.lazy_tag, Mutable, None), [fn], e.exp_loc)
@@ -558,7 +570,8 @@ and transl_guard modpath guard rhs =
   match guard with
   | None -> expr
   | Some cond ->
-      event_before cond (Lifthenelse((transl_exp modpath IH.Anonymous) cond, expr, staticfail))
+    event_before cond
+      (Lifthenelse((transl_exp modpath IH.Anonymous) cond, expr, staticfail))
 
 and transl_case modpath {c_lhs; c_guard; c_rhs} =
   c_lhs, transl_guard modpath c_guard c_rhs
@@ -646,7 +659,7 @@ and transl_apply ?(should_be_tailcall=false) ?(inlined = Default_inline)
           | lam ->
               Lfunction{kind = Curried; params = [id_arg]; body = lam;
                         attr = default_stub_attribute; loc = loc;
-                        debugging_informations = IH.empty}
+                        debugging_informations = IH.History.empty}
         in
         List.fold_left
           (fun body (id, lam) -> Llet(Strict, Pgenval, id, lam, body))
@@ -656,10 +669,11 @@ and transl_apply ?(should_be_tailcall=false) ?(inlined = Default_inline)
     | [] ->
         lapply lam (List.rev_map fst args)
   in
-  (build_apply lam [] (List.map (fun (l, x) ->
-                                   may_map (transl_exp modpath IH.Anonymous) x, Btype.is_optional l)
-                                sargs)
-     : Lambda.lambda)
+  (build_apply lam []
+     (List.map (fun (l, x) ->
+        may_map (transl_exp modpath IH.Anonymous) x, Btype.is_optional l)
+        sargs)
+   : Lambda.lambda)
 
 and transl_function modpath loc untuplify_fn repr partial param cases =
   match cases with
@@ -785,7 +799,8 @@ and transl_record modpath loc env fields repres opt_init_expr =
         match repres with
         | Record_regular -> Lconst(Const_block(0, cl))
         | Record_inlined tag -> Lconst(Const_block(tag, cl))
-        | Record_unboxed _ -> Lconst(match cl with [v] -> v | _ -> assert false)
+        | Record_unboxed _ -> Lconst(match cl with | [v] -> v
+                                                   | _ -> assert false)
         | Record_float ->
             Lconst(Const_float_array(List.map extract_float cl))
         | Record_extension ->
@@ -832,13 +847,17 @@ and transl_record modpath loc env fields repres opt_init_expr =
             | Record_extension ->
                 Psetfield(lbl.lbl_pos + 1, maybe_pointer expr, Assignment)
           in
-          Lsequence(Lprim(upd, [Lvar copy_id; transl_exp modpath IH.Anonymous expr], loc), cont)
+          Lsequence(Lprim(upd,
+                          [Lvar copy_id; transl_exp modpath IH.Anonymous expr],
+                          loc), cont)
     in
     begin match opt_init_expr with
       None -> assert false
     | Some init_expr ->
         Llet(Strict, Pgenval, copy_id,
-             Lprim(Pduprecord (repres, size), [transl_exp modpath IH.Anonymous init_expr], loc),
+             Lprim(Pduprecord (repres, size),
+                   [transl_exp modpath IH.Anonymous init_expr],
+                   loc),
              Array.fold_left update_field (Lvar copy_id) fields)
     end
   end
@@ -857,14 +876,17 @@ and transl_match modpath e arg pat_expr_list exn_pat_expr_list partial =
   in
   match arg, exn_cases with
   | {exp_desc = Texp_tuple argl}, [] ->
-    Matching.for_multiple_match e.exp_loc (transl_list modpath argl) cases partial
+    Matching.for_multiple_match e.exp_loc
+      (transl_list modpath argl)
+      cases partial
   | {exp_desc = Texp_tuple argl}, _ :: _ ->
     let val_ids = List.map (fun _ -> Typecore.name_pattern "val" []) argl in
     let lvars = List.map (fun id -> Lvar id) val_ids in
     static_catch (transl_list modpath argl) val_ids
       (Matching.for_multiple_match e.exp_loc lvars cases partial)
   | arg, [] ->
-    Matching.for_function e.exp_loc None (transl_exp modpath IH.Anonymous arg) cases partial
+    Matching.for_function e.exp_loc None
+      (transl_exp modpath IH.Anonymous arg) cases partial
   | arg, _ :: _ ->
     let val_id = Typecore.name_pattern "val" pat_expr_list in
     static_catch [transl_exp modpath IH.Anonymous arg] [val_id]

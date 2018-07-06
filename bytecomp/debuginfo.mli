@@ -22,11 +22,15 @@ type item = private {
 
 type t = item list
 
+val none_item : item
+
 val none : t
 
 val is_none : t -> bool
 
 val to_string : t -> string
+
+val item_from_location : Location.t -> item
 
 val from_location : Location.t -> t
 

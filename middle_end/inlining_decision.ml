@@ -50,7 +50,7 @@ type call_informations = {
   args : Variable.t list;
   dbg : Debuginfo.t;
   rec_info : Flambda.rec_info;
-  inlining_history : Inlining_history.t;
+  inlining_history : Inlining_history.History.t;
 }
 
 type callee_informations = {
@@ -744,7 +744,7 @@ let for_call_site ~env ~r ~(call : call_informations)
       in
       let inlining_history_next_part =
         Inlining_history.note_entering_call
-          ~dbg:call.dbg
+          ~dbg:(match call.dbg with | [] -> Debuginfo.none_item | x::_ -> x)
           ~dbg_name:function_body.dbg_name
           ~absolute_inlining_history:(E.inlining_history env)
           call.inlining_history

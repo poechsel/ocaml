@@ -26,7 +26,7 @@ module Env : sig
   (** Environments follow the lexical scopes of the program. *)
   type t
 
-  val inlining_history_next_parts : t -> Inlining_history.t
+  val inlining_history_next_parts : t -> Inlining_history.History.t
 
   (** Create a new environment.  If [never_inline] is true then the returned
       environment will prevent [Inline_and_simplify] from inlining.  The
@@ -196,19 +196,20 @@ module Env : sig
       body of an inlined function. *)
   val inside_inlined_function : t -> t
 
-  (** return the next parts of the env and reset these next parts of this env *)
-  val pop_inlining_history_next_parts : t -> Inlining_history.t * t
+  (** return the next parts of the inlining history kept in the env
+      and return a copy of the env without them *)
+  val pop_inlining_history_next_parts : t -> Inlining_history.History.t * t
 
   (** add an inlining stats stack to the current one *)
-  val add_inlining_history : t -> Inlining_history.t -> t
+  val add_inlining_history : t -> Inlining_history.History.t -> t
 
-  val set_inlining_history : t -> Inlining_history.t -> t
+  val set_inlining_history : t -> Inlining_history.History.t -> t
 
-  val inlining_history : t -> Inlining_history.t
+  val inlining_history : t -> Inlining_history.History.t
 
-  val add_inlining_history_parts : t -> Inlining_history.t -> t
+  val add_inlining_history_parts : t -> Inlining_history.History.t -> t
 
-  val add_inlining_history_part : t -> Inlining_history.node -> t
+  val add_inlining_history_part : t -> Inlining_history.History.atom -> t
 
   val enter_closure
      : t

@@ -266,9 +266,11 @@ module InliningArgs = struct
           if (non_incr && proj previous < proj current)
            || (not non_incr && proj previous > proj current) then begin
             let monotony = if non_incr then "decreasing" else "increasing" in
-            let message = "Argument " ^ label ^ " is " ^ monotony ^ " between round " ^
-                          string_of_int round ^ " (=" ^ (format (proj previous)) ^ ") and " ^
-                          string_of_int (round + 1) ^ " (=" ^ (format (proj current)) ^ ")"
+            let message = "Argument " ^ label ^ " is " ^ monotony ^
+                          " between round " ^ string_of_int round ^
+                          " (=" ^ (format (proj previous)) ^ ") and " ^
+                          string_of_int (round + 1) ^
+                          " (=" ^ (format (proj current)) ^ ")"
             in
             Location.prerr_warning ({loc_start = Lexing.dummy_pos;
                                      loc_end = Lexing.dummy_pos;
@@ -304,7 +306,7 @@ type apply = {
   inline : Lambda.inline_attribute;
   specialise : Lambda.specialise_attribute;
   max_inlining_arguments : InliningArgs.t option;
-  inlining_history : Inlining_history.t;
+  inlining_history : Inlining_history.History.t;
 }
 
 type assign = {
@@ -407,7 +409,7 @@ and function_declaration = {
   inline : Lambda.inline_attribute;
   specialise : Lambda.specialise_attribute;
   is_a_functor : bool;
-  inlining_history : Inlining_history.t;
+  inlining_history : Inlining_history.History.t;
 }
 
 and switch = {
@@ -511,7 +513,8 @@ let rec lam ppf (flam : t) =
       | Default_inline -> ()
     in
     fprintf ppf "@[<2>(apply[%a]%a%a<%s>@,%a@ %a%a)@]"
-      Inlining_history.print (Inlining_history.history_to_path inlining_history)
+      Inlining_history.Path.print
+      (Inlining_history.history_to_path inlining_history)
       direct () inline ()
       (Debuginfo.to_string dbg)
       print_inlining_depth inlining_depth
@@ -704,7 +707,8 @@ and print_function_declaration ppf var (f : function_declaration) =
   in
   fprintf ppf "@[<2>(%a%s%s%s%s%s@ =@ [%a]fun@[<2>%a@] ->@ @[<2>%a@])@]@ "
     Variable.print var recursive stub is_a_functor inline specialise
-    Inlining_history.print (Inlining_history.history_to_path f.inlining_history)
+    Inlining_history.Path.print
+    (Inlining_history.history_to_path f.inlining_history)
     params f.params lam f.body
 
 and print_set_of_closures ppf (set_of_closures : set_of_closures) =
@@ -736,9 +740,10 @@ and print_set_of_closures ppf (set_of_closures : set_of_closures) =
           spec_args
       end
     in
-    fprintf ppf "@[<2>(set_of_closures id=%a%a%a@ %a@ @[<2>free_vars={%a@ }@]@ \
-        @[<2>specialised_args={%a})@]@ \
-        @[<2>direct_call_surrogates=%a@]@]"
+    fprintf ppf "@[<2>(set_of_closures id=%a%a%a@ %a@ \
+                 @[<2>free_vars={%a@ }@]@ \
+                 @[<2>specialised_args={%a})@]@ \
+                 @[<2>direct_call_surrogates=%a@]@]"
       Set_of_closures_id.print function_decls.set_of_closures_id
       depth rec_info
       unroll rec_info
@@ -1318,9 +1323,6 @@ let free_symbols_program (program : program) =
   !symbols
 
 
-let create_declaration_stats_stack ~name ~dbg =
-  Inlining_history.Closure (Inlining_history.Function name, dbg) :: []
-
 let create_function_declaration ~recursive ~params ~body ~stub ~dbg
       ~(inline : Lambda.inline_attribute)
       ~(specialise : Lambda.specialise_attribute) ~is_a_functor
@@ -1358,7 +1360,8 @@ let create_function_declaration ~recursive ~params ~body ~stub ~dbg
 let update_function_declaration fun_decl ~params ~body ~inlining_history =
   let free_variables = free_variables body in
   let free_symbols = free_symbols body in
-  { fun_decl with params; body; free_variables; free_symbols; inlining_history }
+  { fun_decl with params; body; free_variables; free_symbols;
+                  inlining_history }
 
 let update_function_declaration_body (fun_decl : function_declaration) f =
   let old_body = fun_decl.body in
