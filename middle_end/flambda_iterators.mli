@@ -107,7 +107,7 @@ val iter_all_toplevel_immutable_let_and_let_rec_bindings
 
 val iter_exprs_at_toplevel_of_program_with_history
   : Flambda.program
-  -> f:(Inlining_history.t -> Flambda.t -> unit)
+  -> f:(Inlining_history.History.t -> Flambda.t -> unit)
   -> unit
 
 val iter_exprs_at_toplevel_of_program

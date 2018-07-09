@@ -54,7 +54,7 @@ let ignore_specialise_attribute (_ : Lambda.specialise_attribute) = ()
 let ignore_value_kind (_ : Lambda.value_kind) = ()
 let ignore_inlining_depth (_ : int) = ()
 let ignore_max_inlining_arguments (_ : InliningArgs.t option) = ()
-let ignore_inlining_history (_ : Inlining_history.t) = ()
+let ignore_inlining_history (_ : Inlining_history.History.t) = ()
 
 exception Binding_occurrence_not_from_current_compilation_unit of Variable.t
 exception Mutable_binding_occurrence_not_from_current_compilation_unit of

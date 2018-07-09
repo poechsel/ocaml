@@ -689,7 +689,7 @@ and simplify_set_of_closures original_env r
       ~is_classic_mode:function_decls.is_classic_mode
   in
   let function_decls_approx =
-    assert(E.inlining_history_next_parts env = Inlining_history.empty);
+    assert(E.inlining_history_next_parts env = Inlining_history.History.empty);
     A.function_declarations_approx ~keep_body
       function_decls
       ~full_history:(E.inlining_history env)
@@ -945,7 +945,7 @@ and simplify_partial_application env r ~lhs_of_application
       ~rec_info:{ depth = 0; unroll_to = 0; }
       ~stub:true
       ~unboxing_arguments
-      ~inlining_history:Inlining_history.empty
+      ~inlining_history:Inlining_history.History.empty
   in
   let with_known_args =
     Flambda_utils.bind
@@ -1632,7 +1632,7 @@ let constant_defining_value_approx
           ~is_classic_mode:function_decls.is_classic_mode
       in
       let function_decls =
-      assert(E.inlining_history_next_parts env = Inlining_history.empty);
+      assert(E.inlining_history_next_parts env = Inlining_history.History.empty);
         A.function_declarations_approx ~keep_body function_decls
           ~full_history:(E.inlining_history env)
       in

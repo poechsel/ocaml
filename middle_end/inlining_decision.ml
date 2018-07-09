@@ -50,7 +50,7 @@ type call_informations = {
   args : Variable.t list;
   dbg : Debuginfo.t;
   rec_info : Flambda.rec_info;
-  inlining_history : Inlining_history.t;
+  inlining_history : Inlining_history.History.t;
 }
 
 type callee_informations = {

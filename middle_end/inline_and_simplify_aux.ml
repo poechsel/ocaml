@@ -44,8 +44,12 @@ module Env = struct
     inlined_debuginfo : Debuginfo.t;
     inlining_arguments : InliningArgs.t;
     max_inlining_arguments : InliningArgs.t;
-    inlining_history : Inlining_history.t;
-    inlining_history_next_parts : Inlining_history.t;
+    inlining_history : Inlining_history.History.t;
+    (* the current inlining history from the toplevel *)
+    inlining_history_next_parts : Inlining_history.History.t;
+    (* Next part of inlining history. Composed of the relative history
+       we want to move down and store inside the next closure definition
+       or apply node. Used after inlining a call for exemple. *)
   }
   let inlining_history_next_parts t = t.inlining_history_next_parts
 
@@ -68,8 +72,8 @@ module Env = struct
       inlined_debuginfo = Debuginfo.none;
       inlining_arguments = InliningArgs.get round;
       max_inlining_arguments = InliningArgs.get_max ();
-      inlining_history = Inlining_history.create ();
-      inlining_history_next_parts = Inlining_history.create ();
+      inlining_history = Inlining_history.History.empty;
+      inlining_history_next_parts = Inlining_history.History.empty;
     }
 
   let backend t = t.backend
@@ -89,12 +93,12 @@ module Env = struct
 
   let set_inlining_arguments env args = { env with inlining_arguments = args }
 
-  let set_max_inlining_arguments env args = { env with max_inlining_arguments = args }
+  let set_max_inlining_arguments env args =
+    { env with max_inlining_arguments = args }
 
   let speculation_depth_up env =
-    let max_level =
-      (InliningArgs.extract (get_inlining_arguments env)).inline_max_speculation_depth
-    in
+    let args = InliningArgs.extract (get_inlining_arguments env) in
+    let max_level = args.inline_max_speculation_depth in
     if (env.speculation_depth + 1) > max_level then
       Misc.fatal_error "Inlining level increased above maximum";
     { env with speculation_depth = env.speculation_depth + 1 }
@@ -294,7 +298,8 @@ module Env = struct
     t.inlining_depth < limit
 
   let specialising_allowed t =
-    let limit = (InliningArgs.extract t.inlining_arguments).inline_max_specialise
+    let limit =
+      (InliningArgs.extract t.inlining_arguments).inline_max_specialise
     in
     limit - t.specialise_depth > 0
 
@@ -320,7 +325,7 @@ module Env = struct
 
   let pop_inlining_history_next_parts t =
     t.inlining_history_next_parts,
-    { t with inlining_history_next_parts = Inlining_history.create ()}
+    { t with inlining_history_next_parts = Inlining_history.History.empty}
 
   let inlining_history t =
     t.inlining_history
@@ -355,7 +360,7 @@ module Env = struct
       ~closure_stack:t.inlining_history
 
   let record_definition t =
-    if t.inlining_history <> Inlining_history.empty then
+    if t.inlining_history <> Inlining_history.History.empty then
     Inlining_stats.record_decision Inlining_stats_types.Decision.Definition
       ~closure_stack:t.inlining_history
 
@@ -491,7 +496,8 @@ let keep_body_check ~is_classic_mode =
       let inlining_threshold =
         Inlining_cost.Threshold.Can_inline_if_no_larger_than
           (int_of_float
-             (is_classic_mode *. float_of_int Inlining_cost.scale_inline_threshold_by)) in
+             (is_classic_mode *. float_of_int Inlining_cost.scale_inline_threshold_by))
+      in
       let bonus = Flambda_utils.function_arity fun_decl in
       Inlining_cost.can_inline fun_decl.body inlining_threshold ~bonus
     in
@@ -513,7 +519,7 @@ let prepare_to_simplify_set_of_closures ~env
       ~(set_of_closures : Flambda.set_of_closures)
       ~function_decls ~freshen
       ~(only_for_function_decl : Flambda.function_declaration option) =
-  assert(E.inlining_history_next_parts env = Inlining_history.empty);
+  assert(E.inlining_history_next_parts env = Inlining_history.History.empty);
   let free_vars =
     Variable.Map.map (fun (external_var : Flambda.specialised_to) ->
         let var =

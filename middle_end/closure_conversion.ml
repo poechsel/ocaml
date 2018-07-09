@@ -95,7 +95,7 @@ let tupled_function_call_stub original_params unboxed_version ~recursive
   Flambda.create_function_declaration ~recursive ~params:[tuple_param]
     ~body ~stub:true ~dbg:Debuginfo.none ~inline:Default_inline
     ~specialise:Default_specialise ~is_a_functor:false
-    ~inlining_history:Inlining_history.empty
+    ~inlining_history:Inlining_history.History.empty
 
 let register_const t (constant:Flambda.constant_defining_value) name
     : Flambda.constant_defining_value_block_field * Internal_variable_names.t =
@@ -170,7 +170,8 @@ let rec close t env (lam : Lambda.lambda) : Flambda.t =
   | Lconst cst ->
     let cst, name = close_const t cst in
     name_expr cst ~name
-  | Llet ((Strict | Alias | StrictOpt), _value_kind, id, defining_expr, body) ->
+  | Llet ((Strict | Alias | StrictOpt),
+          _value_kind, id, defining_expr, body) ->
     (* TODO: keep value_kind in flambda *)
     let var = Variable.create_with_same_name_as_ident id in
     let defining_expr =
@@ -313,7 +314,8 @@ let rec close t env (lam : Lambda.lambda) : Flambda.t =
           ~create_body:(fun args ->
               Send { kind; meth = meth_var; obj = obj_var; args; dbg; })))
   | Lprim ((Pdivint Safe | Pmodint Safe
-           | Pdivbint { is_safe = Safe } | Pmodbint { is_safe = Safe }) as prim,
+           | Pdivbint { is_safe = Safe }
+           | Pmodbint { is_safe = Safe }) as prim,
            [arg1; arg2], loc)
       when not !Clflags.fast -> (* not -unsafe *)
     let arg2 = close t env arg2 in
@@ -407,7 +409,7 @@ let rec close t env (lam : Lambda.lambda) : Flambda.t =
            operators. *)
         ap_inlined = Default_inline;
         ap_specialised = Default_specialise;
-        ap_dbg_informations=Inlining_history.empty;
+        ap_dbg_informations=Inlining_history.History.empty;
       }
     in
     close t env (Lambda.Lapply apply)

@@ -221,10 +221,10 @@ let iter_exprs_at_toplevel_of_program_with_history (program : Flambda.program) ~
     | Let_symbol (_, _, program) ->
       loop program
     | Initialize_symbol (_, _, fields, program) ->
-        List.iter (f (Inlining_history.create ()))fields;
+        List.iter (f Inlining_history.History.empty) fields;
       loop program
     | Effect (expr, program) ->
-        f (Inlining_history.create ()) expr;
+        f Inlining_history.History.empty expr;
       loop program
     | End _ -> ()
   in

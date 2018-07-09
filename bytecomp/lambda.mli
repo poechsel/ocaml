@@ -261,7 +261,7 @@ and lfunction =
     params: Ident.t list;
     body: lambda;
     attr: function_attribute; (* specified with [@inline] attribute *)
-    debugging_informations: Inlining_history.t;
+    debugging_informations: Inlining_history.History.t;
     loc : Location.t; }
 
 and lambda_apply =
@@ -271,7 +271,7 @@ and lambda_apply =
     ap_should_be_tailcall : bool;       (* true if [@tailcall] was specified *)
     ap_inlined : inline_attribute; (* specified with the [@inlined] attribute *)
     ap_specialised : specialise_attribute;
-    ap_dbg_informations : Inlining_history.t;
+    ap_dbg_informations : Inlining_history.History.t;
 }
 
 and lambda_switch =

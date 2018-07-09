@@ -606,7 +606,7 @@ let rec comp_expr env exp sz cont =
                        ap_args=[arg];
                        ap_inlined=Default_inline;
                        ap_specialised=Default_specialise;
-                       ap_dbg_informations=Inlining_history.empty;
+                       ap_dbg_informations=Inlining_history.History.empty;
                       } in
       comp_expr env exp sz cont
   | Lprim(Pnot, [arg], _) ->

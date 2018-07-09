@@ -17,7 +17,7 @@ open Typedtree
 open Lambda
 
 val transl_class :
-  Inlining_history.t ->
+  Inlining_history.History.t ->
   Ident.t list -> Ident.t ->
   string list -> class_expr -> Asttypes.virtual_flag -> lambda;;
 

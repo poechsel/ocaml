@@ -110,7 +110,7 @@ type apply = {
   max_inlining_arguments : InliningArgs.t option;
   (** Informations about the maximum value of the inlining arguments we can used
       to inline this function call. *)
-  inlining_history : Inlining_history.t;
+  inlining_history : Inlining_history.History.t;
 }
 
 (** The update of a mutable variable.  Mutable variables are distinct from
@@ -404,7 +404,7 @@ and function_declaration = private {
   (** Specialising requirements from the source code. *)
   is_a_functor : bool;
   (** Whether the function is known definitively to be a functor. *)
-  inlining_history : Inlining_history.t;
+  inlining_history : Inlining_history.History.t;
 }
 
 (** Equivalent to the similar type in [Lambda]. *)
@@ -638,7 +638,7 @@ val create_function_declaration
   -> inline:Lambda.inline_attribute
   -> specialise:Lambda.specialise_attribute
   -> is_a_functor:bool
-  -> inlining_history:Inlining_history.t
+  -> inlining_history:Inlining_history.History.t
   -> function_declaration
 
 (** Create a function declaration based on another function declaration *)
@@ -646,7 +646,7 @@ val update_function_declaration
   : function_declaration
   -> params:Parameter.t list
   -> body:t
-  -> inlining_history:Inlining_history.t
+  -> inlining_history:Inlining_history.History.t
   -> function_declaration
 
 (** Change only the code of a function declaration. *)

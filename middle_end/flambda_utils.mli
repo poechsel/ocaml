@@ -71,7 +71,7 @@ val make_closure_declaration
   -> rec_info:Flambda.rec_info
   -> stub:bool
   -> unboxing_arguments:Flambda.UnboxingArgs.t
-  -> inlining_history:Inlining_history.t
+  -> inlining_history:Inlining_history.History.t
   -> Flambda.t
 
 val toplevel_substitution

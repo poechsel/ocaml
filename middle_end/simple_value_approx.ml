@@ -88,8 +88,8 @@ and function_body = {
   is_a_functor : bool;
   body : Flambda.t;
   recursive : bool;
-  inlining_history : IH.t;
-  dbg_name : IH.path;
+  inlining_history : IH.History.t;
+  dbg_name : IH.Path.t;
 }
 
 and function_declaration = {
@@ -1128,7 +1128,7 @@ let function_declarations_strip_full_history
       | None -> fun_decl
       | Some body ->
         let function_body =
-          Some {body with dbg_name = IH.empty_path }
+          Some {body with dbg_name = IH.Path.empty }
         in
         { fun_decl with function_body }
     ) fun_decls.funs
@@ -1202,8 +1202,8 @@ let update_function_declaration_scope
     let modname =
       Compilation_unit.get_persistent_ident scope |> Ident.name
     in
-    let (dbg_name : IH.path) = function_body.dbg_name in
-    let dbg_name = IH.path_add_import_atoms modname dbg_name in
+    let (dbg_name : IH.Path.t) = function_body.dbg_name in
+    let dbg_name = IH.Path.add_import_atoms modname dbg_name in
     (*
     let path = match dbg_name.path with
       | None -> Path.Pident (Compilation_unit.get_persistent_ident scope)
