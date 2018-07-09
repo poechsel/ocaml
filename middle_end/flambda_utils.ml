@@ -969,5 +969,5 @@ let make_stub_body ?(dbg = Debuginfo.none) func args ~kind =
     inline = Default_inline;
     specialise = Default_specialise;
     max_inlining_arguments = None;
-    inlining_history = [];
+    inlining_history = Inlining_history.History.empty;
   }

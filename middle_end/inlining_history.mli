@@ -94,14 +94,20 @@ module History : sig
   val empty : t
 
   val extract_def_name : t -> name
+
+  val remove_most_recent_atom : t -> t
+
+  val insert : atom -> t -> t
+
+  val add : t -> t -> t
 end
 
 val node_to_atom : History.atom -> Path.atom
 
-val add : History.t -> History.t -> History.t
 
 val string_of_name : name -> string
 
+val history_to_path: History.t -> Path.t
 
 val note_entering_call
   : History.t
@@ -110,16 +116,26 @@ val note_entering_call
   -> absolute_inlining_history:History.t
   -> History.t
 
+(* add a function definition node to a history *)
 val add_fn_def
   : name:name
   -> loc:Location.t
   -> path:History.t
   -> History.t
 
+(* add a module definition node to a history *)
 val add_mod_def
   : id:string
   -> loc:Location.t
   -> path:History.t
   -> History.t
 
-val history_to_path: History.t -> Path.t
+(* add the declaration of a specialised function to a history *)
+val add_specialise_def
+  : name:name
+  -> path:History.t
+  -> History.t
+
+val add_specialise_apply
+  : path:History.t
+  -> History.t

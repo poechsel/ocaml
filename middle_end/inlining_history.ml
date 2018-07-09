@@ -278,6 +278,20 @@ module History = struct
   | Specialised :: _
   | _ ->
     assert(false)
+
+  let remove_most_recent_atom p =
+    match p with
+    | [] -> []
+    | _ :: p -> p
+
+  let insert atom history =
+    atom :: history
+
+  let add a b =
+    (* order is important. If a= [1; 2] and b = [3;4;5],
+       we want the result to be [1;2;3;4;5] *)
+    a @ b
+
 end
 
 let node_to_atom (history : History.atom) : Path.atom =
@@ -295,11 +309,6 @@ let history_to_path (history : History.t) : Path.t =
   |> List.rev
 
 
-let add a b =
-  (* order is important. If a= [1; 2] and b = [3;4;5],
-     we want the result to be [1;2;3;4;5] *)
-  a @ b
-
 let note_entering_call t ~dbg_name ~dbg
       ~absolute_inlining_history =
   let absolute_inlining_history =
@@ -316,3 +325,10 @@ let add_fn_def ~name ~loc ~path =
 
 let add_mod_def ~id ~loc ~path =
   History.Module(id, Debuginfo.item_from_location loc) :: path
+
+let add_specialise_def ~name ~path =
+  History.Closure(SpecialisedFunction name, Debuginfo.none_item)
+  :: History.Specialised :: path
+
+let add_specialise_apply ~path =
+  History.SpecialisedCall :: path

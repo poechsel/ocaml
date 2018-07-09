@@ -638,8 +638,7 @@ let rewrite_function ~lhs_of_application ~closure_id_being_applied
   in
   let inlining_history =
     (* CR poechsel: change this *)
-    IH.History.Closure(IH.SpecialisedFunction def_name, Debuginfo.none_item)
-      :: IH.History.Specialised :: inlining_history_call
+    IH.add_specialise_def ~name:def_name ~path:inlining_history_call
   in
   let new_function_decl =
     Flambda.create_function_declaration
@@ -775,7 +774,7 @@ let inline_by_copying_function_declaration
           inlining_depth = E.inlining_depth env;
           inline = inline_requested; specialise = Default_specialise;
           max_inlining_arguments = Some (E.get_max_inlining_arguments env);
-          inlining_history = IH.History.SpecialisedCall :: inlining_history;
+          inlining_history = IH.add_specialise_apply ~path:inlining_history;
         }
       in
       let body =
