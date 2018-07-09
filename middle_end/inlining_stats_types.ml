@@ -32,6 +32,12 @@ let print_calculation ~depth ~title ~subfunctions ppf wsb =
   Format.pp_print_newline ppf ();
   Format.pp_print_newline ppf ()
 
+module type Log_intf = sig
+  type t
+  val calculation : depth:int -> Format.formatter -> t -> unit
+  val need_precisions : t -> bool
+end
+
 module Inlined = struct
 
   type t =
@@ -317,10 +323,25 @@ module Decision = struct
       Not_specialised.calculation ~depth ppf s;
       Not_inlined.calculation ~depth ppf i
 
+  let print_decision (type a) ppf tag
+        (module Log : Log_intf with type t=a) (decision:a)
+        entry ~print ~depth =
+    if Log.need_precisions decision || entry <> None then begin
+      Format.fprintf ppf "@[<h>%a %s@]@."
+        print_stars (depth + 1) tag;
+      Log.calculation ~depth:(depth+1) ppf decision;
+      match entry with
+      | None -> ()
+      | Some s -> print ~depth:(depth+1) ppf s
+    end
 
-  let meta_print ~depth ppf ~specialised ~inlined
+  let print ~depth ppf ~specialised ~inlined
+        ~specialised_call
         ~print
         decision =
+    let specialised, specialised_hist = specialised in
+    let inlined, inlined_hist = inlined in
+    let specialised_call, specialised_call_hist = specialised_call in
     match decision with
     | Definition ->
       ()
@@ -328,54 +349,30 @@ module Decision = struct
       ()
     | Specialised s ->
       begin
-        if Specialised.need_precisions s || specialised <> None then begin
-          Format.fprintf ppf "@[<h>%a Specialisation@]@."
-            print_stars (depth + 1);
-          Specialised.calculation ~depth:(depth+1) ppf s;
-          match specialised with
+        print_decision ppf "Specialisation" ~depth (module Specialised)
+          s specialised ~print:(print specialised_hist);
+
+        if specialised_call <> None then begin
+          match specialised_call with
           | None -> ()
-          | Some s -> print ~depth:(depth+1) ppf s
+          | Some s -> print specialised_call_hist ~depth:(depth+1) ppf s
         end
       end
     | Inlined(s, i) ->
       begin
-        if Not_specialised.need_precisions s || specialised <> None then begin
-          Format.fprintf ppf "@[<h>%a Speculative specialisation@]@."
-            print_stars (depth + 1);
-          Not_specialised.calculation ~depth:(depth+1) ppf s;
-          match specialised with
-          | None -> ()
-          | Some s -> print ~depth:(depth+1) ppf s
-        end;
-
-        if Inlined.need_precisions i || inlined <> None then begin
-          Format.fprintf ppf "@[<h>%a Inlining@]@."
-            print_stars (depth + 1);
-          Inlined.calculation ~depth:(depth+1) ppf i;
-          match inlined with
-          | None -> ()
-          | Some i -> print ~depth:(depth+1) ppf i
-        end
+        print_decision ppf "Speculative specialisation" ~depth
+          (module Not_specialised) s specialised
+          ~print:(print specialised_hist);
+        print_decision ppf "Inlined" ~depth (module Inlined) i inlined
+          ~print:(print inlined_hist);
       end
     | Unchanged (s, i) ->
       begin
-        if Not_specialised.need_precisions s || specialised <> None then begin
-          Format.fprintf ppf "@[<h>%a Speculative specialisation@]@."
-            print_stars (depth + 1);
-          Not_specialised.calculation ~depth:(depth+1) ppf s;
-          match specialised with
-          | None -> ()
-          | Some s -> print ~depth:(depth+1) ppf s
-        end;
-
-        if Not_inlined.need_precisions i || inlined <> None then begin
-          Format.fprintf ppf "@[<h>%a Speculative inlining@]@."
-            print_stars (depth + 1);
-          Not_inlined.calculation ~depth:(depth+1) ppf i;
-          match inlined with
-          | None -> ()
-          | Some i -> print ~depth:(depth+1) ppf i
-        end
+        print_decision ppf "Speculative specialisation" ~depth
+          (module Not_specialised)
+          s specialised ~print:(print specialised_hist);
+        print_decision ppf "Speculative inlining" ~depth (module Not_inlined)
+          i inlined ~print:(print inlined_hist);
       end
 
 end

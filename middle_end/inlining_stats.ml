@@ -16,54 +16,36 @@
 
 [@@@ocaml.warning "+a-4-9-30-40-41-42"]
 
+
+module IH = Inlining_history
+
 let log = Hashtbl.create 5
 
 let record_decision decision ~closure_stack =
   if !Clflags.inlining_report then begin
     match closure_stack with
     | []
-    | Inlining_history.Module _ :: _
-    | Inlining_history.Inlined :: _
-    | Inlining_history.SpecialisedCall :: _ ->
+    | IH.Module _ :: _
+    | IH.Inlined :: _
+    | IH.SpecialisedCall :: _ ->
       Misc.fatal_errorf "record_decision: missing Call node"
-    | Inlining_history.Specialised :: _
-    | Inlining_history.Closure _ :: _
-    | Inlining_history.Call _ :: _ ->
+    | IH.Specialised :: _
+    | IH.Closure _ :: _
+    | IH.Call _ :: _ ->
       Hashtbl.replace log closure_stack decision
   end
 
 module Inlining_report = struct
-
-  module Place = struct
-    type kind =
-      | Closure
-      | Module
-      | Call
-
-    type t = Debuginfo.item * string * Inlining_history.path * kind
-
-    let compare ((d1, cl1, _, k1) : t) ((d2, cl2, _, k2) : t) =
-      let c = Debuginfo.compare [d1] [d2] in
-      if c <> 0 then c else
-      let c = String.compare cl1 cl2 in
-      if c <> 0 then c else
-        match k1, k2 with
-        | Closure, Closure -> 0
-        | Call, Call -> 0
-        | Module, Module -> 0
-        | Closure, Call -> 1
-        | Call, Closure -> -1
-        | Module, _ -> 1
-        | _, Module -> -1
-  end
-
-  module Place_map = Map.Make(Place)
+  module Place_map = Map.Make(struct
+      type t = IH.atom
+      let compare = IH.compare_atom
+    end)
 
   type decision =
     | Decision of Inlining_stats_types.Decision.t
-    | Reference of Inlining_history.path
+    | Reference of IH.path
 
-  type t = (node * string) Place_map.t
+  type t = node Place_map.t
 
   and node =
     | Closure of t
@@ -73,12 +55,16 @@ module Inlining_report = struct
   and call =
     { decision: decision;
       inlined: t option;
-      specialised: t option; }
+      specialised: t option;
+      specialised_call: t option;
+    }
 
   let empty_call path =
     { decision = Reference path;
       inlined = None;
-      specialised = None; }
+      specialised = None;
+      specialised_call = None;
+    }
 
 
   (* Prevented or unchanged decisions may be overridden by a later look at the
@@ -97,79 +83,72 @@ module Inlining_report = struct
     | Decision _, Inlined _ -> { call with decision = Decision decision }
     | Decision Unchanged _, Unchanged _ -> call
 
-  let add_decision stack decision t : (node * string) Place_map.t =
-    let debug_empty = Inlining_history.empty_path in
-    let rec loop seen t (stack : Inlining_history.t) =
-      let uid seen =
-        Inlining_history.uid_of_path (Inlining_history.history_to_path seen)
-      in
+  let add_decision stack decision t : node Place_map.t =
+    let rec loop (t : t) (stack : IH.t) =
       match stack with
-      | (Closure(cl, dbg) as x) :: rest ->
-          let key : Place.t = (dbg, Inlining_history.string_of_name cl, debug_empty, Closure) in
-          let v =
-            try
-              match Place_map.find key t with
-              | Closure v, _ -> v
-              | _ -> assert false
-            with Not_found -> Place_map.empty
-          in
-          let seen = x :: seen in
-          let v = loop seen v rest in
-          Place_map.add key (Closure v, uid seen) t
-      (* CR poechsel: deal with modules params *)
-      | (Module(s, dbg) as x) :: rest ->
-          let key : Place.t = (dbg, s, debug_empty, Module) in
-          let v =
-            try
-              match Place_map.find key t with
-              | Module v, _ -> v
-              | _ -> assert false
-            with Not_found -> Place_map.empty
-          in
-          let seen = x :: seen in
-          let v = loop seen v rest in
-          Place_map.add key (Module v, uid seen) t
-      | (Call(name, dbg, path) as x) :: rest ->
-          let key : Place.t = (dbg, Format.asprintf "%a" Inlining_history.print name, name, Call) in
-          let v =
-            try
-              match Place_map.find key t with
-              | Call v, _ -> v
-              |_ -> assert false
-            with Not_found -> empty_call path
-          in
-          let v, seen =
-            match rest with
-            | [] -> add_call_decision v decision, x :: seen
-            | (Inlined as y) :: rest ->
-                let inlined =
-                  match v.inlined with
-                  | None -> Place_map.empty
-                  | Some inlined -> inlined
-                in
-                let seen = y :: x :: seen in
-                let inlined = loop seen inlined rest in
-                { v with inlined = Some inlined }, seen
-            | ((Specialised | SpecialisedCall) as y) :: rest ->
-                let specialised =
-                  match v.specialised with
-                  | None -> Place_map.empty
-                  | Some specialised -> specialised
-                in
-                let seen = y :: x :: seen in
-                let specialised = loop seen specialised rest in
-                { v with specialised = Some specialised }, seen
-            | Call _ :: _ -> assert false
-            | Closure _ :: _ -> assert false
-            | Module _ :: _ -> assert false
-          in
-          Place_map.add key (Call v, uid seen) t
       | [] -> t
       | Inlined :: _ -> assert false
       | Specialised :: _ -> assert false
       | SpecialisedCall :: _ -> assert false
+      | node :: rest ->
+        let atom = IH.node_to_atom node in
+        match (node : IH.node) with
+        | Closure _ ->
+          let v =
+              match Place_map.find atom t with
+              | Closure v -> v
+              | _ -> assert false
+              | exception Not_found -> Place_map.empty
+          in
+          let v = loop v rest in
+          Place_map.add atom (Closure v) t
+        | Module _ ->
+          let v =
+              match Place_map.find atom t with
+              | Module v -> v
+              | _ -> assert false
+              | exception Not_found -> Place_map.empty
+          in
+          let v = loop v rest in
+          Place_map.add atom (Module v) t
+        | Call (_, _, path) ->
+          let v =
+              match Place_map.find atom t with
+              | Call v -> v
+              |_ -> assert false
+              | exception Not_found -> empty_call path
+          in
+          let merge_call_annotation annotation rest =
+            let annotation =
+              match annotation with
+              | None -> Place_map.empty
+              | Some x -> x
+            in
+            loop annotation rest
+          in
+          let v =
+            match rest with
+            | [] ->
+              add_call_decision v decision
+            | Inlined :: rest ->
+              let inlined = merge_call_annotation v.inlined rest in
+              { v with inlined = Some inlined }
+            | Specialised :: rest ->
+              let specialised = merge_call_annotation v.specialised rest in
+              { v with specialised = Some specialised }
+            | SpecialisedCall :: rest ->
+              let specialised_call =
+                merge_call_annotation v.specialised_call rest
+              in
+              { v with specialised_call = Some specialised_call }
+            | Call _ :: _ -> assert false
+            | Closure _ :: _ -> assert false
+            | Module _ :: _ -> assert false
+          in
+          Place_map.add atom (Call v) t
+        | _ -> assert(false)
     in
-    loop [] t (List.rev stack)
+    loop t (List.rev stack)
 
   let build log =
     Hashtbl.fold add_decision log Place_map.empty
@@ -179,99 +158,101 @@ module Inlining_report = struct
     Format.fprintf ppf "%s" s
 
   let print_reference ppf reference =
-    Inlining_history.uid_of_path reference
-    |> Format.fprintf ppf "The decision for this site was taken at:@;  [[%s][decision site]]"
+    IH.uid_of_path reference
+    |> Format.fprintf ppf "The decision for this site was taken at:@; \
+                          [[%s][decision site]]"
 
   let print_anchor ppf anchor =
     Format.fprintf ppf "[[id:<<%s>>][ ]]" anchor
 
-  let print_apply inlining_report_file ppf name =
+  let print_apply history inlining_report_file ppf name =
     let prefix =
       match name with
-      | Inlining_history.AFile (Some filename, _) :: _ ->
+      | IH.AFile (Some filename, _) :: _ ->
         "file:" ^ Location.find_relative_path_from_to inlining_report_file filename ^ "::"
       | _ ->
         ""
     in
     Format.fprintf ppf "[[%s%s][%a]]"
       prefix
-      (Inlining_history.uid_of_path name)
-      Inlining_history.print name
+      (IH.uid_of_path name)
+      IH.print (IH.get_compressed_path history name
+                |> IH.strip_call_attributes)
 
   let print_debug ppf (dbg : Debuginfo.item) =
     if dbg.dinfo_file = "" then ()
     else Format.fprintf ppf "%s" (Debuginfo.to_string [dbg])
 
-  let rec print filename ~depth ppf t =
-    Place_map.iter (fun (dbg, cl, name, _) (v, uid) ->
-       match v with
-       | Module t ->
-         Format.fprintf ppf "@[<h>%a Module %s%a %a@]@."
+  let rec print history filename ~depth ppf t =
+    Place_map.iter (fun atom (v : node) ->
+      let present = atom :: history in
+      let uid = IH.uid_of_path (List.rev present) in
+      let print_checkpoint tag name dbg =
+         Format.fprintf ppf "@[<h>%a %s %s%a %a@]@;@;"
            print_stars (depth + 1)
-           cl
+           tag
+           name
            print_debug dbg
            print_anchor uid;
-         print filename ppf ~depth:(depth + 1) t;
-         if depth = 0 then Format.pp_print_newline ppf ()
-       | Closure t ->
-         Format.fprintf ppf "@[<h>%a Definition of %s%a %a@]@."
-           print_stars (depth + 1)
-           cl
-           print_debug dbg
-           print_anchor uid;
-         print filename ppf ~depth:(depth + 1) t;
-         if depth = 0 then Format.pp_print_newline ppf ()
-       | Call c ->
-         match c.decision with
-         | Reference reference ->
-           begin
-           Format.pp_open_vbox ppf (depth + 2);
-           Format.fprintf ppf "@[<h>%a Application of %a%s %a@]@;@;@[%a@]"
-             print_stars (depth + 1)
-             (print_apply filename) name
-             (Debuginfo.to_string [dbg])
-             print_anchor uid
-             print_reference reference;
-           Format.pp_close_box ppf ();
-           Format.pp_print_newline ppf ();
-           Format.pp_print_newline ppf ();
-           begin
-             match c.specialised with
-             | None -> ()
-             | Some specialised ->
-               print filename ppf ~depth:(depth + 1) specialised
-           end;
-           begin
-             match c.inlined with
-             | None -> ()
-             | Some inlined ->
-               print filename ppf ~depth:(depth + 1) inlined
-           end;
+      in
+      let print_application (type a) name dbg (converter:Format.formatter->a->unit) (obj:a) =
+        Format.pp_open_vbox ppf (depth + 2);
+        Format.fprintf ppf "@[<h>%a Application of %a%s %a@]@;@;@[%a@]"
+          print_stars (depth + 1)
+          (print_apply (List.rev history) filename) name
+          (Debuginfo.to_string [dbg])
+          print_anchor uid
+          converter obj;
+        Format.pp_close_box ppf ();
+        Format.pp_print_newline ppf ();
+        Format.pp_print_newline ppf ();
+      in
+      begin
+        match atom, v with
+       | AModule(name, dbg), Module t ->
+         print_checkpoint "Module" name dbg;
+         print present filename ppf ~depth:(depth + 1) t;
+       | AClosure(name, dbg), Closure t ->
+         print_checkpoint "Definition" (IH.string_of_name name) dbg;
+         print present filename ppf ~depth:(depth + 1) t;
+       | ACall(path, dbg), Call c ->
+         begin
+           match c.decision with
+           | Reference reference ->
+             begin
+               print_application path dbg print_reference reference;
+               let explore entry next_atom =
+                 match entry with
+                 | None -> ()
+                 | Some specialised ->
+                   print (next_atom :: present) filename ppf ~depth:(depth + 1) specialised
+               in
+               explore c.specialised IH.ASpecialised;
+               explore c.specialised_call IH.ASpecialisedCall;
+               explore c.inlined IH.AInlined;
              end
-         | Decision decision ->
-           Format.pp_open_vbox ppf (depth + 2);
-           Format.fprintf ppf "@[<h>%a Application of %a%s %a@]@;@;@[%a@]"
-             print_stars (depth + 1)
-             (print_apply filename) name
-             (Debuginfo.to_string [dbg])
-             print_anchor uid
-             Inlining_stats_types.Decision.summary decision;
-           Format.pp_close_box ppf ();
-           Format.pp_print_newline ppf ();
-           Format.pp_print_newline ppf ();
-           Inlining_stats_types.Decision.meta_print
-             ~specialised:c.specialised ~inlined:c.inlined
-             ~print:(print filename) ~depth:(depth + 1)  ppf decision;
-           if depth = 0 then Format.pp_print_newline ppf ())
+           | Decision decision ->
+             begin
+               print_application path dbg
+                 Inlining_stats_types.Decision.summary decision;
+               Inlining_stats_types.Decision.print
+                 ~specialised:(c.specialised, IH.ASpecialised::present)
+                 ~inlined:(c.inlined, IH.AInlined::present)
+                 ~specialised_call:(c.specialised_call, IH.ASpecialisedCall::present)
+                 ~print:(fun (x : IH.path) -> print x filename) ~depth:(depth + 1) ppf decision;
+             end
+         end
+       | _ -> assert false
+     end;
+      if depth = 0 then Format.pp_print_newline ppf ())
       t
 
-  let print ppf t filename = print ~depth:0 filename ppf t
+  let print ppf t filename = print IH.empty_path ~depth:0 filename ppf t
 
 end
 
 let really_save_then_forget_decisions ~output_prefix =
   let report = Inlining_report.build log in
-  let _ = Format.fprintf Format.std_formatter "%s\n" output_prefix in
   let filename = (output_prefix ^ ".inlining.org") in
   let out_channel = open_out filename in
   let ppf = Format.formatter_of_out_channel out_channel in

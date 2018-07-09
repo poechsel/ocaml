@@ -59,17 +59,18 @@ and atom =
 let create () = []
 let empty = []
 
-let history_to_path (history : t) : path =
-  history
-  |> List.map (function
+let node_to_atom = function
     | Module(s, d) -> AModule(s, d)
     | Closure(n, d) -> AClosure(n, d)
     | Call(p, d, _) -> ACall(p, d)
     | Inlined -> AInlined
     | Specialised -> ASpecialised
     | SpecialisedCall -> ASpecialisedCall
-  )
-|> List.rev
+
+let history_to_path (history : t) : path =
+  history
+  |> List.map node_to_atom
+  |> List.rev
 
 let path_add_import_atoms modname path =
   let filename =
@@ -132,7 +133,23 @@ let rec compare_name a b =
     | _ -> assert false
     end
 
+let extract_debug_info atom =
+  match atom with
+  | AClosure(_, dbg)
+  | AModule(_, dbg)
+  | ACall(_, dbg) ->
+    Some dbg
+  | _ ->
+    None
+
 let rec compare_atom a b =
+  let c =
+    match extract_debug_info a, extract_debug_info b with
+    | Some a, Some b -> Debuginfo.compare [a] [b]
+    | _ -> 0
+  in
+  if c <> 0 then c
+  else
   let index = function
     | AFile _ -> 0
     | AClosure _ -> 1
@@ -211,6 +228,7 @@ let rec print_name ppf name =
     in
     Format.fprintf ppf "%s#%s" n w
 
+
 let string_of_name name =
   Format.asprintf "%a" print_name name
 
@@ -229,9 +247,9 @@ and print_atom ppf x =
   | AInlined ->
     Format.fprintf ppf " inlined "
   | ACall (c, _) ->
-    Format.fprintf ppf "(%a) " print c
+    Format.fprintf ppf "(%a ) " print c
   | AClosure (c, _) ->
-    Format.fprintf ppf "%a" print_name c
+    Format.fprintf ppf "%a " print_name c
   | AModule (c, _)
   | AFile (_, c) ->
     Format.fprintf ppf "%s." c
@@ -240,9 +258,23 @@ and print_atom ppf x =
     Format.fprintf ppf ""
   | ASpecialisedCall ->
     Format.fprintf ppf " specialised call "
+
 and print ppf l =
   List.iter (print_atom ppf) l
 
+let rec get_compressed_path root leaf =
+  match root, leaf with
+  | atom :: root, atom' :: leaf when
+      compare_atom atom atom' = 0 ->
+    let r = get_compressed_path root leaf in
+    if r = [] then atom' :: empty_path else r
+  | _ -> leaf
+
+let strip_call_attributes path =
+  List.filter (function
+    | AInlined | ASpecialised | ASpecialisedCall -> false
+    | _ -> true)
+    path
 
 let add a b =
   (* order is important. If a= [1; 2] and b = [3;4;5],

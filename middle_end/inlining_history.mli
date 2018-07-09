@@ -55,14 +55,23 @@ val create : unit -> t
 
 val empty : t
 
+val compare_atom : atom -> atom -> int
+
 val compare : path -> path -> int
 
 val path_add_import_atoms :
   string -> path -> path
 
+val node_to_atom : node -> atom
+
 val print_atom :
   Format.formatter
   -> atom
+  -> unit
+
+val print_name :
+  Format.formatter
+  -> name
   -> unit
 
 val print :
@@ -103,3 +112,12 @@ val history_to_path:
   t -> path
 
 val extract_def_name : t -> name
+
+(* "compress" a path knowing an other path : returns the second path
+   with the prefix of the two paths removed. If the result is empty,
+   returns a path made of the last atom *)
+val get_compressed_path : path -> path -> path
+
+(* remove AInlined, ASpecialised and ASpecialisedCall atoms
+   from a path *)
+val strip_call_attributes : path -> path
