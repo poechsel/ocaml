@@ -18,6 +18,7 @@
 
 module InliningArgs = Flambda.InliningArgs
 module UnboxingArgs = Flambda.UnboxingArgs
+module IH = Inlining_history
 
 module Env = struct
   type scope = Current | Outer
@@ -44,9 +45,9 @@ module Env = struct
     inlined_debuginfo : Debuginfo.t;
     inlining_arguments : InliningArgs.t;
     max_inlining_arguments : InliningArgs.t;
-    inlining_history : Inlining_history.History.t;
+    inlining_history : IH.History.t;
     (* the current inlining history from the toplevel *)
-    inlining_history_next_parts : Inlining_history.History.t;
+    inlining_history_next_parts : IH.History.t;
     (* Next part of inlining history. Composed of the relative history
        we want to move down and store inside the next closure definition
        or apply node. Used after inlining a call for exemple. *)
@@ -72,8 +73,8 @@ module Env = struct
       inlined_debuginfo = Debuginfo.none;
       inlining_arguments = InliningArgs.get round;
       max_inlining_arguments = InliningArgs.get_max ();
-      inlining_history = Inlining_history.History.empty;
-      inlining_history_next_parts = Inlining_history.History.empty;
+      inlining_history = IH.History.empty;
+      inlining_history_next_parts = IH.History.empty;
     }
 
   let backend t = t.backend
@@ -325,7 +326,7 @@ module Env = struct
 
   let pop_inlining_history_next_parts t =
     t.inlining_history_next_parts,
-    { t with inlining_history_next_parts = Inlining_history.History.empty}
+    { t with inlining_history_next_parts = IH.History.empty}
 
   let inlining_history t =
     t.inlining_history
@@ -335,18 +336,15 @@ module Env = struct
 
   let add_inlining_history t substats =
     { t with inlining_history =
-               Inlining_history.add
-                 substats t.inlining_history
-                 }
+               IH.History.add substats t.inlining_history }
 
   let add_inlining_history_parts t parts =
     { t with inlining_history_next_parts =
-               Inlining_history.add
-                 parts t.inlining_history_next_parts }
+               IH.History.add parts t.inlining_history_next_parts }
 
   let add_inlining_history_part t part =
     { t with inlining_history_next_parts =
-               part :: t.inlining_history_next_parts }
+               IH.History.insert part t.inlining_history_next_parts }
 
   let enter_closure t ~inline_inside =
     let t =
@@ -360,7 +358,7 @@ module Env = struct
       ~closure_stack:t.inlining_history
 
   let record_definition t =
-    if t.inlining_history <> Inlining_history.History.empty then
+    if t.inlining_history <> IH.History.empty then
     Inlining_stats.record_decision Inlining_stats_types.Decision.Definition
       ~closure_stack:t.inlining_history
 
@@ -519,7 +517,7 @@ let prepare_to_simplify_set_of_closures ~env
       ~(set_of_closures : Flambda.set_of_closures)
       ~function_decls ~freshen
       ~(only_for_function_decl : Flambda.function_declaration option) =
-  assert(E.inlining_history_next_parts env = Inlining_history.History.empty);
+  assert(E.inlining_history_next_parts env = IH.History.empty);
   let free_vars =
     Variable.Map.map (fun (external_var : Flambda.specialised_to) ->
         let var =

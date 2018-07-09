@@ -440,7 +440,9 @@ let rec compile_functor modpath name mexp coercion root_path loc =
       ([], transl_module IH.History.empty None res_coercion body_path body)
       functor_params_rev
   in
-  let modpath = List.tl modpath in
+  (* we remove the most recent atom: we added a module def atom before calling
+     [compile_functor] *)
+  let modpath = IH.History.remove_most_recent_atom modpath in
   let name = IH.Functor(name) in
   Lfunction {
     kind = Curried;
@@ -485,7 +487,7 @@ and transl_module modpath name cc rootpath mexp =
         (Lapply{ap_should_be_tailcall=false;
                 ap_loc=loc;
                 ap_func=transl_module modpath None Tcoerce_none None funct;
-                ap_args=[transl_module [] None ccarg None arg];
+                ap_args=[transl_module IH.History.empty None ccarg None arg];
                 ap_inlined=inlined_attribute;
                 ap_specialised=Default_specialise;
                 ap_dbg_informations=modpath;

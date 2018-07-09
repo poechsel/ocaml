@@ -1090,11 +1090,7 @@ let function_declaration_approx ~keep_body
   let function_body =
     if not (keep_body fun_decl) then None
     else begin
-      let history =
-        IH.add
-          fun_decl.inlining_history
-          full_history
-      in
+      let history = IH.History.add fun_decl.inlining_history full_history in
       Some { body = fun_decl.body;
              stub = fun_decl.stub;
              inline = fun_decl.inline;
@@ -1184,9 +1180,7 @@ let set_function_declaration_full_history
   match function_decl.function_body with
   | None -> function_decl
   | Some function_body ->
-    let history =
-      IH.add function_body.inlining_history full_history
-    in
+    let history = IH.History.add function_body.inlining_history full_history in
     let function_body =
       { function_body with dbg_name =
                              IH.history_to_path history }
@@ -1202,13 +1196,8 @@ let update_function_declaration_scope
     let modname =
       Compilation_unit.get_persistent_ident scope |> Ident.name
     in
-    let (dbg_name : IH.Path.t) = function_body.dbg_name in
+    let dbg_name = function_body.dbg_name in
     let dbg_name = IH.Path.add_import_atoms modname dbg_name in
-    (*
-    let path = match dbg_name.path with
-      | None -> Path.Pident (Compilation_unit.get_persistent_ident scope)
-      | Some p -> Path.Pdot (p, Ident.name (Compilation_unit.get_persistent_ident scope), 0)
-       in*)
     let function_body = Some { function_body with dbg_name } in
     {function_decl with function_body}
 

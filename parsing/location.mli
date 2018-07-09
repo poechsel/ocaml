@@ -103,8 +103,8 @@ val show_filename: string -> string
 
 
 val find_relative_path_from_to: string -> string -> string
-  (** given two filse A and B, builds a relative path from the folder
-      containing A to B.
+  (** given two files A and B, build a relative path from the folder
+      containing the file A to the file B.
       Ex: /foo/bar/baz/hello and /foo/bar/fox/morning returns
       ../fox/morning
   *)

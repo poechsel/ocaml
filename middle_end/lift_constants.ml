@@ -76,7 +76,7 @@ let assign_symbols_and_collect_constant_definitions
           let funs =
             Variable.Map.map (fun (decl : Flambda.function_declaration) : Flambda.function_declaration ->
               Flambda.update_function_declaration decl
-                ~params:decl.params ~inlining_history:(Inlining_history.add
+                ~params:decl.params ~inlining_history:(Inlining_history.History.add
                                                          decl.inlining_history
                                                          inlining_history)
                 ~body:decl.body
@@ -144,7 +144,7 @@ let assign_symbols_and_collect_constant_definitions
       | Set_of_closures { function_decls = { funs }; } ->
         Variable.Map.iter (fun _ (decl : Flambda.function_declaration) ->
           let inlining_history =
-            Inlining_history.add decl.inlining_history inlining_history
+            Inlining_history.History.add decl.inlining_history inlining_history
           in
           assign_symbol_program inlining_history decl.body;
         ) funs
