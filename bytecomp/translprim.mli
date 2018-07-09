@@ -28,7 +28,7 @@ val clear_used_primitives : unit -> unit
 val get_used_primitives: unit -> Path.t list
 
 val transl_primitive :
-  Inlining_history.t ->
+  Inlining_history.History.t ->
   Inlining_history.name -> Location.t -> Primitive.description -> Env.t ->
   Types.type_expr -> Path.t option -> Lambda.lambda
 

@@ -530,7 +530,7 @@ module Make (T : S) = struct
         ~inline:Default_inline
         ~specialise:Default_specialise
         ~is_a_functor:false
-        ~inlining_history:Inlining_history.empty
+        ~inlining_history:Inlining_history.History.empty
     in
     new_fun_var, new_function_decl, rewritten_existing_specialised_args,
       benefit

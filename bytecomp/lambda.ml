@@ -243,7 +243,7 @@ and lfunction =
     params: Ident.t list;
     body: lambda;
     attr: function_attribute; (* specified with [@inline] attribute *)
-    debugging_informations : Inlining_history.t;
+    debugging_informations : Inlining_history.History.t;
     loc: Location.t; }
 
 and lambda_apply =
@@ -253,7 +253,7 @@ and lambda_apply =
     ap_should_be_tailcall : bool;
     ap_inlined : inline_attribute;
     ap_specialised : specialise_attribute;
-    ap_dbg_informations : Inlining_history.t;
+    ap_dbg_informations : Inlining_history.History.t;
   }
 
 and lambda_switch =
@@ -466,8 +466,10 @@ let rec free_variables = function
         (free_variables arg)
         (Ident.Set.remove id (free_variables body))
   | Lletrec(decl, body) ->
-      let set = free_variables_list (free_variables body) (List.map snd decl) in
-      Ident.Set.diff set (Ident.Set.of_list (List.map fst decl))
+    let set =
+      free_variables_list (free_variables body) (List.map snd decl)
+    in
+    Ident.Set.diff set (Ident.Set.of_list (List.map fst decl))
   | Lprim(_p, args, _loc) ->
       free_variables_list Ident.Set.empty args
   | Lswitch(arg, sw,_) ->

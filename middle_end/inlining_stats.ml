@@ -23,27 +23,27 @@ let log = Hashtbl.create 5
 
 let record_decision decision ~closure_stack =
   if !Clflags.inlining_report then begin
-    match closure_stack with
+    match (closure_stack : IH.History.t) with
     | []
-    | IH.Module _ :: _
-    | IH.Inlined :: _
-    | IH.SpecialisedCall :: _ ->
+    | Module _ :: _
+    | Inlined :: _
+    | SpecialisedCall :: _ ->
       Misc.fatal_errorf "record_decision: missing Call node"
-    | IH.Specialised :: _
-    | IH.Closure _ :: _
-    | IH.Call _ :: _ ->
+    | Specialised :: _
+    | Closure _ :: _
+    | Call _ :: _ ->
       Hashtbl.replace log closure_stack decision
   end
 
 module Inlining_report = struct
   module Place_map = Map.Make(struct
-      type t = IH.atom
-      let compare = IH.compare_atom
+      type t = IH.Path.atom
+      let compare = IH.Path.compare_atom
     end)
 
   type decision =
     | Decision of Inlining_stats_types.Decision.t
-    | Reference of IH.path
+    | Reference of IH.Path.t
 
   type t = node Place_map.t
 
@@ -84,7 +84,7 @@ module Inlining_report = struct
     | Decision Unchanged _, Unchanged _ -> call
 
   let add_decision stack decision t : node Place_map.t =
-    let rec loop (t : t) (stack : IH.t) =
+    let rec loop (t : t) (stack : IH.History.t) =
       match stack with
       | [] -> t
       | Inlined :: _ -> assert false
@@ -92,7 +92,7 @@ module Inlining_report = struct
       | SpecialisedCall :: _ -> assert false
       | node :: rest ->
         let atom = IH.node_to_atom node in
-        match (node : IH.node) with
+        match (node : IH.History.atom) with
         | Closure _ ->
           let v =
               match Place_map.find atom t with
@@ -158,7 +158,7 @@ module Inlining_report = struct
     Format.fprintf ppf "%s" s
 
   let print_reference ppf reference =
-    IH.uid_of_path reference
+    IH.Path.to_uid reference
     |> Format.fprintf ppf "The decision for this site was taken at:@; \
                           [[%s][decision site]]"
 
@@ -168,16 +168,18 @@ module Inlining_report = struct
   let print_apply history inlining_report_file ppf name =
     let prefix =
       match name with
-      | IH.AFile (Some filename, _) :: _ ->
-        "file:" ^ Location.find_relative_path_from_to inlining_report_file filename ^ "::"
+      | IH.Path.File (Some filename, _) :: _ ->
+        "file:" ^
+        Location.find_relative_path_from_to inlining_report_file filename ^
+        "::"
       | _ ->
         ""
     in
     Format.fprintf ppf "[[%s%s][%a]]"
       prefix
-      (IH.uid_of_path name)
-      IH.print (IH.get_compressed_path history name
-                |> IH.strip_call_attributes)
+      (IH.Path.to_uid name)
+      IH.Path.print (IH.Path.get_compressed_path history name
+                     |> IH.Path.strip_call_attributes)
 
   let print_debug ppf (dbg : Debuginfo.item) =
     if dbg.dinfo_file = "" then ()
@@ -186,7 +188,7 @@ module Inlining_report = struct
   let rec print history filename ~depth ppf t =
     Place_map.iter (fun atom (v : node) ->
       let present = atom :: history in
-      let uid = IH.uid_of_path (List.rev present) in
+      let uid = IH.Path.to_uid (List.rev present) in
       let print_checkpoint tag name dbg =
          Format.fprintf ppf "@[<h>%a %s %s%a %a@]@;@;"
            print_stars (depth + 1)
@@ -209,13 +211,13 @@ module Inlining_report = struct
       in
       begin
         match atom, v with
-       | AModule(name, dbg), Module t ->
+       | Module(name, dbg), Module t ->
          print_checkpoint "Module" name dbg;
          print present filename ppf ~depth:(depth + 1) t;
-       | AClosure(name, dbg), Closure t ->
+       | Closure(name, dbg), Closure t ->
          print_checkpoint "Definition" (IH.string_of_name name) dbg;
          print present filename ppf ~depth:(depth + 1) t;
-       | ACall(path, dbg), Call c ->
+       | Call(path, dbg), Call c ->
          begin
            match c.decision with
            | Reference reference ->
@@ -225,21 +227,24 @@ module Inlining_report = struct
                  match entry with
                  | None -> ()
                  | Some specialised ->
-                   print (next_atom :: present) filename ppf ~depth:(depth + 1) specialised
+                   print (next_atom :: present) filename ppf
+                     ~depth:(depth + 1) specialised
                in
-               explore c.specialised IH.ASpecialised;
-               explore c.specialised_call IH.ASpecialisedCall;
-               explore c.inlined IH.AInlined;
+               explore c.specialised IH.Path.Specialised;
+               explore c.specialised_call IH.Path.SpecialisedCall;
+               explore c.inlined IH.Path.Inlined;
              end
            | Decision decision ->
              begin
                print_application path dbg
                  Inlining_stats_types.Decision.summary decision;
                Inlining_stats_types.Decision.print
-                 ~specialised:(c.specialised, IH.ASpecialised::present)
-                 ~inlined:(c.inlined, IH.AInlined::present)
-                 ~specialised_call:(c.specialised_call, IH.ASpecialisedCall::present)
-                 ~print:(fun (x : IH.path) -> print x filename) ~depth:(depth + 1) ppf decision;
+                 ~specialised:(c.specialised, IH.Path.Specialised::present)
+                 ~inlined:(c.inlined, IH.Path.Inlined::present)
+                 ~print:(fun (x : IH.Path.t) -> print x filename)
+                 ~depth:(depth + 1) ppf decision
+                 ~specialised_call:(c.specialised_call,
+                                    IH.Path.SpecialisedCall::present)
              end
          end
        | _ -> assert false
@@ -247,7 +252,7 @@ module Inlining_report = struct
       if depth = 0 then Format.pp_print_newline ppf ())
       t
 
-  let print ppf t filename = print IH.empty_path ~depth:0 filename ppf t
+  let print ppf t filename = print IH.Path.empty ~depth:0 filename ppf t
 
 end
 

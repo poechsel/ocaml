@@ -20,6 +20,7 @@ module B = Inlining_cost.Benefit
 module E = Inline_and_simplify_aux.Env
 module R = Inline_and_simplify_aux.Result
 module A = Simple_value_approx
+module IH = Inlining_history
 
 let new_var name =
   Variable.create name
@@ -44,10 +45,12 @@ let fold_over_projections_of_vars_bound_by_closure ~closure_id_being_applied
     bound_variables
     init
 
-let set_attributes_on_all_apply body inline specialise inlining_depth max_inlining_arguments ~inlining_history =
+let set_attributes_on_all_apply body inline specialise inlining_depth
+      max_inlining_arguments ~inlining_history =
   Flambda_iterators.map_toplevel_expr (function
-    | Apply apply -> Apply { apply with inline; specialise; inlining_depth;
-                                        max_inlining_arguments; inlining_history }
+    | Apply apply ->
+      Apply { apply with inline; specialise; inlining_depth;
+                         max_inlining_arguments; inlining_history }
       | expr -> expr)
     body
 
@@ -67,7 +70,8 @@ let rewrite_recursive_calls_from_symbols_to_variables env function_decls =
   let update_function_declarations =
     Simple_value_approx.update_function_declarations
   in
-  Freshening.rewrite_recursive_calls_with_symbols (Freshening.activate Freshening.empty)
+  Freshening.rewrite_recursive_calls_with_symbols
+    (Freshening.activate Freshening.empty)
     function_decls
     ~get_funs ~get_free_symbols
     ~update_function_declaration_body ~update_function_declarations
@@ -101,9 +105,9 @@ let copy_of_function's_body_with_freshened_params env
     let body = Flambda_utils.toplevel_substitution subst function_body.body in
     freshened_params, body
 
-(* CR-soon mshinwell: Add a note somewhere to explain why "bound by the closure"
-   does not include the function identifiers for other functions in the same
-   set of closures.
+(* CR-soon mshinwell: Add a note somewhere to explain why "bound by the
+   closure" does not include the function identifiers for other functions
+   in the same set of closures.
    mshinwell: The terminology may be used inconsistently. *)
 
 (** Inline a function by copying its body into a context where it becomes
@@ -117,8 +121,8 @@ let inline_by_copying_function_body ~env ~r
       ~closure_id_being_applied
       ~(function_decls : A.function_declarations)
       ~(function_body : A.function_body)
-      ~(inlining_history : Inlining_history.t)
-      ~(inlining_history_next_part : Inlining_history.t option)
+      ~(inlining_history : IH.History.t)
+      ~(inlining_history_next_part : IH.History.t option)
       ~unroll_to ~args ~dbg ~simplify =
   assert (E.mem env lhs_of_application);
   assert (List.for_all (E.mem env) args);
@@ -144,7 +148,7 @@ let inline_by_copying_function_body ~env ~r
        ((inline_requested <> Lambda.Default_inline)
         || (specialise_requested <> Lambda.Default_specialise)
         || (E.inlining_depth env <> 0)
-        || (inlining_history <> Inlining_history.create ())) then
+        || (inlining_history <> IH.History.empty)) then
       (* When the function inlined function is a stub, the annotation
          is reported to the function applications inside the stub.
          This allows to report the annotation to the application the
@@ -223,12 +227,13 @@ let inline_by_copying_function_body ~env ~r
      function_declaration nodes *)
 
   let env =
-  (* option because sometimes we don't want to move down something (ex:stubs) *)
+  (* option because sometimes we don't want to move down
+     something (ex:stubs) *)
     match inlining_history_next_part with
     | None -> env
     | Some x ->
       let env = E.add_inlining_history_parts env x in
-      E.add_inlining_history_part env Inlining_history.Inlined
+      E.add_inlining_history_part env IH.History.Inlined
   in
   let env = E.set_never_inline env in
   let env = E.activate_freshening env in
@@ -334,7 +339,8 @@ let register_arguments ~specialised_args ~invariant_params
             let old_params_to_new_outside =
               Variable.Map.add param arg state.old_params_to_new_outside
             in
-            match Variable.Map.find_opt param (Lazy.force invariant_params) with
+            let invariant_params = Lazy.force invariant_params in
+            match Variable.Map.find_opt param invariant_params with
             | Some set ->
                 Variable.Set.fold
                   (fun elem acc -> Variable.Map.add elem arg acc)
@@ -498,7 +504,8 @@ let add_function ~specialised_args ~state ~fun_var ~function_decl =
         else begin
           let new_fun_var = Variable.rename fun_var in
           let old_fun_var_to_new_fun_var =
-            Variable.Map.add fun_var new_fun_var state.old_fun_var_to_new_fun_var
+            Variable.Map.add fun_var new_fun_var
+              state.old_fun_var_to_new_fun_var
           in
           let to_copy = fun_var :: state.to_copy in
           let state = { state with old_fun_var_to_new_fun_var; to_copy } in
@@ -611,8 +618,9 @@ let rewrite_function ~lhs_of_application ~closure_id_being_applied
          match expr with
          | Apply ({ kind = Direct closure_id } as apply) -> begin
              match
-               rewrite_direct_call ~specialised_args ~funs ~direct_call_surrogates
-                 ~state:!state_ref ~closure_id ~apply
+               rewrite_direct_call ~specialised_args ~funs
+                 ~direct_call_surrogates ~state:!state_ref
+                 ~closure_id ~apply
              with
              | None -> expr
              | Some (state, expr) ->
@@ -626,11 +634,12 @@ let rewrite_function ~lhs_of_application ~closure_id_being_applied
     Flambda_utils.toplevel_substitution state.old_inside_to_new_inside body
   in
   let def_name =
-    Inlining_history.extract_def_name function_body.inlining_history
+    IH.History.extract_def_name function_body.inlining_history
   in
   let inlining_history =
-    Inlining_history.Closure(Inlining_history.SpecialisedFunction def_name, Debuginfo.none_item)
-      :: Inlining_history.Specialised :: inlining_history_call
+    (* CR poechsel: change this *)
+    IH.History.Closure(IH.SpecialisedFunction def_name, Debuginfo.none_item)
+      :: IH.History.Specialised :: inlining_history_call
   in
   let new_function_decl =
     Flambda.create_function_declaration
@@ -703,7 +712,7 @@ let inline_by_copying_function_declaration
     ~(unboxing_arguments:Flambda.UnboxingArgs.t)
     ~(dbg : Debuginfo.t)
     ~(simplify : Inlining_decision_intf.simplify)
-    ~(inlining_history:Inlining_history.t)
+    ~(inlining_history:IH.History.t)
   =
   let state = empty_state in
   let state =
@@ -766,7 +775,7 @@ let inline_by_copying_function_declaration
           inlining_depth = E.inlining_depth env;
           inline = inline_requested; specialise = Default_specialise;
           max_inlining_arguments = Some (E.get_max_inlining_arguments env);
-          inlining_history = Inlining_history.SpecialisedCall :: inlining_history;
+          inlining_history = IH.History.SpecialisedCall :: inlining_history;
         }
       in
       let body =
@@ -778,7 +787,8 @@ let inline_by_copying_function_declaration
       let expr = Flambda_utils.bind ~body ~bindings:state.let_bindings in
       let env = E.activate_freshening (E.set_never_inline env) in
       (* Important that we *not* update the inlining depth when we simplify now
-         because [Inlining_decision.specialise] is going to call simplify again *)
+         because [Inlining_decision.specialise] is going to call simplify again
+      *)
       let env = E.clear_inlining_depth env in
       Some (simplify env r expr)
     end

@@ -164,8 +164,8 @@ and function_body = private {
   is_a_functor : bool;
   body : Flambda.t;
   recursive : bool;
-  inlining_history : Inlining_history.t;
-  dbg_name : Inlining_history.path;
+  inlining_history : Inlining_history.History.t;
+  dbg_name : Inlining_history.Path.t;
 }
 
 and function_declaration = private {
@@ -226,7 +226,7 @@ val print_function_declarations
 
 val function_declarations_approx
    : keep_body:(Flambda.function_declaration -> bool)
-   -> full_history:Inlining_history.t
+   -> full_history:Inlining_history.History.t
    -> Flambda.function_declarations
   -> function_declarations
 
@@ -516,7 +516,7 @@ val update_function_declaration_body
    -> function_declaration
 
 val set_function_declaration_full_history
-  : Inlining_history.t
+  : Inlining_history.History.t
   -> function_declaration
   -> function_declaration
 

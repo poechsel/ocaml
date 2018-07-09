@@ -19,6 +19,8 @@
 open Asttypes
 open Lambda
 
+module IH = Inlining_history
+
 (* To transform let-bound references into variables *)
 
 exception Real_reference
@@ -225,7 +227,7 @@ let simplify_exits lam =
                                      ap_args=[x];
                                      ap_inlined=Default_inline;
                                      ap_specialised=Default_specialise;
-                                     ap_dbg_informations=Inlining_history.empty}
+                                     ap_dbg_informations=IH.History.empty}
 
         (* Simplify %apply, for n-ary functions with n > 1 *)
       | Pdirapply, [Lapply ap; x]
@@ -237,7 +239,7 @@ let simplify_exits lam =
                                      ap_args=[x];
                                      ap_inlined=Default_inline;
                                      ap_specialised=Default_specialise;
-                                     ap_dbg_informations=Inlining_history.empty}
+                                     ap_dbg_informations=IH.History.empty}
 
       | _ -> Lprim(p, ll, loc)
      end
@@ -314,7 +316,9 @@ let simplify_exits lam =
 (* Compile-time beta-reduction of functions immediately applied:
       Lapply(Lfunction(Curried, params, body), args, loc) ->
         let paramN = argN in ... let param1 = arg1 in body
-      Lapply(Lfunction(Tupled, params, body), [Lprim(Pmakeblock(args))], loc) ->
+      Lapply(Lfunction(Tupled, params, body),
+             [Lprim(Pmakeblock(args))],
+             loc) ->
         let paramN = argN in ... let param1 = arg1 in body
    Assumes |args| = |params|.
 *)
@@ -683,7 +687,7 @@ let split_default_wrapper ~id:fun_id ~kind ~params ~body ~attr ~loc
             ap_should_be_tailcall = false;
             ap_inlined = Default_inline;
             ap_specialised = Default_specialise;
-            ap_dbg_informations=Inlining_history.empty;
+            ap_dbg_informations=IH.History.empty;
           }
         in
         let inner_params = List.map map_param params in

@@ -154,7 +154,7 @@ let assign_symbols_and_collect_constant_definitions
       ~f:(assign_symbol inlining_history)
   in
   Flambda_iterators.iter_exprs_at_toplevel_of_program program
-    ~f:(assign_symbol_program (Inlining_history.create()));
+    ~f:(assign_symbol_program (Inlining_history.History.empty));
   let let_symbol_to_definition_tbl = Symbol.Tbl.create 42 in
   let initialize_symbol_to_definition_tbl = Symbol.Tbl.create 42 in
   let rec collect_let_and_initialize_symbols (program : Flambda.program_body) =

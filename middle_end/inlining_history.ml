@@ -34,56 +34,6 @@ type name =
   | Coerce
   | Method of string * string
 
-
-type t = node list
-
-and node =
-  | Module of string * Debuginfo.item
-  | Closure of name * Debuginfo.item
-  | Call of path * Debuginfo.item * path
-  | Inlined
-  | Specialised
-  | SpecialisedCall
-
-(* shorten representation *)
-and path = atom list
-and atom =
-  | AModule of string * Debuginfo.item
-  | AClosure of name * Debuginfo.item
-  | ACall of path * Debuginfo.item
-  | AFile of string option * string
-  | AInlined
-  | ASpecialised
-  | ASpecialisedCall
-
-let create () = []
-let empty = []
-
-let node_to_atom = function
-    | Module(s, d) -> AModule(s, d)
-    | Closure(n, d) -> AClosure(n, d)
-    | Call(p, d, _) -> ACall(p, d)
-    | Inlined -> AInlined
-    | Specialised -> ASpecialised
-    | SpecialisedCall -> ASpecialisedCall
-
-let history_to_path (history : t) : path =
-  history
-  |> List.map node_to_atom
-  |> List.rev
-
-let path_add_import_atoms modname path =
-  let filename =
-    try
-      Some (Misc.find_in_path_uncap
-              !Config.load_path
-              (modname ^ ".inlining.org"))
-    with Not_found ->
-      None
-  in
-  AFile(filename, modname) :: path
-
-
 let rec compare_name a b =
   let index x =
     match x with
@@ -133,71 +83,6 @@ let rec compare_name a b =
     | _ -> assert false
     end
 
-let extract_debug_info atom =
-  match atom with
-  | AClosure(_, dbg)
-  | AModule(_, dbg)
-  | ACall(_, dbg) ->
-    Some dbg
-  | _ ->
-    None
-
-let rec compare_atom a b =
-  let c =
-    match extract_debug_info a, extract_debug_info b with
-    | Some a, Some b -> Debuginfo.compare [a] [b]
-    | _ -> 0
-  in
-  if c <> 0 then c
-  else
-  let index = function
-    | AFile _ -> 0
-    | AClosure _ -> 1
-    | AModule _ -> 2
-    | ACall _ -> 3
-    | ASpecialised -> 4
-    | ASpecialisedCall -> 5
-    | AInlined -> 6
-  in
-  let index_a = index a in
-  let index_b = index b in
-  if index_a <> index_b then
-    if index_a < index_b then -1 else 1
-  else
-  match a, b with
-  | AFile (_, b), AFile (_, b') ->
-    String.compare b b'
-  | AInlined, AInlined ->
-    0
-  | AModule (a, b), AModule(a', b') ->
-    let c = Debuginfo.compare [b] [b'] in
-    if c <> 0 then c
-    else String.compare a a'
-  | AClosure(a, b), AClosure(a', b') ->
-    let c = Debuginfo.compare [b] [b'] in
-    if c <> 0 then c else
-      compare_name a a'
-  | ACall(a, b), ACall(a', b') ->
-    let c = compare a a' in
-    if c <> 0 then c else
-      let c = Debuginfo.compare [b] [b'] in
-      c
-  | ASpecialised, ASpecialised ->
-    0
-  | ASpecialisedCall, ASpecialisedCall ->
-    0
-  | _ -> assert false
-
-and compare l l' =
-  let c = List.compare_lengths l l' in
-  if c <> 0 then c else
-    List.fold_left2 (fun p e e' ->
-      if p <> 0 then p
-      else compare_atom e e')
-      0 l l'
-
-let empty_path = []
-
 let rec print_name ppf name =
   match name with
   | SpecialisedFunction n ->
@@ -232,11 +117,104 @@ let rec print_name ppf name =
 let string_of_name name =
   Format.asprintf "%a" print_name name
 
-let rec uid_of_path h =
+
+
+module Path = struct
+  (* shorten representation *)
+  type t = atom list
+  and atom =
+    | Module of string * Debuginfo.item
+    | Closure of name * Debuginfo.item
+    | Call of t * Debuginfo.item
+    | File of string option * string
+    | Inlined
+    | Specialised
+    | SpecialisedCall
+
+  let empty = []
+
+let add_import_atoms modname path =
+  let filename =
+    try
+      Some (Misc.find_in_path_uncap
+              !Config.load_path
+              (modname ^ ".inlining.org"))
+    with Not_found ->
+      None
+  in
+  File(filename, modname) :: path
+
+
+let extract_debug_info atom =
+  match atom with
+  | Closure(_, dbg)
+  | Module(_, dbg)
+  | Call(_, dbg) ->
+    Some dbg
+  | _ ->
+    None
+
+let rec compare_atom a b =
+  let c =
+    match extract_debug_info a, extract_debug_info b with
+    | Some a, Some b -> Debuginfo.compare [a] [b]
+    | _ -> 0
+  in
+  if c <> 0 then c
+  else
+  let index = function
+    | File _ -> 0
+    | Closure _ -> 1
+    | Module _ -> 2
+    | Call _ -> 3
+    | Specialised -> 4
+    | SpecialisedCall -> 5
+    | Inlined -> 6
+  in
+  let index_a = index a in
+  let index_b = index b in
+  if index_a <> index_b then
+    if index_a < index_b then -1 else 1
+  else
+  match a, b with
+  | File (_, b), File (_, b') ->
+    String.compare b b'
+  | Inlined, Inlined ->
+    0
+  | Module (a, b), Module(a', b') ->
+    let c = Debuginfo.compare [b] [b'] in
+    if c <> 0 then c
+    else String.compare a a'
+  | Closure(a, b), Closure(a', b') ->
+    let c = Debuginfo.compare [b] [b'] in
+    if c <> 0 then c else
+      compare_name a a'
+  | Call(a, b), Call(a', b') ->
+    let c = compare a a' in
+    if c <> 0 then c else
+      let c = Debuginfo.compare [b] [b'] in
+      c
+  | Specialised, Specialised ->
+    0
+  | SpecialisedCall, SpecialisedCall ->
+    0
+  | _ -> assert false
+
+and compare l l' =
+  let c = List.compare_lengths l l' in
+  if c <> 0 then c else
+    List.fold_left2 (fun p e e' ->
+      if p <> 0 then p
+      else compare_atom e e')
+      0 l l'
+
+let empty_path = []
+
+let rec to_uid h =
   let h =
     match h with
-        | AFile _ :: h -> h
-        | h -> h
+    | File _ :: h -> h
+    | h -> h
   in
   Marshal.to_bytes h []
   |> Digest.bytes
@@ -244,19 +222,19 @@ let rec uid_of_path h =
 
 and print_atom ppf x =
   match x with
-  | AInlined ->
+  | Inlined ->
     Format.fprintf ppf " inlined "
-  | ACall (c, _) ->
+  | Call (c, _) ->
     Format.fprintf ppf "(%a ) " print c
-  | AClosure (c, _) ->
+  | Closure (c, _) ->
     Format.fprintf ppf "%a " print_name c
-  | AModule (c, _)
-  | AFile (_, c) ->
+  | Module (c, _)
+  | File (_, c) ->
     Format.fprintf ppf "%s." c
-  | ASpecialised ->
+  | Specialised ->
     (* printing nothing because it's already done in the name *)
     Format.fprintf ppf ""
-  | ASpecialisedCall ->
+  | SpecialisedCall ->
     Format.fprintf ppf " specialised call "
 
 and print ppf l =
@@ -272,44 +250,69 @@ let rec get_compressed_path root leaf =
 
 let strip_call_attributes path =
   List.filter (function
-    | AInlined | ASpecialised | ASpecialisedCall -> false
+    | Inlined | Specialised | SpecialisedCall -> false
     | _ -> true)
     path
 
-let add a b =
-  (* order is important. If a= [1; 2] and b = [3;4;5],
-     we want the result to be [1;2;3;4;5] *)
-  a @ b
+end
 
-let note_entering_closure t ~name ~dbg =
-  if not !Clflags.inlining_report then t
-  else
-    match t with
-    | [] | (Closure _ | Inlined | Specialised | SpecialisedCall | Module _)  :: _->
-      (Closure (name, dbg)) :: t
-    | (Call _) :: _ ->
-      Misc.fatal_errorf "note_entering_closure: unexpected Call node"
 
-(* CR-someday lwhite: since calls do not have a unique id it is possible
-   some calls will end up sharing nodes. *)
-let note_entering_call t ~dbg_name ~dbg
-      ~absolute_inlining_history =
-  let absolute_inlining_history =
-    (* adding a placeholder call node to represent this call inside the
-       absolute history. Its absolute path does not matters as it will
-       be stripped during the conversion *)
-    Call(dbg_name, dbg, empty) :: absolute_inlining_history
-    |> history_to_path
-  in
-  (Call (dbg_name, dbg, absolute_inlining_history)) :: t
+module History = struct
+  type t = atom list
+  and atom =
+    | Module of string * Debuginfo.item
+    | Closure of name * Debuginfo.item
+    | Call of Path.t * Debuginfo.item * Path.t
+    | Inlined
+    | Specialised
+    | SpecialisedCall
 
-let add_fn_def ~name ~loc ~path =
-  Closure(name, Debuginfo.item_from_location loc) :: path
+  let create () = []
 
-let extract_def_name history =
+  let empty = []
+
+  let extract_def_name history =
   match history with
   | Closure (x, _) :: _ ->
     x
   | Specialised :: _
   | _ ->
     assert(false)
+end
+
+let node_to_atom (history : History.atom) : Path.atom =
+  match history with
+    | Module(s, d) -> Module(s, d)
+    | Closure(n, d) -> Closure(n, d)
+    | Call(p, d, _) -> Call(p, d)
+    | Inlined -> Inlined
+    | Specialised -> Specialised
+    | SpecialisedCall -> SpecialisedCall
+
+let history_to_path (history : History.t) : Path.t =
+  history
+  |> List.map node_to_atom
+  |> List.rev
+
+
+let add a b =
+  (* order is important. If a= [1; 2] and b = [3;4;5],
+     we want the result to be [1;2;3;4;5] *)
+  a @ b
+
+let note_entering_call t ~dbg_name ~dbg
+      ~absolute_inlining_history =
+  let absolute_inlining_history =
+    (* adding a placeholder call node to represent this call inside the
+       absolute history. Its absolute path does not matters as it will
+       be stripped during the conversion *)
+    History.Call(dbg_name, dbg, History.empty) :: absolute_inlining_history
+    |> history_to_path
+  in
+  (History.Call (dbg_name, dbg, absolute_inlining_history)) :: t
+
+let add_fn_def ~name ~loc ~path =
+  History.Closure(name, Debuginfo.item_from_location loc) :: path
+
+let add_mod_def ~id ~loc ~path =
+  History.Module(Ident.name id, Debuginfo.item_from_location loc) :: path

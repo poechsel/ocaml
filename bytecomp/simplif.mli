@@ -31,7 +31,7 @@ val split_default_wrapper
   -> body:lambda
   -> attr:function_attribute
   -> loc:Location.t
-  -> debugging_informations:Inlining_history.t
+  -> debugging_informations:Inlining_history.History.t
   -> (Ident.t * lambda) list
 
 (* To be filled by asmcomp/selectgen.ml *)
