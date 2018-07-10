@@ -43,7 +43,7 @@ module Definition : sig
   and atom =
     | Module of string
     | Closure of name * Debuginfo.item
-    | File of string option * string
+    | File of string
 
   val empty : t
 
@@ -58,7 +58,7 @@ module Path : sig
     | Module of string * Debuginfo.item
     | Closure of name * Debuginfo.item
     | Call of t * Debuginfo.item
-    | File of string option * string
+    | File of string
     | Inlined
     | Specialised
     | SpecialisedCall
@@ -129,6 +129,7 @@ val note_entering_call
   -> dbg_name:Path.t
   -> dbg:Debuginfo.item
   -> absolute_inlining_history:History.t
+  -> cunit_name:string
   -> History.t
 
 (* add a function definition node to a history *)
