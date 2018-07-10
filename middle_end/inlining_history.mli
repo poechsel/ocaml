@@ -53,12 +53,12 @@ module Definition : sig
 end
 
 module Path : sig
-  type t = atom list
+  type t = string * path
+  and path = atom list
   and atom =
     | Module of string * Debuginfo.item
     | Closure of name * Debuginfo.item
     | Call of t * Debuginfo.item
-    | File of string
     | Inlined
     | Specialised
     | SpecialisedCall
@@ -66,8 +66,6 @@ module Path : sig
   val compare_atom : atom -> atom -> int
 
   val compare : t -> t -> int
-
-  val add_import_atoms : string -> t -> t
 
   val print_atom :
     Format.formatter
@@ -79,7 +77,9 @@ module Path : sig
     -> t
     -> unit
 
-  val empty : t
+  val empty : string -> t
+
+  val file : t -> string
 
   val to_uid : t -> string
 
@@ -91,6 +91,8 @@ module Path : sig
   (* remove AInlined, ASpecialised and ASpecialisedCall atoms
      from a path *)
   val strip_call_attributes : t -> t
+
+  val append_atom : atom -> t -> t
 end
 
 module History : sig
@@ -120,9 +122,9 @@ val node_to_atom : History.atom -> Path.atom
 
 val string_of_name : name -> string
 
-val history_to_path: History.t -> Path.t
+val history_to_path: modname:string -> History.t -> Path.t
 
-val path_to_definition: Path.t -> Definition.t
+val path_to_definition: string -> Path.t -> Definition.t
 
 val note_entering_call
   : History.t

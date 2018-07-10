@@ -186,136 +186,139 @@ end
 
 module Path = struct
   (* shorten representation *)
-  type t = atom list
+  type t = string * path
+  and path = atom list
   and atom =
     | Module of string * Debuginfo.item
     | Closure of name * Debuginfo.item
     | Call of t * Debuginfo.item
-    | File of string
     | Inlined
     | Specialised
     | SpecialisedCall
 
-  let empty = []
+  let empty modname = modname, []
 
-let add_import_atoms modname path =
-  File(modname) :: path
+  let extract_debug_info atom =
+    match atom with
+    | Closure(_, dbg)
+    | Module(_, dbg)
+    | Call(_, dbg) ->
+      Some dbg
+    | _ ->
+      None
 
-
-let extract_debug_info atom =
-  match atom with
-  | Closure(_, dbg)
-  | Module(_, dbg)
-  | Call(_, dbg) ->
-    Some dbg
-  | _ ->
-    None
-
-let rec compare_atom a b =
-  let c =
-    match extract_debug_info a, extract_debug_info b with
-    | Some a, Some b -> Debuginfo.compare [a] [b]
-    | _ -> 0
-  in
-  if c <> 0 then c
-  else
-  let index = function
-    | File _ -> 0
-    | Closure _ -> 1
-    | Module _ -> 2
-    | Call _ -> 3
-    | Specialised -> 4
-    | SpecialisedCall -> 5
-    | Inlined -> 6
-  in
-  let index_a = index a in
-  let index_b = index b in
-  if index_a <> index_b then
-    if index_a < index_b then -1 else 1
-  else
-  match a, b with
-  | File (b), File (b') ->
-    String.compare b b'
-  | Inlined, Inlined ->
-    0
-  | Module (a, b), Module(a', b') ->
-    let c = Debuginfo.compare [b] [b'] in
+  let rec compare_atom a b =
+    let c =
+      match extract_debug_info a, extract_debug_info b with
+      | Some a, Some b -> Debuginfo.compare [a] [b]
+      | _ -> 0
+    in
     if c <> 0 then c
-    else String.compare a a'
-  | Closure(a, b), Closure(a', b') ->
-    let c = Debuginfo.compare [b] [b'] in
+    else
+      let index = function
+        | Closure _ -> 1
+        | Module _ -> 2
+        | Call _ -> 3
+        | Specialised -> 4
+        | SpecialisedCall -> 5
+        | Inlined -> 6
+      in
+      let index_a = index a in
+      let index_b = index b in
+      if index_a <> index_b then
+        if index_a < index_b then -1 else 1
+      else
+        match a, b with
+        | Inlined, Inlined ->
+          0
+        | Module (a, b), Module(a', b') ->
+          let c = Debuginfo.compare [b] [b'] in
+          if c <> 0 then c
+          else String.compare a a'
+        | Closure(a, b), Closure(a', b') ->
+          let c = Debuginfo.compare [b] [b'] in
+          if c <> 0 then c else
+            compare_name a a'
+        | Call(a, b), Call(a', b') ->
+          let c = compare a a' in
+          if c <> 0 then c else
+            let c = Debuginfo.compare [b] [b'] in
+            c
+        | Specialised, Specialised ->
+          0
+        | SpecialisedCall, SpecialisedCall ->
+          0
+        | _ -> assert false
+
+  and compare (f, l) (f', l') =
+    let c = String.compare f f' in
     if c <> 0 then c else
-      compare_name a a'
-  | Call(a, b), Call(a', b') ->
-    let c = compare a a' in
-    if c <> 0 then c else
-      let c = Debuginfo.compare [b] [b'] in
-      c
-  | Specialised, Specialised ->
-    0
-  | SpecialisedCall, SpecialisedCall ->
-    0
-  | _ -> assert false
+      let c = List.compare_lengths l l' in
+      if c <> 0 then c else
+        List.fold_left2 (fun p e e' ->
+          if p <> 0 then p
+          else compare_atom e e')
+          0 l l'
 
-and compare l l' =
-  let c = List.compare_lengths l l' in
-  if c <> 0 then c else
-    List.fold_left2 (fun p e e' ->
-      if p <> 0 then p
-      else compare_atom e e')
-      0 l l'
+  let rec to_uid h =
+    let h =
+      match h with
+      | h -> h
+    in
+    Marshal.to_bytes h []
+    |> Digest.bytes
+    |> Digest.to_hex
 
-let empty_path = []
-
-let rec to_uid h =
-  let h =
-    match h with
-    | File _ :: h -> h
-    | h -> h
-  in
-  Marshal.to_bytes h []
-  |> Digest.bytes
-  |> Digest.to_hex
-
-and print_atom ppf x =
-  match x with
-  | Inlined ->
-    Format.fprintf ppf "inlined"
-  | Call (c, _) ->
-    Format.fprintf ppf "(%a)" print c
-  | Closure (c, _) ->
-    Format.fprintf ppf "%a" (print_name ~print_functor:true) c
-  | Module (c, _)
-  | File (c) ->
-    Format.fprintf ppf "%s." c
-  | Specialised ->
-    (* printing nothing because it's already done in the name *)
-    Format.fprintf ppf ""
-  | SpecialisedCall ->
-    Format.fprintf ppf "specialised call"
-
-and print ppf l =
-  List.iter (fun x ->
-    print_atom ppf x;
+  and print_atom ppf x =
     match x with
-    | File _ | Module _ -> ()
-    | _ -> Format.fprintf ppf " "
-  ) l
+    | Inlined ->
+      Format.fprintf ppf "inlined"
+    | Call (c, _) ->
+      Format.fprintf ppf "(%a)" print c
+    | Closure (c, _) ->
+      Format.fprintf ppf "%a" (print_name ~print_functor:true) c
+    | Module (c, _) ->
+      Format.fprintf ppf "%s." c
+    | Specialised ->
+      (* printing nothing because it's already done in the name *)
+      Format.fprintf ppf ""
+    | SpecialisedCall ->
+      Format.fprintf ppf "specialised call"
 
-let rec get_compressed_path root leaf =
-  match root, leaf with
-  | atom :: root, atom' :: leaf when
-      compare_atom atom atom' = 0 ->
-    let r = get_compressed_path root leaf in
-    if r = [] then atom' :: empty_path else r
-  | _ -> leaf
+  and print ppf (f, l) =
+    Format.fprintf ppf "%s." f;
+    List.iter (fun x ->
+      print_atom ppf x;
+      match x with
+      | Module _ -> ()
+      | _ -> Format.fprintf ppf " "
+    ) l
 
-let strip_call_attributes path =
-  List.filter (function
-    | Inlined | Specialised | SpecialisedCall -> false
-    | _ -> true)
-    path
+  let get_compressed_path (root_f, root) (leaf_f, leaf) =
+    let rec aux root leaf =
+      match root, leaf with
+      | atom :: root, atom' :: leaf when
+          compare_atom atom atom' = 0 ->
+        let r = aux root leaf in
+        if r = [] then atom' :: [] else r
+      | _ -> leaf
+    in
+    if root_f = leaf_f then
+      leaf_f, aux root leaf
+    else
+      leaf_f, leaf
 
+  let strip_call_attributes (path_f, path) =
+    path_f,
+    List.filter (function
+      | Inlined | Specialised | SpecialisedCall -> false
+      | _ -> true)
+      path
+
+  let file = fst
+
+  let append_atom atom (f, p) =
+    f, p @ [atom]
 end
 
 
@@ -365,10 +368,13 @@ let node_to_atom (history : History.atom) : Path.atom =
     | Specialised -> Specialised
     | SpecialisedCall -> SpecialisedCall
 
-let history_to_path (history : History.t) : Path.t =
-  history
-  |> List.map node_to_atom
-  |> List.rev
+let history_to_path ~modname (history : History.t) : Path.t =
+  let p =
+    history
+    |> List.map node_to_atom
+    |> List.rev
+  in
+  (modname, p)
 
 
 let note_entering_call t ~dbg_name ~dbg
@@ -377,9 +383,8 @@ let note_entering_call t ~dbg_name ~dbg
     (* adding a placeholder call node to represent this call inside the
        absolute history. Its absolute path does not matters as it will
        be stripped during the conversion *)
-    History.Call(dbg_name, dbg, History.empty) :: absolute_inlining_history
-    |> history_to_path
-    |> Path.add_import_atoms cunit_name
+    History.Call(dbg_name, dbg, Path.empty "") :: absolute_inlining_history
+    |> history_to_path ~modname:cunit_name
   in
   (History.Call (dbg_name, dbg, absolute_inlining_history)) :: t
 
@@ -396,23 +401,26 @@ let add_specialise_def ~name ~path =
 let add_specialise_apply ~path =
   History.SpecialisedCall :: path
 
-let path_to_definition path =
-  let rec convert path (acc : Definition.t) =
-    match (path : Path.t) with
-    | Call(def_path, _) :: _ ->
-      convert (List.rev def_path) acc
+let path_to_definition modpath (path_f, path) =
+  let rec convert path file (acc : Definition.t) =
+    match (path : Path.path) with
+    | Call((def_file, def_path), _) :: _ ->
+      convert (List.rev def_path) def_file acc
     | Module(name, _) :: r ->
-      convert r (Definition.Module name :: acc)
-    | File(b) :: r ->
-      convert r (Definition.File(b) :: acc)
+      convert r file (Definition.Module name :: acc)
     | Closure(n, d) :: r ->
       begin match n with
       | SpecialisedFunction _ ->
-        convert r acc
+        convert r file acc
       | n ->
-        convert r (Definition.Closure(n, d) :: acc)
+        convert r file (Definition.Closure(n, d) :: acc)
       end
     | Inlined :: r | Specialised :: r | SpecialisedCall :: r ->
-      convert r acc
-    | [] -> acc
-  in convert (List.rev path) Definition.empty
+      convert r file acc
+    | [] ->
+      if file <> modpath then
+        Definition.File(file) :: acc
+      else
+        acc
+  in
+  convert (List.rev path) path_f Definition.empty

@@ -74,6 +74,9 @@ module InliningArgs : sig
   val ensure_integrity : unit -> unit
 end
 
+
+val current_module : unit -> string
+
 (** Intermediate language used for tree-based analysis and optimization. *)
 
 (** Whether the callee in a function application is known at compile time. *)

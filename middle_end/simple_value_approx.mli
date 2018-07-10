@@ -517,13 +517,9 @@ val update_function_declaration_body
 
 val set_function_declaration_full_history
   : Inlining_history.History.t
+  -> Compilation_unit.t
   -> function_declaration
   -> function_declaration
-
-val update_function_declaration_scope
-  : Compilation_unit.t
-    -> function_declaration
-    -> function_declaration
 
 val find_declaration
   : Closure_id.t

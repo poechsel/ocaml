@@ -1100,7 +1100,8 @@ let function_declaration_approx ~keep_body
              free_variables = fun_decl.free_variables;
              free_symbols = fun_decl.free_symbols;
              recursive = fun_decl.recursive;
-             dbg_name = IH.history_to_path history;
+             dbg_name = IH.history_to_path history
+                          ~modname:(Flambda.current_module ());
              inlining_history = fun_decl.inlining_history;}
     end
   in
@@ -1124,7 +1125,7 @@ let function_declarations_strip_full_history
       | None -> fun_decl
       | Some body ->
         let function_body =
-          Some {body with dbg_name = IH.Path.empty }
+          Some {body with dbg_name = IH.Path.empty ""}
         in
         { fun_decl with function_body }
     ) fun_decls.funs
@@ -1176,30 +1177,20 @@ let update_function_declaration_body
 
 let set_function_declaration_full_history
       full_history
-      function_decl =
-  match function_decl.function_body with
-  | None -> function_decl
-  | Some function_body ->
-    let history = IH.History.add function_body.inlining_history full_history in
-    let function_body =
-      { function_body with dbg_name =
-                             IH.history_to_path history }
-    in
-    { function_decl with function_body = Some function_body }
-
-let update_function_declaration_scope
-      scope
+      compilation_unit
       function_decl =
   match function_decl.function_body with
   | None -> function_decl
   | Some function_body ->
     let modname =
-      Compilation_unit.get_persistent_ident scope |> Ident.name
+      Compilation_unit.get_persistent_ident compilation_unit |> Ident.name
     in
-    let dbg_name = function_body.dbg_name in
-    let dbg_name = IH.Path.add_import_atoms modname dbg_name in
-    let function_body = Some { function_body with dbg_name } in
-    {function_decl with function_body}
+    let history = IH.History.add function_body.inlining_history full_history in
+    let function_body =
+      { function_body with dbg_name =
+                             IH.history_to_path ~modname history }
+    in
+    { function_decl with function_body = Some function_body }
 
 let find_declaration cf ({ funs } : function_declarations) =
   Variable.Map.find (Closure_id.unwrap cf) funs
