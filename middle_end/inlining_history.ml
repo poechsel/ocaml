@@ -125,7 +125,7 @@ module Definition = struct
   and atom =
     | Module of string
     | Closure of name * Debuginfo.item
-    | File of string option * string
+    | File of string
 
   let empty = []
 
@@ -172,7 +172,7 @@ module Definition = struct
           (aux ~print_functor:true) r
       | Module name :: r ->
         Format.fprintf ppf "%a%s." (aux ~print_functor) r name
-      | File (_, name) :: r ->
+      | File (name) :: r ->
         Format.fprintf ppf "%a%s." (aux ~print_functor) r name
     in
     Format.fprintf ppf "Call to %a" (aux ~print_functor:true) (List.rev def);
@@ -191,7 +191,7 @@ module Path = struct
     | Module of string * Debuginfo.item
     | Closure of name * Debuginfo.item
     | Call of t * Debuginfo.item
-    | File of string option * string
+    | File of string
     | Inlined
     | Specialised
     | SpecialisedCall
@@ -199,15 +199,7 @@ module Path = struct
   let empty = []
 
 let add_import_atoms modname path =
-  let filename =
-    try
-      Some (Misc.find_in_path_uncap
-              !Config.load_path
-              (modname ^ ".inlining.org"))
-    with Not_found ->
-      None
-  in
-  File(filename, modname) :: path
+  File(modname) :: path
 
 
 let extract_debug_info atom =
@@ -242,7 +234,7 @@ let rec compare_atom a b =
     if index_a < index_b then -1 else 1
   else
   match a, b with
-  | File (_, b), File (_, b') ->
+  | File (b), File (b') ->
     String.compare b b'
   | Inlined, Inlined ->
     0
@@ -294,7 +286,7 @@ and print_atom ppf x =
   | Closure (c, _) ->
     Format.fprintf ppf "%a" (print_name ~print_functor:true) c
   | Module (c, _)
-  | File (_, c) ->
+  | File (c) ->
     Format.fprintf ppf "%s." c
   | Specialised ->
     (* printing nothing because it's already done in the name *)
@@ -380,13 +372,14 @@ let history_to_path (history : History.t) : Path.t =
 
 
 let note_entering_call t ~dbg_name ~dbg
-      ~absolute_inlining_history =
+      ~absolute_inlining_history ~cunit_name =
   let absolute_inlining_history =
     (* adding a placeholder call node to represent this call inside the
        absolute history. Its absolute path does not matters as it will
        be stripped during the conversion *)
     History.Call(dbg_name, dbg, History.empty) :: absolute_inlining_history
     |> history_to_path
+    |> Path.add_import_atoms cunit_name
   in
   (History.Call (dbg_name, dbg, absolute_inlining_history)) :: t
 
@@ -410,8 +403,8 @@ let path_to_definition path =
       convert (List.rev def_path) acc
     | Module(name, _) :: r ->
       convert r (Definition.Module name :: acc)
-    | File(a, b) :: r ->
-      convert r (Definition.File(a, b) :: acc)
+    | File(b) :: r ->
+      convert r (Definition.File(b) :: acc)
     | Closure(n, d) :: r ->
       begin match n with
       | SpecialisedFunction _ ->

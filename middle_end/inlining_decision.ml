@@ -742,11 +742,18 @@ let for_call_site ~env ~r ~(call : call_informations)
       let inlining_threshold, raw_inlining_threshold, inlining_threshold_diff =
         compute_thresholding_for_call env r inlining_arguments
       in
+      let cunit_name =
+        match Compilation_unit.get_current () with
+        | None -> assert false
+        | Some x ->
+          Compilation_unit.get_persistent_ident x |> Ident.name
+      in
       let inlining_history_next_part =
         Inlining_history.note_entering_call
           ~dbg:(match call.dbg with | [] -> Debuginfo.none_item | x::_ -> x)
           ~dbg_name:function_body.dbg_name
           ~absolute_inlining_history:(E.inlining_history env)
+          ~cunit_name
           call.inlining_history
       in
       let simpl =
@@ -760,19 +767,19 @@ let for_call_site ~env ~r ~(call : call_informations)
             ~inlining_history_next_part
         end
       in
-      let res, decision, _record_decision =
+      let res, decision =
         match simpl with
-        | Original decision -> (original, original_r), decision, false
+        | Original decision -> (original, original_r), decision
         | Changed ((expr, r), decision) ->
           let res =
             if E.speculation_depth env = 0
             then expr, R.set_inlining_threshold r raw_inlining_threshold
             else expr, R.add_inlining_threshold r inlining_threshold_diff
           in
-          res, decision, true
+          res, decision
       in
       let env = E.add_inlining_history env inlining_history_next_part in
-        E.record_decision env decision;
+      E.record_decision env decision;
       res
     end
 

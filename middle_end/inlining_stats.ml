@@ -20,6 +20,7 @@
 module IH = Inlining_history
 
 let log = Hashtbl.create 5
+let external_logs = Hashtbl.create 5
 
 
 let record_decision decision ~round ~closure_stack =
@@ -143,34 +144,84 @@ module Inlining_report = struct
     in
     loop t (List.rev stack)
 
+  let get_external_logs modname =
+    if Hashtbl.mem external_logs modname then
+      Hashtbl.find external_logs modname
+    else
+      let filename =
+        try
+          Some (Misc.find_in_path_uncap
+                  !Config.load_path
+                  (modname ^ ".inlining.org"))
+        with Not_found ->
+          None
+      in
+      Hashtbl.add external_logs modname filename;
+      filename
+
   let build log =
     Hashtbl.fold add_decision log Place_map.empty
+
+  let current_module () =
+    match Compilation_unit.get_current () with
+    | None -> assert false
+    | Some cu ->
+      Compilation_unit.get_persistent_ident cu |> Ident.name
+
+  (* build a string representing a link in the org file. Takes
+     into account external files *)
+  let build_link_uid inlining_report_file path =
+    let link = match path with
+    | IH.Path.File (modname) :: _ when modname <> current_module () ->
+      let filename = get_external_logs modname in
+      begin match filename with
+      | None -> None
+      | Some filename ->
+        Some ("file:" ^
+              Location.find_relative_path_from_to inlining_report_file filename ^
+              "::")
+      end
+    | _ ->
+      Some ("")
+    in
+    match link with
+    | None -> None
+    | Some p ->
+      Some (p ^ (IH.Path.to_uid path))
 
   let print_stars ppf n =
     let s = String.make n '*' in
     Format.fprintf ppf "%s" s
 
-  let print_reference ppf reference =
-    IH.Path.to_uid reference
-    |> Format.fprintf ppf "The decision for this site was taken at:@; \
-                          [[%s][decision site]]"
+  let print_reference inlining_report_file ppf reference =
+    let location_short =
+      match reference with
+      | IH.Path.File(modname) :: _ when modname <> current_module () ->
+        "module " ^ modname
+      | _ ->
+        "the current file"
+    in
+    let link =
+      match build_link_uid inlining_report_file reference with
+      | None -> ""
+      | Some x ->
+        Format.asprintf " at this [[%s][decision site]]" x
+    in
+    Format.fprintf ppf "The decision to inline this call was taken in %s%s."
+      location_short link
 
   let print_anchor ppf anchor =
     Format.fprintf ppf "[[id:<<%s>>][ ]]" anchor
 
   let print_apply def inlining_report_file ppf name =
-    let prefix =
-      match name with
-      | IH.Path.File (Some filename, _) :: _ ->
-        "file:" ^
-        Location.find_relative_path_from_to inlining_report_file filename ^
-        "::"
-      | _ ->
-        ""
-    in
-    Format.fprintf ppf "[[%s%s][%a]]"
-      prefix
-      (IH.Path.to_uid name)
+    let link = build_link_uid inlining_report_file name in
+    match link with
+    | Some link ->
+    Format.fprintf ppf "[[%s][%a]]"
+      link
+      IH.Definition.print_short def
+    | None ->
+      Format.fprintf ppf "%a"
       IH.Definition.print_short def
 
   let print_debug ppf (dbg : Debuginfo.item) =
@@ -220,7 +271,8 @@ module Inlining_report = struct
            match c.decision with
            | Reference reference ->
              begin
-               print_application path dbg print_reference reference;
+               print_application path dbg
+                 (print_reference filename) reference;
                let explore entry next_atom =
                  match entry with
                  | None -> ()
@@ -265,5 +317,6 @@ let really_save_then_forget_decisions ~output_prefix =
 let save_then_forget_decisions ~output_prefix =
   if !Clflags.inlining_report then begin
     really_save_then_forget_decisions ~output_prefix;
-    Hashtbl.clear log
+    Hashtbl.clear log;
+    Hashtbl.clear external_logs
   end
