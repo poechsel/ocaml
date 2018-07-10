@@ -44,8 +44,9 @@ let import_set_of_closures ex =
       Variable.Map.map (fun (function_decl : A.function_declaration) ->
         A.update_function_declaration_body function_decl
           (Flambda_iterators.map_toplevel_named f_named)
-        |> A.set_function_declaration_full_history Inlining_history.History.empty
-        |> A.update_function_declaration_scope compilation_unit
+        |> A.set_function_declaration_full_history
+             Inlining_history.History.empty
+             compilation_unit
       )
         clos.funs
     in

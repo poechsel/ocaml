@@ -287,6 +287,11 @@ module InliningArgs = struct
     in iter_through_round 1 (get 0 |> extract)
 end
 
+let current_module () =
+  match Compilation_unit.get_current () with
+  | None -> assert false
+  | Some cu ->
+    Compilation_unit.get_persistent_ident cu |> Ident.name
 
 type call_kind =
   | Indirect
@@ -514,7 +519,7 @@ let rec lam ppf (flam : t) =
     in
     fprintf ppf "@[<2>(apply[%a]%a%a<%s>@,%a@ %a%a)@]"
       Inlining_history.Path.print
-      (Inlining_history.history_to_path inlining_history)
+      (Inlining_history.history_to_path ~modname:"" inlining_history)
       direct () inline ()
       (Debuginfo.to_string dbg)
       print_inlining_depth inlining_depth
@@ -708,7 +713,7 @@ and print_function_declaration ppf var (f : function_declaration) =
   fprintf ppf "@[<2>(%a%s%s%s%s%s@ =@ [%a]fun@[<2>%a@] ->@ @[<2>%a@])@]@ "
     Variable.print var recursive stub is_a_functor inline specialise
     Inlining_history.Path.print
-    (Inlining_history.history_to_path f.inlining_history)
+    (Inlining_history.history_to_path ~modname:"" f.inlining_history)
     params f.params lam f.body
 
 and print_set_of_closures ppf (set_of_closures : set_of_closures) =

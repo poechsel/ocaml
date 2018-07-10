@@ -162,27 +162,20 @@ module Inlining_report = struct
   let build log =
     Hashtbl.fold add_decision log Place_map.empty
 
-  let current_module () =
-    match Compilation_unit.get_current () with
-    | None -> assert false
-    | Some cu ->
-      Compilation_unit.get_persistent_ident cu |> Ident.name
-
   (* build a string representing a link in the org file. Takes
      into account external files *)
   let build_link_uid inlining_report_file path =
-    let link = match path with
-    | IH.Path.File (modname) :: _ when modname <> current_module () ->
-      let filename = get_external_logs modname in
-      begin match filename with
-      | None -> None
-      | Some filename ->
-        Some ("file:" ^
-              Location.find_relative_path_from_to inlining_report_file filename ^
-              "::")
-      end
-    | _ ->
-      Some ("")
+    let link =
+      if IH.Path.file path <> Flambda.current_module () then
+        let filename = get_external_logs (IH.Path.file path) in
+        match filename with
+        | None -> None
+        | Some filename ->
+          Some ("file:" ^
+                Location.find_relative_path_from_to inlining_report_file filename ^
+                "::")
+      else
+        Some ("")
     in
     match link with
     | None -> None
@@ -195,10 +188,9 @@ module Inlining_report = struct
 
   let print_reference inlining_report_file ppf reference =
     let location_short =
-      match reference with
-      | IH.Path.File(modname) :: _ when modname <> current_module () ->
-        "module " ^ modname
-      | _ ->
+      if IH.Path.file reference <> Flambda.current_module () then
+        "module " ^ (IH.Path.file reference)
+      else
         "the current file"
     in
     let link =
@@ -230,8 +222,8 @@ module Inlining_report = struct
 
   let rec print history filename ~depth ppf t =
     Place_map.iter (fun atom (v : node) ->
-      let present = atom :: history in
-      let uid = IH.Path.to_uid (List.rev present) in
+      let present = IH.Path.append_atom atom history in
+      let uid = IH.Path.to_uid present in
       let print_checkpoint tag name dbg =
          Format.fprintf ppf "@[<h>%a %s %s%a %a@]@;@;"
            print_stars (depth + 1)
@@ -242,8 +234,9 @@ module Inlining_report = struct
       in
       let print_application name dbg converter obj =
         let def =
-          IH.Path.get_compressed_path history name
-          |> Inlining_history.path_to_definition
+          (*IH.Path.get_compressed_path history name
+            |>*)
+          Inlining_history.path_to_definition (Flambda.current_module ()) name
         in
         Format.pp_open_vbox ppf (depth + 2);
         Format.fprintf ppf "@[<h>%a Application of %a%s %a@]@;@;\
@@ -277,7 +270,7 @@ module Inlining_report = struct
                  match entry with
                  | None -> ()
                  | Some specialised ->
-                   print (next_atom :: present) filename ppf
+                   print (IH.Path.append_atom next_atom present) filename ppf
                      ~depth:(depth + 1) specialised
                in
                explore c.specialised IH.Path.Specialised;
@@ -289,12 +282,15 @@ module Inlining_report = struct
                print_application path dbg
                  (Inlining_stats_types.Decision.summary round) decision;
                Inlining_stats_types.Decision.print
-                 ~specialised:(c.specialised, IH.Path.Specialised::present)
-                 ~inlined:(c.inlined, IH.Path.Inlined::present)
+                 ~specialised:(c.specialised,
+                               IH.Path.append_atom IH.Path.Specialised present)
+                 ~inlined:(c.inlined,
+                           IH.Path.append_atom IH.Path.Inlined present)
                  ~print:(fun (x : IH.Path.t) -> print x filename)
                  ~depth:(depth + 1) ppf decision
                  ~specialised_call:(c.specialised_call,
-                                    IH.Path.SpecialisedCall::present)
+                                    IH.Path.append_atom
+                                      IH.Path.SpecialisedCall present)
              end
          end
        | _ -> assert false
@@ -302,8 +298,8 @@ module Inlining_report = struct
       if depth = 0 then Format.pp_print_newline ppf ())
       t
 
-  let print ppf t filename = print IH.Path.empty ~depth:0 filename ppf t
-
+  let print ppf t filename =
+    print (IH.Path.empty (Flambda.current_module ())) ~depth:0 filename ppf t
 end
 
 let really_save_then_forget_decisions ~output_prefix =
