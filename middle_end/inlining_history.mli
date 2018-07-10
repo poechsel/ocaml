@@ -140,7 +140,7 @@ val add_fn_def
 
 (* add a module definition node to a history *)
 val add_mod_def
-  : id:Ident.t
+  : id:string
   -> loc:Location.t
   -> path:History.t
   -> History.t

@@ -601,7 +601,7 @@ and transl_structure modpath loc fields cc rootpath final_env = function
       (* Translate module first *)
       let module_body =
         transl_module
-          (IH.add_mod_def ~id:(Ident.create mb.mb_name.txt)
+          (IH.add_mod_def ~id:mb.mb_name.txt
              ~loc:mb.mb_name.loc ~path:modpath)
           (Some (Ident.create mb.mb_name.txt))
           Tcoerce_none (field_path rootpath id) mb.mb_expr
@@ -1266,14 +1266,18 @@ let transl_toplevel_item modpath item =
     (* we need to use the unique name for the module because of issues
        with "open" (PR#1672) *)
     set_toplevel_unique_name id;
-    let lam = transl_module (IH.add_mod_def ~id ~loc:mb_loc ~path:modpath)
-                None Tcoerce_none (Some(Pident id)) modl in
+    let id_str = Ident.name id in
+    let lam =
+      transl_module (IH.add_mod_def ~id:id_str ~loc:mb_loc ~path:modpath)
+        None Tcoerce_none (Some(Pident id)) modl
+    in
     toploop_setvalue id lam
   | Tstr_recmodule bindings ->
     let idents = List.map (fun mb -> mb.mb_id) bindings in
     compile_recmodule modpath
-      (fun id modl loc -> transl_module (IH.add_mod_def ~id ~loc ~path:modpath)
-                            None Tcoerce_none (Some(Pident id)) modl)
+      (fun id modl loc ->
+         transl_module (IH.add_mod_def ~id:(Ident.name id) ~loc ~path:modpath)
+           None Tcoerce_none (Some(Pident id)) modl)
       bindings
       (make_sequence toploop_setvalue_id idents)
   | Tstr_class cl_list ->

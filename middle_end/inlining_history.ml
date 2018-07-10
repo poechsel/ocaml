@@ -394,7 +394,7 @@ let add_fn_def ~name ~loc ~path =
   History.Closure(name, Debuginfo.item_from_location loc) :: path
 
 let add_mod_def ~id ~loc ~path =
-  History.Module(Ident.name id, Debuginfo.item_from_location loc) :: path
+  History.Module(id, Debuginfo.item_from_location loc) :: path
 
 let add_specialise_def ~name ~path =
   History.Closure(SpecialisedFunction name, Debuginfo.none_item)
