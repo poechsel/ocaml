@@ -28,23 +28,41 @@ type name =
   | SpecialisedFunction of name
   | Functor of string
   | Class of string * class_name_type
+  | Lazy
   | Anonymous
   | Coerce
   | Method of string * string
 
 val print_name :
-  Format.formatter
+  print_functor:bool
+  -> Format.formatter
   -> name
   -> unit
 
+module Definition : sig
+  (* Path leading to a function definition inside the
+     original path. It is build from a [path.t] element *)
+  type t = atom list
+  and atom =
+    | Module of string
+    | Closure of name * Debuginfo.item
+    | File of string
+
+  val empty : t
+
+  val print : Format.formatter -> t -> unit
+  val print_short : Format.formatter -> t -> unit
+
+end
 
 module Path : sig
-  type t = atom list
+  (* Paths are always absolute and associated with a file *)
+  type t = string * path
+  and path = atom list
   and atom =
     | Module of string * Debuginfo.item
     | Closure of name * Debuginfo.item
     | Call of t * Debuginfo.item
-    | File of string option * string
     | Inlined
     | Specialised
     | SpecialisedCall
@@ -52,8 +70,6 @@ module Path : sig
   val compare_atom : atom -> atom -> int
 
   val compare : t -> t -> int
-
-  val add_import_atoms : string -> t -> t
 
   val print_atom :
     Format.formatter
@@ -65,7 +81,9 @@ module Path : sig
     -> t
     -> unit
 
-  val empty : t
+  val empty : string -> t
+
+  val file : t -> string
 
   val to_uid : t -> string
 
@@ -77,13 +95,22 @@ module Path : sig
   (* remove AInlined, ASpecialised and ASpecialisedCall atoms
      from a path *)
   val strip_call_attributes : t -> t
+
+  val append_atom : atom -> t -> t
 end
 
 module History : sig
+  (* History are relative *)
   type atom =
     | Module of string * Debuginfo.item
     | Closure of name * Debuginfo.item
     | Call of Path.t * Debuginfo.item * Path.t
+    (* a Call site is determined by three items:
+       - a path corresponding to the definition path of the function
+         we are calling
+       - a debuginfo structure
+       - the absolute history leading to the inspection of this call site
+    *)
     | Inlined
     | Specialised
     | SpecialisedCall
@@ -104,16 +131,18 @@ end
 
 val node_to_atom : History.atom -> Path.atom
 
-
 val string_of_name : name -> string
 
-val history_to_path: History.t -> Path.t
+val history_to_path: modname:string -> History.t -> Path.t
+
+val path_to_definition: string -> Path.t -> Definition.t
 
 val note_entering_call
   : History.t
   -> dbg_name:Path.t
   -> dbg:Debuginfo.item
   -> absolute_inlining_history:History.t
+  -> cunit_name:string
   -> History.t
 
 (* add a function definition node to a history *)

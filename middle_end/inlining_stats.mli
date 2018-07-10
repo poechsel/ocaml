@@ -19,6 +19,7 @@
 
 val record_decision
    : Inlining_stats_types.Decision.t
+   -> round:int
   -> closure_stack:Inlining_history.History.t
   -> unit
 

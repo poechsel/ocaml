@@ -479,7 +479,6 @@ and transl_exp0 modpath name e =
              (Lvar cpy))
   | Texp_letmodule(id, loc, modl, body) ->
       let defining_expr =
-        (* CR poechsel: update modpath here? *)
         Levent (!transl_module modpath (Some id) Tcoerce_none None modl, {
           lev_loc = loc.loc;
           lev_kind = Lev_module_definition id;
@@ -494,7 +493,6 @@ and transl_exp0 modpath name e =
            cd.ext_id, transl_extension_constructor e.exp_env None cd,
            transl_exp modpath IH.Anonymous body)
   | Texp_pack modl ->
-        (* CR poechsel: update modpath here? *)
       !transl_module modpath None Tcoerce_none None modl
   | Texp_assert {exp_desc=Texp_construct(_, {cstr_name="false"}, _)} ->
       assert_failed e
@@ -537,7 +535,8 @@ and transl_exp0 modpath name e =
          let fn = Lfunction {kind = Curried; params = [Ident.create "param"];
                              attr = default_function_attribute;
                              debugging_informations =
-                               IH.History.empty;
+                               IH.add_fn_def ~name:IH.Lazy ~loc:e.exp_loc
+                                 ~path:IH.History.empty;
                              loc = e.exp_loc;
                              body = transl_exp modpath IH.Anonymous e} in
           Lprim(Pmakeblock(Config.lazy_tag, Mutable, None), [fn], e.exp_loc)

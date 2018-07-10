@@ -30,6 +30,7 @@ type name =
   | SpecialisedFunction of name
   | Functor of string
   | Class of string * class_name_type
+  | Lazy
   | Anonymous
   | Coerce
   | Method of string * string
@@ -44,6 +45,7 @@ let rec compare_name a b =
     | Anonymous -> 4
     | Coerce -> 5
     | Method _ -> 6
+    | Lazy -> 7
   in
   let index_a = index a in
   let index_b = index b in
@@ -74,7 +76,9 @@ let rec compare_name a b =
         else 1
     | Anonymous, Anonymous ->
       0
-    | Coerce,  Coerce ->
+    | Coerce, Coerce ->
+      0
+    | Lazy, Lazy ->
       0
     | Method (a, b), Method (a', b') ->
       let c = String.compare a a' in
@@ -83,18 +87,23 @@ let rec compare_name a b =
     | _ -> assert false
     end
 
-let rec print_name ppf name =
+let rec print_name ~print_functor ppf name =
   match name with
   | SpecialisedFunction n ->
-    Format.fprintf ppf "specialised of %a" print_name n
+    Format.fprintf ppf "specialised of %a" (print_name ~print_functor) n
   | Function n ->
     Format.fprintf ppf "%s" n
   | Functor n ->
-    Format.fprintf ppf "functor %s" n
+    if print_functor then
+      Format.fprintf ppf "functor %s" n
+    else
+      Format.fprintf ppf "%s" n
   | Anonymous ->
     Format.fprintf ppf "anonymous"
   | Coerce ->
     Format.fprintf ppf "coercion"
+  | Lazy ->
+    Format.fprintf ppf "lazy"
   | Method(a, b) ->
     Format.fprintf ppf "%s#method %s" a b
   | Class(n, w) ->
@@ -115,145 +124,203 @@ let rec print_name ppf name =
 
 
 let string_of_name name =
-  Format.asprintf "%a" print_name name
+  Format.asprintf "%a" (print_name ~print_functor:true) name
 
+module Definition = struct
+  type t = atom list
+  and atom =
+    | Module of string
+    | Closure of name * Debuginfo.item
+    | File of string
 
+  let empty = []
+
+  let get_last_definition def =
+    List.fold_left (fun previous x ->
+      match x with
+      | Module _ | File _ -> previous
+      | Closure(n, x) -> Some (n, x)
+    ) None def
+
+  let print_short ppf def =
+    let name =
+      match get_last_definition def with
+      | None -> Anonymous
+      | Some (a, _) -> a
+    in
+    Format.fprintf ppf "%a"
+      (print_name ~print_functor:true) name
+
+  let print ppf def =
+    let rec aux ~print_functor ppf def =
+      match def with
+      | [] -> ()
+      | Closure(name, _) :: (File _ | Module _ as x) :: r ->
+        let is_functor =
+          match name with
+          | Functor _ -> true
+          | _ -> false
+        in
+        let functor_str =
+          if is_functor then "functor "
+          else ""
+        in
+        let print_functor = not is_functor in
+        Format.fprintf ppf "%s%a%a" functor_str
+          (aux ~print_functor) (x::r)
+          (print_name ~print_functor) name
+      | Closure(name, _) :: [] ->
+        Format.fprintf ppf "%a"
+          (print_name ~print_functor) name
+      | Closure(name, _) :: r ->
+        Format.fprintf ppf "%a defined in %a"
+          (print_name ~print_functor) name
+          (aux ~print_functor:true) r
+      | Module name :: r ->
+        Format.fprintf ppf "%a%s." (aux ~print_functor) r name
+      | File (name) :: r ->
+        Format.fprintf ppf "%a%s." (aux ~print_functor) r name
+    in
+    Format.fprintf ppf "Call to %a" (aux ~print_functor:true) (List.rev def);
+    match (get_last_definition def) with
+    | None ->
+      Format.fprintf ppf "."
+    | Some(_, dbg) ->
+      Format.fprintf ppf ", which was defined at %s."
+        (Debuginfo.to_string [dbg])
+end
 
 module Path = struct
   (* shorten representation *)
-  type t = atom list
+  type t = string * path
+  and path = atom list
   and atom =
     | Module of string * Debuginfo.item
     | Closure of name * Debuginfo.item
     | Call of t * Debuginfo.item
-    | File of string option * string
     | Inlined
     | Specialised
     | SpecialisedCall
 
-  let empty = []
+  let empty modname = modname, []
 
-let add_import_atoms modname path =
-  let filename =
-    try
-      Some (Misc.find_in_path_uncap
-              !Config.load_path
-              (modname ^ ".inlining.org"))
-    with Not_found ->
+  let extract_debug_info atom =
+    match atom with
+    | Closure(_, dbg)
+    | Module(_, dbg)
+    | Call(_, dbg) ->
+      Some dbg
+    | _ ->
       None
-  in
-  File(filename, modname) :: path
 
-
-let extract_debug_info atom =
-  match atom with
-  | Closure(_, dbg)
-  | Module(_, dbg)
-  | Call(_, dbg) ->
-    Some dbg
-  | _ ->
-    None
-
-let rec compare_atom a b =
-  let c =
-    match extract_debug_info a, extract_debug_info b with
-    | Some a, Some b -> Debuginfo.compare [a] [b]
-    | _ -> 0
-  in
-  if c <> 0 then c
-  else
-  let index = function
-    | File _ -> 0
-    | Closure _ -> 1
-    | Module _ -> 2
-    | Call _ -> 3
-    | Specialised -> 4
-    | SpecialisedCall -> 5
-    | Inlined -> 6
-  in
-  let index_a = index a in
-  let index_b = index b in
-  if index_a <> index_b then
-    if index_a < index_b then -1 else 1
-  else
-  match a, b with
-  | File (_, b), File (_, b') ->
-    String.compare b b'
-  | Inlined, Inlined ->
-    0
-  | Module (a, b), Module(a', b') ->
-    let c = Debuginfo.compare [b] [b'] in
+  let rec compare_atom a b =
+    let c =
+      match extract_debug_info a, extract_debug_info b with
+      | Some a, Some b -> Debuginfo.compare [a] [b]
+      | _ -> 0
+    in
     if c <> 0 then c
-    else String.compare a a'
-  | Closure(a, b), Closure(a', b') ->
-    let c = Debuginfo.compare [b] [b'] in
+    else
+      let index = function
+        | Closure _ -> 1
+        | Module _ -> 2
+        | Call _ -> 3
+        | Specialised -> 4
+        | SpecialisedCall -> 5
+        | Inlined -> 6
+      in
+      let index_a = index a in
+      let index_b = index b in
+      if index_a <> index_b then
+        if index_a < index_b then -1 else 1
+      else
+        match a, b with
+        | Inlined, Inlined ->
+          0
+        | Module (a, b), Module(a', b') ->
+          let c = Debuginfo.compare [b] [b'] in
+          if c <> 0 then c
+          else String.compare a a'
+        | Closure(a, b), Closure(a', b') ->
+          let c = Debuginfo.compare [b] [b'] in
+          if c <> 0 then c else
+            compare_name a a'
+        | Call(a, b), Call(a', b') ->
+          let c = compare a a' in
+          if c <> 0 then c else
+            let c = Debuginfo.compare [b] [b'] in
+            c
+        | Specialised, Specialised ->
+          0
+        | SpecialisedCall, SpecialisedCall ->
+          0
+        | _ -> assert false
+
+  and compare (f, l) (f', l') =
+    let c = String.compare f f' in
     if c <> 0 then c else
-      compare_name a a'
-  | Call(a, b), Call(a', b') ->
-    let c = compare a a' in
-    if c <> 0 then c else
-      let c = Debuginfo.compare [b] [b'] in
-      c
-  | Specialised, Specialised ->
-    0
-  | SpecialisedCall, SpecialisedCall ->
-    0
-  | _ -> assert false
+      let c = List.compare_lengths l l' in
+      if c <> 0 then c else
+        List.fold_left2 (fun p e e' ->
+          if p <> 0 then p
+          else compare_atom e e')
+          0 l l'
 
-and compare l l' =
-  let c = List.compare_lengths l l' in
-  if c <> 0 then c else
-    List.fold_left2 (fun p e e' ->
-      if p <> 0 then p
-      else compare_atom e e')
-      0 l l'
+  let rec to_uid h =
+    Marshal.to_bytes h []
+    |> Digest.bytes
+    |> Digest.to_hex
 
-let empty_path = []
+  and print_atom ppf x =
+    match x with
+    | Inlined ->
+      Format.fprintf ppf "inlined"
+    | Call (c, _) ->
+      Format.fprintf ppf "(%a)" print c
+    | Closure (c, _) ->
+      Format.fprintf ppf "%a" (print_name ~print_functor:true) c
+    | Module (c, _) ->
+      Format.fprintf ppf "%s." c
+    | Specialised ->
+      (* printing nothing because it's already done in the name *)
+      Format.fprintf ppf ""
+    | SpecialisedCall ->
+      Format.fprintf ppf "specialised call"
 
-let rec to_uid h =
-  let h =
-    match h with
-    | File _ :: h -> h
-    | h -> h
-  in
-  Marshal.to_bytes h []
-  |> Digest.bytes
-  |> Digest.to_hex
+  and print ppf (f, l) =
+    Format.fprintf ppf "%s." f;
+    List.iter (fun x ->
+      print_atom ppf x;
+      match x with
+      | Module _ -> ()
+      | _ -> Format.fprintf ppf " "
+    ) l
 
-and print_atom ppf x =
-  match x with
-  | Inlined ->
-    Format.fprintf ppf " inlined "
-  | Call (c, _) ->
-    Format.fprintf ppf "(%a ) " print c
-  | Closure (c, _) ->
-    Format.fprintf ppf "%a " print_name c
-  | Module (c, _)
-  | File (_, c) ->
-    Format.fprintf ppf "%s." c
-  | Specialised ->
-    (* printing nothing because it's already done in the name *)
-    Format.fprintf ppf ""
-  | SpecialisedCall ->
-    Format.fprintf ppf " specialised call "
+  let get_compressed_path (root_f, root) (leaf_f, leaf) =
+    let rec aux root leaf =
+      match root, leaf with
+      | atom :: root, atom' :: leaf when
+          compare_atom atom atom' = 0 ->
+        let r = aux root leaf in
+        if r = [] then atom' :: [] else r
+      | _ -> leaf
+    in
+    if root_f = leaf_f then
+      leaf_f, aux root leaf
+    else
+      leaf_f, leaf
 
-and print ppf l =
-  List.iter (print_atom ppf) l
+  let strip_call_attributes (path_f, path) =
+    path_f,
+    List.filter (function
+      | Inlined | Specialised | SpecialisedCall -> false
+      | _ -> true)
+      path
 
-let rec get_compressed_path root leaf =
-  match root, leaf with
-  | atom :: root, atom' :: leaf when
-      compare_atom atom atom' = 0 ->
-    let r = get_compressed_path root leaf in
-    if r = [] then atom' :: empty_path else r
-  | _ -> leaf
+  let file = fst
 
-let strip_call_attributes path =
-  List.filter (function
-    | Inlined | Specialised | SpecialisedCall -> false
-    | _ -> true)
-    path
-
+  let append_atom atom (f, p) =
+    f, p @ [atom]
 end
 
 
@@ -303,20 +370,23 @@ let node_to_atom (history : History.atom) : Path.atom =
     | Specialised -> Specialised
     | SpecialisedCall -> SpecialisedCall
 
-let history_to_path (history : History.t) : Path.t =
-  history
-  |> List.map node_to_atom
-  |> List.rev
+let history_to_path ~modname (history : History.t) : Path.t =
+  let p =
+    history
+    |> List.map node_to_atom
+    |> List.rev
+  in
+  (modname, p)
 
 
 let note_entering_call t ~dbg_name ~dbg
-      ~absolute_inlining_history =
+      ~absolute_inlining_history ~cunit_name =
   let absolute_inlining_history =
     (* adding a placeholder call node to represent this call inside the
        absolute history. Its absolute path does not matters as it will
        be stripped during the conversion *)
-    History.Call(dbg_name, dbg, History.empty) :: absolute_inlining_history
-    |> history_to_path
+    History.Call(dbg_name, dbg, Path.empty "") :: absolute_inlining_history
+    |> history_to_path ~modname:cunit_name
   in
   (History.Call (dbg_name, dbg, absolute_inlining_history)) :: t
 
@@ -332,3 +402,27 @@ let add_specialise_def ~name ~path =
 
 let add_specialise_apply ~path =
   History.SpecialisedCall :: path
+
+let path_to_definition modpath (path_f, path) =
+  let rec convert path file (acc : Definition.t) =
+    match (path : Path.path) with
+    | Call((def_file, def_path), _) :: _ ->
+      convert (List.rev def_path) def_file acc
+    | Module(name, _) :: r ->
+      convert r file (Definition.Module name :: acc)
+    | Closure(n, d) :: r ->
+      begin match n with
+      | SpecialisedFunction _ ->
+        convert r file acc
+      | n ->
+        convert r file (Definition.Closure(n, d) :: acc)
+      end
+    | Inlined :: r | Specialised :: r | SpecialisedCall :: r ->
+      convert r file acc
+    | [] ->
+      if file <> modpath then
+        Definition.File(file) :: acc
+      else
+        acc
+  in
+  convert (List.rev path) path_f Definition.empty

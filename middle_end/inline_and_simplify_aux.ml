@@ -356,11 +356,12 @@ module Env = struct
   let record_decision t decision =
     Inlining_stats.record_decision decision
       ~closure_stack:t.inlining_history
+      ~round:(round t)
 
   let record_definition t =
     if t.inlining_history <> IH.History.empty then
     Inlining_stats.record_decision Inlining_stats_types.Decision.Definition
-      ~closure_stack:t.inlining_history
+      ~closure_stack:t.inlining_history ~round:(round t)
 
   let set_inline_debuginfo t ~dbg =
     { t with inlined_debuginfo = dbg }

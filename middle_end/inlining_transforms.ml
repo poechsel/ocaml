@@ -637,7 +637,6 @@ let rewrite_function ~lhs_of_application ~closure_id_being_applied
     IH.History.extract_def_name function_body.inlining_history
   in
   let inlining_history =
-    (* CR poechsel: change this *)
     IH.add_specialise_def ~name:def_name ~path:inlining_history_call
   in
   let new_function_decl =

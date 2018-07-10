@@ -20,8 +20,10 @@
 module IH = Inlining_history
 
 let log = Hashtbl.create 5
+let external_logs = Hashtbl.create 5
 
-let record_decision decision ~closure_stack =
+
+let record_decision decision ~round ~closure_stack =
   if !Clflags.inlining_report then begin
     match (closure_stack : IH.History.t) with
     | []
@@ -32,7 +34,7 @@ let record_decision decision ~closure_stack =
     | Specialised :: _
     | Closure _ :: _
     | Call _ :: _ ->
-      Hashtbl.replace log closure_stack decision
+      Hashtbl.replace log closure_stack (round, decision)
   end
 
 module Inlining_report = struct
@@ -42,7 +44,7 @@ module Inlining_report = struct
     end)
 
   type decision =
-    | Decision of Inlining_stats_types.Decision.t
+    | Decision of int * Inlining_stats_types.Decision.t
     | Reference of IH.Path.t
 
   type t = node Place_map.t
@@ -70,20 +72,12 @@ module Inlining_report = struct
   (* Prevented or unchanged decisions may be overridden by a later look at the
      same call. Other decisions may also be "overridden" because calls are not
      uniquely identified. *)
-  let add_call_decision call (decision : Inlining_stats_types.Decision.t) =
-    match call.decision, decision with
-    | Reference _, _ -> { call with decision = Decision decision }
-    | Decision Definition, _ -> { call with decision = Decision decision }
-    | _, Definition -> call
-    | Decision _, Prevented _ -> call
-    | Decision (Prevented _), _ -> { call with decision = Decision decision }
-    | Decision (Specialised _), _ -> call
-    | Decision _, Specialised _ -> { call with decision = Decision decision }
-    | Decision (Inlined _), _ -> call
-    | Decision _, Inlined _ -> { call with decision = Decision decision }
-    | Decision Unchanged _, Unchanged _ -> call
+  let add_call_decision call round (decision : Inlining_stats_types.Decision.t) =
+    match call.decision with
+    | Decision(round', _) when round' > round -> call
+    | _ -> { call with decision = Decision (round, decision) }
 
-  let add_decision stack decision t : node Place_map.t =
+  let add_decision stack (round, decision) t : node Place_map.t =
     let rec loop (t : t) (stack : IH.History.t) =
       match stack with
       | [] -> t
@@ -129,7 +123,7 @@ module Inlining_report = struct
           let v =
             match rest with
             | [] ->
-              add_call_decision v decision
+              add_call_decision v round decision
             | Inlined :: rest ->
               let inlined = merge_call_annotation v.inlined rest in
               { v with inlined = Some inlined }
@@ -150,60 +144,108 @@ module Inlining_report = struct
     in
     loop t (List.rev stack)
 
+  let get_external_logs modname =
+    if Hashtbl.mem external_logs modname then
+      Hashtbl.find external_logs modname
+    else
+      let filename =
+        try
+          Some (Misc.find_in_path_uncap
+                  !Config.load_path
+                  (modname ^ ".inlining.org"))
+        with Not_found ->
+          None
+      in
+      Hashtbl.add external_logs modname filename;
+      filename
+
   let build log =
     Hashtbl.fold add_decision log Place_map.empty
+
+  (* build a string representing a link in the org file. Takes
+     into account external files *)
+  let build_link_uid inlining_report_file path =
+    let link =
+      if IH.Path.file path <> Flambda.current_module () then
+        let filename = get_external_logs (IH.Path.file path) in
+        match filename with
+        | None -> None
+        | Some filename ->
+          Some ("file:" ^
+                Location.find_relative_path_from_to inlining_report_file filename ^
+                "::")
+      else
+        Some ("")
+    in
+    match link with
+    | None -> None
+    | Some p ->
+      Some (p ^ (IH.Path.to_uid path))
 
   let print_stars ppf n =
     let s = String.make n '*' in
     Format.fprintf ppf "%s" s
 
-  let print_reference ppf reference =
-    IH.Path.to_uid reference
-    |> Format.fprintf ppf "The decision for this site was taken at:@; \
-                          [[%s][decision site]]"
+  let print_reference inlining_report_file ppf reference =
+    let location_short =
+      if IH.Path.file reference <> Flambda.current_module () then
+        "module " ^ (IH.Path.file reference)
+      else
+        "the current file"
+    in
+    let link =
+      match build_link_uid inlining_report_file reference with
+      | None -> ""
+      | Some x ->
+        Format.asprintf " at this [[%s][decision site]]" x
+    in
+    Format.fprintf ppf "The decision to inline this call was taken in %s%s."
+      location_short link
 
   let print_anchor ppf anchor =
     Format.fprintf ppf "[[id:<<%s>>][ ]]" anchor
 
-  let print_apply history inlining_report_file ppf name =
-    let prefix =
-      match name with
-      | IH.Path.File (Some filename, _) :: _ ->
-        "file:" ^
-        Location.find_relative_path_from_to inlining_report_file filename ^
-        "::"
-      | _ ->
-        ""
-    in
-    Format.fprintf ppf "[[%s%s][%a]]"
-      prefix
-      (IH.Path.to_uid name)
-      IH.Path.print (IH.Path.get_compressed_path history name
-                     |> IH.Path.strip_call_attributes)
+  let print_apply def inlining_report_file ppf name =
+    let link = build_link_uid inlining_report_file name in
+    match link with
+    | Some link ->
+    Format.fprintf ppf "[[%s][%a]]"
+      link
+      IH.Definition.print_short def
+    | None ->
+      Format.fprintf ppf "%a"
+      IH.Definition.print_short def
 
   let print_debug ppf (dbg : Debuginfo.item) =
-    if dbg.dinfo_file = "" then ()
+    if Debuginfo.is_none_item dbg then ()
     else Format.fprintf ppf "%s" (Debuginfo.to_string [dbg])
 
   let rec print history filename ~depth ppf t =
     Place_map.iter (fun atom (v : node) ->
-      let present = atom :: history in
-      let uid = IH.Path.to_uid (List.rev present) in
+      let present = IH.Path.append_atom atom history in
+      let uid = IH.Path.to_uid present in
       let print_checkpoint tag name dbg =
-         Format.fprintf ppf "@[<h>%a %s %s%a %a@]@;@;"
+         Format.fprintf ppf "@[<h>%a %s %s %a %a@]@;@;"
            print_stars (depth + 1)
            tag
            name
            print_debug dbg
            print_anchor uid;
       in
-      let print_application (type a) name dbg (converter:Format.formatter->a->unit) (obj:a) =
+      let print_application name dbg converter obj =
+        let def =
+          (*IH.Path.get_compressed_path history name
+            |>*)
+          Inlining_history.path_to_definition (Flambda.current_module ()) name
+        in
         Format.pp_open_vbox ppf (depth + 2);
-        Format.fprintf ppf "@[<h>%a Application of %a%s %a@]@;@;@[%a@]"
+        Format.fprintf ppf "@[<h>%a Application of %a %a %a@]@;@;\
+                            @[%a@]@;@;@[%a@]"
           print_stars (depth + 1)
-          (print_apply (List.rev history) filename) name
-          (Debuginfo.to_string [dbg])
+          (print_apply def filename) name
+          print_debug dbg
           print_anchor uid
+          Inlining_history.Definition.print def
           converter obj;
         Format.pp_close_box ppf ();
         Format.pp_print_newline ppf ();
@@ -222,29 +264,33 @@ module Inlining_report = struct
            match c.decision with
            | Reference reference ->
              begin
-               print_application path dbg print_reference reference;
+               print_application path dbg
+                 (print_reference filename) reference;
                let explore entry next_atom =
                  match entry with
                  | None -> ()
                  | Some specialised ->
-                   print (next_atom :: present) filename ppf
+                   print (IH.Path.append_atom next_atom present) filename ppf
                      ~depth:(depth + 1) specialised
                in
                explore c.specialised IH.Path.Specialised;
                explore c.specialised_call IH.Path.SpecialisedCall;
                explore c.inlined IH.Path.Inlined;
              end
-           | Decision decision ->
+           | Decision (round, decision) ->
              begin
                print_application path dbg
-                 Inlining_stats_types.Decision.summary decision;
+                 (Inlining_stats_types.Decision.summary round) decision;
                Inlining_stats_types.Decision.print
-                 ~specialised:(c.specialised, IH.Path.Specialised::present)
-                 ~inlined:(c.inlined, IH.Path.Inlined::present)
+                 ~specialised:(c.specialised,
+                               IH.Path.append_atom IH.Path.Specialised present)
+                 ~inlined:(c.inlined,
+                           IH.Path.append_atom IH.Path.Inlined present)
                  ~print:(fun (x : IH.Path.t) -> print x filename)
                  ~depth:(depth + 1) ppf decision
                  ~specialised_call:(c.specialised_call,
-                                    IH.Path.SpecialisedCall::present)
+                                    IH.Path.append_atom
+                                      IH.Path.SpecialisedCall present)
              end
          end
        | _ -> assert false
@@ -252,8 +298,8 @@ module Inlining_report = struct
       if depth = 0 then Format.pp_print_newline ppf ())
       t
 
-  let print ppf t filename = print IH.Path.empty ~depth:0 filename ppf t
-
+  let print ppf t filename =
+    print (IH.Path.empty (Flambda.current_module ())) ~depth:0 filename ppf t
 end
 
 let really_save_then_forget_decisions ~output_prefix =
@@ -267,5 +313,6 @@ let really_save_then_forget_decisions ~output_prefix =
 let save_then_forget_decisions ~output_prefix =
   if !Clflags.inlining_report then begin
     really_save_then_forget_decisions ~output_prefix;
-    Hashtbl.clear log
+    Hashtbl.clear log;
+    Hashtbl.clear external_logs
   end

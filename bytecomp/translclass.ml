@@ -38,15 +38,15 @@ let lfunction' dbg params body =
       Lfunction {kind = Curried; params;
                  body;
                  attr = default_function_attribute;
-                 debugging_informations = dbg Location.none;
+                 debugging_informations = dbg;
                  loc = Location.none;
                 }
 
 let lfunction_debug dbg params body =
-  lfunction' (fun _ -> dbg) params body
+  lfunction' dbg params body
 
-let lfunction modpath name params body =
-  let dbg loc = IH.add_fn_def ~name ~path:modpath ~loc in
+let lfunction modpath loc name params body =
+  let dbg = IH.add_fn_def ~name ~path:modpath ~loc in
   lfunction' dbg params body
 
 
@@ -248,10 +248,10 @@ let rec build_object_init_0 modpath cl_id cl_table params
         if ids = [] then
           obj_init
         else
-          lfunction modpath name [self] obj_init
+          lfunction modpath cl.cl_loc name [self] obj_init
       in
       (inh_init,
-       lfunction modpath name [env] (subst_env env inh_init obj_init))
+       lfunction modpath cl.cl_loc name [env] (subst_env env inh_init obj_init))
 
 
 let bind_method modpath tbl lab id cl_init =
@@ -525,7 +525,7 @@ let rec transl_class_rebind_0 modpath cl_id self obj_init cl vf =
     let path, obj_init =
       transl_class_rebind IH.History.empty cl_id obj_init cl vf
     in
-      (path, lfunction modpath d_name [self] obj_init)
+      (path, lfunction modpath cl.cl_loc d_name [self] obj_init)
 
 
 let same_with_ignore_debug a b =
@@ -554,7 +554,9 @@ let transl_class_rebind modpath cl_id cl vf =
     let path, obj_init' =
       transl_class_rebind_0 IH.History.empty cl_id self obj_init0 cl vf
     in
-    let obj_init0_fn = lfunction modpath IH.Anonymous [self] obj_init0 in
+    let obj_init0_fn =
+      lfunction modpath cl.cl_loc IH.Anonymous [self] obj_init0
+    in
     let id = same_with_ignore_debug obj_init' obj_init0_fn in
     if id then transl_normal_path path else
 
@@ -565,16 +567,16 @@ let transl_class_rebind modpath cl_id cl vf =
     and envs = Ident.create "envs" in
     Llet(
       Strict, Pgenval, new_init,
-      lfunction modpath (IH.Class(Ident.name cl_id, IH.NewInit))
+      lfunction modpath cl.cl_loc (IH.Class(Ident.name cl_id, IH.NewInit))
         [obj_init] obj_init',
       Llet(
     Alias, Pgenval, cla, transl_normal_path path,
     Lprim(Pmakeblock(0, Immutable, None),
           [mkappl modpath (Lvar new_init, [lfield cla 0]);
-           lfunction modpath IH.Anonymous [table]
+           lfunction modpath cl.cl_loc IH.Anonymous [table]
              (Llet(Strict, Pgenval, env_init,
                    mkappl IH.History.empty (lfield cla 1, [Lvar table]),
-                   lfunction IH.History.empty
+                   lfunction IH.History.empty cl.cl_loc
                    (IH.Class(Ident.name cl_id, IH.EnvInit))
                      [envs]
                      (mkappl IH.History.empty
@@ -866,7 +868,7 @@ let transl_class modpath ids cl_id pub_meths cl vflag =
     let cl_name =
       IH.Class(Ident.name cl_id, IH.ClassInit)
     in
-    let debug = IH.add_fn_def ~name:cl_name ~path:modpath ~loc:Location.none in
+    let debug = IH.add_fn_def ~name:cl_name ~path:modpath ~loc:cl.cl_loc in
     let cl_init = llets (Lfunction{kind = Curried;
                                    attr = default_function_attribute;
                                    loc = Location.none;
@@ -893,7 +895,7 @@ let transl_class modpath ids cl_id pub_meths cl vflag =
           [lambda_unit; Lfunction{kind = Curried;
                                   debugging_informations =
                                     IH.add_fn_def ~path:modpath
-                                      ~name:IH.Anonymous ~loc:Location.none;
+                                      ~name:IH.Anonymous ~loc:cl.cl_loc;
                                   attr = default_function_attribute;
                                   loc = Location.none;
                                   params = [cla]; body = cl_init};
@@ -951,7 +953,7 @@ let transl_class modpath ids cl_id pub_meths cl vflag =
       IH.Class(Ident.name cl_id, IH.ClassInit)
     in
     let debug =
-      IH.add_fn_def ~name:cl_name ~path:modpath ~loc:Location.none
+      IH.add_fn_def ~name:cl_name ~path:modpath ~loc:cl.cl_loc
     in
     Llet(Strict, Pgenval, class_init,
          Lfunction{kind = Curried; params = [cla];
@@ -979,7 +981,7 @@ let transl_class modpath ids cl_id pub_meths cl vflag =
     lset cached 0 (Lfunction{kind = Curried; attr = default_function_attribute;
                              debugging_informations =
                                IH.add_fn_def ~path:modpath ~name:IH.Anonymous
-                                 ~loc:Location.none;
+                                 ~loc:cl.cl_loc;
                              loc = Location.none;
                              params = [cla];
                              body = def_ids IH.History.empty cla cl_init})
