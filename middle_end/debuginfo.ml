@@ -34,6 +34,8 @@ let none_item = {
   dinfo_char_end = 0;
 }
 
+let is_none_item x = x = none_item
+
 let is_none = function
   | [] -> true
   | _ :: _ -> false

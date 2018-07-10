@@ -261,10 +261,6 @@ module Path = struct
           0 l l'
 
   let rec to_uid h =
-    let h =
-      match h with
-      | h -> h
-    in
     Marshal.to_bytes h []
     |> Digest.bytes
     |> Digest.to_hex

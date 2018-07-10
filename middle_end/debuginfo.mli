@@ -24,6 +24,8 @@ type t = item list
 
 val none_item : item
 
+val is_none_item : item -> bool
+
 val none : t
 
 val is_none : t -> bool

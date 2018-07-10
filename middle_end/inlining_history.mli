@@ -39,6 +39,8 @@ val print_name :
   -> unit
 
 module Definition : sig
+  (* Path leading to a function definition inside the
+     original path. It is build from a [path.t] element *)
   type t = atom list
   and atom =
     | Module of string
@@ -53,6 +55,7 @@ module Definition : sig
 end
 
 module Path : sig
+  (* Paths are always absolute and associated with a file *)
   type t = string * path
   and path = atom list
   and atom =
@@ -96,10 +99,17 @@ module Path : sig
 end
 
 module History : sig
+  (* History are relative *)
   type atom =
     | Module of string * Debuginfo.item
     | Closure of name * Debuginfo.item
     | Call of Path.t * Debuginfo.item * Path.t
+    (* a Call site is determined by three items:
+       - a path corresponding to the definition path of the function
+         we are calling
+       - a debuginfo structure
+       - the absolute history leading to the inspection of this call site
+    *)
     | Inlined
     | Specialised
     | SpecialisedCall
