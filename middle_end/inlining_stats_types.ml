@@ -47,25 +47,32 @@ module Inlined = struct
     | Without_subfunctions of Wsb.t
     | With_subfunctions of Wsb.t * Wsb.t
 
-  let summary ppf = function
+  let summary round ppf = function
     | Classic_mode ->
-        Format.pp_print_text ppf
-        "This function was inlined because it was small enough \
-         to be inlined in `-Oclassic'"
+      Format.pp_print_text ppf @@
+      "This function was inlined at round " ^
+      string_of_int round ^
+      " because it was small enough to be inlined in `-Oclassic'"
     | Annotation ->
-      Format.pp_print_text ppf
-        "This function was inlined because of an annotation."
+      Format.pp_print_text ppf @@
+      "This function was inlined at round " ^
+      string_of_int round ^
+      " because of an annotation."
     | Decl_local_to_application ->
-      Format.pp_print_text ppf
-        "This function was inlined because it was local to this application."
+      Format.pp_print_text ppf @@
+      "This function was inlined at round " ^
+      string_of_int round ^
+      " because it was local to this application."
     | Without_subfunctions _ ->
-      Format.pp_print_text ppf
-        "This function was inlined because \
-         the expected benefit outweighed the change in code size."
+      Format.pp_print_text ppf @@
+      "This function was inlined at round " ^
+      string_of_int round ^
+      " because the expected benefit outweighed the change in code size."
     | With_subfunctions _ ->
-      Format.pp_print_text ppf
-        "This function was inlined because \
-         the expected benefit outweighed the change in code size."
+      Format.pp_print_text ppf @@
+      "This function was inlined at round " ^
+      string_of_int round ^
+      " because the expected benefit outweighed the change in code size."
 
   let calculation ~depth ppf = function
     | Classic_mode -> ()
@@ -100,7 +107,7 @@ module Not_inlined = struct
     | With_subfunctions of Wsb.t * Wsb.t
 
 
-  let summary ppf = function
+  let summary _round ppf = function
     | Classic_mode ->
       Format.pp_print_text ppf
         "This function was not inlined because it was too \
@@ -168,17 +175,22 @@ module Specialised = struct
     | Without_subfunctions of Wsb.t
     | With_subfunctions of Wsb.t * Wsb.t
 
-  let summary ppf = function
+  let summary round ppf = function
     | Annotation ->
-      Format.pp_print_text ppf
-        "This function was specialised because of an annotation."
+      Format.pp_print_text ppf @@
+      "This function was specialised at round " ^
+      string_of_int round ^
+      " because of an annotation."
     | Without_subfunctions _ ->
-      Format.pp_print_text ppf
-        "This function was specialised because the expected benefit \
-         outweighed the change in code size."
+      Format.pp_print_text ppf @@
+      "This function was specialised at round " ^
+      string_of_int round ^
+      " because the expected benefit outweighed the change in code size."
     | With_subfunctions _ ->
-      Format.pp_print_text ppf
-        "This function was specialised because the expected benefit \
+      Format.pp_print_text ppf @@
+        "This function was specialised at round " ^
+      string_of_int round ^
+      " because the expected benefit \
          outweighed the change in code size."
 
 
@@ -212,7 +224,7 @@ module Not_specialised = struct
     | Specialised_depth_exceeded
     | Not_beneficial of Wsb.t * Wsb.t
 
-  let summary ppf = function
+  let summary _round ppf = function
     | Classic_mode ->
       Format.pp_print_text ppf
         "This function was not specialised because it was \
@@ -280,7 +292,7 @@ module Prevented = struct
     | Function_prevented_from_inlining
     | Level_exceeded
 
-  let summary ppf = function
+  let summary _round ppf = function
     | Function_prevented_from_inlining ->
       Format.pp_print_text ppf
         "This function was prevented from inlining or specialising."
@@ -298,18 +310,18 @@ module Decision = struct
     | Inlined of Not_specialised.t * Inlined.t
     | Unchanged of Not_specialised.t * Not_inlined.t
 
-  let summary ppf = function
+  let summary round ppf = function
     | Definition -> ()
     | Prevented p ->
-      Prevented.summary ppf p
+      Prevented.summary round ppf p
     | Specialised s ->
-      Specialised.summary ppf s
+      Specialised.summary round ppf s
     | Inlined (s, i) ->
       Format.fprintf ppf "@[<v>@[%a@]@;@;@[%a@]@]"
-        Not_specialised.summary s Inlined.summary i
+        (Not_specialised.summary round) s (Inlined.summary round) i
     | Unchanged (s, i) ->
       Format.fprintf ppf "@[<v>@[%a@]@;@;@[%a@]@]"
-        Not_specialised.summary s Not_inlined.summary i
+        (Not_specialised.summary round) s (Not_inlined.summary round) i
 
   let calculation ~depth ppf = function
     | Definition -> ()
