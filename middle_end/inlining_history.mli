@@ -33,10 +33,24 @@ type name =
   | Method of string * string
 
 val print_name :
-  Format.formatter
+  print_functor:bool
+  -> Format.formatter
   -> name
   -> unit
 
+module Definition : sig
+  type t = atom list
+  and atom =
+    | Module of string
+    | Closure of name * Debuginfo.item
+    | File of string option * string
+
+  val empty : t
+
+  val print : Format.formatter -> t -> unit
+  val print_short : Format.formatter -> t -> unit
+
+end
 
 module Path : sig
   type t = atom list
@@ -104,10 +118,11 @@ end
 
 val node_to_atom : History.atom -> Path.atom
 
-
 val string_of_name : name -> string
 
 val history_to_path: History.t -> Path.t
+
+val path_to_definition: Path.t -> Definition.t
 
 val note_entering_call
   : History.t

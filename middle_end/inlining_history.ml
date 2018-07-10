@@ -83,14 +83,17 @@ let rec compare_name a b =
     | _ -> assert false
     end
 
-let rec print_name ppf name =
+let rec print_name ~print_functor ppf name =
   match name with
   | SpecialisedFunction n ->
-    Format.fprintf ppf "specialised of %a" print_name n
+    Format.fprintf ppf "specialised of %a" (print_name ~print_functor) n
   | Function n ->
     Format.fprintf ppf "%s" n
   | Functor n ->
-    Format.fprintf ppf "functor %s" n
+    if print_functor then
+      Format.fprintf ppf "functor %s" n
+    else
+      Format.fprintf ppf "%s" n
   | Anonymous ->
     Format.fprintf ppf "anonymous"
   | Coerce ->
@@ -115,9 +118,71 @@ let rec print_name ppf name =
 
 
 let string_of_name name =
-  Format.asprintf "%a" print_name name
+  Format.asprintf "%a" (print_name ~print_functor:true) name
 
+module Definition = struct
+  type t = atom list
+  and atom =
+    | Module of string
+    | Closure of name * Debuginfo.item
+    | File of string option * string
 
+  let empty = []
+
+  let get_last_definition def =
+    List.fold_left (fun previous x ->
+      match x with
+      | Module _ | File _ -> previous
+      | Closure(n, x) -> Some (n, x)
+    ) None def
+
+  let print_short ppf def =
+    let name =
+      match get_last_definition def with
+      | None -> Anonymous
+      | Some (a, _) -> a
+    in
+    Format.fprintf ppf "%a"
+      (print_name ~print_functor:true) name
+
+  let print ppf def =
+    let rec aux ~print_functor ppf def =
+      match def with
+      | [] -> ()
+      | Closure(name, _) :: (File _ | Module _ as x) :: r ->
+        let is_functor =
+          match name with
+          | Functor _ -> true
+          | _ -> false
+        in
+        let functor_str =
+          if is_functor then "functor "
+          else ""
+        in
+        let print_functor = not is_functor in
+        Format.fprintf ppf "%s%a%a" functor_str
+          (aux ~print_functor) (x::r)
+          (print_name ~print_functor) name
+      | Closure(name, _) :: [] ->
+        Format.fprintf ppf "%a"
+          (print_name ~print_functor) name
+      | Closure(name, _) :: r ->
+        Format.fprintf ppf "%a defined in %a"
+          (print_name ~print_functor) name
+          (aux ~print_functor:true) r
+      | Module name :: r ->
+        Format.fprintf ppf "%a%s." (aux ~print_functor) r name
+      | File (_, name) :: r ->
+        Format.fprintf ppf "%a%s." (aux ~print_functor) r name
+    in
+    Format.fprintf ppf "Call to %a" (aux ~print_functor:true) (List.rev def);
+    match (get_last_definition def) with
+    | None ->
+      Format.fprintf ppf "."
+    | Some(_, dbg) ->
+      Format.fprintf ppf ", which was defined at %s."
+        (Debuginfo.to_string [dbg])
+end
 
 module Path = struct
   (* shorten representation *)
@@ -223,11 +288,11 @@ let rec to_uid h =
 and print_atom ppf x =
   match x with
   | Inlined ->
-    Format.fprintf ppf " inlined "
+    Format.fprintf ppf "inlined"
   | Call (c, _) ->
-    Format.fprintf ppf "(%a ) " print c
+    Format.fprintf ppf "(%a)" print c
   | Closure (c, _) ->
-    Format.fprintf ppf "%a " print_name c
+    Format.fprintf ppf "%a" (print_name ~print_functor:true) c
   | Module (c, _)
   | File (_, c) ->
     Format.fprintf ppf "%s." c
@@ -235,10 +300,15 @@ and print_atom ppf x =
     (* printing nothing because it's already done in the name *)
     Format.fprintf ppf ""
   | SpecialisedCall ->
-    Format.fprintf ppf " specialised call "
+    Format.fprintf ppf "specialised call"
 
 and print ppf l =
-  List.iter (print_atom ppf) l
+  List.iter (fun x ->
+    print_atom ppf x;
+    match x with
+    | File _ | Module _ -> ()
+    | _ -> Format.fprintf ppf " "
+  ) l
 
 let rec get_compressed_path root leaf =
   match root, leaf with
@@ -332,3 +402,24 @@ let add_specialise_def ~name ~path =
 
 let add_specialise_apply ~path =
   History.SpecialisedCall :: path
+
+let path_to_definition path =
+  let rec convert path (acc : Definition.t) =
+    match (path : Path.t) with
+    | Call(def_path, _) :: _ ->
+      convert (List.rev def_path) acc
+    | Module(name, _) :: r ->
+      convert r (Definition.Module name :: acc)
+    | File(a, b) :: r ->
+      convert r (Definition.File(a, b) :: acc)
+    | Closure(n, d) :: r ->
+      begin match n with
+      | SpecialisedFunction _ ->
+        convert r acc
+      | n ->
+        convert r (Definition.Closure(n, d) :: acc)
+      end
+    | Inlined :: r | Specialised :: r | SpecialisedCall :: r ->
+      convert r acc
+    | [] -> acc
+  in convert (List.rev path) Definition.empty

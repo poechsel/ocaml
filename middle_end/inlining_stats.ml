@@ -21,6 +21,7 @@ module IH = Inlining_history
 
 let log = Hashtbl.create 5
 
+
 let record_decision decision ~round ~closure_stack =
   if !Clflags.inlining_report then begin
     match (closure_stack : IH.History.t) with
@@ -157,7 +158,7 @@ module Inlining_report = struct
   let print_anchor ppf anchor =
     Format.fprintf ppf "[[id:<<%s>>][ ]]" anchor
 
-  let print_apply history inlining_report_file ppf name =
+  let print_apply def inlining_report_file ppf name =
     let prefix =
       match name with
       | IH.Path.File (Some filename, _) :: _ ->
@@ -170,8 +171,7 @@ module Inlining_report = struct
     Format.fprintf ppf "[[%s%s][%a]]"
       prefix
       (IH.Path.to_uid name)
-      IH.Path.print (IH.Path.get_compressed_path history name
-                     |> IH.Path.strip_call_attributes)
+      IH.Definition.print_short def
 
   let print_debug ppf (dbg : Debuginfo.item) =
     if dbg.dinfo_file = "" then ()
@@ -190,12 +190,18 @@ module Inlining_report = struct
            print_anchor uid;
       in
       let print_application name dbg converter obj =
+        let def =
+          IH.Path.get_compressed_path history name
+          |> Inlining_history.path_to_definition
+        in
         Format.pp_open_vbox ppf (depth + 2);
-        Format.fprintf ppf "@[<h>%a Application of %a%s %a@]@;@;@[%a@]"
+        Format.fprintf ppf "@[<h>%a Application of %a%s %a@]@;@;\
+                            @[%a@]@;@;@[%a@]"
           print_stars (depth + 1)
-          (print_apply (List.rev history) filename) name
+          (print_apply def filename) name
           (Debuginfo.to_string [dbg])
           print_anchor uid
+          Inlining_history.Definition.print def
           converter obj;
         Format.pp_close_box ppf ();
         Format.pp_print_newline ppf ();
