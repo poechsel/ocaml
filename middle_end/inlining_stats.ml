@@ -217,7 +217,7 @@ module Inlining_report = struct
       IH.Definition.print_short def
 
   let print_debug ppf (dbg : Debuginfo.item) =
-    if dbg.dinfo_file = "" then ()
+    if Debuginfo.is_none_item dbg then ()
     else Format.fprintf ppf "%s" (Debuginfo.to_string [dbg])
 
   let rec print history filename ~depth ppf t =
@@ -239,11 +239,11 @@ module Inlining_report = struct
           Inlining_history.path_to_definition (Flambda.current_module ()) name
         in
         Format.pp_open_vbox ppf (depth + 2);
-        Format.fprintf ppf "@[<h>%a Application of %a%s %a@]@;@;\
+        Format.fprintf ppf "@[<h>%a Application of %a%a %a@]@;@;\
                             @[%a@]@;@;@[%a@]"
           print_stars (depth + 1)
           (print_apply def filename) name
-          (Debuginfo.to_string [dbg])
+          print_debug dbg
           print_anchor uid
           Inlining_history.Definition.print def
           converter obj;
