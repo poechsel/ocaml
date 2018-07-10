@@ -21,7 +21,7 @@ module IH = Inlining_history
 
 let log = Hashtbl.create 5
 
-let record_decision decision ~closure_stack =
+let record_decision decision ~round ~closure_stack =
   if !Clflags.inlining_report then begin
     match (closure_stack : IH.History.t) with
     | []
@@ -32,7 +32,7 @@ let record_decision decision ~closure_stack =
     | Specialised :: _
     | Closure _ :: _
     | Call _ :: _ ->
-      Hashtbl.replace log closure_stack decision
+      Hashtbl.replace log closure_stack (round, decision)
   end
 
 module Inlining_report = struct
@@ -42,7 +42,7 @@ module Inlining_report = struct
     end)
 
   type decision =
-    | Decision of Inlining_stats_types.Decision.t
+    | Decision of int * Inlining_stats_types.Decision.t
     | Reference of IH.Path.t
 
   type t = node Place_map.t
@@ -70,20 +70,12 @@ module Inlining_report = struct
   (* Prevented or unchanged decisions may be overridden by a later look at the
      same call. Other decisions may also be "overridden" because calls are not
      uniquely identified. *)
-  let add_call_decision call (decision : Inlining_stats_types.Decision.t) =
-    match call.decision, decision with
-    | Reference _, _ -> { call with decision = Decision decision }
-    | Decision Definition, _ -> { call with decision = Decision decision }
-    | _, Definition -> call
-    | Decision _, Prevented _ -> call
-    | Decision (Prevented _), _ -> { call with decision = Decision decision }
-    | Decision (Specialised _), _ -> call
-    | Decision _, Specialised _ -> { call with decision = Decision decision }
-    | Decision (Inlined _), _ -> call
-    | Decision _, Inlined _ -> { call with decision = Decision decision }
-    | Decision Unchanged _, Unchanged _ -> call
+  let add_call_decision call round (decision : Inlining_stats_types.Decision.t) =
+    match call.decision with
+    | Decision(round', _) when round' > round -> call
+    | _ -> { call with decision = Decision (round, decision) }
 
-  let add_decision stack decision t : node Place_map.t =
+  let add_decision stack (round, decision) t : node Place_map.t =
     let rec loop (t : t) (stack : IH.History.t) =
       match stack with
       | [] -> t
@@ -129,7 +121,7 @@ module Inlining_report = struct
           let v =
             match rest with
             | [] ->
-              add_call_decision v decision
+              add_call_decision v round decision
             | Inlined :: rest ->
               let inlined = merge_call_annotation v.inlined rest in
               { v with inlined = Some inlined }
@@ -197,7 +189,7 @@ module Inlining_report = struct
            print_debug dbg
            print_anchor uid;
       in
-      let print_application (type a) name dbg (converter:Format.formatter->a->unit) (obj:a) =
+      let print_application name dbg converter obj =
         Format.pp_open_vbox ppf (depth + 2);
         Format.fprintf ppf "@[<h>%a Application of %a%s %a@]@;@;@[%a@]"
           print_stars (depth + 1)
@@ -234,10 +226,10 @@ module Inlining_report = struct
                explore c.specialised_call IH.Path.SpecialisedCall;
                explore c.inlined IH.Path.Inlined;
              end
-           | Decision decision ->
+           | Decision (round, decision) ->
              begin
                print_application path dbg
-                 Inlining_stats_types.Decision.summary decision;
+                 (Inlining_stats_types.Decision.summary round) decision;
                Inlining_stats_types.Decision.print
                  ~specialised:(c.specialised, IH.Path.Specialised::present)
                  ~inlined:(c.inlined, IH.Path.Inlined::present)

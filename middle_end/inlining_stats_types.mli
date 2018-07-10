@@ -85,7 +85,7 @@ module Decision : sig
     | Inlined of Not_specialised.t * Inlined.t
     | Unchanged of Not_specialised.t * Not_inlined.t
 
-  val summary : Format.formatter -> t -> unit
+  val summary : int -> Format.formatter -> t -> unit
   val calculation : depth:int -> Format.formatter -> t -> unit
 
   val print :
