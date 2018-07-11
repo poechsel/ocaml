@@ -96,11 +96,16 @@ module Function_decls = struct
     }
 
     let create ~let_rec_ident ~closure_bound_var ~kind ~params ~body
-        ~attr ~loc ~dbg_name =
+        ~(attr:Lambda.function_attribute) ~loc ~dbg_name =
+      assert(dbg_name <> Inlining_history.History.empty || attr.stub);
       let let_rec_ident =
         match let_rec_ident with
         | None -> Ident.create "unnamed_function"
         | Some let_rec_ident -> let_rec_ident
+      in
+      let dbg_name =
+        if attr.stub then Inlining_history.History.empty
+        else dbg_name
       in
       { let_rec_ident;
         closure_bound_var;

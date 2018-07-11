@@ -658,7 +658,7 @@ and simplify_set_of_closures original_env r
       let body_env =
         E.add_inlining_history body_env inlining_history
       in
-      E.record_definition body_env;
+      begin if not function_decl.stub then E.record_definition body_env end;
       simplify body_env r function_decl.body
     in
     let function_decl =
@@ -1583,7 +1583,7 @@ and duplicate_function ~env ~(set_of_closures : Flambda.set_of_closures)
     let body_env =
       E.add_inlining_history body_env function_decl.inlining_history
     in
-    E.record_definition body_env;
+    begin if not function_decl.stub then E.record_definition body_env end;
     simplify body_env (R.create ()) function_decl.body
   in
   let function_decl =

@@ -1333,6 +1333,7 @@ let create_function_declaration ~recursive ~params ~body ~stub ~dbg
       ~(specialise : Lambda.specialise_attribute) ~is_a_functor
       ~inlining_history
       : function_declaration =
+  assert(inlining_history <> Inlining_history.History.empty || stub);
   begin match stub, inline with
   | true, (Never_inline | Default_inline)
   | false, (Never_inline | Default_inline | Always_inline | Unroll _) -> ()

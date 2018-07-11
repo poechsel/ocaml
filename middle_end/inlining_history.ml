@@ -30,6 +30,7 @@ type name =
   | SpecialisedFunction of name
   | Functor of string
   | Class of string * class_name_type
+  | Lazy
   | Anonymous
   | Coerce
   | Method of string * string
@@ -44,6 +45,7 @@ let rec compare_name a b =
     | Anonymous -> 4
     | Coerce -> 5
     | Method _ -> 6
+    | Lazy -> 7
   in
   let index_a = index a in
   let index_b = index b in
@@ -74,7 +76,9 @@ let rec compare_name a b =
         else 1
     | Anonymous, Anonymous ->
       0
-    | Coerce,  Coerce ->
+    | Coerce, Coerce ->
+      0
+    | Lazy, Lazy ->
       0
     | Method (a, b), Method (a', b') ->
       let c = String.compare a a' in
@@ -98,6 +102,8 @@ let rec print_name ~print_functor ppf name =
     Format.fprintf ppf "anonymous"
   | Coerce ->
     Format.fprintf ppf "coercion"
+  | Lazy ->
+    Format.fprintf ppf "lazy"
   | Method(a, b) ->
     Format.fprintf ppf "%s#method %s" a b
   | Class(n, w) ->
