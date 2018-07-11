@@ -28,6 +28,7 @@ type name =
   | SpecialisedFunction of name
   | Functor of string
   | Class of string * class_name_type
+  | Lazy
   | Anonymous
   | Coerce
   | Method of string * string

@@ -537,7 +537,8 @@ and transl_exp0 modpath name e =
          let fn = Lfunction {kind = Curried; params = [Ident.create "param"];
                              attr = default_function_attribute;
                              debugging_informations =
-                               IH.History.empty;
+                               IH.add_fn_def ~name:IH.Lazy ~loc:e.exp_loc
+                                 ~path:IH.History.empty;
                              loc = e.exp_loc;
                              body = transl_exp modpath IH.Anonymous e} in
           Lprim(Pmakeblock(Config.lazy_tag, Mutable, None), [fn], e.exp_loc)
