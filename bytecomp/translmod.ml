@@ -482,12 +482,22 @@ and transl_module modpath name cc rootpath mexp =
       let inlined_attribute, funct =
         Translattribute.get_and_remove_inlined_attribute_on_module funct
       in
+      let arg' =
+        let modpath =
+          match arg.mod_desc with
+          | Tmod_structure _ ->
+            IH.add_mod_def ~id:"Anonymous" ~loc:arg.mod_loc ~path:modpath
+          | _ ->
+            modpath
+        in
+        transl_module modpath None ccarg None arg
+      in
       oo_wrap mexp.mod_env true
         (apply_coercion modpath loc Strict cc)
         (Lapply{ap_should_be_tailcall=false;
                 ap_loc=loc;
                 ap_func=transl_module modpath None Tcoerce_none None funct;
-                ap_args=[transl_module IH.History.empty None ccarg None arg];
+                ap_args=[arg'];
                 ap_inlined=inlined_attribute;
                 ap_specialised=Default_specialise;
                 ap_dbg_informations=modpath;
