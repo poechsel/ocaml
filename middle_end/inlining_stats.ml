@@ -225,7 +225,7 @@ module Inlining_report = struct
       let present = IH.Path.append_atom atom history in
       let uid = IH.Path.to_uid present in
       let print_checkpoint tag name dbg =
-         Format.fprintf ppf "@[<h>%a %s %s%a %a@]@;@;"
+         Format.fprintf ppf "@[<h>%a %s %s %a %a@]@;@;"
            print_stars (depth + 1)
            tag
            name
@@ -239,7 +239,7 @@ module Inlining_report = struct
           Inlining_history.path_to_definition (Flambda.current_module ()) name
         in
         Format.pp_open_vbox ppf (depth + 2);
-        Format.fprintf ppf "@[<h>%a Application of %a%a %a@]@;@;\
+        Format.fprintf ppf "@[<h>%a Application of %a %a %a@]@;@;\
                             @[%a@]@;@;@[%a@]"
           print_stars (depth + 1)
           (print_apply def filename) name
