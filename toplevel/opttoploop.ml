@@ -226,7 +226,7 @@ let load_lambda ppf ~module_ident ~required_globals lam size =
         module_ident; required_globals }
   else
     Asmgen.compile_implementation_flambda
-      ~required_globals ~backend ~toplevel:need_symbol fn ppf
+      ~required_globals ~toplevel:need_symbol fn ppf
       (Middle_end.middle_end ppf ~prefixname:"" ~backend ~size
          ~module_ident ~module_initializer:slam ~filename:"toplevel");
   Asmlink.call_linker_shared [fn ^ ext_obj] dll;
