@@ -103,8 +103,7 @@ let middle_end ppf ~prefixname ~backend
              +-+ ("Lift_let_to_initialize_symbol",
                   Lift_let_to_initialize_symbol.lift ~backend)
              +-+ ("Inline_and_simplify",
-                  Inline_and_simplify.run ~never_inline:false ~backend
-                    ~prefixname ~round)
+                  Inline_and_simplify.run ~never_inline:false ~backend ~round)
              +-+ ("Remove_unused_closure_vars 2",
                   Remove_unused_closure_vars.remove_unused_closure_variables
                     ~remove_direct_call_surrogates:false)
@@ -134,15 +133,13 @@ let middle_end ppf ~prefixname ~backend
                     Remove_unused_closure_vars.remove_unused_closure_variables
                       ~remove_direct_call_surrogates:false)
                +-+ ("Inline_and_simplify",
-                    Inline_and_simplify.run ~never_inline:false ~backend
-                      ~prefixname ~round)
+                    Inline_and_simplify.run ~never_inline:false ~backend ~round)
                +-+ ("Remove_unused_closure_vars 2",
                     Remove_unused_closure_vars.remove_unused_closure_variables
                       ~remove_direct_call_surrogates:false)
                +-+ ("lift_lets 3", Lift_code.lift_lets)
                +-+ ("Inline_and_simplify noinline",
-                    Inline_and_simplify.run ~never_inline:true ~backend
-                      ~prefixname ~round)
+                    Inline_and_simplify.run ~never_inline:true ~backend ~round)
                +-+ ("Remove_unused_closure_vars 3",
                     Remove_unused_closure_vars.remove_unused_closure_variables
                       ~remove_direct_call_surrogates:false)
@@ -169,6 +166,11 @@ let middle_end ppf ~prefixname ~backend
                loop flam
            in
            let flam = back_end flam in
+           if !Clflags.inlining_report then begin
+             Profile.record_call
+               "inlining reports"
+               (fun _ -> Inlining_stats.save_then_forget_decisions ~output_prefix:prefixname)
+           end;
            (* Check that there aren't any unused "always inline" attributes. *)
            Flambda_iterators.iter_apply_on_program flam ~f:(fun apply ->
              match apply.inline with

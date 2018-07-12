@@ -186,8 +186,8 @@ module Definition = struct
     | None ->
       Format.fprintf ppf "."
     | Some(_, dbg) ->
-      Format.fprintf ppf ", which was defined at %s."
-        (Debuginfo.to_string [dbg])
+      Format.fprintf ppf ", which was defined at %a."
+        Debuginfo.print_item dbg
 end
 
 module Path = struct
@@ -204,19 +204,12 @@ module Path = struct
 
   let empty modname = modname, []
 
-  let extract_debug_info atom =
-    match atom with
-    | Closure(_, dbg)
-    | Module(_, dbg)
-    | Call(_, dbg) ->
-      Some dbg
-    | _ ->
-      None
-
   let rec compare_atom a b =
     let c =
-      match extract_debug_info a, extract_debug_info b with
-      | Some a, Some b -> Debuginfo.compare [a] [b]
+      match a, b with
+      | (Closure(_, a) | Module(_, a) | Call(_, a)),
+        (Closure(_, b) | Module(_, b) | Call(_, b)) ->
+        Debuginfo.compare_item a b
       | _ -> 0
     in
     if c <> 0 then c
@@ -237,19 +230,12 @@ module Path = struct
         match a, b with
         | Inlined, Inlined ->
           0
-        | Module (a, b), Module(a', b') ->
-          let c = Debuginfo.compare [b] [b'] in
-          if c <> 0 then c
-          else String.compare a a'
-        | Closure(a, b), Closure(a', b') ->
-          let c = Debuginfo.compare [b] [b'] in
-          if c <> 0 then c else
-            compare_name a a'
-        | Call(a, b), Call(a', b') ->
-          let c = compare a a' in
-          if c <> 0 then c else
-            let c = Debuginfo.compare [b] [b'] in
-            c
+        | Module (a, _), Module(a', _) ->
+          String.compare a a'
+        | Closure(a, _), Closure(a', _) ->
+          compare_name a a'
+        | Call(a, _), Call(a', _) ->
+          compare a a'
         | Specialised, Specialised ->
           0
         | SpecialisedCall, SpecialisedCall ->
@@ -259,12 +245,16 @@ module Path = struct
   and compare (f, l) (f', l') =
     let c = String.compare f f' in
     if c <> 0 then c else
-      let c = List.compare_lengths l l' in
-      if c <> 0 then c else
-        List.fold_left2 (fun p e e' ->
-          if p <> 0 then p
-          else compare_atom e e')
-          0 l l'
+      let rec aux l l' =
+        match l, l' with
+        | [], [] -> 0
+        | [], _ -> -1
+        | _, [] -> 1
+        | x::l, x'::l' ->
+          let c = compare_atom x x' in
+          if c <> 0 then c
+          else aux l l'
+      in aux l l'
 
   let rec to_uid h =
     Marshal.to_bytes h []

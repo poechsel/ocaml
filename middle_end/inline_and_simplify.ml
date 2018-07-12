@@ -1909,7 +1909,7 @@ let add_predef_exns_to_environment ~env ~backend =
     env
     Predef.all_predef_exns
 
-let run ~never_inline ~backend ~prefixname ~round program =
+let run ~never_inline ~backend ~round program =
   let r = R.create () in
   let report = !Clflags.inlining_report in
   if never_inline then Clflags.inlining_report := false;
@@ -1927,8 +1927,5 @@ let run ~never_inline ~backend ~prefixname ~round program =
       Flambda.print_program result)
   end;
   assert (Static_exception.Set.is_empty (R.used_static_exceptions r));
-  if !Clflags.inlining_report && round = Clflags.rounds () - 1 then begin
-    Inlining_stats.save_then_forget_decisions ~output_prefix:prefixname
-  end;
   Clflags.inlining_report := report;
   result
