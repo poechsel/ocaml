@@ -19,7 +19,7 @@
 
 module IH = Inlining_history
 
-let log = Hashtbl.create 5
+let log = ref []
 let external_logs = Hashtbl.create 5
 
 
@@ -34,7 +34,7 @@ let record_decision decision ~round ~closure_stack =
     | Specialised :: _
     | Closure _ :: _
     | Call _ :: _ ->
-      Hashtbl.replace log closure_stack (round, decision)
+      log := (closure_stack, round, decision) :: !log
   end
 
 module Inlining_report = struct
@@ -77,7 +77,7 @@ module Inlining_report = struct
     | Decision(round', _) when round' > round -> call
     | _ -> { call with decision = Decision (round, decision) }
 
-  let add_decision stack (round, decision) t : node Place_map.t =
+  let add_decision t (stack, round, decision) : node Place_map.t =
     let rec loop (t : t) (stack : IH.History.t) =
       match stack with
       | [] -> t
@@ -160,7 +160,7 @@ module Inlining_report = struct
       filename
 
   let build log =
-    Hashtbl.fold add_decision log Place_map.empty
+    List.fold_left add_decision Place_map.empty !log
 
   (* build a string representing a link in the org file. Takes
      into account external files *)
@@ -218,7 +218,7 @@ module Inlining_report = struct
 
   let print_debug ppf (dbg : Debuginfo.item) =
     if Debuginfo.is_none_item dbg then ()
-    else Format.fprintf ppf "%s" (Debuginfo.to_string [dbg])
+    else Format.fprintf ppf "%a" Debuginfo.print_item dbg
 
   let rec print history filename ~depth ppf t =
     Place_map.iter (fun atom (v : node) ->
@@ -303,16 +303,23 @@ module Inlining_report = struct
 end
 
 let really_save_then_forget_decisions ~output_prefix =
-  let report = Inlining_report.build log in
+
+  let report =
+    Profile.record_call
+      "reports build" (fun () ->
+        Inlining_report.build log)
+  in
   let filename = (output_prefix ^ ".inlining.org") in
   let out_channel = open_out filename in
   let ppf = Format.formatter_of_out_channel out_channel in
-  Inlining_report.print ppf report filename;
+  Profile.record_call "reports print" (fun () ->
+    Inlining_report.print ppf report filename);
   close_out out_channel
 
 let save_then_forget_decisions ~output_prefix =
   if !Clflags.inlining_report then begin
-    really_save_then_forget_decisions ~output_prefix;
-    Hashtbl.clear log;
+    Profile.record_call "report save" (fun () ->
+    really_save_then_forget_decisions ~output_prefix);
+    log := [];
     Hashtbl.clear external_logs
   end
