@@ -46,6 +46,8 @@ module Env = struct
     inlined_debuginfo : Debuginfo.t;
     inlining_arguments : InliningArgs.t;
     max_inlining_arguments : InliningArgs.t;
+    inlining_stats_stack : Closure_stack.t;
+    inlining_stats_stack_next_atom : Closure_stack.t;
   }
 
   let create ~never_inline ~backend ~round =
@@ -69,6 +71,8 @@ module Env = struct
       inlined_debuginfo = Debuginfo.none;
       inlining_arguments = InliningArgs.get round;
       max_inlining_arguments = InliningArgs.get_max ();
+      inlining_stats_stack = Closure_stack.create ();
+      inlining_stats_stack_next_atom = Closure_stack.create ();
     }
 
   let backend t = t.backend
