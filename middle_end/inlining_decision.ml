@@ -331,6 +331,7 @@ let inline env r ~call ~callee ~annotations ~original
         ~inline_requested:annotations.caller_inline
         ~args:call.args ~dbg:call.dbg ~simplify
         ~function_body:(get_function_body callee.function_decl)
+        ~inlining_history:call.inlining_history
     in
     let num_direct_applications_seen =
       (R.num_direct_applications r_inlined) - (R.num_direct_applications r)
@@ -647,6 +648,7 @@ let classic_mode_inlining env r ~simplify ~callee ~call ~annotations =
             ~specialise_requested:annotations.caller_specialise
             ~inline_requested:annotations.caller_inline
             ~function_decls:callee.function_decls ~args:call.args ~dbg:call.dbg ~simplify
+            ~inlining_history:call.inlining_history
         in
         let env = E.note_entering_inlined env in
         let env = E.inside_inlined_function env in
@@ -754,6 +756,7 @@ let for_call_site ~env ~r ~(call : call_informations)
           ~unroll_to:0 ~r ~lhs_of_application
           ~closure_id_being_applied ~specialise_requested ~inline_requested
           ~function_decls ~function_body ~args ~dbg ~simplify
+          ~inlining_history:call.inlining_history
       in
       simplify env r body
     end else if E.never_inline env then
