@@ -114,7 +114,7 @@ module History : sig
     | Inlined
     | Specialised
     | SpecialisedCall
-  type t = atom list
+  type t
 
   val create : unit -> t
 
@@ -127,6 +127,14 @@ module History : sig
   val insert : atom -> t -> t
 
   val add : t -> t -> t
+
+  val equal : t -> t -> bool
+
+  val head : t -> atom option
+
+  val hash : t -> int
+
+  val to_list : t -> atom list
 end
 
 val node_to_atom : History.atom -> Path.atom

@@ -19,22 +19,28 @@
 
 module IH = Inlining_history
 
-let log = Hashtbl.create 5
+module Logstbl = Hashtbl.Make(struct
+    type t = Inlining_history.History.t
+    let equal i j = Inlining_history.History.equal i j
+    let hash i = Inlining_history.History.hash i
+  end)
+
+let log = Logstbl.create 5000
 let external_logs = Hashtbl.create 5
 
 
 let record_decision decision ~round ~closure_stack =
   if !Clflags.inlining_report then begin
-    match (closure_stack : IH.History.t) with
-    | []
-    | Module _ :: _
-    | Inlined :: _
-    | SpecialisedCall :: _ ->
+    match IH.History.head closure_stack with
+    | None
+    | Some (Module _)
+    | Some Inlined
+    | Some SpecialisedCall ->
       Misc.fatal_errorf "record_decision: missing Call node"
-    | Specialised :: _
-    | Closure _ :: _
-    | Call _ :: _ ->
-      Hashtbl.replace log closure_stack (round, decision)
+    | Some Specialised
+    | Some (Closure _)
+    | Some (Call _) ->
+      Logstbl.replace log closure_stack (round, decision)
   end
 
 module Inlining_report = struct
@@ -78,7 +84,7 @@ module Inlining_report = struct
     | _ -> { call with decision = Decision (round, decision) }
 
   let add_decision stack (round, decision) t : node Place_map.t =
-    let rec loop (t : t) (stack : IH.History.t) =
+    let rec loop (t : t) (stack : IH.History.atom list) =
       match stack with
       | [] -> t
       | Inlined :: _ -> assert false
@@ -142,7 +148,7 @@ module Inlining_report = struct
           Place_map.add atom (Call v) t
         | _ -> assert(false)
     in
-    loop t (List.rev stack)
+    loop t (List.rev (IH.History.to_list stack))
 
   let get_external_logs modname =
     if Hashtbl.mem external_logs modname then
@@ -160,7 +166,7 @@ module Inlining_report = struct
       filename
 
   let build log =
-    Hashtbl.fold add_decision log Place_map.empty
+    Logstbl.fold add_decision log Place_map.empty
 
   (* build a string representing a link in the org file. Takes
      into account external files *)
@@ -313,6 +319,6 @@ let really_save_then_forget_decisions ~output_prefix =
 let save_then_forget_decisions ~output_prefix =
   if !Clflags.inlining_report then begin
     really_save_then_forget_decisions ~output_prefix;
-    Hashtbl.clear log;
+    Logstbl.clear log;
     Hashtbl.clear external_logs
   end

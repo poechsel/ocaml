@@ -325,7 +325,16 @@ end
 
 
 module History = struct
-  type t = atom list
+  type t =
+    | Nil
+    | Cons of entry
+
+  and entry =
+    { atom : atom;
+      tail : t;
+      hash : int;
+    }
+
   and atom =
     | Module of string * Debuginfo.item
     | Closure of name * Debuginfo.item
@@ -334,30 +343,88 @@ module History = struct
     | Specialised
     | SpecialisedCall
 
-  let create () = []
+  let create () = Nil
 
-  let empty = []
+  let empty = Nil
+
+  let head = function
+    | Nil -> None
+    | Cons({atom}) -> Some atom
 
   let extract_def_name history =
   match history with
-  | Closure (x, _) :: _ ->
+  | Cons({atom = Closure (x, _)}) ->
     x
-  | Specialised :: _
+  | Cons({atom = Specialised })
   | _ ->
     assert(false)
 
   let remove_most_recent_atom p =
     match p with
-    | [] -> []
-    | _ :: p -> p
+    | Nil -> Nil
+    | Cons({tail}) -> tail
+
+  let rec to_list history =
+    match history with
+    | Nil -> []
+    | Cons({atom = x; tail = tl}) ->
+      x :: to_list tl
+
+  let hash = function
+    | Nil -> Hashtbl.hash Nil
+    | Cons({hash}) ->
+      hash
 
   let insert atom history =
-    atom :: history
+    Cons({tail = history;
+          atom;
+          hash = Hashtbl.hash (hash history, atom)
+         })
 
   let add a b =
     (* order is important. If a= [1; 2] and b = [3;4;5],
        we want the result to be [1;2;3;4;5] *)
-    a @ b
+    let rec aux a =
+      match a with
+      | Nil -> b
+      | Cons({atom; tail}) ->
+        insert atom (aux tail)
+    in aux a
+
+  let equal a b =
+    let rec aux a b =
+      match a, b with
+      | Nil, Nil -> true
+      | Cons({atom=a_atom; tail=a'}), Cons({atom=b_atom; tail=b'}) ->
+        begin match a_atom, b_atom with
+        | Inlined, Inlined
+        | SpecialisedCall, SpecialisedCall
+        | Specialised, Specialised ->
+          aux a' b'
+        | Module(a_n, a_dbg), Module(b_n, b_dbg) ->
+          if Debuginfo.compare_item a_dbg b_dbg = 0 then
+            if a_n = b_n then
+              aux a' b'
+            else false
+          else false
+        | Closure(a_n, a_dbg), Closure(b_n, b_dbg) ->
+          if Debuginfo.compare_item a_dbg b_dbg = 0 then
+            if compare_name a_n b_n = 0 then
+              aux a' b'
+            else false
+          else false
+        | Call(a_n, a_dbg, a_def), Call(b_n, b_dbg, b_def) ->
+          if Debuginfo.compare_item a_dbg b_dbg = 0 then
+            if aux a' b' then
+              if Path.compare a_n b_n = 0 then
+                Path.compare a_def b_def = 0
+              else false
+            else false
+          else false
+        | _ -> false
+        end
+      | _ -> false
+    in aux a b
 
 end
 
@@ -373,6 +440,7 @@ let node_to_atom (history : History.atom) : Path.atom =
 let history_to_path ~modname (history : History.t) : Path.t =
   let p =
     history
+    |> History.to_list
     |> List.map node_to_atom
     |> List.rev
   in
@@ -385,23 +453,37 @@ let note_entering_call t ~dbg_name ~dbg
     (* adding a placeholder call node to represent this call inside the
        absolute history. Its absolute path does not matters as it will
        be stripped during the conversion *)
-    History.Call(dbg_name, dbg, Path.empty "") :: absolute_inlining_history
+    History.insert
+      (History.Call(dbg_name, dbg, Path.empty ""))
+      absolute_inlining_history
     |> history_to_path ~modname:cunit_name
   in
-  (History.Call (dbg_name, dbg, absolute_inlining_history)) :: t
+  History.insert
+    (History.Call (dbg_name, dbg, absolute_inlining_history))
+    t
 
 let add_fn_def ~name ~loc ~path =
-  History.Closure(name, Debuginfo.item_from_location loc) :: path
+  History.insert
+    (History.Closure(name, Debuginfo.item_from_location loc))
+    path
 
 let add_mod_def ~id ~loc ~path =
-  History.Module(id, Debuginfo.item_from_location loc) :: path
+  History.insert
+    (History.Module(id, Debuginfo.item_from_location loc))
+    path
 
 let add_specialise_def ~name ~path =
-  History.Closure(SpecialisedFunction name, Debuginfo.none_item)
-  :: History.Specialised :: path
+  History.insert
+    (History.Closure(SpecialisedFunction name, Debuginfo.none_item))
+  @@
+  History.insert
+    History.Specialised
+    path
 
 let add_specialise_apply ~path =
-  History.SpecialisedCall :: path
+  History.insert
+    History.SpecialisedCall
+    path
 
 let path_to_definition modpath (path_f, path) =
   let rec convert path file (acc : Definition.t) =

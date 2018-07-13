@@ -554,7 +554,7 @@ let build_transient (program : Flambda.program) : Export_info.transient =
         (* empty full history to reduce space. It will be set to a correct value
            when it will be imported *)
         Simple_value_approx.function_declarations_approx
-          ~keep_body function_decls ~full_history:[]
+          ~keep_body function_decls ~full_history:Inlining_history.History.empty
         |> Simple_value_approx.function_declarations_strip_full_history
       in
       Set_of_closures_id.Map.map set_of_closures_approx sets_of_closures_map

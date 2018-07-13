@@ -85,6 +85,17 @@ let inline loc t =
 let concat dbg1 dbg2 =
   dbg1 @ dbg2
 
+
+let compare_item d1 d2 =
+  let c = compare d1.dinfo_file d2.dinfo_file in
+  if c <> 0 then c else
+    let c = compare d1.dinfo_line d2.dinfo_line in
+    if c <> 0 then c else
+      let c = compare d1.dinfo_char_end d2.dinfo_char_end in
+      if c <> 0 then c else
+        let c = compare d1.dinfo_char_start d2.dinfo_char_start in
+        c
+
 (* CR-someday afrisch: FWIW, the current compare function does not seem very
    good, since it reverses the two lists. I don't know how long the lists are,
    nor if the specific currently implemented ordering is useful in other
@@ -97,13 +108,7 @@ let compare dbg1 dbg2 =
     | _ :: _, [] -> 1
     | [], _ :: _ -> -1
     | d1 :: ds1, d2 :: ds2 ->
-      let c = compare d1.dinfo_file d2.dinfo_file in
-      if c <> 0 then c else
-      let c = compare d1.dinfo_line d2.dinfo_line in
-      if c <> 0 then c else
-      let c = compare d1.dinfo_char_end d2.dinfo_char_end in
-      if c <> 0 then c else
-      let c = compare d1.dinfo_char_start d2.dinfo_char_start in
+      let c = compare_item d1 d2 in
       if c <> 0 then c else
       loop ds1 ds2
   in

@@ -42,6 +42,8 @@ val concat: t -> t -> t
 
 val inline: Location.t -> t -> t
 
+val compare_item : item -> item -> int
+
 val compare : t -> t -> int
 
 val hash : t -> int
