@@ -86,4 +86,13 @@ module Decision : sig
 
   val summary : Format.formatter -> t -> unit
   val calculation : depth:int -> Format.formatter -> t -> unit
+
+  val meta_print :
+    depth:int
+    -> Format.formatter
+    -> specialised:'a option
+    -> inlined:'a option
+    -> print:(depth:int -> Format.formatter -> 'a -> unit)
+    -> t
+    -> unit
 end
