@@ -763,7 +763,7 @@ let for_call_site ~env ~r ~(call : call_informations)
           call.inlining_history
       in
       let simpl =
-        if function_decls.is_classic_mode > 0.0 then begin
+        if function_decls.is_classic_mode <> None then begin
           classic_mode_inlining env r ~simplify
             ~call ~callee ~annotations
             ~inlining_history_next_part

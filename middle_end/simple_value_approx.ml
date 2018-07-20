@@ -73,7 +73,7 @@ and value_closure = {
 }
 
 and function_declarations = {
-  is_classic_mode : float;
+  is_classic_mode : int option;
   set_of_closures_id : Set_of_closures_id.t;
   funs : function_declaration Variable.Map.t;
 }

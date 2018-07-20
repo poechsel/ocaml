@@ -611,8 +611,8 @@ and close_functions t external_env function_declarations : Flambda.named =
     let is_classic_mode =
       if !Clflags.classic_inlining then
         let args = Flambda.InliningArgs.get 0 in
-        (Flambda.InliningArgs.extract args).inline_threshold
-      else -1.0
+        Some (int_of_float (Flambda.InliningArgs.extract args).inline_threshold)
+      else None
     in
     let funs =
       List.fold_left close_one_function Variable.Map.empty

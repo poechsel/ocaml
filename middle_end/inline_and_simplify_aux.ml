@@ -478,40 +478,40 @@ module A = Simple_value_approx
 module E = Env
 
 let keep_body_check ~is_classic_mode =
-  if not (is_classic_mode > 0.0) then begin
-      fun _ -> true
-  end else begin
-    let can_inline_non_rec_function (fun_decl : Flambda.function_declaration) =
-      (* In classic-inlining mode, the inlining decision is taken at
-         definition site (here). If the function is small enough
-         (below the -inline threshold) it will always be inlined.
+  match is_classic_mode with
+  | None -> (fun _ -> true)
+  | Some classic_mode ->
+    begin
+      let can_inline_non_rec_function (fun_decl : Flambda.function_declaration) =
+        (* In classic-inlining mode, the inlining decision is taken at
+           definition site (here). If the function is small enough
+           (below the -inline threshold) it will always be inlined.
 
-         Closure gives a bonus of [8] to optional arguments. In classic
-         mode, however, we would inline functions with the "*opt*" argument
-         in all cases, as it is a stub. (This is ensured by
-         [middle_end/closure_conversion.ml]).
-      *)
+           Closure gives a bonus of [8] to optional arguments. In classic
+           mode, however, we would inline functions with the "*opt*" argument
+           in all cases, as it is a stub. (This is ensured by
+           [middle_end/closure_conversion.ml]).
+        *)
 
-      let inlining_threshold =
-        Inlining_cost.Threshold.Can_inline_if_no_larger_than
-          (int_of_float
-             (is_classic_mode *. float_of_int Inlining_cost.scale_inline_threshold_by))
+        let inlining_threshold =
+          Inlining_cost.Threshold.Can_inline_if_no_larger_than
+            (classic_mode * Inlining_cost.scale_inline_threshold_by) in
+        let bonus = Flambda_utils.function_arity fun_decl in
+        Inlining_cost.can_inline fun_decl.body inlining_threshold ~bonus
       in
-      let bonus = Flambda_utils.function_arity fun_decl in
-      Inlining_cost.can_inline fun_decl.body inlining_threshold ~bonus
-    in
-    fun (fun_decl : Flambda.function_declaration) ->
-      if fun_decl.stub then begin
-        true
-      end else if fun_decl.recursive then begin
-        false
-      end else begin
-        match fun_decl.inline with
-        | Default_inline -> can_inline_non_rec_function fun_decl
-        | Unroll factor -> factor > 0
-        | Always_inline -> true
-        | Never_inline -> false
-      end
+      fun (fun_decl : Flambda.function_declaration) ->
+        if fun_decl.stub then begin
+          true
+        end else if fun_decl.recursive then begin
+          false
+        end else begin
+          match fun_decl.inline with
+          | Default_inline -> can_inline_non_rec_function fun_decl
+          | Unroll factor -> factor > 0
+          | Always_inline -> true
+          | Never_inline -> false
+        end
+
     end
 
 let prepare_to_simplify_set_of_closures ~env
