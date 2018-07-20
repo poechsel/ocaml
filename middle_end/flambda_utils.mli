@@ -70,7 +70,7 @@ val make_closure_declaration
   -> recursive:bool
   -> rec_info:Flambda.rec_info
   -> stub:bool
-  -> unboxing_arguments:Flambda.UnboxingArgs.t
+  -> unboxing_arguments:Settings.Unboxing.t
   -> inlining_history:Inlining_history.History.t
   -> Flambda.t
 

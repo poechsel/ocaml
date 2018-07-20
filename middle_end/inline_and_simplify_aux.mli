@@ -16,9 +16,6 @@
 
 [@@@ocaml.warning "+a-4-9-30-40-41-42"]
 
-module InliningArgs = Flambda.InliningArgs
-module UnboxingArgs = Flambda.UnboxingArgs
-
 (** Environments and result structures used during inlining and
     simplification.  (See inline_and_simplify.ml.) *)
 
@@ -240,16 +237,19 @@ module Env : sig
   val add_inlined_debuginfo : t -> dbg:Debuginfo.t -> Debuginfo.t
 
   (** get the inlining arguments of our env *)
-  val get_inlining_arguments : t -> InliningArgs.t
+  val get_inlining_arguments : t -> Settings.Inlining.t
 
   (** get the maximum inlining arguments of our env *)
-  val get_max_inlining_arguments : t -> InliningArgs.t
+  val get_max_inlining_arguments : t -> Settings.Inlining.t
 
   (** set the inlining arguments of our env *)
-  val set_inlining_arguments : t -> InliningArgs.t -> t
+  val set_inlining_arguments : t -> Settings.Inlining.t -> t
 
   (** set the maximum inlining arguments of our env *)
-  val set_max_inlining_arguments : t -> InliningArgs.t -> t
+  val set_max_inlining_arguments : t -> Settings.Inlining.t -> t
+
+  val merge_inlining_settings
+    : t -> Settings.Inlining.t option -> t
 end
 
 module Result : sig
@@ -319,11 +319,11 @@ module Result : sig
 end
 
 (** Command line argument -inline *)
-val initial_inlining_threshold : InliningArgs.t -> Inlining_cost.Threshold.t
+val initial_inlining_threshold : Settings.Inlining.t -> Inlining_cost.Threshold.t
 
 (** Command line argument -inline-toplevel *)
 val initial_inlining_toplevel_threshold
-  : InliningArgs.t -> Inlining_cost.Threshold.t
+  : Settings.Inlining.t -> Inlining_cost.Threshold.t
 
 val prepare_to_simplify_set_of_closures
    : env:Env.t

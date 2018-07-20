@@ -20,8 +20,6 @@ module A = Simple_value_approx
 module B = Inlining_cost.Benefit
 module E = Inline_and_simplify_aux.Env
 module R = Inline_and_simplify_aux.Result
-module InliningArgs = Flambda.InliningArgs
-
 (** Values of two types hold the information propagated during simplification:
     - [E.t] "environments", top-down, almost always called "env";
     - [R.t] "results", bottom-up approximately following the evaluation order,
@@ -752,15 +750,7 @@ and simplify_apply env r ~(apply : Flambda.apply) : Flambda.t * R.t =
   (* the parts we had defines previous history. We must add them at the end *)
   let inlining_history = Inlining_history.History.add inlining_history parts in
   let env =
-    let max_env_args = E.get_max_inlining_arguments env in
-    let env_args = E.get_inlining_arguments env in
-    match max_inlining_arguments with
-    | None -> env
-    | Some args ->
-      let merge_max_args = InliningArgs.merge max_env_args args in
-      let merge_args = InliningArgs.merge env_args args in
-      let env = E.set_inlining_arguments env merge_args in
-      E.set_max_inlining_arguments env merge_max_args
+    E.merge_inlining_settings env max_inlining_arguments
   in
   let max_inlining_arguments = E.get_max_inlining_arguments env in
   let dbg = E.add_inlined_debuginfo env ~dbg in
@@ -876,15 +866,17 @@ and simplify_full_application env r ~function_decls ~lhs_of_application
                ~callee:lhs_of_application
                ~args ~dbg ~rec_info ~inlining_history
   in
-  let callee = Inlining_decision.build_callee_structure
-                 ~function_decls ~function_decl
-                 ~closure_id_being_applied
-                 ~value_set_of_closures
+  let callee =
+    Inlining_decision.build_callee_structure
+      ~function_decls ~function_decl
+      ~closure_id_being_applied
+      ~value_set_of_closures  ~rec_info
   in
-  let annotations = Inlining_decision.build_annotations_structure
-                      ~caller_inline:inline_requested
-                      ~caller_specialise:specialise_requested
-                      ~callee:function_decl
+  let annotations =
+    Inlining_decision.build_annotations_structure
+      ~caller_inline:inline_requested
+      ~caller_specialise:specialise_requested
+      ~callee:function_decl
   in
   Inlining_decision.for_call_site ~env ~r
     ~call ~callee ~annotations

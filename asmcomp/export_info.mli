@@ -66,7 +66,7 @@ and value_set_of_closures = {
   free_vars : Flambda.specialised_to Variable.Map.t;
   results : approx Closure_id.Map.t;
   aliased_symbol : Symbol.t option;
-  unboxing_arguments : Flambda.UnboxingArgs.t;
+  unboxing_arguments : Settings.Unboxing.t;
 }
 
 (* CR-soon mshinwell: Fix the export information so we can correctly

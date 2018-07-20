@@ -16,8 +16,6 @@
 
 [@@@ocaml.warning "+a-4-30-40-41-42"]
 
-module InliningArgs = Flambda.InliningArgs
-
 type flambda_kind =
   | Normal
   | Lifted
@@ -53,8 +51,8 @@ let ignore_inline_attribute (_ : Lambda.inline_attribute) = ()
 let ignore_specialise_attribute (_ : Lambda.specialise_attribute) = ()
 let ignore_value_kind (_ : Lambda.value_kind) = ()
 let ignore_inlining_depth (_ : int) = ()
-let ignore_max_inlining_arguments (_ : InliningArgs.t option) = ()
 let ignore_inlining_history (_ : Inlining_history.History.t) = ()
+let ignore_max_inlining_arguments (_ : Settings.Inlining.t option) = ()
 
 exception Binding_occurrence_not_from_current_compilation_unit of Variable.t
 exception Mutable_binding_occurrence_not_from_current_compilation_unit of

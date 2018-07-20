@@ -16,69 +16,6 @@
 
 [@@@ocaml.warning "+a-4-9-30-40-41-42"]
 
-module UnboxingArgs : sig
-  type t = {
-    unbox_specialised_args : bool;
-    unbox_free_vars_of_closures : bool;
-    unbox_closures : bool;
-    unbox_closures_factor : int;
-    remove_unused_arguments : bool;
-  }
-  type u
-
-  val extract : t -> u
-
-  val get : unit -> t
-end
-
-module InliningArgs : sig
-  type t
-
-  val inline_call_cost : t -> int
-
-  val inline_alloc_cost : t -> int
-
-  val inline_prim_cost : t -> int
-
-  val inline_branch_cost : t -> int
-
-  val inline_indirect_cost : t -> int
-
-  val inline_lifting_benefit : t -> int
-
-  val inline_branch_factor : t -> float
-
-  val inline_max_depth : t -> int
-
-  val inline_max_speculation_depth : t -> int
-
-  val inline_max_unroll : t -> int
-
-  val inline_max_specialise : t -> int
-
-  val inline_threshold : t -> int
-
-  val inline_toplevel_threshold : t -> int
-
-  (* get the [inlining_arguments] structure corresponding
-      to a given round *)
-  val get : int -> t
-
-  (* get an [inlining_arguments] struct filled with the
-      maximum values across all round.
-      As we are forcing them to be increasing over rounds, this is equivalent to be
-      returning the arguments of the last round *)
-  val get_max : unit -> t
-
-  (* Merge two inlining arguments structures:
-      Keep the weaker version of each of their attributes *)
-  val merge : t -> t -> t
-
-  (* Check the integrity of inlining arguments, ie that they are in increasing
-     order when the round grows up.
-     If it's not the case, output a warning and restore monotonicity *)
-  val ensure_integrity : unit -> unit
-end
 
 
 val current_module : unit -> string
@@ -116,7 +53,7 @@ type apply = {
   specialise : Lambda.specialise_attribute;
   (** Instructions from the source code as to whether the callee should
       be specialised. *)
-  max_inlining_arguments : InliningArgs.t option;
+  max_inlining_arguments : Settings.Inlining.t option;
   (** Informations about the maximum value of the inlining arguments we can used
       to inline this function call. *)
   inlining_history : Inlining_history.History.t;
@@ -370,7 +307,7 @@ and set_of_closures = private {
       penalise indirect call sites).
       [direct_call_surrogates] may not be transitively closed. *)
 
-  unboxing_arguments : UnboxingArgs.t;
+  unboxing_arguments : Settings.Unboxing.t;
 }
 
 and function_declarations = private {
@@ -702,7 +639,7 @@ val create_set_of_closures
   -> free_vars:specialised_to Variable.Map.t
   -> specialised_args:specialised_to Variable.Map.t
   -> direct_call_surrogates:Variable.t Variable.Map.t
-  -> unboxing_arguments:UnboxingArgs.t
+  -> unboxing_arguments:Settings.Unboxing.t
   -> set_of_closures
 
 (** Given a function declaration, find which of its parameters (if any)

@@ -16,8 +16,6 @@
 
 [@@@ocaml.warning "+a-4-9-30-40-41-42"]
 
-module InliningArgs = Flambda.InliningArgs
-module UnboxingArgs = Flambda.UnboxingArgs
 module IH = Inlining_history
 
 module Env = struct
@@ -43,8 +41,8 @@ module Env = struct
     specialise_depth : int;
     closure_depth : int;
     inlined_debuginfo : Debuginfo.t;
-    inlining_arguments : InliningArgs.t;
-    max_inlining_arguments : InliningArgs.t;
+    inlining_arguments : Settings.Inlining.t;
+    max_inlining_arguments : Settings.Inlining.t;
     inlining_history : IH.History.t;
     (* the current inlining history from the toplevel *)
     inlining_history_next_parts : IH.History.t;
@@ -71,8 +69,8 @@ module Env = struct
       specialise_depth = 0;
       closure_depth = 0;
       inlined_debuginfo = Debuginfo.none;
-      inlining_arguments = InliningArgs.get round;
-      max_inlining_arguments = InliningArgs.get_max ();
+      inlining_arguments = Settings.Inlining.get round;
+      max_inlining_arguments = Settings.Inlining.get_max ();
       inlining_history = IH.History.empty;
       inlining_history_next_parts = IH.History.empty;
     }
@@ -99,7 +97,7 @@ module Env = struct
 
   let speculation_depth_up env =
     let max_level =
-      get_inlining_arguments env |> InliningArgs.inline_max_speculation_depth
+      get_inlining_arguments env |> Settings.Inlining.inline_max_speculation_depth
     in
     if (env.speculation_depth + 1) > max_level then
       Misc.fatal_error "Inlining level increased above maximum";
@@ -295,12 +293,12 @@ module Env = struct
     else t
 
   let inlining_allowed t =
-    let limit = t.inlining_arguments |> InliningArgs.inline_max_depth
+    let limit = t.inlining_arguments |> Settings.Inlining.inline_max_depth
     in
     t.inlining_depth < limit
 
   let specialising_allowed t =
-    let limit = t.inlining_arguments |> InliningArgs.inline_max_specialise
+    let limit = t.inlining_arguments |> Settings.Inlining.inline_max_specialise
     in
     limit - t.specialise_depth > 0
 
@@ -368,24 +366,51 @@ module Env = struct
 
   let add_inlined_debuginfo t ~dbg =
     Debuginfo.concat t.inlined_debuginfo dbg
+
+  let merge_inlining_settings env max_inlining_arguments =
+    (* we are always merging inlining environnements.
+        This allows us to keep the maximum inlining arguments sane at all
+        time. Ex: suppose we are in the following case:
+
+        A.ml (O3)      | B.ml (O1)      | C.ml  (O3)
+        let foo () =   | let bar () =   | let baz =
+          B.bar ()     |   C.baz ()     |   foo ()
+
+        When inlining the call to B.bar inside A.ml, we will inline a function
+       bar who might already have been inlined when compiling B.ml. If B.ml was
+       compiled in -O1, the call to C.baz would have been inlined with inlining
+       parameters -O1 and a call to C.foo will appear in A. By updating the
+       corresponding value of max_inlining_arguments to be min(O1 (for B.ml),
+       O3 (for C.ml)), we will only inline the call of foo that had appears with
+       O1, which is predictable.
+    *)
+    let max_env_args = get_max_inlining_arguments env in
+    let env_args = get_inlining_arguments env in
+    match max_inlining_arguments with
+    | None -> env
+    | Some args ->
+        let merge_max_args = Settings.Inlining.merge max_env_args args in
+        let merge_args = Settings.Inlining.merge env_args args in
+        let env = set_inlining_arguments env merge_args in
+        set_max_inlining_arguments env merge_max_args
 end
 
-let initial_inlining_threshold (inlining_arguments : InliningArgs.t)
+let initial_inlining_threshold (inlining_arguments : Settings.Inlining.t)
   : Inlining_cost.Threshold.t =
-  let unscaled = inlining_arguments |> InliningArgs.inline_threshold
+  let unscaled = inlining_arguments |> Settings.Inlining.inline_threshold
   in
   (* CR-soon pchambart: Add a warning if this is too big
      mshinwell: later *)
   Can_inline_if_no_larger_than
       (unscaled * Inlining_cost.scale_inline_threshold_by)
 
-let initial_inlining_toplevel_threshold (inlining_arguments : InliningArgs.t)
+let initial_inlining_toplevel_threshold (inlining_arguments : Settings.Inlining.t)
   : Inlining_cost.Threshold.t =
   let ordinary_threshold =
-    inlining_arguments |> InliningArgs.inline_threshold
+    inlining_arguments |> Settings.Inlining.inline_threshold
   in
   let toplevel_threshold =
-    inlining_arguments |> InliningArgs.inline_toplevel_threshold
+    inlining_arguments |> Settings.Inlining.inline_toplevel_threshold
   in
   let unscaled =
     ordinary_threshold + toplevel_threshold
