@@ -255,10 +255,10 @@ let read_one_param ppf position name v =
 
   (* inlining *)
   | "inline" ->
-      let module F = Float_arg_helper in
-      begin match F.parse_no_error v inline_threshold with
-      | F.Ok -> ()
-      | F.Parse_failed exn ->
+      let module I = Int_arg_helper in
+      begin match I.parse_no_error v inline_threshold with
+      | I.Ok -> ()
+      | I.Parse_failed exn ->
           let error =
             Printf.sprintf "bad syntax for \"inline\": %s"
               (Printexc.to_string exn)

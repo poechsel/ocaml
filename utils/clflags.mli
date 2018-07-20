@@ -59,7 +59,7 @@ type inlining_arguments = {
   inline_max_speculation_depth : int option;
   inline_max_unroll : int option;
   inline_max_specialise : int option;
-  inline_threshold : float option;
+  inline_threshold : int option;
   inline_toplevel_threshold : int option;
 }
 
@@ -157,8 +157,8 @@ val dump_interval : bool ref
 val keep_startup_file : bool ref
 val dump_combine : bool ref
 val native_code : bool ref
-val default_inline_threshold : float
-val inline_threshold : Float_arg_helper.parsed ref
+val default_inline_threshold : int
+val inline_threshold : Int_arg_helper.parsed ref
 val inlining_report : bool ref
 val simplify_rounds : int option ref
 val default_simplify_rounds : int ref

@@ -64,7 +64,7 @@ module Options = Main_args.Make_optcomp_options (struct
   let _I dir = include_dirs := dir :: !include_dirs
   let _impl = impl
   let _inline spec =
-    Float_arg_helper.parse spec
+    Int_arg_helper.parse spec
       "Syntax: -inline <n> | <round>=<n>[,...]"  inline_threshold
   let _inline_toplevel spec =
     Int_arg_helper.parse spec

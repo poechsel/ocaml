@@ -178,10 +178,10 @@ let rounds () =
   | None -> !default_simplify_rounds
   | Some r -> r
 
-let default_inline_threshold = if Config.flambda then 10. else 10. /. 8.
+let default_inline_threshold = if Config.flambda then 10 else 10
 let inline_toplevel_multiplier = 16
 let default_inline_toplevel_threshold =
-  int_of_float ((float inline_toplevel_multiplier) *. default_inline_threshold)
+  inline_toplevel_multiplier * default_inline_threshold
 let default_inline_call_cost = 5
 let default_inline_alloc_cost = 7
 let default_inline_prim_cost = 3
@@ -194,7 +194,7 @@ let default_inline_max_specialise = 10
 let default_inline_max_depth = 5
 let default_inline_max_speculation_depth = 1
 
-let inline_threshold = ref (Float_arg_helper.default default_inline_threshold)
+let inline_threshold = ref (Int_arg_helper.default default_inline_threshold)
 let inline_toplevel_threshold =
   ref (Int_arg_helper.default default_inline_toplevel_threshold)
 let inline_call_cost = ref (Int_arg_helper.default default_inline_call_cost)
@@ -238,7 +238,7 @@ type inlining_arguments = {
   inline_max_speculation_depth : int option;
   inline_max_unroll : int option;
   inline_max_specialise : int option;
-  inline_threshold : float option;
+  inline_threshold : int option;
   inline_toplevel_threshold : int option;
 }
 
@@ -290,7 +290,7 @@ let use_inlining_arguments_set ?round (arg:inlining_arguments) =
     default_inline_max_unroll arg.inline_max_unroll;
   set_int inline_max_specialise
     default_inline_max_specialise arg.inline_max_specialise;
-  set_float inline_threshold
+  set_int inline_threshold
     default_inline_threshold arg.inline_threshold;
   set_int inline_toplevel_threshold
     default_inline_toplevel_threshold arg.inline_toplevel_threshold
@@ -327,7 +327,7 @@ let classic_arguments = {
   (* [inline_threshold] matches the current compiler's default.
      Note that this particular fraction can be expressed exactly in
      floating point. *)
-  inline_threshold = Some (10. /. 8.);
+  inline_threshold = Some 10;
   (* [inline_toplevel_threshold] is not used in classic mode. *)
   inline_toplevel_threshold = Some 1;
 }
@@ -344,7 +344,7 @@ let o2_arguments = {
   inline_max_speculation_depth = Some (2 * default_inline_max_speculation_depth);
   inline_max_unroll = None;
   inline_max_specialise = Some (2 * default_inline_max_specialise);
-  inline_threshold = Some 25.;
+  inline_threshold = Some 25;
   inline_toplevel_threshold = Some (25 * inline_toplevel_multiplier);
 }
 
@@ -360,7 +360,7 @@ let o3_arguments = {
   inline_max_speculation_depth = Some (3 * default_inline_max_speculation_depth);
   inline_max_unroll = Some 1;
   inline_max_specialise = Some (3 * default_inline_max_specialise);
-  inline_threshold = Some 50.;
+  inline_threshold = Some 50;
   inline_toplevel_threshold = Some (50 * inline_toplevel_multiplier);
 }
 

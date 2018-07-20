@@ -53,7 +53,7 @@ module InliningArgs = struct
     inline_max_speculation_depth : int;
     inline_max_unroll : int;
     inline_max_specialise : int;
-    inline_threshold : float;
+    inline_threshold : int;
     inline_toplevel_threshold : int;
   }
 
@@ -132,7 +132,7 @@ module InliningArgs = struct
       inline_max_speculation_depth = cost !Clflags.inline_max_speculation_depth ~round;
       inline_max_unroll = cost !Clflags.inline_max_unroll ~round;
       inline_max_specialise = cost !Clflags.inline_max_specialise ~round;
-      inline_threshold = cost_f !Clflags.inline_threshold ~round;
+      inline_threshold = cost !Clflags.inline_threshold ~round;
       inline_toplevel_threshold = cost !Clflags.inline_toplevel_threshold ~round;
     } in
     if theory = o1_args then
@@ -244,16 +244,16 @@ module InliningArgs = struct
             (fun r x ->
                Clflags.inline_toplevel_threshold :=
                  Clflags.Int_arg_helper.add_user_override r x
-                   !Clflags.inline_toplevel_threshold));]
-        in
-        let attrs_float =
-          [("inline_threshold",
+                   !Clflags.inline_toplevel_threshold));
+          ("inline_threshold",
             (fun x -> x.inline_threshold),
             (fun r x ->
                Clflags.inline_threshold :=
-                 Clflags.Float_arg_helper.add_user_override r x
-                   !Clflags.inline_threshold));
-           ("inline_branch_factor",
+                 Clflags.Int_arg_helper.add_user_override r x
+                   !Clflags.inline_threshold));]
+        in
+        let attrs_float =
+           [("inline_branch_factor",
             (fun x -> x.inline_branch_factor),
             (fun r x ->
                Clflags.inline_branch_factor :=
