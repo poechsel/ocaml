@@ -222,6 +222,7 @@ module Not_specialised = struct
     | No_invariant_parameters
     | No_useful_approximations
     | Specialised_depth_exceeded
+    | Unrolling_depth_exceeded
     | Not_beneficial of Wsb.t * Wsb.t
 
   let summary _round ppf = function
@@ -263,6 +264,10 @@ module Not_specialised = struct
       Format.pp_print_text ppf
         "This function was not specialised because \
           the specialisation depth was exceeded."
+    | Unrolling_depth_exceeded ->
+      Format.pp_print_text ppf
+        "This function was not specialised because \
+         its unrolling depth was exceeded."
 
   let calculation ~depth ppf = function
     | Classic_mode
@@ -272,6 +277,7 @@ module Not_specialised = struct
     | Not_closed
     | No_invariant_parameters
     | Specialised_depth_exceeded
+    | Unrolling_depth_exceeded
     | No_useful_approximations -> ()
     | Not_beneficial(_, wsb) ->
       print_calculation
@@ -281,7 +287,7 @@ module Not_specialised = struct
   let need_precisions = function
     | Classic_mode | Above_threshold _ | Annotation | Not_recursive
     | Not_closed | No_invariant_parameters | Specialised_depth_exceeded
-    | No_useful_approximations
+    | No_useful_approximations | Unrolling_depth_exceeded
       -> false
     | Not_beneficial _
       -> true
