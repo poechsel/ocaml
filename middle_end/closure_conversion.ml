@@ -600,8 +600,8 @@ and close_functions t external_env function_declarations : Flambda.named =
   let function_decls =
     let is_classic_mode =
       if !Clflags.classic_inlining then
-        let args = Flambda.InliningArgs.get 0 in
-        Some (args |> Flambda.InliningArgs.inline_threshold)
+        let args = Settings.Inlining.get 0 in
+        Some (args |> Settings.Inlining.inline_threshold)
       else None
     in
     let funs =
@@ -631,7 +631,7 @@ and close_functions t external_env function_declarations : Flambda.named =
       ~rec_info:{ depth = 0; unroll_to = 0 }
       ~specialised_args:Variable.Map.empty
       ~direct_call_surrogates:Variable.Map.empty
-      ~unboxing_arguments:(Flambda.UnboxingArgs.get ())
+      ~unboxing_arguments:(Settings.Unboxing.get ())
   in
   Set_of_closures set_of_closures
 

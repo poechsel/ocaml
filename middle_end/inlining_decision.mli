@@ -47,7 +47,7 @@ We go through a decision tree to see if we can try inlining:
     - If we've exceeded the maximum unrolling depth and are trying
       to unroll, don't try it
     - If we have not enough remaining threshold, don't try it
-    - If we don't have any informations on the arguments, a micro
+    - If we don't have any information on the arguments, a micro
       optimisation is done to decide wether to try inlining or not
     - Otherwise, try inlining
 If we decided not to try inlining, quit.
@@ -82,9 +82,9 @@ Otherwise, first get the specialised function and the simplified call. If we alw
 *)
 
 
-type call_informations
+type call_information
 
-type callee_informations
+type callee_information
 
 type annotations
 
@@ -92,15 +92,15 @@ val build_call_structure :
   callee:Variable.t
   -> args:Variable.t list
   -> dbg:Debuginfo.t
-  -> rec_info:Flambda.rec_info
-  -> call_informations
+  -> call_information
 
 val build_callee_structure :
   function_decls:Simple_value_approx.function_declarations
   -> function_decl:Simple_value_approx.function_declaration
   -> closure_id_being_applied:Closure_id.t
   -> value_set_of_closures:Simple_value_approx.value_set_of_closures
-  -> callee_informations
+  -> rec_info:Flambda.rec_info
+  -> callee_information
 
 val build_annotations_structure :
   caller_inline:Lambda.inline_attribute
@@ -115,8 +115,8 @@ val build_annotations_structure :
 val for_call_site
    : env:Inline_and_simplify_aux.Env.t
   -> r:Inline_and_simplify_aux.Result.t
-  -> call:call_informations
-  -> callee:callee_informations
+  -> call:call_information
+  -> callee:callee_information
   -> annotations:annotations
   -> args_approxs:Simple_value_approx.t list
   -> simplify:Inlining_decision_intf.simplify

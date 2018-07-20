@@ -23,7 +23,6 @@ module W = Inlining_cost.Whether_sufficient_benefit
 module T = Inlining_cost.Threshold
 module S = Inlining_stats_types
 module D = S.Decision
-module InliningArgs = Flambda.InliningArgs
 
 let get_function_body (function_decl : A.function_declaration) =
   match function_decl.function_body with
@@ -45,21 +44,21 @@ type inlining_policy =
   | Never_inline
   | Default_inline
 
-type call_informations = {
+type call_information = {
   callee : Variable.t;
   args : Variable.t list;
   dbg : Debuginfo.t;
-  rec_info : Flambda.rec_info;
 }
 
-type callee_informations = {
-    function_decls : A.function_declarations;
-    (* the function definition itself *)
-    function_decl : A.function_declaration;
-    (* the closure identifier itself *)
-    closure_id_being_applied : Closure_id.t;
+type callee_information = {
+  function_decls : A.function_declarations;
+  (* the function definition itself *)
+  function_decl : A.function_declaration;
+  (* the closure identifier itself *)
+  closure_id_being_applied : Closure_id.t;
 
-    value_set_of_closures : A.value_set_of_closures;
+  value_set_of_closures : A.value_set_of_closures;
+  rec_info : Flambda.rec_info;
 }
 
 type annotations = {
@@ -69,12 +68,13 @@ type annotations = {
     callee_specialise : Lambda.specialise_attribute;
   }
 
-let build_call_structure ~callee ~args ~dbg ~rec_info =
-  { callee; args; dbg; rec_info }
+let build_call_structure ~callee ~args ~dbg =
+  { callee; args; dbg; }
 
 let build_callee_structure ~function_decls ~function_decl
-      ~closure_id_being_applied ~value_set_of_closures =
-  { function_decls; function_decl; closure_id_being_applied; value_set_of_closures }
+      ~closure_id_being_applied ~value_set_of_closures ~rec_info =
+  { function_decls; function_decl; closure_id_being_applied;
+    value_set_of_closures; rec_info }
 
 let build_annotations_structure ~caller_inline ~caller_specialise
       ~(callee : A.function_declaration) =
@@ -97,9 +97,9 @@ let is_a_functor callee =
   | None -> false
   | Some x -> x.is_a_functor
 
-let inlining_policy annotations call
+let inlining_policy annotations callee
     : inlining_policy =
-  match call.rec_info with
+  match callee.rec_info with
   | { depth; unroll_to } when depth < unroll_to ->
     Continue_unrolling
   | _ ->
@@ -107,9 +107,9 @@ let inlining_policy annotations call
        The call site annotation takes precedence *)
     begin
       match annotations.caller_inline with
-      | Always_inline when call.rec_info.depth <= 1 ->
+      | Always_inline when callee.rec_info.depth <= 1 ->
         Always_inline
-      | Unroll count when call.rec_info.depth <= 1 ->
+      | Unroll count when callee.rec_info.depth <= 1 ->
         if count > 0
         then Start_unrolling { to_depth = count }
         else Never_inline
@@ -118,9 +118,9 @@ let inlining_policy annotations call
       | _ ->
         begin
           match annotations.callee_inline with
-          | Always_inline when call.rec_info.depth = 0 ->
+          | Always_inline when callee.rec_info.depth = 0 ->
             Always_inline
-          | Unroll count when call.rec_info.depth = 0 ->
+          | Unroll count when callee.rec_info.depth = 0 ->
             if count > 0
             then Start_unrolling { to_depth = count }
             else Never_inline
@@ -259,7 +259,7 @@ let inline env r ~call ~callee ~annotations ~original
   let toplevel = E.at_toplevel env in
   let branch_depth = E.branch_depth env in
   let policy =
-    inlining_policy annotations call
+    inlining_policy annotations callee
   in
   let always_inline =
     match policy with
@@ -273,7 +273,7 @@ let inline env r ~call ~callee ~annotations ~original
   in
   let unrolling_limit =
     let args = E.get_inlining_arguments env in
-    args |> InliningArgs.inline_max_unroll
+    args |> Settings.Inlining.inline_max_unroll
   in
   let remaining_inlining_threshold : Inlining_cost.Threshold.t =
     if always_inline then inlining_threshold
@@ -288,7 +288,8 @@ let inline env r ~call ~callee ~annotations ~original
       Try_it
     else if policy = Never_inline then
       Don't_try_it S.Not_inlined.Annotation
-    else if call.rec_info.depth >= unrolling_limit && is_recursive callee then
+    else if callee.rec_info.depth >= unrolling_limit
+         && is_recursive callee then
       Don't_try_it S.Not_inlined.Unrolling_depth_exceeded
     else if remaining_inlining_threshold = T.Never_inline then
        let threshold =
@@ -391,7 +392,7 @@ let stat_note_specialise_closures env callee =
   in
   E.note_entering_specialised env ~closure_ids
 
-let compute_params_informations callee args_approxs =
+let compute_params_information callee args_approxs =
   let free_vars = callee.value_set_of_closures.free_vars in
   let invariant_params = callee.value_set_of_closures.invariant_params in
   let has_no_useful_approxes =
@@ -466,12 +467,12 @@ let evaluate_speculative_specialisation env r_inlined expr original ~simplify =
 
 
 
-let specialise env r ~(call : call_informations)
-      ~(callee : callee_informations) ~(annotations : annotations)
+let specialise env r ~(call : call_information)
+      ~(callee : callee_information) ~(annotations : annotations)
       ~args_approxs ~simplify ~original
       ~inlining_threshold ~fun_cost =
   let free_vars, invariant_params, has_no_useful_approxes =
-    compute_params_informations callee args_approxs
+    compute_params_information callee args_approxs
   in
   let always_specialise, never_specialise =
     specialise_policy annotations
@@ -518,7 +519,7 @@ let specialise env r ~(call : call_informations)
       let copied_function_declaration =
         Inlining_transforms.inline_by_copying_function_declaration ~env
           ~r:(R.reset_benefit r) ~lhs_of_application:call.callee
-          ~rec_info:call.rec_info
+          ~rec_info:callee.rec_info
           ~function_decls:callee.function_decls
           ~closure_id_being_applied:callee.closure_id_being_applied
           ~args:call.args ~args_approxs
@@ -541,7 +542,8 @@ let specialise env r ~(call : call_informations)
             ~benefit:(R.benefit r_inlined)
         in
         let env = stat_note_specialise_closures env callee
-        in let keep_specialised decision =
+        in
+        let keep_specialised decision =
              keep_specialised decision ~env ~r_inlined ~expr ~simplify ~always_specialise
                ~previous_benefit:(R.benefit r)
         in
@@ -615,7 +617,7 @@ let classic_mode_inlining env r ~simplify ~callee ~call ~annotations =
     | None -> Original S.Not_inlined.Classic_mode
     | Some function_body ->
       let try_inlining =
-        if call.rec_info.depth >= 1 then
+        if callee.rec_info.depth >= 1 then
           Don't_try_it S.Not_inlined.Unrolling_depth_exceeded
         else if not (E.inlining_allowed env) then
           Don't_try_it S.Not_inlined.Inlining_depth_exceeded
@@ -658,7 +660,7 @@ let flambda_mode_inlining env r ~simplify ~callee ~call ~annotations
       ~closure_id:callee.closure_id_being_applied ~dbg:call.dbg
   in
   let max_level =
-    inlining_arguments |> InliningArgs.inline_max_speculation_depth
+    inlining_arguments |> Settings.Inlining.inline_max_speculation_depth
   in
   let out =
     if inlining_threshold = T.Never_inline then
@@ -710,8 +712,8 @@ let flambda_mode_inlining env r ~simplify ~callee ~call ~annotations
     end
   in out, env
 
-let for_call_site ~env ~r ~(call : call_informations)
-      ~(callee : callee_informations) ~(annotations : annotations)
+let for_call_site ~env ~r ~(call : call_information)
+      ~(callee : callee_information) ~(annotations : annotations)
       ~args_approxs ~simplify
       =
       let args = call.args in

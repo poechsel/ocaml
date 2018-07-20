@@ -101,7 +101,7 @@ val inline_by_copying_function_declaration
   -> specialised_args:Flambda.specialised_to Variable.Map.t
   -> free_vars:Flambda.specialised_to Variable.Map.t
   -> direct_call_surrogates:Closure_id.t Closure_id.Map.t
-  -> unboxing_arguments:Flambda.UnboxingArgs.t
+  -> unboxing_arguments:Settings.Unboxing.t
   -> dbg:Debuginfo.t
   -> simplify:Inlining_decision_intf.simplify
   -> (Flambda.t * Inline_and_simplify_aux.Result.t) option

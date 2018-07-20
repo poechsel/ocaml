@@ -172,7 +172,7 @@ let separate_unused_arguments ~only_specialised
    indirect calls. *)
 let should_split_only_specialised_args
       (fun_decls : Flambda.function_declarations)
-      (args : Flambda.UnboxingArgs.t) =
+      (args : Settings.Unboxing.t) =
   let remove_unused = args.remove_unused_arguments in
   if not remove_unused then begin
     true
