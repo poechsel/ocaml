@@ -64,8 +64,8 @@ module Not_specialised : sig
     | Not_closed
     | No_invariant_parameters
     | No_useful_approximations
-    | Unrolling_depth_exceeded
     | Inlining_depth_exceeded
+    | Unrolling_depth_exceeded
     | Not_beneficial of
         Inlining_cost.Whether_sufficient_benefit.t
         * Inlining_cost.Whether_sufficient_benefit.t

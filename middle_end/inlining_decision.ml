@@ -461,7 +461,7 @@ let specialise env r ~(call : call_information)
   in
   let unrolling_limit =
     let args = E.get_inlining_settings env in
-    args |> Settings.Inlining.inline_max_unroll
+    Settings.Inlining.inline_max_unroll args
   in
   let remaining_inlining_threshold : Inlining_cost.Threshold.t =
     if always_specialise then inlining_threshold
@@ -634,19 +634,17 @@ let classic_mode_inlining env r ~simplify ~callee ~call ~annotations
       let env = E.inside_inlined_function env in
       Changed ((simplify env r body), S.Inlined.Classic_mode)
   in
-  let out =
-    match simpl with
-    | Original decision ->
-      let decision =
-        S.Decision.Unchanged (S.Not_specialised.Classic_mode, decision)
-      in
-      Original (decision)
-    | Changed ((expr, r), decision) ->
-      let decision =
-        S.Decision.Inlined (S.Not_specialised.Classic_mode, decision)
-      in
-      Changed((expr, r), decision)
-  in out, env
+  match simpl with
+  | Original decision ->
+    let decision =
+      S.Decision.Unchanged (S.Not_specialised.Classic_mode, decision)
+    in
+    Original (decision)
+  | Changed ((expr, r), decision) ->
+    let decision =
+      S.Decision.Inlined (S.Not_specialised.Classic_mode, decision)
+    in
+    Changed((expr, r), decision)
 
 let flambda_mode_inlining env r ~simplify ~callee ~call ~annotations
       ~inlining_threshold ~inlining_settings ~original ~args_approxs
@@ -655,7 +653,6 @@ let flambda_mode_inlining env r ~simplify ~callee ~call ~annotations
   let max_level =
     inlining_settings |> Settings.Inlining.inline_max_speculation_depth
   in
-  let out =
     if inlining_threshold = T.Never_inline then
       Original (D.Prevented Function_prevented_from_inlining)
     else if E.speculation_depth env >= max_level then
@@ -708,7 +705,6 @@ let flambda_mode_inlining env r ~simplify ~callee ~call ~annotations
         | Original inl_reason ->
           Original (D.Unchanged (spec_reason, inl_reason))
     end
-  in out, env
 
 let for_call_site ~env ~r ~(call : call_information)
       ~(callee : callee_information) ~(annotations : annotations)
@@ -723,7 +719,7 @@ let for_call_site ~env ~r ~(call : call_information)
   let specialise_requested = annotations.caller_specialise in
   if List.length args <> List.length args_approxs then begin
     Misc.fatal_error "Inlining_decision.for_call_site: inconsistent lengths \
-        of [args] and [args_approxs]"
+                      of [args] and [args_approxs]"
   end;
   let inlining_settings = E.get_inlining_settings env in
   let original, original_r =
@@ -765,7 +761,7 @@ let for_call_site ~env ~r ~(call : call_information)
           ~cunit_name
           call.inlining_history
       in
-      let simpl, env =
+      let simpl =
         if function_decls.is_classic_mode <> None then begin
           classic_mode_inlining env r ~simplify
             ~call ~callee ~annotations ~inlining_history_next_part

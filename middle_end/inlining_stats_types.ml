@@ -221,8 +221,8 @@ module Not_specialised = struct
     | Not_closed
     | No_invariant_parameters
     | No_useful_approximations
-    | Unrolling_depth_exceeded
     | Inlining_depth_exceeded
+    | Unrolling_depth_exceeded
     | Not_beneficial of Wsb.t * Wsb.t
 
   let summary _round ppf = function
