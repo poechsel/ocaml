@@ -365,7 +365,7 @@ val prepare_to_simplify_closure
   -> Env.t
 
 val keep_body_check
-  : is_classic_mode:float
+  : is_classic_mode:int option
   -> Flambda.function_declaration
   -> bool
 

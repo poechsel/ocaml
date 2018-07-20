@@ -750,7 +750,7 @@ let for_call_site ~env ~r ~(call : call_informations)
         compute_thresholding_for_call env r inlining_arguments
       in
       let simpl, env =
-        if function_decls.is_classic_mode > 0.0 then begin
+        if function_decls.is_classic_mode <> None then begin
           classic_mode_inlining env r ~simplify
             ~call ~callee ~annotations
         end else begin
