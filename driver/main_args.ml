@@ -1829,13 +1829,13 @@ module Default = struct
     *)
     let _o2 () =
       default_simplify_rounds := 2;
-      use_inlining_arguments_set o2_arguments;
-      use_inlining_arguments_set ~round:0 o1_arguments
+      use_inlining_arguments_set O2;
+      use_inlining_arguments_set ~round:0 O1
     let _o3 () =
       default_simplify_rounds := 3;
-      use_inlining_arguments_set o3_arguments;
-      use_inlining_arguments_set ~round:1 o2_arguments;
-      use_inlining_arguments_set ~round:0 o1_arguments
+      use_inlining_arguments_set O3;
+      use_inlining_arguments_set ~round:1 O2;
+      use_inlining_arguments_set ~round:0 O1
     let _remove_unused_arguments = set remove_unused_arguments
     let _rounds n = simplify_rounds := (Some n)
     let _unbox_closures = set unbox_closures

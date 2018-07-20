@@ -1316,7 +1316,7 @@ and close_functions { backend; fenv; cenv; mutable_vars } fun_defs =
       match inline_attribute with
       | Default_inline ->
           let inline_threshold =
-            Clflags.Int_arg_helper.get ~key:0 !Clflags.inline_threshold
+            Flambda.InliningArgs.get 0 |> Flambda.InliningArgs.inline_threshold
           in
           inline_threshold + n
       | Always_inline | Hint_inline -> max_int
