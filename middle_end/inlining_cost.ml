@@ -298,14 +298,13 @@ module Benefit = struct
       b.requested_inline
 
   let evaluate t ~(args : InliningArgs.t) =
-    let args = InliningArgs.extract args in
     benefit_factor *
-      (t.remove_call * args.inline_call_cost
-       + t.remove_alloc * args.inline_alloc_cost
-       + t.remove_prim * args.inline_prim_cost
-       + t.remove_branch * args.inline_branch_cost
+      (t.remove_call * InliningArgs.inline_call_cost args
+       + t.remove_alloc * InliningArgs.inline_alloc_cost args
+       + t.remove_prim * InliningArgs.inline_prim_cost args
+       + t.remove_branch * InliningArgs.inline_branch_cost args
        + (t.direct_call_of_indirect
-         * args.inline_indirect_cost))
+         * InliningArgs.inline_indirect_cost args))
     + t.requested_inline
 
   let (+) t1 t2 = {
@@ -429,7 +428,7 @@ module Whether_sufficient_benefit = struct
   let estimated_benefit t =
     if t.toplevel && t.lifting && t.branch_depth = 0 then begin
       let lifting_benefit =
-        (InliningArgs.extract t.args).inline_lifting_benefit
+        t.args |> InliningArgs.inline_lifting_benefit
       in
         float (t.evaluated_benefit + lifting_benefit)
     end else begin
@@ -446,7 +445,7 @@ module Whether_sufficient_benefit = struct
       let branch_taken_estimated_probability =
         let inline_branch_factor =
           let factor =
-            (InliningArgs.extract t.args).inline_branch_factor
+            t.args |> InliningArgs.inline_branch_factor
           in
           if not (factor = factor) (* nan *) then
             Clflags.default_inline_branch_factor
@@ -472,7 +471,7 @@ module Whether_sufficient_benefit = struct
     let evaluated_benefit =
       if lifting then
         let lifting_benefit =
-          (InliningArgs.extract t.args).inline_lifting_benefit
+          t.args |> InliningArgs.inline_lifting_benefit
         in
         t.evaluated_benefit + lifting_benefit
       else t.evaluated_benefit
@@ -538,7 +537,7 @@ module Whether_sufficient_benefit = struct
     let total_benefit =
       if lifting then
         let lifting_benefit =
-          (InliningArgs.extract t.args).inline_lifting_benefit
+          t.args |> InliningArgs.inline_lifting_benefit
         in
          t.evaluated_benefit + lifting_benefit
       else t.evaluated_benefit
@@ -653,11 +652,11 @@ let maximum_interesting_size_of_function_body_base
       (max_args : InliningArgs.t) =
   (* because we are assuming monocity between rounds, the last
      round contains the maximum value *)
-  direct_call_size + ((InliningArgs.extract max_args).inline_call_cost * benefit_factor)
+  direct_call_size + (InliningArgs.inline_call_cost max_args * benefit_factor)
 
 let maximum_interesting_size_of_function_body_multiplier
       (max_args : InliningArgs.t) =
-  (InliningArgs.extract max_args).inline_prim_cost * benefit_factor
+  InliningArgs.inline_prim_cost max_args * benefit_factor
 
 let maximum_interesting_size_of_function_body num_free_variables
       (max_args : InliningArgs.t) =
