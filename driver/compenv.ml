@@ -263,12 +263,16 @@ let read_one_param ppf position name v =
 
   (* inlining *)
   | "inline" ->
-      let module F = Float_arg_helper in
-      begin match F.parse_no_error v inline_threshold with
-      | F.Ok -> ()
-      | F.Parse_failed exn ->
-          Printf.ksprintf (print_error ppf)
-            "bad syntax %s for \"inline\": %s" v (Printexc.to_string exn)
+      let module I = Int_arg_helper in
+      begin match I.parse_no_error v inline_threshold with
+      | I.Ok -> ()
+      | I.Parse_failed exn ->
+          let error =
+            Printf.sprintf "bad syntax for \"inline\": %s"
+              (Printexc.to_string exn)
+          in
+          Location.print_warning Location.none ppf
+            (Warnings.Bad_env_variable ("OCAMLPARAM", error))
       end
 
   | "inline-toplevel" ->

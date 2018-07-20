@@ -1316,10 +1316,9 @@ and close_functions { backend; fenv; cenv; mutable_vars } fun_defs =
       match inline_attribute with
       | Default_inline ->
           let inline_threshold =
-            Clflags.Float_arg_helper.get ~key:0 !Clflags.inline_threshold
+            Clflags.Int_arg_helper.get ~key:0 !Clflags.inline_threshold
           in
-          let magic_scale_constant = 8. in
-          int_of_float (inline_threshold *. magic_scale_constant) + n
+          inline_threshold + n
       | Always_inline | Hint_inline -> max_int
       | Never_inline -> min_int
       | Unroll _ -> assert false

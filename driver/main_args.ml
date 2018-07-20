@@ -155,7 +155,7 @@ let mk_init f =
 let mk_inline f =
   "-inline", Arg.String f,
     Printf.sprintf "<n>|<round>=<n>[,...]  Aggressiveness of inlining \
-        (default %.02f, higher numbers mean more aggressive)"
+        (default %d, higher numbers mean more aggressive)"
       Clflags.default_inline_threshold
 ;;
 
@@ -1765,7 +1765,7 @@ module Default = struct
     let _dstartup = set keep_startup_file
     let _dump_pass pass = set_dumped_pass pass true
     let _inline spec =
-      Float_arg_helper.parse spec "Syntax: -inline <n> | <round>=<n>[,...]"
+      Int_arg_helper.parse spec "Syntax: -inline <n> | <round>=<n>[,...]"
         inline_threshold
     let _inline_alloc_cost spec =
       Int_arg_helper.parse spec

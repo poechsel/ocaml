@@ -53,7 +53,7 @@ module InliningArgs = struct
     inline_max_speculation_depth : int;
     inline_max_unroll : int;
     inline_max_specialise : int;
-    inline_threshold : float;
+    inline_threshold : int;
     inline_toplevel_threshold : int;
   }
 
@@ -68,7 +68,7 @@ module InliningArgs = struct
     && u1.inline_max_depth = u2.inline_max_depth
     && u1.inline_max_speculation_depth = u2.inline_max_speculation_depth
     && u1.inline_max_unroll = u2.inline_max_unroll
-    && Float.compare u1.inline_threshold u2.inline_threshold = 0
+    && u1.inline_threshold = u2.inline_threshold
     && u1.inline_toplevel_threshold = u2.inline_toplevel_threshold
 
   (* It is possible to save memory by compressing the inlining args: most of
@@ -152,9 +152,8 @@ module InliningArgs = struct
                                           ~round;
       inline_max_unroll = cost !Clflags.inline_max_unroll ~round;
       inline_max_specialise = cost !Clflags.inline_max_specialise ~round;
-      inline_threshold = cost_f !Clflags.inline_threshold ~round;
-      inline_toplevel_threshold = cost !Clflags.inline_toplevel_threshold
-                                       ~round;
+      inline_threshold = cost !Clflags.inline_threshold ~round;
+      inline_toplevel_threshold = cost !Clflags.inline_toplevel_threshold ~round;
     } in
     if eq_u theory o1_args then
       O1
@@ -284,17 +283,17 @@ module InliningArgs = struct
             (fun r x ->
                Clflags.inline_toplevel_threshold :=
                  Clflags.Int_arg_helper.add_user_override r x
-                   !Clflags.inline_toplevel_threshold));]
-        in
-        let attrs_float =
-          [("inline_threshold",
+                   !Clflags.inline_toplevel_threshold));
+          ("inline_threshold",
             (fun x -> x.inline_threshold),
-            Float.compare,
+            compare,
             (fun r x ->
                Clflags.inline_threshold :=
-                 Clflags.Float_arg_helper.add_user_override r x
-                   !Clflags.inline_threshold));
-           ("inline_branch_factor",
+                 Clflags.Int_arg_helper.add_user_override r x
+                   !Clflags.inline_threshold));]
+        in
+        let attrs_float =
+           [("inline_branch_factor",
             (fun x -> x.inline_branch_factor),
             Float.compare,
             (fun r x ->

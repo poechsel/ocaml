@@ -44,7 +44,7 @@ module InliningArgs : sig
     inline_max_speculation_depth : int;
     inline_max_unroll : int;
     inline_max_specialise : int;
-    inline_threshold : float;
+    inline_threshold : int;
     inline_toplevel_threshold : int;
   }
 
