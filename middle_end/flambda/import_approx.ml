@@ -83,7 +83,7 @@ let rec import_ex ex =
             ex_info.invariant_params
         with
         | exception Not_found ->
-          if Flambda.is_classic_mode_on is_classic_mode then
+          if Option.is_some is_classic_mode then
             Variable.Map.empty
           else
             Misc.fatal_errorf "Set of closures ID %a not found in \

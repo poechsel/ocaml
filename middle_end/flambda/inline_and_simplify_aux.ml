@@ -483,9 +483,9 @@ module A = Simple_value_approx
 module E = Env
 
 let keep_body_check ~is_classic_mode =
-  if not (Flambda.is_classic_mode_on is_classic_mode) then begin
-      fun _ -> true
-  end else begin
+  match is_classic_mode with
+  | None -> (fun _ -> true)
+  | Some classic_mode -> begin
     let can_inline_non_rec_function (fun_decl : Flambda.function_declaration) =
       (* In classic-inlining mode, the inlining decision is taken at
          definition site (here). If the function is small enough
@@ -496,12 +496,9 @@ let keep_body_check ~is_classic_mode =
          in all cases, as it is a stub. (This is ensured by
          [middle_end/closure_conversion.ml]).
       *)
-      (* `is_classic_mode` is a float equal to the current inlining_threshold.*)
       let inlining_threshold =
         Inlining_cost.Threshold.Can_inline_if_no_larger_than
-          (int_of_float
-             (is_classic_mode
-               *. float_of_int Inlining_cost.scale_inline_threshold_by))
+          (classic_mode * Inlining_cost.scale_inline_threshold_by)
       in
       let bonus = Flambda_utils.function_arity fun_decl in
       Inlining_cost.can_inline fun_decl.body inlining_threshold ~bonus

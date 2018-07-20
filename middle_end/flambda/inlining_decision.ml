@@ -772,7 +772,7 @@ let for_call_site ~env ~r ~(call : call_informations)
         compute_thresholding_for_call env r inlining_arguments
       in
       let simpl =
-        if Flambda.is_classic_mode_on callee.function_decls.is_classic_mode
+        if Option.is_some callee.function_decls.is_classic_mode
         then begin
           classic_mode_inlining env r ~simplify ~call ~callee ~annotations
         end else begin

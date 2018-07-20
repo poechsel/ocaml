@@ -433,7 +433,7 @@ and set_of_closures = {
 }
 
 and function_declarations = {
-  is_classic_mode : float;
+  is_classic_mode : int option;
   set_of_closures_id : Set_of_closures_id.t;
   funs : function_declaration Variable.Map.t;
 }
@@ -1622,5 +1622,3 @@ let compare_project_var = Projection.compare_project_var
 let compare_project_closure = Projection.compare_project_closure
 let compare_move_within_set_of_closures =
   Projection.compare_move_within_set_of_closures
-
-let is_classic_mode_on classic_mode = Float.compare classic_mode 0.0 > 0
