@@ -468,6 +468,10 @@ let specialise env r ~(call : call_information)
   let always_specialise, never_specialise =
     specialise_policy annotations
   in
+  let unrolling_limit =
+    let args = E.get_inlining_settings env in
+    Settings.Inlining.inline_max_unroll args
+  in
   let remaining_inlining_threshold : Inlining_cost.Threshold.t =
     if always_specialise then inlining_threshold
     else Lazy.force fun_cost
@@ -484,6 +488,8 @@ let specialise env r ~(call : call_information)
       Try_it
     else if never_specialise then
       Don't_try_it S.Not_specialised.Annotation
+    else if callee.rec_info.depth >= unrolling_limit then
+      Don't_try_it S.Not_specialised.Unrolling_depth_exceeded
     else if remaining_inlining_threshold = T.Never_inline then
       let threshold =
         match inlining_threshold with
