@@ -151,13 +151,13 @@ module Options = Main_args.Make_optcomp_options (struct
   *)
   let _o2 () =
     default_simplify_rounds := 2;
-    use_inlining_arguments_set o2_arguments;
-    use_inlining_arguments_set ~round:0 o1_arguments
+    use_inlining_arguments_set O2;
+    use_inlining_arguments_set ~round:0 O1
   let _o3 () =
     default_simplify_rounds := 3;
-    use_inlining_arguments_set o3_arguments;
-    use_inlining_arguments_set ~round:1 o2_arguments;
-    use_inlining_arguments_set ~round:0 o1_arguments
+    use_inlining_arguments_set O3;
+    use_inlining_arguments_set ~round:1 O2;
+    use_inlining_arguments_set ~round:0 O1
   let _open s = open_modules := s :: !open_modules
   let _output_obj = set output_c_object
   let _output_complete_obj () =

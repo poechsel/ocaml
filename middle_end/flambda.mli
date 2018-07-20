@@ -32,27 +32,33 @@ module UnboxingArgs : sig
 end
 
 module InliningArgs : sig
-  type u = {
-    inline_call_cost : int;
-    inline_alloc_cost : int;
-    inline_prim_cost : int;
-    inline_branch_cost : int;
-    inline_indirect_cost : int;
-    inline_lifting_benefit : int;
-    inline_branch_factor : float;
-    inline_max_depth : int;
-    inline_max_speculation_depth : int;
-    inline_max_unroll : int;
-    inline_max_specialise : int;
-    inline_threshold : int;
-    inline_toplevel_threshold : int;
-  }
-
   type t
 
-  (* extract the inlining arguments from the compressed
-     representation *)
-  val extract : t -> u
+  val inline_call_cost : t -> int
+
+  val inline_alloc_cost : t -> int
+
+  val inline_prim_cost : t -> int
+
+  val inline_branch_cost : t -> int
+
+  val inline_indirect_cost : t -> int
+
+  val inline_lifting_benefit : t -> int
+
+  val inline_branch_factor : t -> float
+
+  val inline_max_depth : t -> int
+
+  val inline_max_speculation_depth : t -> int
+
+  val inline_max_unroll : t -> int
+
+  val inline_max_specialise : t -> int
+
+  val inline_threshold : t -> int
+
+  val inline_toplevel_threshold : t -> int
 
   (* get the [inlining_arguments] structure corresponding
       to a given round *)

@@ -91,7 +91,7 @@ module Env = struct
 
   let speculation_depth_up env =
     let max_level =
-      (InliningArgs.extract (get_inlining_arguments env)).inline_max_speculation_depth
+      get_inlining_arguments env |> InliningArgs.inline_max_speculation_depth
     in
     if (env.speculation_depth + 1) > max_level then
       Misc.fatal_error "Inlining level increased above maximum";
@@ -287,12 +287,12 @@ module Env = struct
     else t
 
   let inlining_allowed t =
-    let limit =(InliningArgs.extract t.inlining_arguments).inline_max_depth
+    let limit = t.inlining_arguments |> InliningArgs.inline_max_depth
     in
     t.inlining_depth < limit
 
   let specialising_allowed t =
-    let limit = (InliningArgs.extract t.inlining_arguments).inline_max_specialise
+    let limit = t.inlining_arguments |> InliningArgs.inline_max_specialise
     in
     limit - t.specialise_depth > 0
 
@@ -373,7 +373,7 @@ end
 
 let initial_inlining_threshold (inlining_arguments : InliningArgs.t)
   : Inlining_cost.Threshold.t =
-  let unscaled = (InliningArgs.extract inlining_arguments).inline_threshold
+  let unscaled = inlining_arguments |> InliningArgs.inline_threshold
   in
   (* CR-soon pchambart: Add a warning if this is too big
      mshinwell: later *)
@@ -383,10 +383,10 @@ let initial_inlining_threshold (inlining_arguments : InliningArgs.t)
 let initial_inlining_toplevel_threshold (inlining_arguments : InliningArgs.t)
   : Inlining_cost.Threshold.t =
   let ordinary_threshold =
-    (InliningArgs.extract inlining_arguments).inline_threshold
+    inlining_arguments |> InliningArgs.inline_threshold
   in
   let toplevel_threshold =
-    (InliningArgs.extract inlining_arguments).inline_toplevel_threshold
+    inlining_arguments |> InliningArgs.inline_toplevel_threshold
   in
   let unscaled =
     ordinary_threshold + toplevel_threshold

@@ -90,7 +90,7 @@ let implementation ~backend ppf sourcefile outputprefix =
         if Config.flambda then begin
           if !Clflags.classic_inlining then begin
             Clflags.default_simplify_rounds := 1;
-            Clflags.use_inlining_arguments_set Clflags.classic_arguments;
+            Clflags.use_inlining_arguments_set Clflags.OClassic;
             Clflags.unbox_free_vars_of_closures := false;
             Clflags.unbox_specialised_args := false
           end;
@@ -117,7 +117,7 @@ let implementation ~backend ppf sourcefile outputprefix =
             Compilenv.save_unit_info cmxfile)
         end
         else begin
-          Clflags.use_inlining_arguments_set Clflags.classic_arguments;
+          Clflags.use_inlining_arguments_set Clflags.OClassic;
           (typedtree, coercion)
           ++ Profile.(record transl)
               (Translmod.transl_store_implementation modulename)

@@ -321,16 +321,16 @@ let read_one_param ppf position name v =
   | "O2" ->
     if check_bool ppf "O2" v then begin
       default_simplify_rounds := 2;
-      use_inlining_arguments_set o2_arguments;
-      use_inlining_arguments_set ~round:0 o1_arguments
+      use_inlining_arguments_set O2;
+      use_inlining_arguments_set ~round:0 O1
     end
 
   | "O3" ->
     if check_bool ppf "O3" v then begin
       default_simplify_rounds := 3;
-      use_inlining_arguments_set o3_arguments;
-      use_inlining_arguments_set ~round:1 o2_arguments;
-      use_inlining_arguments_set ~round:0 o1_arguments
+      use_inlining_arguments_set O3;
+      use_inlining_arguments_set ~round:1 O2;
+      use_inlining_arguments_set ~round:0 O1
     end
   | "unbox-closures" ->
       set "unbox-closures" [ unbox_closures ] v

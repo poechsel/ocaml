@@ -273,7 +273,7 @@ let inline env r ~call ~callee ~annotations ~original
   in
   let unrolling_limit =
     let args = E.get_inlining_arguments env in
-    (InliningArgs.extract args).inline_max_unroll
+    args |> InliningArgs.inline_max_unroll
   in
   let remaining_inlining_threshold : Inlining_cost.Threshold.t =
     if always_inline then inlining_threshold
@@ -658,7 +658,7 @@ let flambda_mode_inlining env r ~simplify ~callee ~call ~annotations
       ~closure_id:callee.closure_id_being_applied ~dbg:call.dbg
   in
   let max_level =
-    (InliningArgs.extract inlining_arguments).inline_max_speculation_depth
+    inlining_arguments |> InliningArgs.inline_max_speculation_depth
   in
   let out =
     if inlining_threshold = T.Never_inline then

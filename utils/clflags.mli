@@ -14,6 +14,13 @@
 (**************************************************************************)
 
 (** Command line flags *)
+type inlining_argument =
+   | O1
+   | O2
+   | O3
+   | OClassic
+   | Int of int
+   | Float of float
 
 (** Optimization parameters represented as ints indexed by round number. *)
 module Int_arg_helper : sig
@@ -26,9 +33,9 @@ module Int_arg_helper : sig
     | Parse_failed of exn
   val parse_no_error : string -> parsed ref -> parse_result
 
-  val get : key:int -> parsed -> int
+  val get : key:int -> parsed -> inlining_argument
 
-  val add_user_override : int -> int -> parsed -> parsed
+  val add_user_override : int -> inlining_argument -> parsed -> parsed
 end
 
 (** Optimization parameters represented as floats indexed by round number. *)
@@ -42,35 +49,14 @@ module Float_arg_helper : sig
     | Parse_failed of exn
   val parse_no_error : string -> parsed ref -> parse_result
 
-  val get : key:int -> parsed -> float
+  val get : key:int -> parsed -> inlining_argument
 
-  val add_user_override : int -> float -> parsed -> parsed
+  val add_user_override : int -> inlining_argument -> parsed -> parsed
 end
-
-type inlining_arguments = {
-  inline_call_cost : int option;
-  inline_alloc_cost : int option;
-  inline_prim_cost : int option;
-  inline_branch_cost : int option;
-  inline_indirect_cost : int option;
-  inline_lifting_benefit : int option;
-  inline_branch_factor : float option;
-  inline_max_depth : int option;
-  inline_max_speculation_depth : int option;
-  inline_max_unroll : int option;
-  inline_max_specialise : int option;
-  inline_threshold : int option;
-  inline_toplevel_threshold : int option;
-}
-
-val classic_arguments : inlining_arguments
-val o1_arguments : inlining_arguments
-val o2_arguments : inlining_arguments
-val o3_arguments : inlining_arguments
 
 (** Set all the inlining arguments for a round.
     The default is set if no round is provided. *)
-val use_inlining_arguments_set : ?round:int -> inlining_arguments -> unit
+val use_inlining_arguments_set : ?round:int -> inlining_argument -> unit
 
 val objfiles : string list ref
 val ccobjs : string list ref
