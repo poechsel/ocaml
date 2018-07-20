@@ -378,8 +378,7 @@ let initial_inlining_threshold (inlining_arguments : InliningArgs.t)
   (* CR-soon pchambart: Add a warning if this is too big
      mshinwell: later *)
   Can_inline_if_no_larger_than
-    (int_of_float
-      (unscaled *. float_of_int Inlining_cost.scale_inline_threshold_by))
+      (unscaled * Inlining_cost.scale_inline_threshold_by)
 
 let initial_inlining_toplevel_threshold (inlining_arguments : InliningArgs.t)
   : Inlining_cost.Threshold.t =
@@ -390,7 +389,7 @@ let initial_inlining_toplevel_threshold (inlining_arguments : InliningArgs.t)
     (InliningArgs.extract inlining_arguments).inline_toplevel_threshold
   in
   let unscaled =
-    (int_of_float ordinary_threshold) + toplevel_threshold
+    ordinary_threshold + toplevel_threshold
   in
   (* CR-soon pchambart: Add a warning if this is too big
      mshinwell: later *)
