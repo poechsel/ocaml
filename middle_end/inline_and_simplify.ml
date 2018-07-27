@@ -828,7 +828,8 @@ and simplify_apply env r ~(apply : Flambda.apply) : Flambda.t * R.t =
             ret r (A.value_unknown Other)))
 
 and simplify_full_application env r ~function_decls ~lhs_of_application
-      ~rec_info ~closure_id_being_applied ~(function_decl : Simple_value_approx.function_declaration)
+      ~rec_info ~closure_id_being_applied
+      ~(function_decl : Simple_value_approx.function_declaration)
       ~value_set_of_closures ~args
       ~args_approxs ~dbg ~inline_requested ~specialise_requested =
   let call =
@@ -1545,7 +1546,8 @@ and duplicate_function ~env ~(set_of_closures : Flambda.set_of_closures)
     Flambda.create_function_declaration ~params:function_decl.params
       ~body ~stub:function_decl.stub ~dbg:function_decl.dbg
       ~inline:function_decl.inline ~specialise:function_decl.specialise
-      ~is_a_functor:function_decl.is_a_functor ~recursive:function_decl.recursive
+      ~is_a_functor:function_decl.is_a_functor
+      ~recursive:function_decl.recursive
   in
   function_decl, specialised_args
 
@@ -1569,7 +1571,8 @@ let constant_defining_value_approx
     in
     A.value_block tag (Array.of_list fields)
   | Set_of_closures
-      { function_decls; rec_info; free_vars; specialised_args; unboxing_settings } ->
+      { function_decls; rec_info; free_vars;
+        specialised_args; unboxing_settings } ->
     (* At toplevel, there is no freshening currently happening (this
        cannot be the body of a currently inlined function), so we can
        keep the original set_of_closures in the approximation. *)
@@ -1799,7 +1802,8 @@ let rec simplify_program_body env r (program : Flambda.program_body)
         [recursive_defs]
     in
     let program, r = simplify_program_body env r program in
-    Let_rec_symbol (set_of_closures_defs @ other_defs @ recursive_defs, program), r
+    let defs = set_of_closures_defs @ other_defs @ recursive_defs in
+    Let_rec_symbol (defs, program), r
   | Let_symbol (symbol, constant_defining_value, program) ->
     let r, constant_defining_value, approx =
       simplify_constant_defining_value env r symbol constant_defining_value

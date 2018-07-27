@@ -68,7 +68,8 @@ let rewrite_recursive_calls_from_symbols_to_variables env function_decls =
   let update_function_declarations =
     Simple_value_approx.update_function_declarations
   in
-  Freshening.rewrite_recursive_calls_with_symbols (Freshening.activate Freshening.empty)
+  Freshening.rewrite_recursive_calls_with_symbols
+    (Freshening.activate Freshening.empty)
     function_decls
     ~get_funs ~get_free_symbols
     ~update_function_declaration_body ~update_function_declarations
@@ -485,7 +486,8 @@ let add_function ~specialised_args ~state ~fun_var ~function_decl =
         else begin
           let new_fun_var = Variable.rename fun_var in
           let old_fun_var_to_new_fun_var =
-            Variable.Map.add fun_var new_fun_var state.old_fun_var_to_new_fun_var
+            Variable.Map.add fun_var new_fun_var
+              state.old_fun_var_to_new_fun_var
           in
           let to_copy = fun_var :: state.to_copy in
           let state = { state with old_fun_var_to_new_fun_var; to_copy } in
@@ -598,7 +600,8 @@ let rewrite_function ~lhs_of_application ~closure_id_being_applied
          match expr with
          | Apply ({ kind = Direct closure_id } as apply) -> begin
              match
-               rewrite_direct_call ~specialised_args ~funs ~direct_call_surrogates
+               rewrite_direct_call ~specialised_args
+                 ~funs ~direct_call_surrogates
                  ~state:!state_ref ~closure_id ~apply
              with
              | None -> expr

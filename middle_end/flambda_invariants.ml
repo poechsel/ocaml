@@ -846,7 +846,8 @@ let check_exn ?(kind=Normal) ?(cmxfile=false) (flam:Flambda.program) =
     | Relative_rec_info_zero ->
       Format.eprintf ">> Relative rec info should not be all zeros"
     | Absolute_rec_info_negative { depth; unroll_to } ->
-      Format.eprintf ">> Absolute rec info depth should be non-negative: d %i u %i"
+      Format.eprintf
+        ">> Absolute rec info depth should be non-negative: d %i u %i"
         depth unroll_to
     | exn -> raise exn
     end;

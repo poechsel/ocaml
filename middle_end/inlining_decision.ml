@@ -516,7 +516,8 @@ let specialise env r ~(call : call_information)
           ~args:call.args ~args_approxs
           ~invariant_params:callee.value_set_of_closures.invariant_params
           ~specialised_args:callee.value_set_of_closures.specialised_args
-          ~direct_call_surrogates:callee.value_set_of_closures.direct_call_surrogates
+          ~direct_call_surrogates:
+            callee.value_set_of_closures.direct_call_surrogates
           ~unboxing_settings:callee.value_set_of_closures.unboxing_settings
           ~dbg:call.dbg ~simplify ~inline_requested:annotations.caller_inline
           ~function_decl:callee.function_decl
@@ -535,8 +536,8 @@ let specialise env r ~(call : call_information)
         let env = stat_note_specialise_closures env callee
         in
         let keep_specialised decision =
-             keep_specialised decision ~env ~r_inlined ~expr ~simplify ~always_specialise
-               ~previous_benefit:(R.benefit r)
+          keep_specialised decision ~env ~r_inlined ~expr ~simplify
+            ~always_specialise ~previous_benefit:(R.benefit r)
         in
         if always_specialise then
           keep_specialised S.Specialised.Annotation
@@ -544,11 +545,16 @@ let specialise env r ~(call : call_information)
           keep_specialised (S.Specialised.Without_subfunctions wsb)
         else begin
           let will_specialise, wsb_with_subfunctions =
-            evaluate_speculative_specialisation env r_inlined expr original ~simplify
+            evaluate_speculative_specialisation env r_inlined expr original
+              ~simplify
           in
           if will_specialise then
-            (* we know we are going to specialise. We run the same code path as before *)
-            keep_specialised (S.Specialised.With_subfunctions (wsb, wsb_with_subfunctions))
+            (* we know we are going to specialise.
+               We run the same code path as before *)
+            let decision =
+              S.Specialised.With_subfunctions (wsb, wsb_with_subfunctions)
+            in
+            keep_specialised decision
           else
             let decision =
               S.Not_specialised.Not_beneficial (wsb, wsb_with_subfunctions)
@@ -581,7 +587,8 @@ let compute_thresholding_for_call env r inlining_settings =
   let raw = R.inlining_threshold r in
   let max =
       if E.at_toplevel env then
-        Inline_and_simplify_aux.initial_inlining_toplevel_threshold inlining_settings
+        Inline_and_simplify_aux.initial_inlining_toplevel_threshold
+          inlining_settings
       else
         Inline_and_simplify_aux.initial_inlining_threshold inlining_settings
     in
@@ -623,7 +630,10 @@ let classic_mode_inlining env r ~simplify ~callee ~call ~annotations
           ~closure_id_being_applied:callee.closure_id_being_applied
           ~specialise_requested:annotations.caller_specialise
           ~inline_requested:annotations.caller_inline
-          ~function_decls:callee.function_decls ~args:call.args ~dbg:call.dbg ~simplify
+          ~function_decls:callee.function_decls
+          ~args:call.args
+          ~dbg:call.dbg
+          ~simplify
       in
       let env = E.note_entering_inlined env in
       let env = E.inside_inlined_function env in
@@ -637,7 +647,10 @@ let classic_mode_inlining env r ~simplify ~callee ~call ~annotations
       in
       Original (decision)
     | Changed ((expr, r), decision) ->
-      Changed((expr, r), S.Decision.Inlined (S.Not_specialised.Classic_mode, decision))
+      let decision =
+        S.Decision.Inlined (S.Not_specialised.Classic_mode, decision)
+      in
+      Changed((expr, r), decision)
   in out, env
 
 let flambda_mode_inlining env r ~simplify ~callee ~call ~annotations
@@ -680,12 +693,14 @@ let flambda_mode_inlining env r ~simplify ~callee ~call ~annotations
         let size_from_approximation =
           let fun_var = Closure_id.unwrap callee.closure_id_being_applied in
           match
-            Variable.Map.find fun_var (Lazy.force callee.value_set_of_closures.size)
+            Variable.Map.find fun_var
+              (Lazy.force callee.value_set_of_closures.size)
           with
           | size -> size
           | exception Not_found ->
-            Misc.fatal_errorf "Approximation does not give a size for the \
-                               function having fun_var %a.  value_set_of_closures: %a"
+            Misc.fatal_errorf
+              "Approximation does not give a size for the \
+               function having fun_var %a.  value_set_of_closures: %a"
               Variable.print fun_var
               A.print_value_set_of_closures callee.value_set_of_closures
         in
@@ -719,7 +734,8 @@ let for_call_site ~env ~r ~(call : call_information)
         of [args] and [args_approxs]"
   end;
   let inlining_settings = E.get_inlining_settings env in
-  let original, original_r = extract_original_caller_and_result env r call callee annotations
+  let original, original_r =
+    extract_original_caller_and_result env r call callee annotations
   in
   match function_decl.function_body with
   | None -> original, original_r
