@@ -24,11 +24,6 @@ module T = Inlining_cost.Threshold
 module S = Inlining_stats_types
 module D = S.Decision
 
-let get_function_body (function_decl : A.function_declaration) =
-  match function_decl.function_body with
-  | None -> assert false
-  | Some function_body -> function_body
-
 type ('a, 'b) inlining_result =
   | Changed of (Flambda.t * R.t) * 'a
   | Original of 'b
@@ -87,16 +82,6 @@ let build_annotations_structure ~caller_inline ~caller_specialise
     callee_inline; callee_specialise }
 
 
-let is_recursive callee =
-  match callee.function_decl.function_body with
-  | None -> false
-  | Some x -> x.recursive
-
-let is_a_functor callee =
-  match callee.function_decl.function_body with
-  | None -> false
-  | Some x -> x.is_a_functor
-
 let inlining_policy annotations callee
     : inlining_policy =
   match callee.rec_info with
@@ -131,7 +116,8 @@ let inlining_policy annotations callee
         end
     end
 
-let inline_without_knowing_args env ~size_from_approximation ~callee =
+let inline_without_knowing_args env ~size_from_approximation ~callee
+      ~(function_body : A.function_body) =
   (* When all of the arguments to the function being inlined are unknown,
      then we cannot materially simplify the function.  As such, we know
      what the benefit of inlining it would be: just removing the call.
@@ -177,16 +163,15 @@ let inline_without_knowing_args env ~size_from_approximation ~callee =
               else acc
             | None -> acc
           with Not_found -> acc)
-          (match callee.function_decl.function_body with
-           | Some x -> x.free_variables
-           | None -> Variable.Set.empty) benefit
+          function_body.free_variables
+          benefit
       in
       W.create_estimate
         ~original_size:Inlining_cost.direct_call_size
         ~new_size:body_size
         ~toplevel:(E.at_toplevel env)
         ~branch_depth:(E.branch_depth env)
-        ~lifting:(is_a_functor callee)
+        ~lifting:function_body.is_a_functor
         ~args:(E.get_inlining_settings env)
         ~benefit
     in
@@ -235,7 +220,8 @@ let keep_inlined_version decision ~env ~always_inline ~r_inlined ~body
   Changed ((simplify env r body), decision)
 
 
-let evaluate_speculative_inline env ~callee ~r_inlined ~body ~original ~simplify=
+let evaluate_speculative_inline env ~r_inlined ~body ~original
+      ~simplify ~(function_body : A.function_body) =
   let env =
     E.speculation_depth_up env
     |> E.note_entering_inlined
@@ -245,7 +231,7 @@ let evaluate_speculative_inline env ~callee ~r_inlined ~body ~original ~simplify
     W.create ~original body
       ~toplevel:(E.at_toplevel env)
       ~branch_depth:(E.branch_depth env)
-      ~lifting:(is_a_functor callee)
+      ~lifting:function_body.is_a_functor
       ~args:(E.get_inlining_settings env)
       ~benefit:(R.benefit r_inlined)
   in
@@ -255,7 +241,7 @@ let evaluate_speculative_inline env ~callee ~r_inlined ~body ~original ~simplify
 
 let inline env r ~call ~callee ~annotations ~original
       ~size_from_approximation ~simplify ~fun_cost
-      ~inlining_threshold =
+      ~inlining_threshold ~(function_body : A.function_body) =
   let toplevel = E.at_toplevel env in
   let branch_depth = E.branch_depth env in
   let policy =
@@ -289,7 +275,7 @@ let inline env r ~call ~callee ~annotations ~original
     else if policy = Never_inline then
       Don't_try_it S.Not_inlined.Annotation
     else if callee.rec_info.depth >= unrolling_limit
-         && is_recursive callee then
+         && function_body.recursive then
       Don't_try_it S.Not_inlined.Unrolling_depth_exceeded
     else if remaining_inlining_threshold = T.Never_inline then
        let threshold =
@@ -301,6 +287,7 @@ let inline env r ~call ~callee ~annotations ~original
     else if not (toplevel && branch_depth = 0)
          && A.all_not_useful (E.find_list_exn env call.args) then
       inline_without_knowing_args env ~size_from_approximation ~callee
+        ~function_body
     else begin
       (* There are useful approximations, so we should simplify. *)
       Try_it
@@ -323,7 +310,7 @@ let inline env r ~call ~callee ~annotations ~original
         ~specialise_requested:annotations.caller_specialise
         ~inline_requested:annotations.caller_inline
         ~args:call.args ~dbg:call.dbg ~simplify
-        ~function_body:(get_function_body callee.function_decl)
+        ~function_body
     in
     let num_direct_applications_seen =
       (R.num_direct_applications r_inlined) - (R.num_direct_applications r)
@@ -340,7 +327,7 @@ let inline env r ~call ~callee ~annotations ~original
         W.create ~original body
           ~toplevel:(E.at_toplevel env)
           ~branch_depth:(E.branch_depth env)
-          ~lifting:(is_a_functor callee)
+          ~lifting:function_body.is_a_functor
           ~args:(E.get_inlining_settings env)
           ~benefit:(R.benefit r_inlined)
       in
@@ -355,7 +342,8 @@ let inline env r ~call ~callee ~annotations ~original
         Original (S.Not_inlined.Without_subfunctions wsb)
       end else begin
         let will_inline, wsb_with_subfunctions =
-          evaluate_speculative_inline env ~body ~callee ~simplify ~r_inlined ~original
+          evaluate_speculative_inline env ~body ~simplify ~r_inlined ~original
+            ~function_body
         in
         if will_inline then begin
           let decision =
@@ -473,7 +461,7 @@ let evaluate_speculative_specialisation env r_inlined expr original ~simplify =
 let specialise env r ~(call : call_information)
       ~(callee : callee_information) ~(annotations : annotations)
       ~args_approxs ~simplify ~original
-      ~inlining_threshold ~fun_cost =
+      ~inlining_threshold ~fun_cost ~(function_body : A.function_body) =
   let free_vars, invariant_params, has_no_useful_approxes =
     compute_params_information callee args_approxs
   in
@@ -505,7 +493,7 @@ let specialise env r ~(call : call_information)
       Don't_try_it (S.Not_specialised.Above_threshold threshold)
     else if not (Variable.Map.is_empty free_vars) then
       Don't_try_it S.Not_specialised.Not_closed
-    else if not (is_recursive callee) then
+    else if not function_body.recursive then
       Don't_try_it S.Not_specialised.Not_recursive
     else if Variable.Map.is_empty (Lazy.force invariant_params) then
       Don't_try_it S.Not_specialised.No_invariant_parameters
@@ -610,38 +598,36 @@ let compute_thresholding_for_call env r inlining_settings =
     in
     inlining_threshold, raw, diff
 
-let classic_mode_inlining env r ~simplify ~callee ~call ~annotations =
+let classic_mode_inlining env r ~simplify ~callee ~call ~annotations
+  ~function_body =
   let env =
     E.note_entering_call env
       ~closure_id:callee.closure_id_being_applied ~dbg:call.dbg
   in
   let simpl =
-    match callee.function_decl.function_body with
-    | None -> Original S.Not_inlined.Classic_mode
-    | Some function_body ->
-      let try_inlining =
-        if callee.rec_info.depth >= 1 then
-          Don't_try_it S.Not_inlined.Unrolling_depth_exceeded
-        else if not (E.inlining_allowed env) then
-          Don't_try_it S.Not_inlined.Inlining_depth_exceeded
-        else
-          Try_it
+    let try_inlining =
+      if callee.rec_info.depth >= 1 then
+        Don't_try_it S.Not_inlined.Unrolling_depth_exceeded
+      else if not (E.inlining_allowed env) then
+        Don't_try_it S.Not_inlined.Inlining_depth_exceeded
+      else
+        Try_it
+    in
+    match try_inlining with
+    | Don't_try_it decision -> Original decision
+    | Try_it ->
+      let body, r =
+        Inlining_transforms.inline_by_copying_function_body ~env
+          ~unroll_to:0 ~r ~function_body
+          ~lhs_of_application:call.callee
+          ~closure_id_being_applied:callee.closure_id_being_applied
+          ~specialise_requested:annotations.caller_specialise
+          ~inline_requested:annotations.caller_inline
+          ~function_decls:callee.function_decls ~args:call.args ~dbg:call.dbg ~simplify
       in
-      match try_inlining with
-      | Don't_try_it decision -> Original decision
-      | Try_it ->
-        let body, r =
-          Inlining_transforms.inline_by_copying_function_body ~env
-            ~unroll_to:0 ~r ~function_body
-            ~lhs_of_application:call.callee
-            ~closure_id_being_applied:callee.closure_id_being_applied
-            ~specialise_requested:annotations.caller_specialise
-            ~inline_requested:annotations.caller_inline
-            ~function_decls:callee.function_decls ~args:call.args ~dbg:call.dbg ~simplify
-        in
-        let env = E.note_entering_inlined env in
-        let env = E.inside_inlined_function env in
-        Changed ((simplify env r body), S.Inlined.Classic_mode)
+      let env = E.note_entering_inlined env in
+      let env = E.inside_inlined_function env in
+      Changed ((simplify env r body), S.Inlined.Classic_mode)
   in
   let out =
     match simpl with
@@ -655,8 +641,8 @@ let classic_mode_inlining env r ~simplify ~callee ~call ~annotations =
   in out, env
 
 let flambda_mode_inlining env r ~simplify ~callee ~call ~annotations
-  ~inlining_threshold ~inlining_settings ~original ~args_approxs =
-  let function_body = get_function_body callee.function_decl in
+      ~inlining_threshold ~inlining_settings ~original ~args_approxs
+      ~(function_body : A.function_body) =
   let env = E.unset_never_inline_inside_closures env in
   let env =
     E.note_entering_call env
@@ -684,6 +670,7 @@ let flambda_mode_inlining env r ~simplify ~callee ~call ~annotations
       let specialise_result =
         specialise env r ~call ~callee ~annotations ~args_approxs
           ~simplify ~original ~fun_cost ~inlining_threshold
+          ~function_body
       in
       match specialise_result with
       | Changed (res, spec_reason) ->
@@ -705,7 +692,7 @@ let flambda_mode_inlining env r ~simplify ~callee ~call ~annotations
         let inline_result =
           inline env r ~call ~callee ~annotations ~original
             ~size_from_approximation ~simplify ~fun_cost
-            ~inlining_threshold
+            ~inlining_threshold ~function_body
         in
         match inline_result with
         | Changed (res, inl_reason) ->
@@ -757,10 +744,11 @@ let for_call_site ~env ~r ~(call : call_information)
       let simpl, env =
         if function_decls.is_classic_mode <> None then begin
           classic_mode_inlining env r ~simplify
-            ~call ~callee ~annotations
+            ~call ~callee ~annotations ~function_body
         end else begin
           flambda_mode_inlining env r ~simplify ~call ~callee ~annotations
             ~original ~inlining_settings ~inlining_threshold ~args_approxs
+            ~function_body
         end
       in
       let res, decision =
