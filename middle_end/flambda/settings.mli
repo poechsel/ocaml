@@ -50,8 +50,6 @@ module Inlining : sig
 
   val inline_max_unroll : t -> int
 
-  val inline_max_specialise : t -> int
-
   val inline_threshold : t -> int
 
   val inline_toplevel_threshold : t -> int

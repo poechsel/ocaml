@@ -445,7 +445,9 @@ let keep_specialised decision ~env ~always_specialise ~r_inlined ~expr
   let r =
     R.map_benefit r_inlined (Inlining_cost.Benefit.(+) (previous_benefit))
   in
-  let env = E.inside_specialised_function env in
+  (* We increment the inlining depth: specialisation and inlining are
+     the same thing *)
+  let env = E.inside_inlined_function env in
   let closure_env =
     let env' =
       if E.speculation_depth env = 0
@@ -507,8 +509,8 @@ let specialise env r ~(call : call_information)
        - is closed (it and all other members of the set of closures on which
          it depends); and
        - has useful approximations for some invariant parameters. *)
-    if not (E.specialising_allowed env) then
-      Don't_try_it S.Not_specialised.Specialised_depth_exceeded
+    if not (E.inlining_allowed env) then
+      Don't_try_it S.Not_specialised.Inlining_depth_exceeded
     else if always_specialise && not (Lazy.force has_no_useful_approxes) then
       Try_it
     else if never_specialise then
