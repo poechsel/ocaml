@@ -56,9 +56,9 @@ module Inlining : sig
   val get : int -> t
 
   (* get an [inlining_arguments] struct filled with the
-      maximum values across all round.
-      As we are forcing them to be increasing over rounds, this is equivalent to be
-      returning the arguments of the last round *)
+     maximum values across all round.
+     As we are forcing them to be increasing over rounds, this is equivalent
+     to be returning the arguments of the last round *)
   val get_max : unit -> t
 
   (* Merge two inlining arguments structures:

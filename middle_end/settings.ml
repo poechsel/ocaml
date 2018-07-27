@@ -337,13 +337,17 @@ module Inlining = struct
           inline_max_depth =
             min (inline_max_depth args1) (inline_max_depth args2);
           inline_max_speculation_depth =
-            min (inline_max_speculation_depth args1) (inline_max_speculation_depth args2);
+            min
+              (inline_max_speculation_depth args1)
+              (inline_max_speculation_depth args2);
           inline_max_unroll =
             min (inline_max_unroll args1) (inline_max_unroll args2);
           inline_threshold =
             min (inline_threshold args1) (inline_threshold args2);
           inline_toplevel_threshold =
-            min (inline_toplevel_threshold args1) (inline_toplevel_threshold args2);
+            min
+              (inline_toplevel_threshold args1)
+              (inline_toplevel_threshold args2);
         }
         |> compress
     | OClassic, _ | _, OClassic -> OClassic
@@ -436,9 +440,11 @@ module Inlining = struct
           if (non_incr && proj previous < proj current)
            || (not non_incr && proj previous > proj current) then begin
             let monotony = if non_incr then "decreasing" else "increasing" in
-            let message = "Argument " ^ label ^ " is " ^ monotony ^ " between round " ^
-                          string_of_int (round - 1) ^ " (=" ^ (format (proj previous)) ^ ") and " ^
-                          string_of_int round ^ " (=" ^ (format (proj current)) ^ ")"
+            let message =
+              "Argument " ^ label ^ " is " ^ monotony ^ " between round " ^
+              string_of_int (round - 1) ^ " (=" ^ (format (proj previous)) ^
+              ") and " ^ string_of_int round ^ " (=" ^
+              (format (proj current)) ^ ")"
             in
             Location.prerr_warning ({loc_start = Lexing.dummy_pos;
                                      loc_end = Lexing.dummy_pos;

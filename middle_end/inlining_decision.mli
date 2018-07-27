@@ -55,15 +55,16 @@ Otherwise, we first get the inlined function. If we are sure we want to
     inline it (because of an annotation, or because the evaluated benefit
     is good enough), then we keep it.
     If it's not the case, we speculate on the inlining. We increase speculation
-    depth, and call the whole inlining and simplify procedure on the inlined function.
-    If this speculative inlining achieve an improvement, we keep the inlined function.
+    depth, and call the whole inlining and simplify procedure on the inlined
+    function. If this speculative inlining achieve an improvement, we keep the
+    inlined function.
 
 # Specialise <-- Method used to specialise a call
 
 We go through a decision tree to see if we can try specialising:
     - If we are not allowed to specialise, don't try it
-    - If we are sure to specialise and we have at least one useful approximation
-      for a parameter, try it
+    - If we are sure to specialise and we have at least one useful
+      approximation for a parameter, try it
     - If we never want to specialise, don't try it
     - If we have not enough remaining threshold, don't try it
     - If we have any free variables, don't try it
@@ -72,13 +73,13 @@ We go through a decision tree to see if we can try specialising:
     - If we don't have useful approximations of parameters, don't try it
     - Otherwise don't try it
 If we decided not to try specialising, quit.
-Otherwise, first get the specialised function and the simplified call. If we always
-    want to specialise or if it the evaluated benefit of the specialisation is good
-    enough, we keep the specialised version.
+Otherwise, first get the specialised function and the simplified call. If we
+    always want to specialise or if it the evaluated benefit of the
+    specialisation is good enough, we keep the specialised version.
     Otherwise, we first evaluate speculatively the interest of specialising the
-    function (by calling inlining and simplify on the body of the specialised function
-    with an increased speculative depth). If it yields an improvement, we keep
-    the specialised function.
+    function (by calling inlining and simplify on the body of the specialised
+    function with an increased speculative depth). If it yields an improvement,
+    we keep the specialised function.
 *)
 
 

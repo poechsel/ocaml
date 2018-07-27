@@ -235,7 +235,8 @@ let iter_exprs_at_toplevel_of_program (program : Flambda.program) ~f =
   let rec loop (program : Flambda.program_body) =
     match program with
     | Let_symbol (_, Set_of_closures set_of_closures, program) ->
-      Variable.Map.iter (fun _ (function_decl : Flambda.function_declaration) ->
+      Variable.Map.iter
+        (fun _ (function_decl : Flambda.function_declaration) ->
           f function_decl.body)
         set_of_closures.function_decls.funs;
       loop program
@@ -428,8 +429,9 @@ let map_general ~toplevel f f_named tree =
       | Symbol _ | Const _ | Allocated_const _ | Read_mutable _
       | Project_closure _ | Move_within_set_of_closures _ | Project_var _
       | Prim _ | Read_symbol_field _ | Recursive _ -> named
-      | Set_of_closures ({ function_decls; free_vars; specialised_args;
-                           direct_call_surrogates; rec_info; unboxing_settings }) ->
+      | Set_of_closures (
+        { function_decls; free_vars; specialised_args;
+          direct_call_surrogates; rec_info; unboxing_settings }) ->
         if toplevel then named
         else begin
           let done_something = ref false in

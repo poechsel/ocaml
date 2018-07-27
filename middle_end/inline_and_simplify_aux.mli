@@ -313,7 +313,8 @@ module Result : sig
 end
 
 (** Command line argument -inline *)
-val initial_inlining_threshold : Settings.Inlining.t -> Inlining_cost.Threshold.t
+val initial_inlining_threshold :
+  Settings.Inlining.t -> Inlining_cost.Threshold.t
 
 (** Command line argument -inline-toplevel *)
 val initial_inlining_toplevel_threshold
