@@ -13,18 +13,15 @@
 (**************************************************************************)
 
 module Unboxing : sig
-  type t = {
-    unbox_specialised_args : bool;
-    unbox_free_vars_of_closures : bool;
-    unbox_closures : bool;
-    unbox_closures_factor : int;
-    remove_unused_arguments : bool;
-  }
-  type u
-
-  val extract : t -> u
+  type t
 
   val get : unit -> t
+
+  val unbox_specialised_args : t -> bool
+  val unbox_free_vars_of_closures : t -> bool
+  val unbox_closures : t -> bool
+  val unbox_closures_factor : t -> int
+  val remove_unused_arguments : t -> bool
 end
 
 module Inlining : sig
