@@ -363,7 +363,7 @@ let value_closure ?closure_var ?set_of_closures_var ?set_of_closures_symbol
 let create_value_set_of_closures
       ~(function_decls : function_declarations) ~rec_info ~bound_vars
       ~free_vars ~invariant_params ~specialised_args ~freshening
-      ~direct_call_surrogates  ~(args : Settings.Inlining.t)
+      ~direct_call_surrogates  ~(max_settings : Settings.Inlining.t)
       ~unboxing_settings =
   let size =
     lazy (
@@ -382,7 +382,7 @@ let create_value_set_of_closures
               let num_free_vars = Variable.Set.cardinal free_vars in
               let max_size =
                 Inlining_cost.maximum_interesting_size_of_function_body
-                  num_free_vars args
+                  num_free_vars max_settings
               in
               let size =
                 Inlining_cost.lambda_smaller' function_body.body ~than:max_size
