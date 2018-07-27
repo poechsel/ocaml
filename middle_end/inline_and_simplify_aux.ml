@@ -641,7 +641,7 @@ let prepare_to_simplify_set_of_closures ~env
     A.create_value_set_of_closures ~function_decls ~bound_vars
       ~rec_info ~free_vars ~invariant_params ~specialised_args
       ~freshening ~direct_call_surrogates
-      ~args:(Env.get_inlining_settings env)
+      ~max_settings:(Env.get_max_inlining_settings env)
       ~unboxing_settings:set_of_closures.unboxing_settings
   in
   (* Populate the environment with the approximation of each closure.

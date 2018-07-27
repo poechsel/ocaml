@@ -239,7 +239,7 @@ val create_value_set_of_closures
   -> specialised_args:Flambda.specialised_to Variable.Map.t
   -> freshening:Freshening.Project_var.t
   -> direct_call_surrogates:Closure_id.t Closure_id.Map.t
-  -> args: Settings.Inlining.t
+  -> max_settings: Settings.Inlining.t
   -> unboxing_settings: Settings.Unboxing.t
   -> value_set_of_closures
 
