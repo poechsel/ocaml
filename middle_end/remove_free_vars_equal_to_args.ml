@@ -86,7 +86,7 @@ let rewrite_one_set_of_closures (set_of_closures : Flambda.set_of_closures) =
         ~free_vars:set_of_closures.free_vars
         ~specialised_args:set_of_closures.specialised_args
         ~direct_call_surrogates:set_of_closures.direct_call_surrogates
-        ~unboxing_arguments:set_of_closures.unboxing_arguments
+        ~unboxing_settings:set_of_closures.unboxing_settings
     in
     Some set_of_closures
 

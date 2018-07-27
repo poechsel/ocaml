@@ -40,7 +40,7 @@ type apply = {
   dbg : Debuginfo.t;
   inline : Lambda.inline_attribute;
   specialise : Lambda.specialise_attribute;
-  max_inlining_arguments : Settings.Inlining.t option;
+  max_inlining_settings : Settings.Inlining.t option;
   inlining_history : Inlining_history.History.t;
 }
 
@@ -124,7 +124,7 @@ and set_of_closures = {
   free_vars : specialised_to Variable.Map.t;
   specialised_args : specialised_to Variable.Map.t;
   direct_call_surrogates : Variable.t Variable.Map.t;
-  unboxing_arguments : Settings.Unboxing.t;
+  unboxing_settings : Settings.Unboxing.t;
 }
 
 and function_declarations = {
@@ -1156,7 +1156,7 @@ let import_function_declarations_for_pack function_decls
   }
 
 let create_set_of_closures ~function_decls ~rec_info ~free_vars
-      ~specialised_args ~direct_call_surrogates ~unboxing_arguments =
+      ~specialised_args ~direct_call_surrogates ~unboxing_settings =
   if !Clflags.flambda_invariant_checks then begin
     let all_fun_vars = Variable.Map.keys function_decls.funs in
     let expected_free_vars =
@@ -1217,7 +1217,7 @@ let create_set_of_closures ~function_decls ~rec_info ~free_vars
     free_vars;
     specialised_args;
     direct_call_surrogates;
-    unboxing_arguments;
+    unboxing_settings;
   }
 
 let used_params function_decl =

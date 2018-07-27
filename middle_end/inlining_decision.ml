@@ -189,7 +189,7 @@ let inline_without_knowing_args env ~size_from_approximation ~callee =
         ~toplevel:(E.at_toplevel env)
         ~branch_depth:(E.branch_depth env)
         ~lifting:(is_a_functor callee)
-        ~args:(E.get_inlining_arguments env)
+        ~args:(E.get_inlining_settings env)
         ~benefit
     in
     if (not (W.evaluate wsb)) then begin
@@ -217,7 +217,7 @@ let keep_inlined_version decision ~env ~always_inline ~r_inlined ~body
        have taken that into account before annotating the function. *)
     if always_inline then
       R.map_benefit r_inlined
-        (Inlining_cost.Benefit.max ~args:(E.get_inlining_arguments env)
+        (Inlining_cost.Benefit.max ~args:(E.get_inlining_settings env)
            Inlining_cost.Benefit.(requested_inline ~size_of:body zero))
     else r_inlined
   in
@@ -244,7 +244,7 @@ let evaluate_speculative_inline env ~callee ~r_inlined ~body ~original ~simplify
       ~toplevel:(E.at_toplevel env)
       ~branch_depth:(E.branch_depth env)
       ~lifting:(is_a_functor callee)
-      ~args:(E.get_inlining_arguments env)
+      ~args:(E.get_inlining_settings env)
       ~benefit:(R.benefit r_inlined)
   in
   W.evaluate wsb_with_subfunctions, wsb_with_subfunctions
@@ -271,7 +271,7 @@ let inline env r ~call ~callee ~annotations ~original
     | _ -> 0
   in
   let unrolling_limit =
-    let args = E.get_inlining_arguments env in
+    let args = E.get_inlining_settings env in
     args |> Settings.Inlining.inline_max_unroll
   in
   let remaining_inlining_threshold : Inlining_cost.Threshold.t =
@@ -342,7 +342,7 @@ let inline env r ~call ~callee ~annotations ~original
           ~toplevel:(E.at_toplevel env)
           ~branch_depth:(E.branch_depth env)
           ~lifting:(is_a_functor callee)
-          ~args:(E.get_inlining_arguments env)
+          ~args:(E.get_inlining_settings env)
           ~benefit:(R.benefit r_inlined)
       in
       if W.evaluate wsb then
@@ -414,7 +414,7 @@ let keep_specialised decision ~env ~always_specialise ~r_inlined ~expr
   let r_inlined =
     if always_specialise then
       R.map_benefit r_inlined
-        (Inlining_cost.Benefit.max ~args:(E.get_inlining_arguments env)
+        (Inlining_cost.Benefit.max ~args:(E.get_inlining_settings env)
            Inlining_cost.Benefit.(requested_inline ~size_of:expr zero))
     else r_inlined
   in
@@ -454,7 +454,7 @@ let evaluate_speculative_specialisation env r_inlined expr original ~simplify =
       ~toplevel:false
       ~branch_depth:(E.branch_depth env)
       ~lifting:false
-      ~args:(E.get_inlining_arguments env)
+      ~args:(E.get_inlining_settings env)
       ~benefit:(R.benefit r_inlined)
   in
   W.evaluate wsb_with_subfunctions, wsb_with_subfunctions
@@ -472,7 +472,7 @@ let specialise env r ~(call : call_information)
     specialise_policy annotations
   in
   let unrolling_limit =
-    let args = E.get_inlining_arguments env in
+    let args = E.get_inlining_settings env in
     args |> Settings.Inlining.inline_max_unroll
   in
   let remaining_inlining_threshold : Inlining_cost.Threshold.t =
@@ -526,7 +526,7 @@ let specialise env r ~(call : call_information)
           ~invariant_params:callee.value_set_of_closures.invariant_params
           ~specialised_args:callee.value_set_of_closures.specialised_args
           ~direct_call_surrogates:callee.value_set_of_closures.direct_call_surrogates
-          ~unboxing_arguments:callee.value_set_of_closures.unboxing_arguments
+          ~unboxing_settings:callee.value_set_of_closures.unboxing_settings
           ~dbg:call.dbg ~simplify ~inline_requested:annotations.caller_inline
           ~function_decl:callee.function_decl
           ~inlining_history:inlining_history_next_part
@@ -539,7 +539,7 @@ let specialise env r ~(call : call_information)
             ~toplevel:false
             ~branch_depth:(E.branch_depth env)
             ~lifting:false
-            ~args:(E.get_inlining_arguments env)
+            ~args:(E.get_inlining_settings env)
             ~benefit:(R.benefit r_inlined)
         in
         let keep_specialised decision =
@@ -578,7 +578,7 @@ let extract_original_caller_and_result env r call callee annotations =
       inlining_depth = E.inlining_depth env;
       inline = annotations.caller_inline;
       specialise = annotations.caller_specialise;
-      max_inlining_arguments = Some (E.get_max_inlining_arguments env);
+      max_inlining_settings = Some (E.get_max_inlining_settings env);
       inlining_history = call.inlining_history;
     }
   in
@@ -586,13 +586,13 @@ let extract_original_caller_and_result env r call callee annotations =
     R.set_approx (R.seen_direct_application r) (A.value_unknown Other)
   in original, original_r
 
-let compute_thresholding_for_call env r inlining_arguments =
+let compute_thresholding_for_call env r inlining_settings =
   let raw = R.inlining_threshold r in
   let max =
       if E.at_toplevel env then
-        Inline_and_simplify_aux.initial_inlining_toplevel_threshold inlining_arguments
+        Inline_and_simplify_aux.initial_inlining_toplevel_threshold inlining_settings
       else
-        Inline_and_simplify_aux.initial_inlining_threshold inlining_arguments
+        Inline_and_simplify_aux.initial_inlining_threshold inlining_settings
     in
     let unthrottled =
       match raw with
@@ -651,14 +651,13 @@ let classic_mode_inlining env r ~simplify ~callee ~call ~annotations
   in out
 
 let flambda_mode_inlining env r ~simplify ~callee ~call ~annotations
-      ~inlining_threshold ~inlining_arguments ~original ~args_approxs
+      ~inlining_threshold ~inlining_settings ~original ~args_approxs
       ~inlining_history_next_part
-
   =
   let function_body = get_function_body callee.function_decl in
   let env = E.unset_never_inline_inside_closures env in
   let max_level =
-    inlining_arguments |> Settings.Inlining.inline_max_speculation_depth
+    inlining_settings |> Settings.Inlining.inline_max_speculation_depth
   in
   let out =
     if inlining_threshold = T.Never_inline then
@@ -728,7 +727,7 @@ let for_call_site ~env ~r ~(call : call_information)
     Misc.fatal_error "Inlining_decision.for_call_site: inconsistent lengths \
         of [args] and [args_approxs]"
   end;
-  let inlining_arguments = E.get_inlining_arguments env in
+  let inlining_settings = E.get_inlining_settings env in
   let original, original_r = extract_original_caller_and_result env r call callee annotations
   in
   match function_decl.function_body with
@@ -751,7 +750,7 @@ let for_call_site ~env ~r ~(call : call_information)
       original, original_r
     else begin
       let inlining_threshold, raw_inlining_threshold, inlining_threshold_diff =
-        compute_thresholding_for_call env r inlining_arguments
+        compute_thresholding_for_call env r inlining_settings
       in
       let cunit_name =
         match Compilation_unit.get_current () with
@@ -774,7 +773,7 @@ let for_call_site ~env ~r ~(call : call_information)
             ~inlining_history_next_part
         end else begin
           flambda_mode_inlining env r ~simplify ~call ~callee ~annotations
-            ~original ~inlining_arguments ~inlining_threshold ~args_approxs
+            ~original ~inlining_settings ~inlining_threshold ~args_approxs
             ~inlining_history_next_part
         end
       in

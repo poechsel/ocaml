@@ -53,8 +53,8 @@ type apply = {
   specialise : Lambda.specialise_attribute;
   (** Instructions from the source code as to whether the callee should
       be specialised. *)
-  max_inlining_arguments : Settings.Inlining.t option;
-  (** Informations about the maximum value of the inlining arguments we can used
+  max_inlining_settings : Settings.Inlining.t option;
+  (** Informations about the maximum value of the inlining settings we can used
       to inline this function call. *)
   inlining_history : Inlining_history.History.t;
 }
@@ -307,7 +307,7 @@ and set_of_closures = private {
       penalise indirect call sites).
       [direct_call_surrogates] may not be transitively closed. *)
 
-  unboxing_arguments : Settings.Unboxing.t;
+  unboxing_settings : Settings.Unboxing.t;
 }
 
 and function_declarations = private {
@@ -639,7 +639,7 @@ val create_set_of_closures
   -> free_vars:specialised_to Variable.Map.t
   -> specialised_args:specialised_to Variable.Map.t
   -> direct_call_surrogates:Variable.t Variable.Map.t
-  -> unboxing_arguments:Settings.Unboxing.t
+  -> unboxing_settings:Settings.Unboxing.t
   -> set_of_closures
 
 (** Given a function declaration, find which of its parameters (if any)

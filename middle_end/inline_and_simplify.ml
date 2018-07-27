@@ -703,8 +703,8 @@ and simplify_set_of_closures original_env r
       ~freshening:internal_value_set_of_closures.freshening
       ~direct_call_surrogates:
         internal_value_set_of_closures.direct_call_surrogates
-      ~args:(E.get_inlining_arguments env)
-      ~unboxing_arguments:internal_value_set_of_closures.unboxing_arguments
+      ~args:(E.get_inlining_settings env)
+      ~unboxing_settings:internal_value_set_of_closures.unboxing_settings
   in
   let direct_call_surrogates =
     Closure_id.Map.fold (fun existing surrogate surrogates ->
@@ -719,7 +719,7 @@ and simplify_set_of_closures original_env r
       ~free_vars:(Variable.Map.map fst free_vars)
       ~specialised_args
       ~direct_call_surrogates
-      ~unboxing_arguments:set_of_closures.unboxing_arguments
+      ~unboxing_settings:set_of_closures.unboxing_settings
   in
   let r = ret r (A.value_set_of_closures value_set_of_closures) in
   set_of_closures, r, value_set_of_closures.freshening
@@ -729,30 +729,16 @@ and simplify_apply env r ~(apply : Flambda.apply) : Flambda.t * R.t =
     Flambda. func = lhs_of_application; args; kind = _; dbg;
     inline = inline_requested; specialise = specialise_requested;
     inlining_depth = original_inlining_depth;
-    max_inlining_arguments = max_inlining_arguments;
+    max_inlining_settings = max_inlining_settings;
     inlining_history = inlining_history;
   } = apply in
-  (* we are always merging inlining environnements.
-      This allows us to keep the maximum inlining arguments sane at all
-      time. Ex: suppose we are in the following case:
-
-      A.ml (O3)      | B.ml (O1)      | C.ml  (O3)
-      let foo () =   | let bar () =   | let baz =
-        B.bar ()     |   C.baz ()     |   foo ()
-
-      When inlining A, we want to inline B. When B is inlined with O1,
-      a call to C.foo will appear in A. By updating the corresponding
-      value of max_inlining_arguments to be min(O1 (for B), O3 (for C)),
-      we will only inline the call of foo that had appears with O1,
-      which is predictable
-  *)
   let parts, env = E.pop_inlining_history_next_parts env in
   (* the parts we had defines previous history. We must add them at the end *)
   let inlining_history = Inlining_history.History.add inlining_history parts in
   let env =
-    E.merge_inlining_settings env max_inlining_arguments
+    E.merge_inlining_settings env max_inlining_settings
   in
-  let max_inlining_arguments = E.get_max_inlining_arguments env in
+  let max_inlining_settings = E.get_max_inlining_settings env in
   let dbg = E.add_inlined_debuginfo env ~dbg in
   let env = E.add_original_inlining_depth env original_inlining_depth in
   simplify_free_variable env lhs_of_application
@@ -818,7 +804,7 @@ and simplify_apply env r ~(apply : Flambda.apply) : Flambda.t * R.t =
                 Closure_id.print closure_id_being_applied
           in
           let rec_info = value_closure.rec_info in
-          let unboxing_arguments = value_set_of_closures.unboxing_arguments in
+          let unboxing_settings = value_set_of_closures.unboxing_settings in
           let r =
             match apply.kind with
             | Indirect ->
@@ -842,7 +828,7 @@ and simplify_apply env r ~(apply : Flambda.apply) : Flambda.t * R.t =
               simplify_partial_application env r ~lhs_of_application
                 ~closure_id_being_applied ~function_decl ~args ~dbg
                 ~inline_requested ~specialise_requested
-                ~unboxing_arguments
+                ~unboxing_settings
             else
               Misc.fatal_errorf "Function with arity %d when simplifying \
                   application expression: %a"
@@ -853,7 +839,7 @@ and simplify_apply env r ~(apply : Flambda.apply) : Flambda.t * R.t =
           Apply ({ func = lhs_of_application; args; kind = Indirect; dbg;
                    inline = inline_requested; specialise = specialise_requested;
                    inlining_depth = E.inlining_depth env;
-                   max_inlining_arguments = Some max_inlining_arguments;
+                   max_inlining_settings = Some max_inlining_settings;
                    inlining_history
                  }),
             ret r (A.value_unknown Other)))
@@ -884,7 +870,7 @@ and simplify_full_application env r ~function_decls ~lhs_of_application
 
 and simplify_partial_application env r ~lhs_of_application
       ~closure_id_being_applied ~function_decl ~args ~dbg
-      ~inline_requested ~specialise_requested ~unboxing_arguments =
+      ~inline_requested ~specialise_requested ~unboxing_settings =
   let arity = A.function_arity function_decl in
   assert (arity > List.length args);
   (* For simplicity, we disallow [@inline] attributes on partial
@@ -936,7 +922,7 @@ and simplify_partial_application env r ~lhs_of_application
       ~recursive:false
       ~rec_info:{ depth = 0; unroll_to = 0; }
       ~stub:true
-      ~unboxing_arguments
+      ~unboxing_settings
       ~inlining_history:Inlining_history.History.empty
   in
   let with_known_args =
@@ -973,7 +959,7 @@ and simplify_over_application env r ~args ~args_approxs ~function_decls
       (Apply { func = func_var; args = remaining_args; kind = Indirect; dbg;
                inline = inline_requested; specialise = specialise_requested;
                inlining_depth = E.inlining_depth env;
-               max_inlining_arguments = Some (E.get_max_inlining_arguments env);
+               max_inlining_settings = Some (E.get_max_inlining_settings env);
                inlining_history (* not updating it *)
              })
   in
@@ -1607,7 +1593,7 @@ let constant_defining_value_approx
     in
     A.value_block tag (Array.of_list fields)
   | Set_of_closures
-      { function_decls; rec_info; free_vars; specialised_args; unboxing_arguments } ->
+      { function_decls; rec_info; free_vars; specialised_args; unboxing_settings } ->
     (* At toplevel, there is no freshening currently happening (this
        cannot be the body of a currently inlined function), so we can
        keep the original set_of_closures in the approximation. *)
@@ -1636,8 +1622,8 @@ let constant_defining_value_approx
         ~free_vars:Variable.Map.empty
         ~freshening:Freshening.Project_var.empty
         ~direct_call_surrogates:Closure_id.Map.empty
-        ~args:(E.get_inlining_arguments env)
-        ~unboxing_arguments
+        ~args:(E.get_inlining_settings env)
+        ~unboxing_settings
     in
     A.value_set_of_closures value_set_of_closures
   | Project_closure (set_of_closures_symbol, closure_id) -> begin

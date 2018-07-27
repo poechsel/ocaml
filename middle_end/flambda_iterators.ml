@@ -429,7 +429,7 @@ let map_general ~toplevel f f_named tree =
       | Project_closure _ | Move_within_set_of_closures _ | Project_var _
       | Prim _ | Read_symbol_field _ | Recursive _ -> named
       | Set_of_closures ({ function_decls; free_vars; specialised_args;
-                           direct_call_surrogates; rec_info; unboxing_arguments }) ->
+                           direct_call_surrogates; rec_info; unboxing_settings }) ->
         if toplevel then named
         else begin
           let done_something = ref false in
@@ -452,7 +452,7 @@ let map_general ~toplevel f f_named tree =
             let set_of_closures =
               Flambda.create_set_of_closures ~function_decls ~free_vars
                 ~specialised_args ~direct_call_surrogates ~rec_info
-                ~unboxing_arguments
+                ~unboxing_settings
             in
             Set_of_closures set_of_closures
         end
@@ -513,7 +513,7 @@ let map_symbols tree ~f =
 
 let map_symbols_on_set_of_closures
     ({ Flambda.function_decls; free_vars; specialised_args;
-        direct_call_surrogates; rec_info; unboxing_arguments} as
+        direct_call_surrogates; rec_info; unboxing_settings} as
       set_of_closures)
     ~f =
   let done_something = ref false in
@@ -535,7 +535,7 @@ let map_symbols_on_set_of_closures
     in
     Flambda.create_set_of_closures ~function_decls ~free_vars
       ~specialised_args ~direct_call_surrogates ~rec_info
-      ~unboxing_arguments
+      ~unboxing_settings
 
 let map_toplevel_sets_of_closures tree ~f =
   map_toplevel_named (function
@@ -627,7 +627,7 @@ let map_function_bodies (set_of_closures : Flambda.set_of_closures) ~f =
       ~free_vars:set_of_closures.free_vars
       ~specialised_args:set_of_closures.specialised_args
       ~direct_call_surrogates:set_of_closures.direct_call_surrogates
-      ~unboxing_arguments:set_of_closures.unboxing_arguments
+      ~unboxing_settings:set_of_closures.unboxing_settings
 
 let map_sets_of_closures_of_program (program : Flambda.program)
     ~(f : Flambda.set_of_closures -> Flambda.set_of_closures) =
@@ -660,7 +660,7 @@ let map_sets_of_closures_of_program (program : Flambda.program)
           ~free_vars:set_of_closures.free_vars
           ~specialised_args:set_of_closures.specialised_args
           ~direct_call_surrogates:set_of_closures.direct_call_surrogates
-          ~unboxing_arguments:set_of_closures.unboxing_arguments
+          ~unboxing_settings:set_of_closures.unboxing_settings
     in
     match program with
     | Let_symbol (symbol, Set_of_closures set_of_closures, program') ->
@@ -753,7 +753,7 @@ let map_exprs_at_toplevel_of_program (program : Flambda.program)
           ~free_vars:set_of_closures.free_vars
           ~specialised_args:set_of_closures.specialised_args
           ~direct_call_surrogates:set_of_closures.direct_call_surrogates
-          ~unboxing_arguments:set_of_closures.unboxing_arguments
+          ~unboxing_settings:set_of_closures.unboxing_settings
     in
     (* CR-soon mshinwell: code very similar to the above function *)
     match program with

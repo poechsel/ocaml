@@ -61,7 +61,11 @@ let add_lifted_projections_around_set_of_closures
     (body, benefit)
 
 let run ~env ~(set_of_closures : Flambda.set_of_closures) =
-  if not set_of_closures.unboxing_arguments.unbox_free_vars_of_closures then
+  let unbox =
+    Settings.Unboxing.unbox_free_vars_of_closures
+      set_of_closures.unboxing_settings
+  in
+  if not unbox then
     None
   else
     let definitions_indexed_by_new_inner_vars, _, free_vars, done_something =
@@ -156,7 +160,7 @@ let run ~env ~(set_of_closures : Flambda.set_of_closures) =
             ~free_vars
             ~specialised_args:set_of_closures.specialised_args
             ~direct_call_surrogates:set_of_closures.direct_call_surrogates
-            ~unboxing_arguments:set_of_closures.unboxing_arguments
+            ~unboxing_settings:set_of_closures.unboxing_settings
         in
         let expr, benefit =
           add_lifted_projections_around_set_of_closures ~set_of_closures
