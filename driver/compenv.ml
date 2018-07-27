@@ -276,9 +276,6 @@ let read_one_param ppf position name v =
   | "inline-max-unroll" ->
     Int_arg_helper.parse v "Bad syntax in OCAMLPARAM for 'inline-max-unroll'"
       inline_max_unroll
-  | "inline-max-specialise" ->
-    Int_arg_helper.parse v "Bad syntax in OCAMLPARAM for 'inline-max-specialise'"
-      inline_max_specialise
   | "inline-call-cost" ->
     Int_arg_helper.parse v
       "Bad syntax in OCAMLPARAM for 'inline-call-cost'"

@@ -38,7 +38,6 @@ module Env = struct
     never_inline_inside_closures : bool;
     never_inline_outside_closures : bool;
     inlining_depth : int;
-    specialise_depth : int;
     closure_depth : int;
     inlined_debuginfo : Debuginfo.t;
     inlining_arguments : Settings.Inlining.t;
@@ -66,7 +65,6 @@ module Env = struct
       never_inline_inside_closures = false;
       never_inline_outside_closures = false;
       inlining_depth = 0;
-      specialise_depth = 0;
       closure_depth = 0;
       inlined_debuginfo = Debuginfo.none;
       inlining_arguments = Settings.Inlining.get round;
@@ -296,15 +294,6 @@ module Env = struct
     let limit = t.inlining_arguments |> Settings.Inlining.inline_max_depth
     in
     t.inlining_depth < limit
-
-  let specialising_allowed t =
-    let limit = t.inlining_arguments |> Settings.Inlining.inline_max_specialise
-    in
-    limit - t.specialise_depth > 0
-
-  let inside_specialised_function t =
-    { t with specialise_depth = t.specialise_depth + 1 }
-
 
   let inside_inlined_function t =
     let inlining_depth = t.inlining_depth + 1 in

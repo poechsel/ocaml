@@ -49,7 +49,6 @@ module Inlining = struct
     inline_max_depth : int;
     inline_max_speculation_depth : int;
     inline_max_unroll : int;
-    inline_max_specialise : int;
     inline_threshold : int;
     inline_toplevel_threshold : int;
   }
@@ -73,10 +72,9 @@ module Inlining = struct
   let default_inline_branch_factor = 0.1
   let default_inline_lifting_benefit = 1300
   let default_inline_max_unroll = 0
-  let default_inline_max_specialise = 10
   let default_inline_max_depth = 5
   let default_inline_max_speculation_depth = 1
-    
+
   let o1_arguments = {
     inline_call_cost = default_inline_call_cost;
     inline_alloc_cost = default_inline_alloc_cost;
@@ -88,7 +86,6 @@ module Inlining = struct
     inline_max_depth = default_inline_max_depth;
     inline_max_speculation_depth = default_inline_max_speculation_depth;
     inline_max_unroll = default_inline_max_unroll;
-    inline_max_specialise = default_inline_max_specialise;
     inline_threshold = default_inline_threshold;
     inline_toplevel_threshold = default_inline_toplevel_threshold;
   }
@@ -104,7 +101,6 @@ module Inlining = struct
     inline_max_depth = default_inline_max_depth;
     inline_max_speculation_depth = default_inline_max_speculation_depth;
     inline_max_unroll = default_inline_max_unroll;
-    inline_max_specialise = default_inline_max_specialise;
     (* [inline_threshold] matches the current compiler's default.
        Note that this particular fraction can be expressed exactly in
        floating point. *)
@@ -124,7 +120,6 @@ module Inlining = struct
     inline_max_depth = 2 * default_inline_max_depth;
     inline_max_speculation_depth = 2 * default_inline_max_speculation_depth;
     inline_max_unroll = default_inline_max_unroll;
-    inline_max_specialise = 2 * default_inline_max_specialise;
     inline_threshold = 25;
     inline_toplevel_threshold = 25 * inline_toplevel_multiplier;
   }
@@ -140,7 +135,6 @@ module Inlining = struct
     inline_max_depth = 3 * default_inline_max_depth;
     inline_max_speculation_depth = 3 * default_inline_max_speculation_depth;
     inline_max_unroll = 1;
-    inline_max_specialise = 3 * default_inline_max_specialise;
     inline_threshold = 50;
     inline_toplevel_threshold = 50 * inline_toplevel_multiplier;
   }
@@ -160,7 +154,7 @@ module Inlining = struct
     | O3 -> o3_arguments.inline_alloc_cost
     | OClassic -> classic_arguments.inline_alloc_cost
     | Custom t -> t.inline_alloc_cost
-                    
+
   let inline_prim_cost args =
     match args with
     | O1 -> o1_arguments.inline_prim_cost
@@ -168,7 +162,7 @@ module Inlining = struct
     | O3 -> o3_arguments.inline_prim_cost
     | OClassic -> classic_arguments.inline_prim_cost
     | Custom t -> t.inline_prim_cost
-                    
+
   let inline_branch_cost args =
     match args with
     | O1 -> o1_arguments.inline_branch_cost
@@ -176,7 +170,7 @@ module Inlining = struct
     | O3 -> o3_arguments.inline_branch_cost
     | OClassic -> classic_arguments.inline_branch_cost
     | Custom t -> t.inline_branch_cost
-                    
+
   let inline_indirect_cost args =
     match args with
     | O1 -> o1_arguments.inline_indirect_cost
@@ -184,7 +178,7 @@ module Inlining = struct
     | O3 -> o3_arguments.inline_indirect_cost
     | OClassic -> classic_arguments.inline_indirect_cost
     | Custom t -> t.inline_indirect_cost
-                    
+
   let inline_lifting_benefit args =
     match args with
     | O1 -> o1_arguments.inline_lifting_benefit
@@ -192,7 +186,7 @@ module Inlining = struct
     | O3 -> o3_arguments.inline_lifting_benefit
     | OClassic -> classic_arguments.inline_lifting_benefit
     | Custom t -> t.inline_lifting_benefit
-                    
+
   let inline_branch_factor args =
     match args with
     | O1 -> o1_arguments.inline_branch_factor
@@ -200,7 +194,7 @@ module Inlining = struct
     | O3 -> o3_arguments.inline_branch_factor
     | OClassic -> classic_arguments.inline_branch_factor
     | Custom t -> t.inline_branch_factor
-                    
+
   let inline_max_depth args =
     match args with
     | O1 -> o1_arguments.inline_max_depth
@@ -224,15 +218,7 @@ module Inlining = struct
     | O3 -> o3_arguments.inline_max_unroll
     | OClassic -> classic_arguments.inline_max_unroll
     | Custom t -> t.inline_max_unroll
-                    
-  let inline_max_specialise args =
-    match args with
-    | O1 -> o1_arguments.inline_max_specialise
-    | O2 -> o2_arguments.inline_max_specialise
-    | O3 -> o3_arguments.inline_max_specialise
-    | OClassic -> classic_arguments.inline_max_specialise
-    | Custom t -> t.inline_max_specialise
-                    
+
   let inline_threshold args =
     match args with
     | O1 -> o1_arguments.inline_threshold
@@ -240,7 +226,7 @@ module Inlining = struct
     | O3 -> o3_arguments.inline_threshold
     | OClassic -> classic_arguments.inline_threshold
     | Custom t -> t.inline_threshold
-                    
+
   let inline_toplevel_threshold args =
     match args with
     | O1 -> o1_arguments.inline_toplevel_threshold
@@ -258,7 +244,7 @@ module Inlining = struct
     | Clflags.OClassic -> fn classic_arguments
     | Clflags.Int x -> x
     | _ -> assert false
-      
+
   let cost_f ~round flag fn =
     let v = Clflags.Float_arg_helper.get ~key:round flag in
     match (v : Clflags.inlining_argument) with
@@ -269,7 +255,7 @@ module Inlining = struct
     | Clflags.Float x -> x
     | _ -> assert false
 
-  let compress theory = 
+  let compress theory =
     if theory = o1_arguments then
       O1
     else if theory = o2_arguments then
@@ -313,9 +299,6 @@ module Inlining = struct
       inline_max_unroll =
         cost !Clflags.inline_max_unroll ~round
           (fun x -> x.inline_max_unroll);
-      inline_max_specialise =
-        cost !Clflags.inline_max_specialise ~round
-          (fun x -> x.inline_max_specialise);
       inline_threshold =
         cost !Clflags.inline_threshold ~round
           (fun x -> x.inline_threshold);
@@ -354,8 +337,6 @@ module Inlining = struct
             min (inline_max_speculation_depth args1) (inline_max_speculation_depth args2);
           inline_max_unroll =
             min (inline_max_unroll args1) (inline_max_unroll args2);
-          inline_max_specialise =
-            min (inline_max_specialise args1) (inline_max_specialise args2);
           inline_threshold =
             min (inline_threshold args1) (inline_threshold args2);
           inline_toplevel_threshold =
@@ -425,12 +406,6 @@ module Inlining = struct
                Clflags.inline_max_unroll :=
                  Clflags.Int_arg_helper.add_user_override r (Clflags.Int x)
                    !Clflags.inline_max_unroll));
-           ("inline_max_specialise",
-            inline_max_specialise,
-            (fun r x ->
-               Clflags.inline_max_specialise :=
-                 Clflags.Int_arg_helper.add_user_override r (Clflags.Int x)
-                   !Clflags.inline_max_specialise));
            ("inline_toplevel_threshold",
             inline_toplevel_threshold,
             (fun r x ->
