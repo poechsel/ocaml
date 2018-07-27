@@ -256,11 +256,11 @@ let toplevel_substitution sb tree =
       let new_value = sb new_value in
       Assign { being_assigned; new_value; }
     | Apply { func; args; kind; dbg; inlining_depth; inline; specialise;
-            max_inlining_arguments } ->
+            max_inlining_settings } ->
       let func = sb func in
       let args = List.map sb args in
       Apply { func; args; kind; dbg; inlining_depth; inline; specialise;
-            max_inlining_arguments }
+            max_inlining_settings }
     | If_then_else (cond, e1, e2) ->
       let cond = sb cond in
       If_then_else (cond, e1, e2)
@@ -307,7 +307,7 @@ let toplevel_substitution sb tree =
                 { spec_to with var = sb spec_to.var; })
               set_of_closures.specialised_args)
           ~direct_call_surrogates:set_of_closures.direct_call_surrogates
-          ~unboxing_arguments:set_of_closures.unboxing_arguments
+          ~unboxing_settings:set_of_closures.unboxing_settings
       in
       Set_of_closures set_of_closures
     | Project_closure project_closure ->
@@ -342,7 +342,7 @@ let toplevel_substitution_named sb named =
 
 let make_closure_declaration ~is_classic_mode ~id
       ~body ~params ~recursive ~rec_info ~stub
-      ~unboxing_arguments
+      ~unboxing_settings
     : Flambda.t =
   let free_variables = Flambda.free_variables body in
   let param_set = Parameter.Set.vars params in
@@ -394,7 +394,7 @@ let make_closure_declaration ~is_classic_mode ~id
     Flambda.create_set_of_closures ~function_decls ~rec_info ~free_vars
       ~specialised_args:Variable.Map.empty
       ~direct_call_surrogates:Variable.Map.empty
-      ~unboxing_arguments
+      ~unboxing_settings
   in
   let project_closure : Flambda.named =
     Project_closure {
@@ -588,7 +588,7 @@ let substitute_read_symbol_field_for_variables
                 { spec_to with var = sb spec_to.var; })
               set_of_closures.specialised_args)
           ~direct_call_surrogates:set_of_closures.direct_call_surrogates
-          ~unboxing_arguments:set_of_closures.unboxing_arguments
+          ~unboxing_settings:set_of_closures.unboxing_settings
       in
       Set_of_closures set_of_closures
     | Project_closure project_closure ->
@@ -715,7 +715,7 @@ let substitute_read_symbol_field_for_variables
       bind_to_value @@
       Flambda.For { bound_var; from_value; to_value; direction; body }
     | Apply { func; args; kind; dbg; inlining_depth; inline; specialise;
-              max_inlining_arguments} ->
+              max_inlining_settings} ->
       let func, bind_func = make_var_subst func in
       let args, bind_args =
         List.split (List.map make_var_subst args)
@@ -723,7 +723,7 @@ let substitute_read_symbol_field_for_variables
       bind_func @@
       List.fold_right (fun f expr -> f expr) bind_args @@
       Flambda.Apply { func; args; kind; inlining_depth; dbg; inline; specialise;
-                      max_inlining_arguments }
+                      max_inlining_settings }
     | Send { kind; meth; obj; args; dbg } ->
       let meth, bind_meth = make_var_subst meth in
       let obj, bind_obj = make_var_subst obj in
@@ -967,5 +967,5 @@ let make_stub_body ?(dbg = Debuginfo.none) func args ~kind =
     inlining_depth = 0;
     inline = Default_inline;
     specialise = Default_specialise;
-    max_inlining_arguments = None;
+    max_inlining_settings = None;
   }

@@ -160,7 +160,7 @@ let separate_unused_arguments ~only_specialised
         (* CR-soon mshinwell: Use direct_call_surrogates for this
            transformation. *)
         ~direct_call_surrogates:set_of_closures.direct_call_surrogates
-        ~unboxing_arguments:set_of_closures.unboxing_arguments
+        ~unboxing_settings:set_of_closures.unboxing_settings
     in
     Some set_of_closures
   end
@@ -173,7 +173,7 @@ let separate_unused_arguments ~only_specialised
 let should_split_only_specialised_args
       (fun_decls : Flambda.function_declarations)
       (args : Settings.Unboxing.t) =
-  let remove_unused = args.remove_unused_arguments in
+  let remove_unused = Settings.Unboxing.remove_unused_arguments args in
   if not remove_unused then begin
     true
   end else begin
@@ -199,7 +199,7 @@ let separate_unused_arguments_in_set_of_closures set_of_closures
   let only_specialised =
     should_split_only_specialised_args
        set_of_closures.Flambda.function_decls
-       set_of_closures.Flambda.unboxing_arguments
+       set_of_closures.Flambda.unboxing_settings
   in
   match separate_unused_arguments
           ~only_specialised ~symbol_to_closure_id ~set_of_closures with

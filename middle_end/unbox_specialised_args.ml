@@ -23,7 +23,7 @@ module Transform = struct
   let pass_name = "unbox-specialised-args"
 
   let precondition ~env:_ ~(set_of_closures : Flambda.set_of_closures) =
-    set_of_closures.unboxing_arguments.unbox_specialised_args
+    Settings.Unboxing.unbox_specialised_args set_of_closures.unboxing_settings
       && not (Variable.Map.is_empty set_of_closures.specialised_args)
 
   let what_to_specialise ~env ~(set_of_closures : Flambda.set_of_closures) =

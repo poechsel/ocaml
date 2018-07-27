@@ -22,9 +22,6 @@ module Unboxing = struct
     unbox_closures_factor : int;
     remove_unused_arguments : bool;
   }
-  type u = t
-
-  let extract args = args
 
   let get () =
     {
@@ -34,6 +31,12 @@ module Unboxing = struct
       unbox_closures_factor = !Clflags.unbox_closures_factor;
       remove_unused_arguments = !Clflags.remove_unused_arguments;
     }
+
+  let unbox_specialised_args x = x.unbox_specialised_args
+  let unbox_free_vars_of_closures x = x.unbox_free_vars_of_closures
+  let unbox_closures x = x.unbox_closures
+  let unbox_closures_factor x = x.unbox_closures_factor
+  let remove_unused_arguments x = x.remove_unused_arguments
 end
 
 

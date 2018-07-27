@@ -68,7 +68,7 @@ let import_set_of_closures =
 let rec import_ex ex =
   let import_value_set_of_closures ~set_of_closures_id ~rec_info
         ~bound_vars ~free_vars
-        ~(ex_info : Export_info.t) ~unboxing_arguments
+        ~(ex_info : Export_info.t) ~unboxing_settings
         ~what : A.value_set_of_closures option =
     let bound_vars = Var_within_closure.Map.map import_approx bound_vars in
     match import_set_of_closures set_of_closures_id with
@@ -98,7 +98,7 @@ let rec import_ex ex =
         ~rec_info
         ~bound_vars
         ~free_vars
-        ~unboxing_arguments
+        ~unboxing_settings
         ~invariant_params:(lazy invariant_params)
         ~specialised_args:Variable.Map.empty
         ~freshening:Freshening.Project_var.empty
@@ -142,10 +142,10 @@ let rec import_ex ex =
     | Value_closure { closure_id;
           set_of_closures =
             { set_of_closures_id; rec_info;
-              bound_vars; free_vars; aliased_symbol; unboxing_arguments  } } ->
+              bound_vars; free_vars; aliased_symbol; unboxing_settings  } } ->
       let value_set_of_closures =
         import_value_set_of_closures
-          ~set_of_closures_id ~rec_info ~unboxing_arguments
+          ~set_of_closures_id ~rec_info ~unboxing_settings
           ~bound_vars ~free_vars ~ex_info
           ~what:(Format.asprintf "Value_closure %a" Closure_id.print closure_id)
       in
@@ -164,10 +164,10 @@ let rec import_ex ex =
       end
     | Value_set_of_closures
         { set_of_closures_id; rec_info;
-          bound_vars; free_vars; aliased_symbol; unboxing_arguments  } ->
+          bound_vars; free_vars; aliased_symbol; unboxing_settings  } ->
       let value_set_of_closures =
         import_value_set_of_closures ~set_of_closures_id ~rec_info
-          ~unboxing_arguments ~bound_vars ~free_vars ~ex_info
+          ~unboxing_settings ~bound_vars ~free_vars ~ex_info
           ~what:"Value_set_of_closures"
       in
       match value_set_of_closures with

@@ -44,10 +44,11 @@ let fold_over_projections_of_vars_bound_by_closure ~closure_id_being_applied
     bound_variables
     init
 
-let set_attributes_on_all_apply body inline specialise inlining_depth max_inlining_arguments =
+let set_attributes_on_all_apply body inline specialise inlining_depth
+      max_inlining_settings =
   Flambda_iterators.map_toplevel_expr (function
     | Apply apply -> Apply { apply with inline; specialise; inlining_depth;
-                           max_inlining_arguments }
+                           max_inlining_settings }
       | expr -> expr)
     body
 
@@ -120,7 +121,7 @@ let inline_by_copying_function_body ~env ~r
       ~unroll_to ~args ~dbg ~simplify =
   assert (E.mem env lhs_of_application);
   assert (List.for_all (E.mem env) args);
-  let max_inlining_arguments = E.get_max_inlining_arguments env in
+  let max_inlining_settings = E.get_max_inlining_settings env in
   let function_decls =
     (* This lets us check which recursive siblings are used simply by
        checking free variables. *)
@@ -149,7 +150,7 @@ let inline_by_copying_function_body ~env ~r
          in the source. *)
       set_attributes_on_all_apply body
         inline_requested specialise_requested (E.inlining_depth env)
-        (Some max_inlining_arguments)
+        (Some max_inlining_settings)
     else
       body
   in
@@ -678,7 +679,7 @@ let inline_by_copying_function_declaration
     ~(specialised_args : Flambda.specialised_to Variable.Map.t)
     ~(free_vars : Flambda.specialised_to Variable.Map.t)
     ~(direct_call_surrogates : Closure_id.t Closure_id.Map.t)
-    ~(unboxing_arguments:Settings.Unboxing.t)
+    ~(unboxing_settings:Settings.Unboxing.t)
     ~(dbg : Debuginfo.t)
     ~(simplify : Inlining_decision_intf.simplify) =
   let state = empty_state in
@@ -727,7 +728,7 @@ let inline_by_copying_function_declaration
       let set_of_closures =
         Flambda.create_set_of_closures ~function_decls ~rec_info
           ~free_vars ~specialised_args ~direct_call_surrogates
-          ~unboxing_arguments
+          ~unboxing_settings
       in
       let closure_var = new_var Internal_variable_names.dup_func in
       let set_of_closures_var =
@@ -740,7 +741,7 @@ let inline_by_copying_function_declaration
         { func = closure_var; args; kind = Direct closure_id; dbg;
           inlining_depth = E.inlining_depth env;
           inline = inline_requested; specialise = Default_specialise;
-          max_inlining_arguments = Some (E.get_max_inlining_arguments env);
+          max_inlining_settings = Some (E.get_max_inlining_settings env);
         }
       in
       let body =

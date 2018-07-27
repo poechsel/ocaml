@@ -246,17 +246,17 @@ module Env : sig
   (** Appends the locations of inlined call-sites to the [~dbg] argument *)
   val add_inlined_debuginfo : t -> dbg:Debuginfo.t -> Debuginfo.t
 
-  (** get the inlining arguments of our env *)
-  val get_inlining_arguments : t -> Settings.Inlining.t
+  (** get the inlining settings of our env *)
+  val get_inlining_settings : t -> Settings.Inlining.t
 
-  (** get the maximum inlining arguments of our env *)
-  val get_max_inlining_arguments : t -> Settings.Inlining.t
+  (** get the maximum inlining settings of our env *)
+  val get_max_inlining_settings : t -> Settings.Inlining.t
 
-  (** set the inlining arguments of our env *)
-  val set_inlining_arguments : t -> Settings.Inlining.t -> t
+  (** set the inlining settings of our env *)
+  val set_inlining_settings : t -> Settings.Inlining.t -> t
 
-  (** set the maximum inlining arguments of our env *)
-  val set_max_inlining_arguments : t -> Settings.Inlining.t -> t
+  (** set the maximum inlining settings of our env *)
+  val set_max_inlining_settings : t -> Settings.Inlining.t -> t
 
   val merge_inlining_settings
     : t -> Settings.Inlining.t option -> t

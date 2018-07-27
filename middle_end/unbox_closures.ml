@@ -24,9 +24,9 @@ module Transform = struct
   let pass_name = "unbox-closures"
 
   let precondition ~env ~(set_of_closures : Flambda.set_of_closures) =
-    set_of_closures.unboxing_arguments.unbox_closures
-      && not (E.at_toplevel env)
-      && not (Variable.Map.is_empty set_of_closures.free_vars)
+    Settings.Unboxing.unbox_closures set_of_closures.unboxing_settings
+    && not (E.at_toplevel env)
+    && not (Variable.Map.is_empty set_of_closures.free_vars)
 
   let what_to_specialise ~env ~(set_of_closures : Flambda.set_of_closures) =
     let what_to_specialise = W.create ~set_of_closures in
@@ -51,14 +51,21 @@ module Transform = struct
              duplicating the function.) *)
           let small_enough_to_duplicate =
             let module W = Inlining_cost.Whether_sufficient_benefit in
+            let unbox =
+              Settings.Unboxing.unbox_closures_factor
+                set_of_closures.unboxing_settings
+            in
+            let new_size =
+              (body_size / unbox) + 1
+            in
             let wsb =
               W.create_estimate ~original_size:0
                 ~toplevel:false
                 ~branch_depth:0
-                ~new_size:((body_size / set_of_closures.unboxing_arguments.unbox_closures_factor) + 1)
+                ~new_size
                 ~benefit:saved_by_not_building_closure
                 ~lifting:false
-                ~args:(E.get_inlining_arguments env)
+                ~args:(E.get_inlining_settings env)
             in
             W.evaluate wsb
           in

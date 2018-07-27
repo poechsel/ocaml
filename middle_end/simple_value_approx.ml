@@ -104,7 +104,7 @@ and value_set_of_closures = {
   specialised_args : Flambda.specialised_to Variable.Map.t;
   freshening : Freshening.Project_var.t;
   direct_call_surrogates : Closure_id.t Closure_id.Map.t;
-  unboxing_arguments : Settings.Unboxing.t;
+  unboxing_settings : Settings.Unboxing.t;
 }
 
 and value_float_array_contents =
@@ -364,7 +364,7 @@ let create_value_set_of_closures
       ~(function_decls : function_declarations) ~rec_info ~bound_vars
       ~free_vars ~invariant_params ~specialised_args ~freshening
       ~direct_call_surrogates  ~(args : Settings.Inlining.t)
-      ~unboxing_arguments =
+      ~unboxing_settings =
   let size =
     lazy (
       let functions = Variable.Map.keys function_decls.funs in
@@ -399,7 +399,7 @@ let create_value_set_of_closures
     specialised_args;
     freshening;
     direct_call_surrogates;
-    unboxing_arguments;
+    unboxing_settings;
   }
 
 let update_freshening_of_value_set_of_closures value_set_of_closures

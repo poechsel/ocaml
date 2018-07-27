@@ -75,7 +75,7 @@ let import_set_of_closures units pack
       import_set_of_closures_id_for_pack units pack
         set_of_closures.set_of_closures_id;
     rec_info = set_of_closures.rec_info;
-    unboxing_arguments = set_of_closures.unboxing_arguments;
+    unboxing_settings = set_of_closures.unboxing_settings;
     bound_vars =
       Var_within_closure.Map.map (import_approx_for_pack units pack)
         set_of_closures.bound_vars;
@@ -125,7 +125,7 @@ let rec import_code_for_pack units pack expr =
             ~rec_info:set_of_closures.rec_info
             ~specialised_args:set_of_closures.specialised_args
             ~direct_call_surrogates:set_of_closures.direct_call_surrogates
-            ~unboxing_arguments:set_of_closures.unboxing_arguments
+            ~unboxing_settings:set_of_closures.unboxing_settings
             ~function_decls:
               (import_function_declarations_for_pack_aux units pack
                  set_of_closures.function_decls)

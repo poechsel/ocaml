@@ -63,7 +63,7 @@ and value_set_of_closures = {
   free_vars : Flambda.specialised_to Variable.Map.t;
   results : approx Closure_id.Map.t;
   aliased_symbol : Symbol.t option;
-  unboxing_arguments : Settings.Unboxing.t;
+  unboxing_settings : Settings.Unboxing.t;
 }
 
 and approx =
