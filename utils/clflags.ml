@@ -200,7 +200,6 @@ let default_inline_indirect_cost = 4
 let default_inline_branch_factor = 0.1
 let default_inline_lifting_benefit = 1300
 let default_inline_max_unroll = 0
-let default_inline_max_specialise = 10
 let default_inline_max_depth = 5
 let default_inline_max_speculation_depth = 1
 
@@ -219,8 +218,6 @@ let inline_branch_factor =
 let inline_lifting_benefit =
   ref (Int_arg_helper.default O1)
 let inline_max_unroll =
-  ref (Int_arg_helper.default O1)
-let inline_max_specialise =
   ref (Int_arg_helper.default O1)
 let inline_max_depth =
   ref (Int_arg_helper.default O1)
@@ -265,7 +262,6 @@ let use_inlining_arguments_set ?round (arg:inlining_argument) =
   set_int inline_max_depth arg;
   set_int inline_max_speculation_depth arg;
   set_int inline_max_unroll arg;
-  set_int inline_max_specialise arg;
   set_int inline_threshold arg;
   set_int inline_toplevel_threshold arg
 

@@ -177,12 +177,6 @@ module Env : sig
       Unconditionally inlined does not take this into account. *)
   val speculation_depth_up : t -> t
 
-  (** Wether it is permissible to unroll a function *)
-  val specialising_allowed : t -> bool
-
-  (** Increased specialisation depth *)
-  val inside_specialised_function : t -> t
-
   (** Whether it is permissible to inline a call to a function in the given
       environment. *)
   val inlining_allowed : t -> bool
