@@ -70,6 +70,7 @@ module Inlining_report = struct
     }
 
   type marshal = {
+    digest: Digest.t;
     dependencies : (string, string option) Hashtbl.t;
     report : t;
   }
@@ -314,8 +315,9 @@ module Inlining_report = struct
   let print ppf t filename =
     print (IH.Path.empty (Flambda.current_module ())) ~depth:0 filename ppf t
 
-  let marshal t filename =
+  let marshal ~sourcename t filename =
     let report = {
+      digest = Digest.file sourcename;
       dependencies = cmf_cache;
       report = t
     }
@@ -324,7 +326,7 @@ module Inlining_report = struct
     Marshal.to_channel channel report [Marshal.Compat_32]
 end
 
-let really_save_then_forget_decisions ~output_prefix =
+let really_save_then_forget_decisions ~sourcename ~output_prefix =
 
   let report =
     Profile.record_call
@@ -339,14 +341,15 @@ let really_save_then_forget_decisions ~output_prefix =
     if !Clflags.inlining_report then
       Inlining_report.print ppf report filename;
     if !Clflags.bin_inlining_report then
-      Inlining_report.marshal report (output_prefix ^ ".cmf")
+      Inlining_report.marshal ~sourcename
+        report (output_prefix ^ ".cmf")
   );
   close_out out_channel
 
-let save_then_forget_decisions ~output_prefix =
+let save_then_forget_decisions ~sourcename ~output_prefix =
   if Clflags.inlining_report_on () then begin
     Profile.record_call "report save" (fun () ->
-    really_save_then_forget_decisions ~output_prefix);
+    really_save_then_forget_decisions ~sourcename ~output_prefix);
     log := [];
     Hashtbl.clear external_logs
   end

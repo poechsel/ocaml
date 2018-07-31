@@ -18,9 +18,12 @@
 
 
 val record_decision
-   : Inlining_stats_types.Decision.t
-   -> round:int
+  : Inlining_stats_types.Decision.t
+  -> round:int
   -> closure_stack:Inlining_history.History.t
   -> unit
 
-val save_then_forget_decisions : output_prefix:string -> unit
+val save_then_forget_decisions
+  : sourcename:string
+  -> output_prefix:string
+  -> unit
