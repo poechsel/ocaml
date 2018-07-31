@@ -116,6 +116,7 @@ module Options = Main_args.Make_opttop_options (struct
       "Syntax: -inline-toplevel <n> | <round>=<n>[,...]"
       inline_toplevel_threshold
   let _inlining_report () = inlining_report := true
+  let _bin_inlining_report () = bin_inlining_report := true
   let _dump_pass pass = set_dumped_pass pass true
   let _rounds n = simplify_rounds := Some n
   let _inline_max_unroll spec =

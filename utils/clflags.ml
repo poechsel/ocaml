@@ -167,6 +167,7 @@ let unsafe_string =
 
 let classic_inlining = ref false       (* -Oclassic *)
 let inlining_report = ref false    (* -inlining-report *)
+let bin_inlining_report = ref false    (* -bin-inlining-report *)
 
 let afl_instrument = ref Config.afl_instrument (* -afl-instrument *)
 let afl_inst_ratio = ref 100           (* -afl-inst-ratio *)
@@ -425,3 +426,20 @@ let parse_arguments f msg =
   with
   | Arg.Bad msg -> Printf.eprintf "%s" msg; exit 2
   | Arg.Help msg -> Printf.printf "%s" msg; exit 0
+
+
+let inlining_report_on () =
+  !inlining_report ||
+  !bin_inlining_report
+
+let backup_inlining_report () =
+  !inlining_report,
+  !bin_inlining_report
+
+let restore_inlining_report (org, bin) =
+  inlining_report := org;
+  bin_inlining_report := bin
+
+let turn_inlining_report_off () =
+  inlining_report := false;
+  bin_inlining_report := false
