@@ -166,7 +166,7 @@ let middle_end ppf ~prefixname ~backend
                loop flam
            in
            let flam = back_end flam in
-           if !Clflags.inlining_report then begin
+           if Clflags.inlining_report_on () then begin
              Profile.record_call
                "inlining reports"
                (fun _ -> Inlining_stats.save_then_forget_decisions ~output_prefix:prefixname)

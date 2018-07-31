@@ -146,6 +146,7 @@ val native_code : bool ref
 val default_inline_threshold : int
 val inline_threshold : Int_arg_helper.parsed ref
 val inlining_report : bool ref
+val bin_inlining_report : bool ref
 val simplify_rounds : int option ref
 val default_simplify_rounds : int ref
 val rounds : unit -> int
@@ -226,3 +227,11 @@ val print_arguments : string -> unit
 
 (* [reset_arguments ()] clear all declared arguments *)
 val reset_arguments : unit -> unit
+
+val inlining_report_on : unit -> bool
+
+val backup_inlining_report : unit -> bool * bool
+
+val restore_inlining_report : bool * bool -> unit
+
+val turn_inlining_report_off : unit -> unit

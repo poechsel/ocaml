@@ -150,6 +150,7 @@ module type Optcommon_options = sig
   val _inline : string -> unit
   val _inline_toplevel : string -> unit
   val _inlining_report : unit -> unit
+  val _bin_inlining_report : unit -> unit
   val _dump_pass : string -> unit
   val _inline_max_depth : string -> unit
   val _inline_max_speculation_depth : string -> unit

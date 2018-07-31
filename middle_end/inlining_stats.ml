@@ -21,10 +21,11 @@ module IH = Inlining_history
 
 let log = ref []
 let external_logs = Hashtbl.create 5
+let cmf_cache = Hashtbl.create 5
 
 
 let record_decision decision ~round ~closure_stack =
-  if !Clflags.inlining_report then begin
+  if Clflags.inlining_report_on () then begin
     match (closure_stack : IH.History.t) with
     | []
     | Module _ :: _
@@ -68,6 +69,10 @@ module Inlining_report = struct
       specialised_call = None;
     }
 
+  type marshal = {
+    dependencies : (string, string option) Hashtbl.t;
+    report : t;
+  }
 
   (* Prevented or unchanged decisions may be overridden by a later look at the
      same call. Other decisions may also be "overridden" because calls are not
@@ -144,20 +149,27 @@ module Inlining_report = struct
     in
     loop t (List.rev stack)
 
-  let get_external_logs modname =
-    if Hashtbl.mem external_logs modname then
-      Hashtbl.find external_logs modname
+  let cache_find_in_path cache key file =
+    if Hashtbl.mem cache key then
+      Hashtbl.find cache key
     else
-      let filename =
+      let file =
         try
           Some (Misc.find_in_path_uncap
                   !Config.load_path
-                  (modname ^ ".inlining.org"))
+                  file)
         with Not_found ->
           None
       in
-      Hashtbl.add external_logs modname filename;
-      filename
+      Hashtbl.add cache key file;
+      file
+
+  let get_external_logs modname =
+    cache_find_in_path external_logs modname (modname ^ ".inlining.org")
+
+  let append_cmf modname =
+    cache_find_in_path cmf_cache modname (modname ^ ".cmf")
+    |> ignore
 
   let build log =
     List.fold_left add_decision Place_map.empty !log
@@ -168,6 +180,7 @@ module Inlining_report = struct
     let link =
       if IH.Path.file path <> Flambda.current_module () then
         let filename = get_external_logs (IH.Path.file path) in
+        let () = append_cmf (IH.Path.file path) in
         match filename with
         | None -> None
         | Some filename ->
@@ -300,6 +313,15 @@ module Inlining_report = struct
 
   let print ppf t filename =
     print (IH.Path.empty (Flambda.current_module ())) ~depth:0 filename ppf t
+
+  let marshal t filename =
+    let report = {
+      dependencies = cmf_cache;
+      report = t
+    }
+    in
+    let channel = open_out filename in
+    Marshal.to_channel channel report [Marshal.Compat_32]
 end
 
 let really_save_then_forget_decisions ~output_prefix =
@@ -313,11 +335,16 @@ let really_save_then_forget_decisions ~output_prefix =
   let out_channel = open_out filename in
   let ppf = Format.formatter_of_out_channel out_channel in
   Profile.record_call "reports print" (fun () ->
-    Inlining_report.print ppf report filename);
+    let _ = Printf.printf "%B %B" !Clflags.inlining_report !Clflags.bin_inlining_report in
+    if !Clflags.inlining_report then
+      Inlining_report.print ppf report filename;
+    if !Clflags.bin_inlining_report then
+      Inlining_report.marshal report (output_prefix ^ ".cmf")
+  );
   close_out out_channel
 
 let save_then_forget_decisions ~output_prefix =
-  if !Clflags.inlining_report then begin
+  if Clflags.inlining_report_on () then begin
     Profile.record_call "report save" (fun () ->
     really_save_then_forget_decisions ~output_prefix);
     log := [];

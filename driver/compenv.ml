@@ -340,6 +340,10 @@ let read_one_param ppf position name v =
       if !native_code then
         set "inlining-report" [ inlining_report ] v
 
+  | "bin=inlining-report" ->
+      if !native_code then
+        set "bin-inlining-report" [ bin_inlining_report ] v
+
   | "flambda-verbose" ->
       set "flambda-verbose" [ dump_flambda_verbose ] v
   | "flambda-invariants" ->
