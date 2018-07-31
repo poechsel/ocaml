@@ -337,7 +337,6 @@ let really_save_then_forget_decisions ~sourcename ~output_prefix =
   let out_channel = open_out filename in
   let ppf = Format.formatter_of_out_channel out_channel in
   Profile.record_call "reports print" (fun () ->
-    let _ = Printf.printf "%B %B" !Clflags.inlining_report !Clflags.bin_inlining_report in
     if !Clflags.inlining_report then
       Inlining_report.print ppf report filename;
     if !Clflags.bin_inlining_report then
