@@ -169,7 +169,9 @@ let middle_end ppf ~prefixname ~backend
            if Clflags.inlining_report_on () then begin
              Profile.record_call
                "inlining reports"
-               (fun _ -> Inlining_stats.save_then_forget_decisions ~output_prefix:prefixname)
+               (fun _ -> Inlining_stats.save_then_forget_decisions
+                           ~sourcename:filename
+                           ~output_prefix:prefixname)
            end;
            (* Check that there aren't any unused "always inline" attributes. *)
            Flambda_iterators.iter_apply_on_program flam ~f:(fun apply ->
