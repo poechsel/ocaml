@@ -259,6 +259,7 @@ module Path = struct
   let rec to_uid h =
     Marshal.to_bytes h []
     |> Digest.bytes
+    |> Digest.to_hex
 
   and print_atom ppf x =
     match x with

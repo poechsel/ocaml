@@ -85,7 +85,7 @@ module Path : sig
 
   val file : t -> string
 
-  val to_uid : t -> Digest.t
+  val to_uid : t -> string
 
   (* "compress" a path knowing an other path : returns the second path
      with the prefix of the two paths removed. If the result is empty,
