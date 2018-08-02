@@ -73,6 +73,8 @@ module Inlining_report = struct
     digest: Digest.t;
     dependencies : (string, string option) Hashtbl.t;
     report : t;
+    name : string;
+    source : string;
   }
 
   (* Prevented or unchanged decisions may be overridden by a later look at the
@@ -316,10 +318,13 @@ module Inlining_report = struct
     print (IH.Path.empty (Flambda.current_module ())) ~depth:0 filename ppf t
 
   let marshal ~sourcename t filename =
+    let _ = print_endline sourcename in
     let report = {
       digest = Digest.file sourcename;
       dependencies = cmf_cache;
-      report = t
+      report = t;
+      name = Flambda.current_module ();
+      source = sourcename;
     }
     in
     let channel = open_out filename in
