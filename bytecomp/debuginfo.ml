@@ -131,3 +131,8 @@ let rec print_compact ppf t =
     print_item ppf item;
     Format.fprintf ppf ";";
     print_compact ppf t
+
+let get_oldest_item t =
+  match List.rev t with
+  | [] -> none_item
+  | item :: _ -> item

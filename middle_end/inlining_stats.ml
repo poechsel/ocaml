@@ -318,7 +318,6 @@ module Inlining_report = struct
     print (IH.Path.empty (Flambda.current_module ())) ~depth:0 filename ppf t
 
   let marshal ~sourcename t filename =
-    let _ = print_endline sourcename in
     let report = {
       digest = Digest.file sourcename;
       dependencies = cmf_cache;
@@ -332,7 +331,6 @@ module Inlining_report = struct
 end
 
 let really_save_then_forget_decisions ~sourcename ~output_prefix =
-
   let report =
     Profile.record_call
       "reports build" (fun () ->

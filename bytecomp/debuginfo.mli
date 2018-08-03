@@ -51,3 +51,5 @@ val hash : t -> int
 val print_item : Format.formatter -> item -> unit
 
 val print_compact : Format.formatter -> t -> unit
+
+val get_oldest_item : t -> item
