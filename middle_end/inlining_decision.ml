@@ -755,7 +755,7 @@ let for_call_site ~env ~r ~(call : call_information)
       in
       let inlining_history_next_part =
         Inlining_history.note_entering_call
-          ~dbg:(match call.dbg with | [] -> Debuginfo.none_item | x::_ -> x)
+          ~dbg:(Debuginfo.get_oldest_item call.dbg)
           ~dbg_name:function_body.dbg_name
           ~absolute_inlining_history:(E.inlining_history env)
           ~cunit_name
