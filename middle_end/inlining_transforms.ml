@@ -638,6 +638,7 @@ let rewrite_function ~lhs_of_application ~closure_id_being_applied
   in
   let inlining_history =
     IH.add_specialise_def ~name:def_name ~path:inlining_history_call
+      ~dbg:(Debuginfo.get_oldest_item function_body.dbg)
   in
   let new_function_decl =
     Flambda.create_function_declaration

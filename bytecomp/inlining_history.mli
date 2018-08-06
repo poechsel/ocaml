@@ -163,6 +163,7 @@ val add_mod_def
 val add_specialise_def
   : name:name
   -> path:History.t
+  -> dbg:Debuginfo.item
   -> History.t
 
 val add_specialise_apply
