@@ -50,7 +50,13 @@ module Definition : sig
 
   val empty : t
 
-  val print : Format.formatter -> t -> unit
+  (* Print the whole definition. if [print_functor] is true, prints the
+  mention "functor" before applications of functors*)
+  val print : print_functor:bool -> Format.formatter -> t -> unit
+  (* Print the whole definition with more verbosity (includes the debuginfo) *)
+  val print_verbose : Format.formatter -> t -> unit
+  (* Only print the name of the identifier:
+     print [Module "Foo"; Closure "bar"] will print "bar" *)
   val print_short : Format.formatter -> t -> unit
 
 end

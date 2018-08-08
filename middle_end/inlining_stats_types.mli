@@ -17,6 +17,11 @@
 [@@@ocaml.warning "+a-4-9-30-40-41-42"]
 
 (* Types used for producing statistics about inlining. *)
+module type Log_intf = sig
+  type t
+  val calculation : depth:int -> Format.formatter -> t -> unit
+  val need_precisions : t -> bool
+end
 
 module Inlined : sig
   type t =
@@ -28,6 +33,9 @@ module Inlined : sig
     | With_subfunctions of
         Inlining_cost.Whether_sufficient_benefit.t
         * Inlining_cost.Whether_sufficient_benefit.t
+
+  val calculation : depth:int -> Format.formatter -> t -> unit
+  val need_precisions : t -> bool
 end
 
 module Not_inlined : sig
@@ -43,6 +51,9 @@ module Not_inlined : sig
     | With_subfunctions of
         Inlining_cost.Whether_sufficient_benefit.t
         * Inlining_cost.Whether_sufficient_benefit.t
+
+  val calculation : depth:int -> Format.formatter -> t -> unit
+  val need_precisions : t -> bool
 end
 
 module Specialised : sig
@@ -53,6 +64,9 @@ module Specialised : sig
     | With_subfunctions of
         Inlining_cost.Whether_sufficient_benefit.t
         * Inlining_cost.Whether_sufficient_benefit.t
+
+  val calculation : depth:int -> Format.formatter -> t -> unit
+  val need_precisions : t -> bool
 end
 
 module Not_specialised : sig
@@ -69,6 +83,9 @@ module Not_specialised : sig
     | Not_beneficial of
         Inlining_cost.Whether_sufficient_benefit.t
         * Inlining_cost.Whether_sufficient_benefit.t
+
+  val calculation : depth:int -> Format.formatter -> t -> unit
+  val need_precisions : t -> bool
 end
 
 module Prevented : sig

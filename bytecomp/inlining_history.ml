@@ -151,37 +151,37 @@ module Definition = struct
     Format.fprintf ppf "%a"
       (print_name ~print_functor:true) name
 
-  let print ppf def =
-    let rec aux ~print_functor ppf def =
-      match def with
-      | [] -> ()
-      | Closure(name, _) :: (File _ | Module _ as x) :: r ->
-        let is_functor =
-          match name with
-          | Functor _ -> true
-          | _ -> false
-        in
-        let functor_str =
-          if is_functor then "functor "
-          else ""
-        in
-        let print_functor = not is_functor in
-        Format.fprintf ppf "%s%a%a" functor_str
-          (aux ~print_functor) (x::r)
-          (print_name ~print_functor) name
-      | Closure(name, _) :: [] ->
-        Format.fprintf ppf "%a"
-          (print_name ~print_functor) name
-      | Closure(name, _) :: r ->
-        Format.fprintf ppf "%a defined in %a"
-          (print_name ~print_functor) name
-          (aux ~print_functor:true) r
-      | Module name :: r ->
-        Format.fprintf ppf "%a%s." (aux ~print_functor) r name
-      | File (name) :: r ->
-        Format.fprintf ppf "%a%s." (aux ~print_functor) r name
-    in
-    Format.fprintf ppf "Call to %a" (aux ~print_functor:true) (List.rev def);
+  let rec print ~print_functor ppf def =
+    match def with
+    | [] -> ()
+    | Closure(name, _) :: (File _ | Module _ as x) :: r ->
+      let is_functor =
+        match name with
+        | Functor _ -> true
+        | _ -> false
+      in
+      let functor_str =
+        if is_functor then "functor "
+        else ""
+      in
+      let print_functor = not is_functor in
+      Format.fprintf ppf "%s%a%a" functor_str
+        (print ~print_functor) (x::r)
+        (print_name ~print_functor) name
+    | Closure(name, _) :: [] ->
+      Format.fprintf ppf "%a"
+        (print_name ~print_functor) name
+    | Closure(name, _) :: r ->
+      Format.fprintf ppf "%a defined in %a"
+        (print_name ~print_functor) name
+        (print ~print_functor:true) r
+    | Module name :: r ->
+      Format.fprintf ppf "%a%s." (print ~print_functor) r name
+    | File (name) :: r ->
+      Format.fprintf ppf "%a%s." (print ~print_functor) r name
+
+  let print_verbose ppf def =
+    Format.fprintf ppf "Call to %a" (print ~print_functor:true) (List.rev def);
     match (get_last_definition def) with
     | None ->
       Format.fprintf ppf "."
