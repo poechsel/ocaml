@@ -612,7 +612,7 @@ and transl_structure modpath loc fields cc rootpath final_env = function
       let module_body =
         transl_module
           (IH.add_mod_def ~id:mb.mb_name.txt
-             ~loc:mb.mb_name.loc ~path:modpath)
+             ~loc:mb.mb_expr.mod_loc ~path:modpath)
           (Some (Ident.create mb.mb_name.txt))
           Tcoerce_none (field_path rootpath id) mb.mb_expr
       in
@@ -1272,13 +1272,13 @@ let transl_toplevel_item modpath item =
     set_toplevel_unique_name ext.ext_id;
     toploop_setvalue ext.ext_id
       (transl_extension_constructor item.str_env None ext)
-  | Tstr_module {mb_id=id; mb_expr=modl; mb_loc} ->
+  | Tstr_module {mb_id=id; mb_expr=modl; } ->
     (* we need to use the unique name for the module because of issues
        with "open" (PR#1672) *)
     set_toplevel_unique_name id;
     let id_str = Ident.name id in
     let lam =
-      transl_module (IH.add_mod_def ~id:id_str ~loc:mb_loc ~path:modpath)
+      transl_module (IH.add_mod_def ~id:id_str ~loc:modl.mod_loc ~path:modpath)
         None Tcoerce_none (Some(Pident id)) modl
     in
     toploop_setvalue id lam
