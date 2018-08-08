@@ -73,6 +73,7 @@ module Inlining_report = struct
     digest: Digest.t;
     dependencies : (string, string option) Hashtbl.t;
     report : t;
+    version : int;
     name : string;
     source : string;
   }
@@ -261,7 +262,7 @@ module Inlining_report = struct
           (print_apply def filename) name
           print_debug dbg
           print_anchor uid
-          Inlining_history.Definition.print def
+          Inlining_history.Definition.print_verbose def
           converter obj;
         Format.pp_close_box ppf ();
         Format.pp_print_newline ppf ();
@@ -322,6 +323,7 @@ module Inlining_report = struct
       digest = Digest.file sourcename;
       dependencies = cmf_cache;
       report = t;
+      version = 0;
       name = Flambda.current_module ();
       source = sourcename;
     }
