@@ -102,6 +102,7 @@ and ast_intf_magic_number = "Caml1999N023"
 and cmxs_magic_number = "Caml1999D023"
     (* cmxs_magic_number is duplicated in otherlibs/dynlink/natdynlink.ml *)
 and cmt_magic_number = "Caml1999T023"
+and cmf_magic_number = "Caml1999F023"
 
 let load_path = ref ([] : string list)
 
@@ -209,6 +210,7 @@ let print_config oc =
   p "ast_intf_magic_number" ast_intf_magic_number;
   p "cmxs_magic_number" cmxs_magic_number;
   p "cmt_magic_number" cmt_magic_number;
+  p "cmf_magic_number" cmf_magic_number;
 
   flush oc;
 ;;
