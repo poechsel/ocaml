@@ -73,7 +73,6 @@ module Inlining_report = struct
     digest: Digest.t;
     dependencies : (string, string option) Hashtbl.t;
     report : t;
-    version : int;
     name : string;
     source : string;
   }
@@ -323,13 +322,17 @@ module Inlining_report = struct
       digest = Digest.file sourcename;
       dependencies = cmf_cache;
       report = t;
-      version = 0;
       name = Flambda.current_module ();
       source = sourcename;
     }
     in
-    let channel = open_out filename in
-    Marshal.to_channel channel report [Marshal.Compat_32]
+    let channel = open_out_bin filename in
+    output_string channel Config.cmf_magic_number;
+    output_value channel report;
+    flush channel;
+    let crc = Digest.file filename in
+    Digest.output channel crc;
+    close_out channel
 end
 
 let really_save_then_forget_decisions ~sourcename ~output_prefix =
