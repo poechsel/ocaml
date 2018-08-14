@@ -42,6 +42,7 @@ config.cmi :
 consistbl.cmi : digest.cmi
 ctype.cmi : types.cmi path.cmi longident.cmi ident.cmi env.cmi asttypes.cmi
 datarepr.cmi : types.cmi path.cmi ident.cmi
+debuginfo.cmi : location.cmi format.cmi
 depend.cmi : set.cmi parsetree.cmi map.cmi longident.cmi
 digest.cmi :
 dll.cmi :
@@ -69,11 +70,12 @@ includecore.cmi : types.cmi typedtree.cmi location.cmi ident.cmi format.cmi \
     env.cmi
 includemod.cmi : types.cmi typedtree.cmi path.cmi location.cmi \
     includecore.cmi ident.cmi format.cmi env.cmi ctype.cmi
+inlining_history.cmi : location.cmi format.cmi debuginfo.cmi
 instruct.cmi : types.cmi subst.cmi location.cmi lambda.cmi ident.cmi env.cmi
 int32.cmi :
 int64.cmi :
-lambda.cmi : types.cmi primitive.cmi path.cmi location.cmi ident.cmi env.cmi \
-    asttypes.cmi
+lambda.cmi : types.cmi primitive.cmi path.cmi location.cmi \
+    inlining_history.cmi ident.cmi env.cmi asttypes.cmi
 lazy.cmi :
 lexer.cmi : parser.cmi location.cmi lexing.cmi format.cmi
 lexing.cmi :
@@ -124,7 +126,8 @@ scanf.cmi : pervasives.cmi
 semantics_of_primitives.cmi : lambda.cmi
 seq.cmi :
 set.cmi : seq.cmi
-simplif.cmi : misc.cmi location.cmi lambda.cmi ident.cmi
+simplif.cmi : misc.cmi location.cmi lambda.cmi inlining_history.cmi \
+    ident.cmi
 sort.cmi :
 spacetime.cmi :
 stack.cmi : seq.cmi
@@ -149,15 +152,15 @@ terminfo.cmi :
 thread.cmi : unix.cmi
 threadUnix.cmi : unix.cmi
 translattribute.cmi : typedtree.cmi parsetree.cmi location.cmi lambda.cmi
-translclass.cmi : typedtree.cmi location.cmi lambda.cmi ident.cmi format.cmi \
-    asttypes.cmi
-translcore.cmi : typedtree.cmi path.cmi location.cmi lambda.cmi ident.cmi \
-    format.cmi env.cmi asttypes.cmi
+translclass.cmi : typedtree.cmi location.cmi lambda.cmi inlining_history.cmi \
+    ident.cmi format.cmi asttypes.cmi
+translcore.cmi : typedtree.cmi path.cmi location.cmi lambda.cmi \
+    inlining_history.cmi ident.cmi format.cmi env.cmi asttypes.cmi
 translmod.cmi : typedtree.cmi primitive.cmi location.cmi lambda.cmi \
     ident.cmi format.cmi
 translobj.cmi : lambda.cmi ident.cmi env.cmi
 translprim.cmi : types.cmi typedtree.cmi primitive.cmi path.cmi location.cmi \
-    lambda.cmi ident.cmi format.cmi env.cmi
+    lambda.cmi inlining_history.cmi ident.cmi format.cmi env.cmi
 typeclass.cmi : types.cmi typedtree.cmi parsetree.cmi longident.cmi \
     location.cmi ident.cmi format.cmi env.cmi ctype.cmi asttypes.cmi
 typecore.cmi : types.cmi typedtree.cmi path.cmi parsetree.cmi longident.cmi \
