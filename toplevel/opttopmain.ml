@@ -104,7 +104,7 @@ module Options = Main_args.Make_opttop_options (struct
   let _noinit = set noinit
   let _clambda_checks () = clambda_checks := true
   let _inline spec =
-    Float_arg_helper.parse spec
+    Int_arg_helper.parse spec
       "Syntax: -inline <n> | <round>=<n>[,...]"
       inline_threshold
   let _inline_indirect_cost spec =
@@ -127,10 +127,6 @@ module Options = Main_args.Make_opttop_options (struct
     Int_arg_helper.parse spec
       "Syntax: -inline-max-depth <n> | <round>=<n>[,...]"
       inline_max_depth
-  let _inline_max_specialise spec =
-    Int_arg_helper.parse spec
-      "Syntax: -inline-max-specialise <n> | <round>=<n>[,...]"
-      inline_max_specialise
   let _classic_inlining () = classic_inlining := true
   let _inline_call_cost spec =
     Int_arg_helper.parse spec
@@ -165,13 +161,13 @@ module Options = Main_args.Make_opttop_options (struct
   let _o s = output_name := Some s
   let _o2 () =
     default_simplify_rounds := 2;
-    use_inlining_arguments_set o2_arguments;
-    use_inlining_arguments_set ~round:0 o1_arguments
+    use_inlining_arguments_set O2;
+    use_inlining_arguments_set ~round:0 O1
   let _o3 () =
     default_simplify_rounds := 3;
-    use_inlining_arguments_set o3_arguments;
-    use_inlining_arguments_set ~round:1 o2_arguments;
-    use_inlining_arguments_set ~round:0 o1_arguments
+    use_inlining_arguments_set O3;
+    use_inlining_arguments_set ~round:1 O2;
+    use_inlining_arguments_set ~round:0 O1
   let _remove_unused_arguments = set remove_unused_arguments
   let _unbox_closures = set unbox_closures
   let _unbox_closures_factor f = unbox_closures_factor := f
