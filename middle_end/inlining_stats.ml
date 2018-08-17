@@ -20,7 +20,9 @@
 module IH = Inlining_history
 
 let log = ref []
-let external_logs = Hashtbl.create 5
+
+
+let org_cache = Hashtbl.create 5
 let cmf_cache = Hashtbl.create 5
 
 
@@ -77,6 +79,33 @@ module Inlining_report = struct
     source : string;
   }
 
+  let cache_find_in_path cache key file =
+    if not (Hashtbl.mem cache key) then
+      let file =
+        try
+          Some (Misc.find_in_path_uncap
+                  !Config.load_path
+                  file)
+        with Not_found ->
+          None
+      in
+      Hashtbl.add cache key file
+
+  let get_org_in_cache modname =
+    (* The hastbl mapping modname to inlining org files should be
+       already filled up at this point *)
+    if Hashtbl.mem org_cache modname then
+      Hashtbl.find org_cache modname
+    else
+      None
+
+  let append_org modname =
+    cache_find_in_path org_cache modname (modname ^ ".inlining.org")
+
+  let append_cmf modname =
+    cache_find_in_path cmf_cache modname (modname ^ ".cmf")
+
+
   (* Prevented or unchanged decisions may be overridden by a later look at the
      same call. Other decisions may also be "overridden" because calls are not
      uniquely identified. *)
@@ -113,12 +142,37 @@ module Inlining_report = struct
           in
           let v = loop v rest in
           Place_map.add atom (Module v) t
-        | Call (_, _, path) ->
+        | Call (path, _, reference) ->
           let v =
               match Place_map.find atom t with
               | Call v -> v
               |_ -> assert false
-              | exception Not_found -> empty_call path
+              | exception Not_found ->
+                (* We store in cache the paths to the *.inlining.org or the
+                 *.cmf of files refered here. A call might refer to two files
+                   which are not defined in the current compilation_unit:
+                   - [path], the path to the call itself (after a call was inlined,
+                     an other call might appear, which could have been made in
+                     another file)
+                   - [reference] which is the path to the definition of the
+                     function called. This function could be defined in an
+                     other file.
+                *)
+                if IH.Path.file path <> Flambda.current_module () then
+                  begin
+                    if !Clflags.inlining_report then
+                      append_org (IH.Path.file path);
+                    if !Clflags.bin_inlining_report then
+                      append_cmf (IH.Path.file path);
+                  end;
+                if IH.Path.file reference <> Flambda.current_module () then
+                  begin
+                    if !Clflags.inlining_report then
+                      append_org (IH.Path.file reference);
+                    if !Clflags.bin_inlining_report then
+                      append_cmf (IH.Path.file reference);
+                  end;
+                empty_call reference
           in
           let merge_call_annotation annotation rest =
             let annotation =
@@ -152,28 +206,6 @@ module Inlining_report = struct
     in
     loop t (List.rev stack)
 
-  let cache_find_in_path cache key file =
-    if Hashtbl.mem cache key then
-      Hashtbl.find cache key
-    else
-      let file =
-        try
-          Some (Misc.find_in_path_uncap
-                  !Config.load_path
-                  file)
-        with Not_found ->
-          None
-      in
-      Hashtbl.add cache key file;
-      file
-
-  let get_external_logs modname =
-    cache_find_in_path external_logs modname (modname ^ ".inlining.org")
-
-  let append_cmf modname =
-    cache_find_in_path cmf_cache modname (modname ^ ".cmf")
-    |> ignore
-
   let build log =
     List.fold_left add_decision Place_map.empty !log
 
@@ -182,8 +214,7 @@ module Inlining_report = struct
   let build_link_uid inlining_report_file path =
     let link =
       if IH.Path.file path <> Flambda.current_module () then
-        let filename = get_external_logs (IH.Path.file path) in
-        let () = append_cmf (IH.Path.file path) in
+        let filename = get_org_in_cache (IH.Path.file path) in
         match filename with
         | None -> None
         | Some filename ->
@@ -250,8 +281,6 @@ module Inlining_report = struct
       in
       let print_application name dbg converter obj =
         let def =
-          (*IH.Path.get_compressed_path history name
-            |>*)
           Inlining_history.path_to_definition (Flambda.current_module ()) name
         in
         Format.pp_open_vbox ppf (depth + 2);
@@ -342,21 +371,23 @@ let really_save_then_forget_decisions ~sourcename ~output_prefix =
         Inlining_report.build log)
   in
   let filename = (output_prefix ^ ".inlining.org") in
-  let out_channel = open_out filename in
-  let ppf = Format.formatter_of_out_channel out_channel in
   Profile.record_call "reports print" (fun () ->
-    if !Clflags.inlining_report then
+    if !Clflags.inlining_report then begin
+      let out_channel = open_out filename in
+      let ppf = Format.formatter_of_out_channel out_channel in
       Inlining_report.print ppf report filename;
+      close_out out_channel;
+    end;
     if !Clflags.bin_inlining_report then
       Inlining_report.marshal ~sourcename
         report (output_prefix ^ ".cmf")
-  );
-  close_out out_channel
+  )
 
 let save_then_forget_decisions ~sourcename ~output_prefix =
   if Clflags.inlining_report_on () then begin
     Profile.record_call "report save" (fun () ->
     really_save_then_forget_decisions ~sourcename ~output_prefix);
     log := [];
-    Hashtbl.clear external_logs
+    Hashtbl.clear org_cache;
+    Hashtbl.clear cmf_cache
   end
