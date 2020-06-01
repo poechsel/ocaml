@@ -31,7 +31,7 @@ type constant_defining_value =
   | Set_of_closures of Flambda.set_of_closures
   | Project_closure of Flambda.project_closure
   | Move_within_set_of_closures of Flambda.move_within_set_of_closures
-  | Recursive of Variable.t * int
+  | Recursive of Variable.t * Flambda.rec_info
   | Project_var of Flambda.project_var
   | Field of Variable.t * int
   | Symbol_field of Symbol.t * int

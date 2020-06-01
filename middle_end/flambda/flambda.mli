@@ -68,6 +68,15 @@ type project_closure = Projection.project_closure
 type move_within_set_of_closures = Projection.move_within_set_of_closures
 type project_var = Projection.project_var
 
+type rec_info = {
+  depth : int;
+  (* CR-soon lukemaurer: Not sure about this field name (here and on other
+     types); should be a noun or noun phrase. [unroll_limit] sounds like an
+     upper bound (it's actually a *lower* bound in a sense); [unroll_goal] makes
+     some sense but seems off somehow. *)
+  unroll_to : int;
+}
+
 (** See [free_vars] and [specialised_args], below. *)
 (* CR-someday mshinwell: move to separate module and make [Identifiable].
   (Or maybe nearly Identifiable; having a special map that enforces invariants
@@ -147,8 +156,8 @@ and named =
   | Set_of_closures of set_of_closures
   | Project_closure of project_closure
   | Move_within_set_of_closures of move_within_set_of_closures
-  | Project_var of project_var 
-  | Recursive of Variable.t * int
+  | Project_var of project_var
+  | Recursive of Variable.t * rec_info
   | Prim of Clambda_primitives.primitive * Variable.t list * Debuginfo.t
   | Expr of t  (** ANF escape hatch. *)
 
@@ -203,10 +212,11 @@ and let_mutable = {
 *)
 and set_of_closures = private {
   function_decls : function_declarations;
-  rec_depth : int;
-  (** The initial recursion depth for all variables for recursive functions
-      bound by the set of closures. Will be non-zero if this set of closures
-      was created by specialising a recursive call. *)
+  rec_info : rec_info;
+  (** The initial recursion info for all variables for recursive functions
+      bound by the set of closures. Will have non-zero depth if this set of
+      closures was created by specialising a recursive call; similarly, the
+      unroll_to will be non-zero if specilizing an [[@unrolled]] call. *)
   (* CR-soon mshinwell: consider renaming [free_vars].  Also, it's still really
      confusing which side of this map to use when.  "Vars bound by the
      closure" is the domain.
@@ -294,11 +304,6 @@ and function_declarations = private {
   (** An identifier (unique across all Flambda trees currently in memory)
       of the set of closures associated with this set of function
       declarations. *)
-  set_of_closures_origin : Set_of_closures_origin.t;
-  (** An identifier of the original set of closures on which this set of
-      function declarations is based.  Used to prevent different
-      specialisations of the same functions from being inlined/specialised
-      within each other. *)
   funs : function_declaration Variable.Map.t;
   (** The function(s) defined by the set of function declarations.  The
       keys of this map are often referred to in the code as "fun_var"s. *)
@@ -368,7 +373,7 @@ and constant_defining_value =
   | Project_closure of Symbol.t * Closure_id.t
     (** Selection of one closure from a constant set of closures.
         Analogous to the equivalent operation on expressions. *)
-  | Recursive of Symbol.t * int
+  | Recursive of Symbol.t * rec_info
     (** A reference to another symbol but at a higher recursion depth. Calls to
         the function produced by inlining it (or its mutually-recursive sibling)
         will invoke this version of the symbol instead of the original. *)
@@ -590,7 +595,6 @@ val create_function_declarations
 val create_function_declarations_with_origin
    : is_classic_mode:bool
   -> funs:function_declaration Variable.Map.t
-  -> set_of_closures_origin:Set_of_closures_origin.t
   -> function_declarations
 
 (** Create a set of function declarations based on another set of function
@@ -603,20 +607,18 @@ val update_function_declarations
 val create_function_declarations_with_closures_origin
    : is_classic_mode: bool
   -> funs:function_declaration Variable.Map.t
-  -> set_of_closures_origin:Set_of_closures_origin.t
   -> function_declarations
 
 val import_function_declarations_for_pack
    : function_declarations
   -> (Set_of_closures_id.t -> Set_of_closures_id.t)
-  -> (Set_of_closures_origin.t -> Set_of_closures_origin.t)
   -> function_declarations
 
 (** Create a set of closures.  Checks are made to ensure that [free_vars]
     and [specialised_args] are reasonable. *)
 val create_set_of_closures
    : function_decls:function_declarations
-  -> rec_depth:int
+  -> rec_info:rec_info
   -> free_vars:specialised_to Variable.Map.t
   -> specialised_args:specialised_to Variable.Map.t
   -> direct_call_surrogates:Variable.t Variable.Map.t
@@ -691,15 +693,27 @@ val equal_call_kind
    : call_kind
   -> call_kind
   -> bool
-  
+
 val print_inlining_depth
    : Format.formatter
   -> int
   -> unit
 
-val print_recursion_depth
+val print_rec_depth
    : Format.formatter
   -> int
+  -> unit
+
+val print_rec_info_with
+   : ?rec_kwd:string
+  -> ?unroll_kwd:string
+  -> Format.formatter
+  -> rec_info
+  -> unit
+
+val print_rec_info
+   : Format.formatter
+  -> rec_info
   -> unit
 
 val equal_specialised_to
@@ -710,6 +724,11 @@ val equal_specialised_to
 val compare_const
    : const
   -> const
+  -> int
+
+val compare_rec_info
+  : rec_info
+  -> rec_info
   -> int
 
 val compare_project_var : project_var -> project_var -> int

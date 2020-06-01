@@ -83,7 +83,9 @@ let assign_symbols_and_collect_constant_definitions
                to the actual [closure_symbol]. *)
             assign_existing_symbol_to fun_var rec_symbol;
             assign_existing_symbol_to rec_tgt_var closure_symbol;
-            let rec_def = Alias_analysis.Recursive (rec_tgt_var, 1) in
+            let rec_def =
+              Alias_analysis.Recursive (rec_tgt_var, { depth = 1; unroll_to = 0 })
+            in
             let closure_def =
               Alias_analysis.Project_closure
                 { set_of_closures = var; closure_id }
@@ -115,9 +117,9 @@ let assign_symbols_and_collect_constant_definitions
           Flambda.print_named named
       | Project_var project_var ->
         record_definition (AA.Project_var project_var)
-      | Recursive (v, depth) ->
+      | Recursive (v, rec_info) ->
         assign_symbol ();
-        record_definition (AA.Recursive (v, depth))
+        record_definition (AA.Recursive (v, rec_info))
       | Expr e ->
         match tail_variable e with
         | None -> assert false  (* See [Inconstant_idents]. *)
@@ -266,35 +268,36 @@ let find_original_set_of_closure
     (var_to_symbol_tbl : Symbol.t Variable.Tbl.t)
     (var_to_definition_tbl:
       Alias_analysis.constant_defining_value Variable.Tbl.t)
-    project_closure_map
+    (symbol_definition_map : Flambda.constant_defining_value Symbol.Map.t)
     var =
-  let rec loop var =
+  let rec loop_symbol sym =
+    match Symbol.Map.find sym symbol_definition_map with
+    | Project_closure(set_of_closures, _) -> set_of_closures
+    | Recursive (closure, _) ->
+      loop_symbol closure
+    | Set_of_closures _ -> sym
+    | _ -> assert false
+  in
+  let rec loop_var var =
     match Variable.Map.find var aliases with
     | Variable var ->
       begin match Variable.Tbl.find var_to_definition_tbl var with
         | Project_closure { set_of_closures = var }
         | Move_within_set_of_closures { closure = var } ->
-          loop var
+          loop_var var
         | Set_of_closures _ -> begin
             match Variable.Tbl.find var_to_symbol_tbl var with
-            | s ->
-              s
+            | sym -> sym
             | exception Not_found ->
               Format.eprintf "var: %a@." Variable.print var;
               assert false
           end
-        | Recursive (var, _) -> loop var
+        | Recursive (var, _) -> loop_var var
         | _ -> assert false
       end
-    | Symbol s ->
-      match Symbol.Map.find s project_closure_map with
-      | exception Not_found ->
-        Misc.fatal_errorf "find_original_set_of_closure: cannot find \
-            symbol %a in the project-closure map"
-          Symbol.print s
-      | s -> s
+    | Symbol sym -> loop_symbol sym
   in
-  loop var
+  loop_var var
 
 let translate_definition_and_resolve_alias inconstants
     (aliases : Alias_analysis.allocation_point Variable.Map.t)
@@ -302,7 +305,6 @@ let translate_definition_and_resolve_alias inconstants
     (var_to_definition_tbl :
       Alias_analysis.constant_defining_value Variable.Tbl.t)
     (symbol_definition_map : Flambda.constant_defining_value Symbol.Map.t)
-    (project_closure_map : Symbol.t Symbol.Map.t)
     (definition : Alias_analysis.constant_defining_value)
     ~(backend : (module Backend_intf.S))
     : Flambda.constant_defining_value option =
@@ -489,16 +491,16 @@ let translate_definition_and_resolve_alias inconstants
        be assigned to a symbol. *)
     let s = resolve_variable_as_symbol set_of_closures in
     Some (Flambda.Project_closure (s, closure_id))
-  | Recursive (v, depth) ->
+  | Recursive (v, rec_info) ->
     let s = resolve_variable_as_symbol v in
-    Some (Flambda.Recursive (s, depth))
+    Some (Flambda.Recursive (s, rec_info))
   | Move_within_set_of_closures { closure; move_to } ->
     let set_of_closure_symbol =
       find_original_set_of_closure
         aliases
         var_to_symbol_tbl
         var_to_definition_tbl
-        project_closure_map
+        symbol_definition_map
         closure
     in
     Some (Flambda.Project_closure (set_of_closure_symbol, move_to))
@@ -525,13 +527,11 @@ let translate_definitions_and_resolve_alias
     (var_to_definition_tbl:
       Alias_analysis.constant_defining_value Variable.Tbl.t)
     symbol_definition_map
-    project_closure_map
     ~backend =
   Variable.Tbl.fold (fun var def map ->
       match
         translate_definition_and_resolve_alias inconstants aliases ~backend
-          var_to_symbol_tbl var_to_definition_tbl symbol_definition_map
-          project_closure_map def
+          var_to_symbol_tbl var_to_definition_tbl symbol_definition_map def
       with
       | None -> map
       | Some def ->
@@ -649,7 +649,7 @@ let introduce_free_variables_in_set_of_closures
     (var_to_block_field_tbl :
       Flambda.constant_defining_value_block_field Variable.Tbl.t)
     ({ Flambda.function_decls; free_vars; specialised_args;
-        direct_call_surrogates; rec_depth }
+        direct_call_surrogates; rec_info }
       as set_of_closures) =
   let add_definition_and_make_substitution var (expr, subst) =
     let searched_var =
@@ -726,7 +726,7 @@ let introduce_free_variables_in_set_of_closures
   if not !done_something then
     set_of_closures
   else
-    Flambda.create_set_of_closures ~function_decls ~rec_depth ~free_vars
+    Flambda.create_set_of_closures ~function_decls ~rec_info ~free_vars
       ~specialised_args ~direct_call_surrogates
 
 let rewrite_project_var
@@ -872,21 +872,6 @@ let replace_definitions_in_initialize_symbol_and_effects
       Symbol.Tbl.replace effect_tbl symbol (rewrite_expr expr, previous))
     effect_tbl
 
-(* CR-soon mshinwell: Update the name of [project_closure_map]. *)
-let project_closure_map symbol_definition_map =
-  Symbol.Map.fold (fun sym (const : Flambda.constant_defining_value) acc ->
-      match const with
-      | Project_closure (set_of_closures, _) ->
-        Symbol.Map.add sym set_of_closures acc
-      | Recursive (tgt_sym, _) ->
-        Symbol.Map.add sym tgt_sym acc
-      | Set_of_closures _ ->
-        Symbol.Map.add sym sym acc
-      | Allocated_const _
-      | Block _ -> acc)
-    symbol_definition_map
-    Symbol.Map.empty
-
 let lift_constants (program : Flambda.program) ~backend =
   let the_dead_constant =
     let var = Variable.create Internal_variable_names.the_dead_constant in
@@ -934,7 +919,6 @@ let lift_constants (program : Flambda.program) ~backend =
         : Alias_analysis.constant_defining_value Variable.Tbl.t)
       (Symbol.Tbl.to_map symbol_definition_tbl)
   in
-  let project_closure_map = project_closure_map symbol_definition_map in
   let translated_definitions =
     translate_definitions_and_resolve_alias
       inconstants
@@ -943,7 +927,6 @@ let lift_constants (program : Flambda.program) ~backend =
       (var_to_definition_tbl
         : Alias_analysis.constant_defining_value Variable.Tbl.t)
       symbol_definition_map
-      project_closure_map
       ~backend
   in
   let var_to_block_field_tbl =
