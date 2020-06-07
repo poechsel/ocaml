@@ -491,8 +491,8 @@ let specialise env r ~(call : call_informations)
     specialise_policy annotations
   in
   let unrolling_limit =
-    let args = E.get_inlining_arguments env in
-    (InliningArgs.extract args).inline_max_unroll
+    (*let args = E.get_inlining_arguments env in
+    (InliningArgs.extract args).inline_max_unroll*) 0
   in
   let remaining_inlining_threshold : Inlining_cost.Threshold.t =
     if always_specialise then inlining_threshold
