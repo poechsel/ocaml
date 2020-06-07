@@ -659,16 +659,17 @@ let classic_mode_inlining env r ~simplify ~callee ~call ~annotations =
         let env = E.inside_inlined_function env in
         Changed ((simplify env r body), S.Inlined.Classic_mode)
   in
-  let out =
-    match simpl with
-    | Original decision ->
-      let decision =
-        S.Decision.Unchanged (S.Not_specialised.Classic_mode, decision)
-      in
-      Original (decision)
-    | Changed ((expr, r), decision) ->
-      Changed((expr, r), S.Decision.Inlined (S.Not_specialised.Classic_mode, decision))
-  in out, env
+  match simpl with
+  | Original decision ->
+    let decision =
+      S.Decision.Unchanged (S.Not_specialised.Classic_mode, decision)
+    in
+    Original (decision)
+  | Changed ((expr, r), decision) ->
+    let decision =
+    S.Decision.Inlined (S.Not_specialised.Classic_mode, decision)
+    in
+    Changed((expr, r), decision)
 
 let flambda_mode_inlining env r ~simplify ~callee ~call ~annotations
       ~inlining_threshold ~inlining_arguments ~original ~args_approxs =
@@ -681,56 +682,54 @@ let flambda_mode_inlining env r ~simplify ~callee ~call ~annotations
   let max_level =
     (InliningArgs.extract inlining_arguments).inline_max_speculation_depth
   in
-  let out =
-    if T.equal inlining_threshold T.Never_inline then
-      Original (D.Prevented Function_prevented_from_inlining)
-    else if E.speculation_depth env >= max_level then
-      Original (D.Prevented Level_exceeded)
-    else begin
-      let fun_cost =
-        lazy
-          (Inlining_cost.can_try_inlining function_body.body
-             inlining_threshold
-             ~number_of_arguments:(List.length callee.function_decl.params)
-             (* CR-someday mshinwell: for the moment, this is None, since
-                the Inlining_cost code isn't checking sizes up to the max
-                inlining threshold---this seems to take too long. *)
-             ~size_from_approximation:None)
-      in
-      let specialise_result =
-        specialise env r ~call ~callee ~annotations ~args_approxs
-          ~simplify ~original ~fun_cost ~inlining_threshold
-      in
-      let out = match specialise_result with
-        | Changed (res, spec_reason) ->
-          Changed (res, D.Specialised spec_reason)
-        | Original spec_reason ->
-          (* If we didn't specialise then try inlining *)
-          let size_from_approximation =
-            let fun_var = Closure_id.unwrap callee.closure_id_being_applied in
-            match
-              Variable.Map.find fun_var (Lazy.force callee.value_set_of_closures.size)
-            with
-            | size -> size
-            | exception Not_found ->
-              Misc.fatal_errorf "Approximation does not give a size for the \
-                                 function having fun_var %a.  value_set_of_closures: %a"
-                Variable.print fun_var
-                A.print_value_set_of_closures callee.value_set_of_closures
-          in
-          let inline_result =
-            inline env r ~call ~callee ~annotations ~original
-              ~size_from_approximation ~simplify ~fun_cost
-              ~inlining_threshold
-          in
-          match inline_result with
-          | Changed (res, inl_reason) ->
-            Changed (res, D.Inlined (spec_reason, inl_reason))
-          | Original inl_reason ->
-            Original (D.Unchanged (spec_reason, inl_reason))
-      in out
-    end
-  in out, env
+  if T.equal inlining_threshold T.Never_inline then
+    Original (D.Prevented Function_prevented_from_inlining)
+  else if E.speculation_depth env >= max_level then
+    Original (D.Prevented Level_exceeded)
+  else begin
+    let fun_cost =
+      lazy
+        (Inlining_cost.can_try_inlining function_body.body
+           inlining_threshold
+           ~number_of_arguments:(List.length callee.function_decl.params)
+           (* CR-someday mshinwell: for the moment, this is None, since
+              the Inlining_cost code isn't checking sizes up to the max
+              inlining threshold---this seems to take too long. *)
+           ~size_from_approximation:None)
+    in
+    let specialise_result =
+      specialise env r ~call ~callee ~annotations ~args_approxs
+        ~simplify ~original ~fun_cost ~inlining_threshold
+    in
+    let out = match specialise_result with
+      | Changed (res, spec_reason) ->
+        Changed (res, D.Specialised spec_reason)
+      | Original spec_reason ->
+        (* If we didn't specialise then try inlining *)
+        let size_from_approximation =
+          let fun_var = Closure_id.unwrap callee.closure_id_being_applied in
+          match
+            Variable.Map.find fun_var (Lazy.force callee.value_set_of_closures.size)
+          with
+          | size -> size
+          | exception Not_found ->
+            Misc.fatal_errorf "Approximation does not give a size for the \
+                               function having fun_var %a.  value_set_of_closures: %a"
+              Variable.print fun_var
+              A.print_value_set_of_closures callee.value_set_of_closures
+        in
+        let inline_result =
+          inline env r ~call ~callee ~annotations ~original
+            ~size_from_approximation ~simplify ~fun_cost
+            ~inlining_threshold
+        in
+        match inline_result with
+        | Changed (res, inl_reason) ->
+          Changed (res, D.Inlined (spec_reason, inl_reason))
+        | Original inl_reason ->
+          Original (D.Unchanged (spec_reason, inl_reason))
+    in out
+  end
 
 let for_call_site ~env ~r ~(call : call_informations)
       ~(callee : callee_informations) ~(annotations : annotations)
@@ -772,7 +771,7 @@ let for_call_site ~env ~r ~(call : call_informations)
       let inlining_threshold, raw_inlining_threshold, inlining_threshold_diff =
         compute_thresholding_for_call env r inlining_arguments
       in
-      let simpl, env =
+      let simpl =
         if Flambda.is_classic_mode_on callee.function_decls.is_classic_mode
         then begin
           classic_mode_inlining env r ~simplify ~call ~callee ~annotations
