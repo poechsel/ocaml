@@ -49,6 +49,7 @@ let keyword_table =
     "fabricated", FABRICATED;
     "float", FLOAT_KIND;
     "halt_and_catch_fire", HCF;
+    "hint", HINT;
     "imm", IMM;
     "immutable_unique", IMMUTABLE_UNIQUE;
     "in", IN;

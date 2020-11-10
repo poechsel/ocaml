@@ -198,6 +198,7 @@ type function_arities = {
 
 type inline_attribute = Inline_attribute.t =
   | Always_inline
+  | Hint_inline
   | Never_inline
   | Unroll of int
   | Default_inline

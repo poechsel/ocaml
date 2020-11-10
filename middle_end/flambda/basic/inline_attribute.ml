@@ -18,6 +18,7 @@
 
 type t =
   | Always_inline
+  | Hint_inline
   | Never_inline
   | Unroll of int
   | Default_inline
@@ -26,6 +27,7 @@ let print ppf t =
   let fprintf = Format.fprintf in
   match t with
   | Always_inline -> fprintf ppf "Always_inline"
+  | Hint_inline -> fprintf ppf "Hint_inline"
   | Never_inline -> fprintf ppf "Never_inline"
   | Unroll n -> fprintf ppf "@[(Unroll %d)@]" n
   | Default_inline -> fprintf ppf "Default_inline"

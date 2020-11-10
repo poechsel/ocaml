@@ -18,6 +18,13 @@
 
 open! Simplify_import
 
+let warn_not_inlined_if_needed apply reason =
+  match Apply.inline apply with
+  | Hint_inline | Never_inline | Default_inline -> ()
+  | Always_inline | Unroll _ ->
+    Location.prerr_warning (Debuginfo.to_location (Apply.dbg apply))
+      (Warnings.Inlining_impossible reason)
+
 let simplify_direct_tuple_application dacc apply code_id ~down_to_up =
   let dbg = Apply.dbg apply in
   let callee's_code = DE.find_code (DA.denv dacc) code_id in
@@ -87,6 +94,9 @@ let simplify_direct_full_application dacc apply function_decl_opt
       Inlining_report.record_decision
         (At_call_site (Non_inlinable_function { code_id = callee's_code_id; }))
         ~dbg:(DE.add_inlined_debuginfo' (DA.denv dacc) (Apply.dbg apply));
+      warn_not_inlined_if_needed apply
+        "[@inlined] attribute was not used on this function application \
+         (the optimizer decided not to inline the function given its definition)";
       None
     | Some (function_decl, function_decl_rec_info) ->
       let apply_inlining_depth = Apply.inlining_depth apply in
@@ -102,6 +112,13 @@ let simplify_direct_full_application dacc apply function_decl_opt
         ~dbg:(DE.add_inlined_debuginfo' (DA.denv dacc) (Apply.dbg apply));
       match Inlining_decision.Call_site_decision.can_inline decision with
       | Do_not_inline ->
+        (* emission of the warning at this point should not happen,
+           if it does, then that means that
+           {Inlining_decision.make_decision_for_call_site}
+           did not honour the attributes on the call site *)
+        warn_not_inlined_if_needed apply
+          "[@inlined] attribute was not used on this function application\
+           {Do_not_inline}";
         None
       | Inline { unroll_to; } ->
         let dacc, inlined =
@@ -167,7 +184,7 @@ let simplify_direct_partial_application dacc apply ~callee's_code_id
     Location.prerr_warning (Debuginfo.to_location dbg)
       (Warnings.Inlining_impossible "[@unroll] attributes may not be used \
         on partial applications")
-  | Default_inline -> ()
+  | Default_inline | Hint_inline -> ()
   end;
   let arity = List.length param_arity in
   assert (arity > List.length args);
@@ -525,6 +542,9 @@ let simplify_function_call dacc apply ~callee_ty
     | Indirect_unknown_arity -> is_function_decl_tupled
   in
   let type_unavailable () =
+    warn_not_inlined_if_needed apply
+      "[@inlined] attribute was not used on this function application \
+       (the optimizer did not know what function was being applied)";
     simplify_function_call_where_callee's_type_unavailable dacc apply call
       ~args ~arg_types ~down_to_up
   in

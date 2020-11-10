@@ -67,8 +67,8 @@ let create
       ~is_a_functor
       ~recursive =
   begin match stub, inline with
-  | true, (Never_inline | Default_inline)
-  | false, (Never_inline | Default_inline | Always_inline | Unroll _) -> ()
+  | true, (Hint_inline | Never_inline | Default_inline)
+  | false, (Never_inline | Default_inline | Always_inline | Hint_inline | Unroll _) -> ()
   | true, (Always_inline | Unroll _) ->
     Misc.fatal_error "Stubs may not be annotated as [Always_inline] or [Unroll]"
   end;
