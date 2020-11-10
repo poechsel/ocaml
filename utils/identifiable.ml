@@ -111,7 +111,7 @@ module Pair (A : Thing) (B : Thing) : Thing with type t = A.t * B.t = struct
 end
 
 module Make_map (T : Thing) (Set : Set with module T := T) = struct
-  include (Map.Make [@inlined always]) (T)
+  include (Map.Make [@inlined hint]) (T)
 
   module Set = Set
 
@@ -222,7 +222,7 @@ end [@@@inline always]
 
 module Make_set (T : Thing) = struct
   module T0 = struct
-    include (Set.Make [@inlined always]) (T)
+    include (Set.Make [@inlined hint]) (T)
 
     let output oc s =
       Printf.fprintf oc " ( ";
@@ -263,7 +263,7 @@ module Make_set (T : Thing) = struct
 end [@@@inline always]
 
 module Make_tbl (T : Thing) (Map : Map with module T := T) = struct
-  include (Hashtbl.Make [@inlined always]) (T)
+  include (Hashtbl.Make [@inlined hint]) (T)
 
   module Map = Map
 
