@@ -28,10 +28,25 @@ module Threshold : sig
     | Never_inline
     | Can_inline_if_no_larger_than of int
 
+  val print : Format.formatter -> t -> unit
+
   val add : t -> t -> t
   val sub : t -> t -> t
   val min : t -> t -> t
 end
+
+
+type inline_res =
+  | Cannot_inline
+  (** The expression's size was larger than the given threshold.
+      Because in this case the size computation exits early,
+      the size of the expression is not available. *)
+  | Can_inline of int
+  (** The expressions's size was smaller than the inlining threshold,
+      and is represented by the given integer. *)
+(** The result of checking whether some expression can be inlined,
+    i.e. whether its size is smaller than some threshold. *)
+
 
 (* Determine whether the given Flambda expression has a sufficiently low space
    cost so as to fit under the given [inlining_threshold].  The [bonus] is
@@ -41,7 +56,7 @@ val can_inline
   -> Expr.t
   -> Threshold.t
   -> bonus:int
-  -> bool
+  -> inline_res
 
 module Benefit : sig
   (* A model of the benefit we gain by removing a particular combination
