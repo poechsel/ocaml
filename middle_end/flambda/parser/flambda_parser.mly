@@ -75,6 +75,7 @@ let make_const_int (i, m) : const =
 %token GREATERDOT [@symbol ">."]
 %token GREATEREQUALDOT [@symbol ">"]
 %token HCF   [@symbol "HCF"]
+%token HINT  [@symbol "hint"]
 %token <string> IDENT
 %token IMM   [@symbol "imm" ]
 %token IMMUTABLE_UNIQUE [@symbol "immutable_unique"]
@@ -489,6 +490,7 @@ call_kind:
 
 inline:
   | INLINE LPAREN ALWAYS RPAREN { Always_inline }
+  | INLINE LPAREN HINT RPAREN { Hint_inline }
   | INLINE LPAREN NEVER RPAREN { Never_inline }
   | UNROLL LPAREN; i = plain_int; RPAREN { Unroll i }
   | INLINE LPAREN DEFAULT RPAREN { Default_inline }

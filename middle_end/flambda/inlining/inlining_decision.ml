@@ -90,7 +90,7 @@ let make_decision_for_function_declaration denv ?params_and_body function_decl
   let code = DE.find_code denv code_id in
   match Code.inline code with
   | Never_inline -> Never_inline_attribute
-  | Always_inline -> Inline None
+  | Hint_inline | Always_inline -> Inline None
   | Default_inline | Unroll _ ->
     if Code.stub code then Stub
     else
@@ -226,7 +226,7 @@ let make_decision_for_call_site denv ~function_decl_rec_info
   else
     match inline with
     | Never_inline -> Never_inline_attribute
-    | Default_inline | Unroll _ | Always_inline ->
+    | Default_inline | Unroll _ | Always_inline | Hint_inline ->
       match Rec_info.unroll_to function_decl_rec_info with
       | Some unroll_to ->
         if Rec_info.depth function_decl_rec_info >= unroll_to then
@@ -250,5 +250,5 @@ let make_decision_for_call_site denv ~function_decl_rec_info
               Rec_info.depth function_decl_rec_info + unroll_to
             in
             Inline { attribute = Some Unroll; unroll_to = Some unroll_to; }
-          | Always_inline ->
+          | Always_inline | Hint_inline ->
             Inline { attribute = Some Always; unroll_to = None; }

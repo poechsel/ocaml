@@ -19,8 +19,8 @@
 (* CR mshinwell: Disabling warning 55 is required to satisfy Closure, work
    out something better... *)
 
-module Continuations = (Permutation.Make [@inlined always]) (Continuation)
-module Variables = (Permutation.Make [@inlined always]) (Variable)
+module Continuations = (Permutation.Make [@inlined hint]) (Continuation)
+module Variables = (Permutation.Make [@inlined hint]) (Variable)
 
 type t = {
   continuations : Continuations.t;
