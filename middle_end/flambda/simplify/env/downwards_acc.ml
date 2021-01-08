@@ -27,7 +27,7 @@ type t = {
   denv : DE.t;
   continuation_uses_env : CUE.t;
   shareable_constants : Symbol.t Static_const.Map.t;
-  used_closure_vars : Var_within_closure.Set.t;
+  used_closure_vars : Name_occurrences.t;
   lifted_constants : LCS.t;
 }
 
@@ -44,14 +44,14 @@ let print ppf
     DE.print denv
     CUE.print continuation_uses_env
     (Static_const.Map.print Symbol.print) shareable_constants
-    Var_within_closure.Set.print used_closure_vars
+    Name_occurrences.print used_closure_vars
     LCS.print lifted_constants
 
 let create denv continuation_uses_env =
   { denv;
     continuation_uses_env;
     shareable_constants = Static_const.Map.empty;
-    used_closure_vars = Var_within_closure.Set.empty;
+    used_closure_vars = Name_occurrences.empty;
     lifted_constants = LCS.empty;
   }
 
@@ -79,6 +79,12 @@ let record_continuation_use t cont use_kind ~env_at_use
       ~env_at_use ~arg_types
   in
   with_continuation_uses_env t ~cont_uses_env, id
+
+let delete_continuation_uses t cont =
+  let cont_uses_env =
+    CUE.delete_continuation_uses t.continuation_uses_env cont
+  in
+  with_continuation_uses_env t ~cont_uses_env
 
 let compute_handler_env t ~env_at_fork_plus_params_and_consts
       ~consts_lifted_during_body cont ~params =
@@ -167,13 +173,14 @@ let shareable_constants t = t.shareable_constants
 let add_use_of_closure_var t closure_var =
   { t with
     used_closure_vars =
-      Var_within_closure.Set.add closure_var t.used_closure_vars;
+      Name_occurrences.add_closure_var t.used_closure_vars closure_var
+        Name_mode.normal;
   }
 
 let used_closure_vars t = t.used_closure_vars
 
-let with_used_closure_vars t ~used_closure_vars =
-  { t with used_closure_vars; }
-
 let all_continuations_used t =
   CUE.all_continuations_used t.continuation_uses_env
+
+let with_used_closure_vars t ~used_closure_vars =
+  { t with used_closure_vars = used_closure_vars; }
