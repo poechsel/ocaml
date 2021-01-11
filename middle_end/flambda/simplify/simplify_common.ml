@@ -254,7 +254,7 @@ let split_direct_over_application apply ~param_arity =
       ~call_kind:(Call_kind.indirect_function_call_unknown_arity ())
       (Apply.dbg apply)
       ~inline:(Apply.inline apply)
-      ~inlining_depth:(Apply.inlining_depth apply)
+      ~inlining_state:(Apply.inlining_state apply)
   in
   let after_full_application = Continuation.create () in
   let after_full_application_handler =

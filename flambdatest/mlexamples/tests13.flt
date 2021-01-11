@@ -142,7 +142,7 @@ let code rec map_foo_4_1 newer_version_of(map_foo_4) (f, seq, param)
            apply
              direct(map_foo_4_1 @map_foo)
              inline(never)
-             inlining_depth(1)
+             inlining_state (depth 1)
              $camlTests13__map_foo_9
              ($`camlTests13__anon-fn[tests13.ml:19,31--43]_8`,
               $`camlTests13__anon-fn[tests13.ml:19,44--59]_7`,

@@ -77,6 +77,7 @@ INCLUDES=-I utils -I parsing -I typing -I bytecomp -I file_formats \
         -I middle_end/flambda/types/structures \
         -I middle_end/flambda/types/type_of_kind \
         -I middle_end/flambda/types/type_of_kind/boilerplate \
+        -I middle_end/flambda/types/inlining \
         -I middle_end/flambda/unboxing \
         -I asmcomp -I asmcomp/debug \
         -I driver -I toplevel
@@ -1194,6 +1195,7 @@ partialclean::
            middle_end/flambda/types/structures \
            middle_end/flambda/types/type_of_kind \
            middle_end/flambda/types/type_of_kind/boilerplate \
+        	 middle_end/flambda/types/inlining \
            middle_end/flambda/unboxing \
            driver toplevel tools; do \
 	  rm -f $$d/*.cm[ioxt] $$d/*.cmti $$d/*.annot $$d/*.s $$d/*.asm \
@@ -1228,6 +1230,7 @@ depend: beforedepend
          middle_end/flambda/types/structures \
          middle_end/flambda/types/type_of_kind \
          middle_end/flambda/types/type_of_kind/boilerplate \
+         middle_end/flambda/types/inlining \
          middle_end/flambda/unboxing \
          driver toplevel; \
          do $(CAMLDEP) $(DEPFLAGS) $(DEPINCLUDES) $$d/*.mli $$d/*.ml || exit; \

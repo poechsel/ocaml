@@ -792,13 +792,12 @@ and apply_expr env (app : Apply_expr.t) : Fexpr.expr =
     | Default_inline -> None
     | other -> Some other
   in
-  let inlining_depth =
-    match Apply_expr.inlining_depth app with
-    | 0 -> None
-    | other -> Some other
+  let inlining_state =
+    let s = Apply_expr.inlining_state app in
+    if Inlining_state.exists s then Some(s) else None
   in
   Apply { func; continuation; exn_continuation; args; call_kind; inline;
-          inlining_depth; arities }
+          inlining_state; arities }
 and apply_cont_expr env app_cont : Fexpr.expr =
   Apply_cont (apply_cont env app_cont)
 and apply_cont env app_cont : Fexpr.apply_cont =

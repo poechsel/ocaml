@@ -16,16 +16,22 @@
 
 [@@@ocaml.warning "+a-4-30-40-41-42"]
 
-open! Flambda.Import
+type t
 
-val inline
-   : Downwards_acc.t
-  -> callee:Simple.t
-  -> args:Simple.t list
-  -> Flambda_type.Function_declaration_type.Inlinable.t
-  -> apply_return_continuation:Apply.Result_continuation.t
-  -> apply_exn_continuation:Exn_continuation.t
-  -> apply_inlining_state:Inlining_state.t
-  -> unroll_to:int option
-  -> Debuginfo.t
-  -> Downwards_acc.t * Expr.t
+val increment_depth : t -> t
+
+val default : t
+
+val valid : t -> bool
+
+val print : Format.formatter -> t -> unit
+
+val exists : t -> bool
+
+val is_depth_exceeded : t -> bool
+
+val merge : t -> t -> t
+
+val create : depth:int -> t
+
+val equal : t -> t -> bool
