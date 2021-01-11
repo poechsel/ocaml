@@ -234,7 +234,7 @@ let make_decision_for_call_site denv ~function_decl_rec_info
         else
           Inline { attribute = None; unroll_to = None; }
       | None ->
-        if apply_inlining_state >= !Clflags.Flambda.Expert.max_inlining_depth
+        if Inlining_state.is_depth_exceeded apply_inlining_state
         then
           Max_inlining_depth_exceeded
         else

@@ -76,7 +76,7 @@ type t = {
   call_kind : Call_kind.t;
   dbg : Debuginfo.t;
   inline : Inline_attribute.t;
-  inlining_state : int;
+  inlining_state : Inlining_state.t;
 }
 
 let print ppf { callee; continuation; exn_continuation; args; call_kind;
@@ -86,7 +86,7 @@ let print ppf { callee; continuation; exn_continuation; args; call_kind;
       @[<hov 1>(call_kind@ %a)@]@ \
       @[<hov 1>@<0>%s(dbg@ %a)@<0>%s@]@ \
       @[<hov 1>(inline@ %a)@]@ \
-      @[<hov 1>(inlining_state@ %d)@]\
+      @[<hov 1>(inlining_state@ %a)@]\
       )@]"
     Simple.print callee
     Result_continuation.print continuation
@@ -97,7 +97,7 @@ let print ppf { callee; continuation; exn_continuation; args; call_kind;
     Debuginfo.print_compact dbg
     (Flambda_colours.normal ())
     Inline_attribute.print inline
-    inlining_state
+    Inlining_state.print inlining_state
 
 let print_with_cache ~cache:_ ppf t = print ppf t
 
@@ -214,7 +214,7 @@ let invariant env
       end;
       ignore (dbg : Debuginfo.t);
       ignore (inline : Inline_attribute.t);
-      assert (inlining_state >= 0)
+      assert (Inlining_state.valid inlining_state)
     end
 
 let create ~callee ~continuation exn_continuation ~args ~call_kind dbg ~inline

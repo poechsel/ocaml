@@ -215,7 +215,7 @@ let close_c_call t ~let_bound_var (prim : Primitive.description)
         ~call_kind
         dbg
         ~inline:Default_inline
-        ~inlining_state:0
+        ~inlining_state:(Inlining_state.default)
     in
     Expr.create_apply apply
   in
@@ -453,7 +453,7 @@ let rec close t env (ilam : Ilambda.t) : Expr.t =
         ~call_kind
         (Debuginfo.from_location loc)
         ~inline:(LC.inline_attribute inlined)
-        ~inlining_state:0
+        ~inlining_state:(Inlining_state.default)
     in
     Expr.create_apply apply
   | Apply_cont (cont, trap_action, args) ->

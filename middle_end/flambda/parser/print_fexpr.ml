@@ -456,7 +456,7 @@ let rec expr scope ppf = function
       func;
       arities } ->
     let pp_inlining_state ppf () =
-      pp_option (fun ppf -> Format.fprintf ppf "@ inlining_state(%d)")
+      pp_option (fun ppf -> Format.fprintf ppf "@ inlining_state %a" Inlining_state.print)
         ppf inlining_state
     in
     Format.fprintf ppf "@[<hv 2>apply%a%a%a@ %a%a@ @[<hov2>->@ %a@]@ %a@]"

@@ -641,8 +641,8 @@ let simplify_apply_shared dacc apply : _ Or_bottom.t =
     | _changed, Ok args_with_types ->
       let args, arg_types = List.split args_with_types in
       let inlining_state =
-        DE.get_inlining_state_increment (DA.denv dacc)
-          + Apply.inlining_state apply
+        Inlining_state.merge (DE.get_inlining_state (DA.denv dacc))
+          (Apply.inlining_state apply)
       in
       let apply =
         Apply.create ~callee

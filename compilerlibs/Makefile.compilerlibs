@@ -278,7 +278,8 @@ MIDDLE_END_FLAMBDA_TYPES=\
   middle_end/flambda/types/basic/or_absorbing.cmo \
   middle_end/flambda/types/basic/closure_id_set.cmo \
   middle_end/flambda/types/basic/closure_id_or_unknown_and_var_within_closure_set.cmo \
-  middle_end/flambda/types/basic/closure_id_and_var_within_closure_set.cmo
+  middle_end/flambda/types/basic/closure_id_and_var_within_closure_set.cmo \
+  middle_end/flambda/types/inlining/inlining_state.cmo 
 
 MIDDLE_END_FLAMBDA_TERMS=\
   middle_end/flambda/terms/apply_cont_expr.cmo \
