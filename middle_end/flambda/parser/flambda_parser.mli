@@ -54,6 +54,7 @@ type token =
   | INT64
   | INT32
   | INT of (string * char option)
+  | INLINING_STATE_DEPTH
   | INLINING_STATE
   | INLINE
   | IN

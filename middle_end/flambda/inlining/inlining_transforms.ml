@@ -36,9 +36,9 @@ let inline dacc ~callee ~args function_decl
     ~f:(fun ~return_continuation exn_continuation params ~body ~my_closure
             ~is_my_closure_used:_ ->
           let denv =
-            DE.set_inlining_state_increment
+            DE.set_inlining_state
               (DE.set_inlined_debuginfo denv dbg)
-              (apply_inlining_state + 1)
+              (Inlining_state.increment_depth apply_inlining_state)
           in
           let make_inlined_body ~apply_exn_continuation ~apply_return_continuation =
             let perm = Name_permutation.empty in

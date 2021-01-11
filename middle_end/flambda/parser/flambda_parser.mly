@@ -82,6 +82,7 @@ let make_const_int (i, m) : const =
 %token IN    [@symbol "in"]
 %token INLINE [@symbol "inline"]
 %token INLINING_STATE [@symbol "inlining_state"]
+%token INLINING_STATE_DEPTH [@symbol "depth"]
 %token INT32 [@symbol "int32"]
 %token INT64 [@symbol "int64"]
 %token <string * char option> INT
@@ -496,7 +497,10 @@ inline:
   | INLINE LPAREN DEFAULT RPAREN { Default_inline }
 
 inlining_state:
-  | INLINING_STATE LPAREN; i = plain_int; RPAREN { i }
+  | INLINING_STATE LPAREN; i = inlining_state_depth; RPAREN { Inlining_state.create ~depth:i }
+
+inlining_state_depth:
+  | INLINING_STATE_DEPTH; i = plain_int; { i }
 
 apply_cont_expr:
   | cont = continuation; args = simple_args

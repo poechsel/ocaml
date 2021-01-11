@@ -987,7 +987,7 @@ let apply_exprs env apply1 apply2 : Expr.t Comparison.t =
          (Apply.exn_continuation apply1)
          (Apply.exn_continuation apply2)
     && Inline_attribute.equal (Apply.inline apply1) (Apply.inline apply2)
-    && Apply.inlining_state apply1 = Apply.inlining_state apply2
+    && Inlining_state.equal (Apply.inlining_state apply1)  (Apply.inlining_state apply2)
   in
   let ok = ref atomic_things_equal in
   let callee1' =

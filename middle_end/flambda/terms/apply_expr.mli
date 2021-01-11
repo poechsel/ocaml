@@ -47,7 +47,7 @@ val create
   -> call_kind:Call_kind.t
   -> Debuginfo.t
   -> inline:Inline_attribute.t
-  -> inlining_state:int
+  -> inlining_state:Inlining_state.t
   -> t
 
 (** The function or method being applied. *)
@@ -94,4 +94,4 @@ val with_continuation_callee_and_args
   -> args:Simple.t list
   -> t
 
-val inlining_state : t -> int
+val inlining_state : t -> Inlining_state.t

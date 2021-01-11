@@ -737,7 +737,7 @@ let rec expr env (e : Fexpr.expr) : Flambda.Expr.t =
       inline |> Option.value ~default:Inline_attribute.Default_inline
     in
     let inlining_state =
-      inlining_state |> Option.value ~default:0
+      inlining_state |> Option.value ~default:Inlining_state.default
     in
     let exn_continuation = find_exn_cont env exn_continuation in
     let apply =
