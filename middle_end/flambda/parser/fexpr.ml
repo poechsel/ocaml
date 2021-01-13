@@ -211,7 +211,7 @@ type apply = {
     call_kind : call_kind;
     arities : function_arities option;
     inline : inline_attribute option;
-    inlining_depth : int option;
+    inlining_state : int option;
   }
 
 type size = int

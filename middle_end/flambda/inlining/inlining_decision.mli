@@ -68,6 +68,6 @@ end
 val make_decision_for_call_site
    : Simplify_envs.Downwards_env.t
   -> function_decl_rec_info:Rec_info.t
-  -> apply_inlining_depth:int
+  -> apply_inlining_state:int
   -> Inline_attribute.t
   -> Call_site_decision.t
