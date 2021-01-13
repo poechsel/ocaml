@@ -25,7 +25,7 @@ module VB = Var_in_binding_pos
 
 let inline dacc ~callee ~args function_decl
       ~apply_return_continuation ~apply_exn_continuation
-      ~apply_inlining_depth ~unroll_to dbg =
+      ~apply_inlining_state ~unroll_to dbg =
   (* CR mshinwell: Add meet constraint to the return continuation *)
   let denv = DA.denv dacc in
   let code = DE.find_code denv (I.code_id function_decl) in
@@ -36,9 +36,9 @@ let inline dacc ~callee ~args function_decl
     ~f:(fun ~return_continuation exn_continuation params ~body ~my_closure
             ~is_my_closure_used:_ ->
           let denv =
-            DE.set_inlining_depth_increment
+            DE.set_inlining_state_increment
               (DE.set_inlined_debuginfo denv dbg)
-              (apply_inlining_depth + 1)
+              (apply_inlining_state + 1)
           in
           let make_inlined_body ~apply_exn_continuation ~apply_return_continuation =
             let perm = Name_permutation.empty in

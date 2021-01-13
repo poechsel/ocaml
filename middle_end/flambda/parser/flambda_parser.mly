@@ -81,7 +81,7 @@ let make_const_int (i, m) : const =
 %token IMMUTABLE_UNIQUE [@symbol "immutable_unique"]
 %token IN    [@symbol "in"]
 %token INLINE [@symbol "inline"]
-%token INLINING_DEPTH [@symbol "inlining_depth"]
+%token INLINING_STATE [@symbol "inlining_state"]
 %token INT32 [@symbol "int32"]
 %token INT64 [@symbol "int64"]
 %token <string * char option> INT
@@ -464,7 +464,7 @@ fun_decl:
 apply_expr:
   | call_kind = call_kind;
     inline = option(inline);
-    inlining_depth = option(inlining_depth);
+    inlining_state = option(inlining_state);
     func = func_name_with_optional_arities 
     args = simple_args MINUSGREATER
     r = continuation e = exn_continuation
@@ -475,7 +475,7 @@ apply_expr:
           args = args;
           call_kind;
           inline;
-          inlining_depth;
+          inlining_state;
           arities;
      } }
 ;
@@ -495,8 +495,8 @@ inline:
   | UNROLL LPAREN; i = plain_int; RPAREN { Unroll i }
   | INLINE LPAREN DEFAULT RPAREN { Default_inline }
 
-inlining_depth:
-  | INLINING_DEPTH LPAREN; i = plain_int; RPAREN { i }
+inlining_state:
+  | INLINING_STATE LPAREN; i = plain_int; RPAREN { i }
 
 apply_cont_expr:
   | cont = continuation; args = simple_args

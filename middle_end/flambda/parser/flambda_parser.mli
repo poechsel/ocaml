@@ -54,12 +54,13 @@ type token =
   | INT64
   | INT32
   | INT of (string * char option)
-  | INLINING_DEPTH
+  | INLINING_STATE
   | INLINE
   | IN
   | IMMUTABLE_UNIQUE
   | IMM
   | IDENT of (string)
+  | HINT
   | HCF
   | GREATEREQUALDOT
   | GREATEREQUAL

@@ -99,11 +99,11 @@ let simplify_direct_full_application dacc apply function_decl_opt
          (the optimizer decided not to inline the function given its definition)";
       None
     | Some (function_decl, function_decl_rec_info) ->
-      let apply_inlining_depth = Apply.inlining_depth apply in
+      let apply_inlining_state = Apply.inlining_state apply in
       let decision =
         Inlining_decision.make_decision_for_call_site (DA.denv dacc)
           ~function_decl_rec_info
-          ~apply_inlining_depth
+          ~apply_inlining_state
           (Apply.inline apply)
       in
       let code_id = T.Function_declaration_type.Inlinable.code_id function_decl in
@@ -126,7 +126,7 @@ let simplify_direct_full_application dacc apply function_decl_opt
             ~args function_decl
             ~apply_return_continuation:(Apply.continuation apply)
             ~apply_exn_continuation:(Apply.exn_continuation apply)
-            ~apply_inlining_depth ~unroll_to
+            ~apply_inlining_state ~unroll_to
             (Apply.dbg apply)
         in
         Some (dacc, inlined)
@@ -241,7 +241,7 @@ let simplify_direct_partial_application dacc apply ~callee's_code_id
           ~call_kind
           dbg
           ~inline:Default_inline
-          ~inlining_depth:(Apply.inlining_depth apply)
+          ~inlining_state:(Apply.inlining_state apply)
       in
       List.fold_left (fun expr (closure_var, arg) ->
           match Simple.must_be_var arg with
@@ -640,9 +640,9 @@ let simplify_apply_shared dacc apply : _ Or_bottom.t =
     | _, Bottom -> Bottom
     | _changed, Ok args_with_types ->
       let args, arg_types = List.split args_with_types in
-      let inlining_depth =
-        DE.get_inlining_depth_increment (DA.denv dacc)
-          + Apply.inlining_depth apply
+      let inlining_state =
+        DE.get_inlining_state_increment (DA.denv dacc)
+          + Apply.inlining_state apply
       in
       let apply =
         Apply.create ~callee
@@ -652,7 +652,7 @@ let simplify_apply_shared dacc apply : _ Or_bottom.t =
           ~call_kind:(Apply.call_kind apply)
           (DE.add_inlined_debuginfo' (DA.denv dacc) (Apply.dbg apply))
           ~inline:(Apply.inline apply)
-          ~inlining_depth
+          ~inlining_state
       in
       Ok (callee_ty, apply, arg_types)
 
