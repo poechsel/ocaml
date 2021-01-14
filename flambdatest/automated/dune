@@ -1,0 +1,35 @@
+(rule
+ (alias  runtest)
+ (deps 
+  (:flexpect ../../testsuite/tools/flexpect.exe) 
+  (:flin tests0.flt))
+ (action (ignore-stderr (run %{flexpect} %{flin}))))
+
+(rule
+ (alias  runtest)
+ (deps 
+  (:flexpect ../../testsuite/tools/flexpect.exe) 
+  (:flin tests13.flt))
+ (action (ignore-stderr (run %{flexpect} %{flin}))))
+
+(rule
+ (alias  runtest)
+ (deps 
+  (:flexpect ../../testsuite/tools/flexpect.exe) 
+  (:flin tests5.flt))
+ (action (ignore-stderr (run %{flexpect} %{flin}))))
+
+(rule
+ (alias  runtest)
+ (deps 
+  (:flexpect ../../testsuite/tools/flexpect.exe) 
+  (:flin tests8.flt))
+ (action (ignore-stderr (run %{flexpect} %{flin}))))
+
+(rule
+ (alias  runtest)
+ (deps 
+  (:flexpect ../../testsuite/tools/flexpect.exe) 
+  (:flin tests12.flt))
+ (action (ignore-stderr (run %{flexpect} %{flin}))))
+
