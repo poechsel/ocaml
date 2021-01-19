@@ -90,7 +90,7 @@ let rebuild_one_continuation_handler cont ~at_unit_toplevel
         let prim = Flambda_primitive.(Nullary (Optimised_out k)) in
         let named = Named.create_prim prim Debuginfo.none in
         let simplified = Simplified_named.reachable named in
-        bound, simplified
+        bound, simplified, Or_unknown.Known named
       ) new_phantom_params)
   in
   let used_extra_params =
@@ -223,6 +223,9 @@ let simplify_non_recursive_let_cont_handler ~denv_before_body ~dacc_after_body
     down_to_up dacc
       ~continuation_has_zero_uses:true
       ~rebuild:(fun uacc ~after_rebuild ->
+        (* Even though the handler is discarded we removing an operation
+           is unnecessary: the handler would have been left untouched during
+           execution.*)
         rebuild_non_recursive_let_cont_handler cont uses ~params
           ~handler ~free_names_of_handler:Name_occurrences.empty
           ~is_single_inlinable_use:false ~is_single_use:false scope
@@ -436,7 +439,11 @@ let simplify_non_recursive_let_cont dacc non_rec ~down_to_up =
                             Name_occurrences.union name_occurrences_body
                               name_occurrences_subsequent_exprs
                           in
-                          UA.with_name_occurrences uacc ~name_occurrences
+                          uacc
+                          |> UA.with_name_occurrences ~name_occurrences
+                            (* At this point one let cont has been removed *)
+                          |> UA.cost_metrics_remove_operation
+                               Cost_metrics.Operations.alloc
                         in
                         (* The cost_metrics stored in uacc is the cost_metrics of the body at
                            this point *)
@@ -577,8 +584,8 @@ let simplify_recursive_let_cont_handlers ~denv_before_body ~dacc_after_body
           rebuild_recursive_let_cont_handlers cont arity
             ~original_cont_scope_level cont_handler uacc ~after_rebuild)))
 
-let rebuild_recursive_let_cont ~body handlers ~cost_metrics_of_handlers ~uenv_without_cont uacc
-      ~after_rebuild : Expr.t * UA.t =
+let rebuild_recursive_let_cont ~body handlers ~cost_metrics_of_handlers
+      ~uenv_without_cont uacc ~after_rebuild : Expr.t * UA.t =
   let uacc = UA.with_uenv uacc uenv_without_cont in
   let expr = Flambda.Let_cont.create_recursive handlers ~body in
   let uacc =

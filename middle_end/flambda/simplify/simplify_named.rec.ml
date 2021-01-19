@@ -153,7 +153,7 @@ let simplify_named0 dacc (bindable_let_bound : Bindable_let_bound.t)
       let dacc = DA.add_variable dacc bound_var (T.bottom (T.kind ty)) in
       let defining_expr = Simplified_named.invalid () in
       Simplify_named_result.have_simplified_to_single_term dacc
-        bindable_let_bound defining_expr
+        bindable_let_bound defining_expr named
     | Ok new_simple, ty ->
       let dacc = DA.add_variable dacc bound_var ty in
       let defining_expr =
@@ -161,7 +161,7 @@ let simplify_named0 dacc (bindable_let_bound : Bindable_let_bound.t)
         else Simplified_named.reachable (Named.create_simple simple)
       in
       Simplify_named_result.have_simplified_to_single_term dacc
-        bindable_let_bound defining_expr
+        bindable_let_bound defining_expr named
     end
   | Prim (prim, dbg) ->
     let bound_var = Bindable_let_bound.must_be_singleton bindable_let_bound in
@@ -208,7 +208,7 @@ let simplify_named0 dacc (bindable_let_bound : Bindable_let_bound.t)
         bindable_let_bound ~bound_var named
     in
     Simplify_named_result.have_simplified_to_single_term dacc
-      bindable_let_bound defining_expr
+      bindable_let_bound defining_expr named
   | Set_of_closures set_of_closures ->
     Simplify_set_of_closures.simplify_non_lifted_set_of_closures dacc
       bindable_let_bound set_of_closures
@@ -312,9 +312,74 @@ let simplify_named0 dacc (bindable_let_bound : Bindable_let_bound.t)
        constant. *)
     Simplify_named_result.have_simplified_to_zero_terms dacc
 
+let adjust_cost_metrics (named : Named.t) result =
+  let descr = Simplify_named_result.descr result  in
+  let dacc = Simplify_named_result.dacc result in
+  match named with
+  | Set_of_closures _ -> begin
+      match descr with
+      | Multiple_bindings_to_symbols _ -> result
+      | Single_term (_, Reachable {named = Set_of_closures _ ;_}, _) ->
+        (* Nothing was deleted, there is no need to adjust the negative benefit*)
+        result
+      | Single_term (_, Invalid _, _)
+      | Single_term (_, Reachable {named = Prim _ ;_}, _)
+      | Single_term (_, Reachable {named = Simple _ ;_}, _)
+      | Zero_terms -> assert false
+    end
+  | Static_consts _ -> begin
+      match descr with
+      | Zero_terms -> result
+      | Single_term _
+      | Multiple_bindings_to_symbols _ -> assert false
+    end
+  | Simple _ -> begin
+      match descr with
+      | Single_term (_, Reachable {named = Simple _; _}, _) ->
+        (* A simple has 0 benefit.*)
+        result
+      | Single_term (_,  Invalid _, _) -> result
+      | Zero_terms
+      | Multiple_bindings_to_symbols _
+      | Single_term (_, Reachable {named = Set_of_closures _; _}, _)
+      | Single_term (_, Reachable {named = Prim _; _}, _) -> assert false
+    end
+  | Prim (original_prim, _) -> begin
+      let adjust_cost_metrics (simplified_named : Simplified_named.t) =
+        let cost_metrics =
+          Simplified_named.cost_metrics simplified_named
+          |> Cost_metrics.remove_operation (Cost_metrics.Operations.prim original_prim)
+        in
+        Simplified_named.update_cost_metrics cost_metrics simplified_named
+      in
+      match descr with
+      | Single_term (bound, simplified_named, _) -> begin
+          match simplified_named with
+          | Reachable { named = Prim (rewritten_prim, _); _ } ->
+            if Flambda_primitive.equal original_prim rewritten_prim then
+              result
+            else
+              Simplify_named_result.have_simplified_to_single_term
+                dacc
+                bound
+                (adjust_cost_metrics simplified_named)
+                named
+          | Reachable { named = Simple _; _}
+          | Reachable { named = Set_of_closures _; _} 
+          | Invalid _ ->
+            Simplify_named_result.have_simplified_to_single_term
+              dacc
+              bound
+              (adjust_cost_metrics simplified_named)
+              named
+        end
+      | Zero_terms | Multiple_bindings_to_symbols _ -> assert false
+    end
+
 let simplify_named dacc bindable_let_bound named =
   try
     simplify_named0 dacc bindable_let_bound named
+    |> adjust_cost_metrics named
   with Misc.Fatal_error -> begin
     if !Clflags.flambda_context_on_error then begin
       Format.eprintf "\n%sContext is:%s simplifying [Let] binding@ %a =@ %a@ \

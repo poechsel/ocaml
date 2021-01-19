@@ -53,6 +53,7 @@ let rebuild_let symbol_scoping_rule simplify_named_result
     let body, uacc =
       EB.make_new_let_bindings uacc ~bindings_outermost_first:bindings ~body
     in
+    (* The let binding was removed. *)
     after_rebuild body uacc
   else
     let scoping_rule =
@@ -64,7 +65,7 @@ let rebuild_let symbol_scoping_rule simplify_named_result
     let critical_deps_of_bindings =
       ListLabels.fold_left bindings
         ~init:Name_occurrences.empty
-        ~f:(fun critical_deps (bound, _) ->
+        ~f:(fun critical_deps (bound, _, _) ->
           Name_occurrences.union (Bindable_let_bound.free_names bound)
             critical_deps)
     in

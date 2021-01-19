@@ -49,7 +49,16 @@ let try_cse dacc ~original_prim ~simplified_args_with_tys ~min_name_mode
       let ty = T.alias_type_of (P.result_kind' original_prim) replace_with in
       let env_extension = TEE.one_equation (Name.var result_var) ty in
       let args = List.map fst simplified_args_with_tys in
-      Applied (Simplified_named.reachable named, env_extension, args, dacc)
+      let simplified_named =
+        let cost_metrics =
+          Cost_metrics.remove_operation
+            (Cost_metrics.Operations.prim original_prim)
+            Cost_metrics.zero
+        in
+        Simplified_named.reachable named
+        |> Simplified_named.update_cost_metrics cost_metrics
+      in
+      Applied (simplified_named, env_extension, args, dacc)
     | None ->
       let dacc =
         match P.Eligible_for_cse.create original_prim with

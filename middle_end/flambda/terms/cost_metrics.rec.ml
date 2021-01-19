@@ -16,13 +16,98 @@
 
 [@@@ocaml.warning "+a-4-30-40-41-42"]
 
-type t = int
+module Operations = struct
+  (* Operations are finer grained metrics (number of calls / allocations) about
+     the size of an expression.
+  *)
 
-let zero = 0
-let to_int t = t
-let smaller_than_threshold t ~threshold = t <= threshold
-let equal a b = a = b
-let (+) (a : t) (b : t) : t = a + b
+  type t = {
+    call : int;
+    alloc : int;
+    prim : int;
+    branch : int;
+    (* CR-someday pchambart: branch : t list; *)
+    direct_call_of_indirect : int;
+    requested_inline : int;
+    (* Benefit to compensate the size of functions marked for inlining *)
+  }
+
+  let zero = {
+    call = 0;
+    alloc = 0;
+    prim = 0;
+    branch = 0;
+    direct_call_of_indirect = 0;
+    requested_inline = 0;
+  }
+
+  let call = { zero with call = 1; }
+  let alloc = { zero with alloc = 1; }
+
+  let prim (prim:Flambda_primitive.t) =
+    match prim with
+    | Unary (prim, _) -> begin
+        match prim with
+        | Duplicate_block _ | Duplicate_array _ | Box_number _ | Unbox_number _ ->
+           alloc
+        | _ ->
+           { zero with prim = 1 }
+      end
+    | Nullary _ ->
+       zero
+    | Binary (_, _, _)
+    | Ternary (_, _, _, _) ->
+       { zero with prim = 1 }
+    | Variadic (prim, _) -> begin
+        match prim with
+        | Make_block _ | Make_array _ ->
+           alloc
+      end
+
+  let branch = { zero with branch = 1; }
+
+  let direct_call_of_indirect =
+    { zero with direct_call_of_indirect = 1; }
+
+  let print ppf b =
+    Format.fprintf ppf "@[call: %i@ alloc: %i@ \
+                        prim: %i@ branch: %i@ \
+                        direct: %i@ requested: %i@]"
+      b.call
+      b.alloc
+      b.prim
+      b.branch
+      b.direct_call_of_indirect
+      b.requested_inline
+
+  let (+) t1 t2 = {
+    call = t1.call + t2.call;
+    alloc = t1.alloc + t2.alloc;
+    prim = t1.prim + t2.prim;
+    branch = t1.branch + t2.branch;
+    direct_call_of_indirect =
+      t1.direct_call_of_indirect + t2.direct_call_of_indirect;
+    requested_inline = t1.requested_inline + t2.requested_inline;
+  }
+end
+
+type t = {
+  size: int;
+  removed: Operations.t;
+}
+
+let zero = { size = 0; removed = Operations.zero } 
+let size t = t.size
+let smaller_than_threshold t ~threshold = t.size <= threshold
+let equal_size a b = a.size = b.size
+
+let add ~added t =
+  { size = t.size + added.size;
+    removed = Operations.(+) t.removed added.removed; }
+
+(* Increments the benefit caused by removing an operation. *)
+let remove_operation op t =
+  { t with removed = Operations.(+) t.removed op }
 
 let arch32 = Targetint.size = 32 (* are we compiling for a 32-bit arch *)
 let arch64 = Targetint.size = 64 (* are we compiling for a 64-bit arch *)
@@ -378,11 +463,17 @@ let prim_size (prim : Flambda_primitive.t) =
   | Ternary (p, _, _, _) -> ternary_prim_size p
   | Variadic (p, args) -> variadic_prim_size p args
 
-let simple simple = Simple.pattern_match simple ~const:(fun _ -> 1) ~name:(fun _ -> 0)
+let simple simple =
+  let size =
+    Simple.pattern_match simple ~const:(fun _ -> 1) ~name:(fun _ -> 0)
+  in
+  { size; removed = Operations.zero }
 
-let prim = prim_size
+let prim prim =
+  let size = prim_size prim in
+  { size; removed = Operations.zero }
 
-let static_consts _ = 0
+let static_consts _ = zero
 
 (* The size of a set of closures is roughly the sum of the size of the
    functions it refers to. This is mainly due to the fact that if we do inline
@@ -394,7 +485,7 @@ let set_of_closures ~find_cost_metrics set_of_closures =
   Closure_id.Map.fold (fun _ func_decl size ->
     let code_id = Function_declaration.code_id func_decl in
     match find_cost_metrics code_id with
-    | Or_unknown.Known s -> size + s
+    | Or_unknown.Known s -> add size ~added:s
     | Or_unknown.Unknown ->
       Misc.fatal_errorf "Code size should have been computed for:@ %a"
         Code_id.print code_id
@@ -404,26 +495,33 @@ let set_of_closures ~find_cost_metrics set_of_closures =
 let increase_due_to_let_expr ~is_phantom ~cost_metrics_of_defining_expr =
   if is_phantom then zero else cost_metrics_of_defining_expr
 
-let apply apply = 
-  match Apply.call_kind apply with
-  | Function Direct _ -> direct_call_size
-  (* CR mshinwell: Check / fix these numbers *)
-  | Function Indirect_unknown_arity -> indirect_call_size
-  | Function Indirect_known_arity _ -> indirect_call_size
-  | C_call { alloc = true; _ } -> alloc_extcall_size
-  | C_call { alloc = false; _ } -> nonalloc_extcall_size
-  | Method _ -> 8 (* from flambda/inlining_cost.ml *)
+let apply apply =
+  let size =
+    match Apply.call_kind apply with
+    | Function Direct _ -> direct_call_size
+    (* CR mshinwell: Check / fix these numbers *)
+    | Function Indirect_unknown_arity -> indirect_call_size
+    | Function Indirect_known_arity _ -> indirect_call_size
+    | C_call { alloc = true; _ } -> alloc_extcall_size
+    | C_call { alloc = false; _ } -> nonalloc_extcall_size
+    | Method _ -> 8 (* from flambda/inlining_cost.ml *)
+  in
+  { size; removed = Operations.zero }
 
 let apply_cont apply_cont =
-  let size = match Apply_cont.trap_action apply_cont with
-    | None -> 0
-    | Some (Push _ | Pop _) -> 0 + 4
+  let size =
+    match Apply_cont.trap_action apply_cont with
+    | None -> 1
+    | Some (Push _ | Pop _) -> 1 + 4
   in
-  size + 1
+  { size; removed = Operations.zero }
 
-let invalid _ = 0
+let invalid = zero
 
-let switch switch = 0 + (5 * Switch.num_arms switch)
+let switch switch =
+  let n_arms = Switch.num_arms switch in
+  let size = 5 * n_arms in
+  { size; removed = Operations.zero }
 
 let increase_due_to_let_cont_non_recursive ~cost_metrics_of_handler =
   cost_metrics_of_handler
@@ -431,78 +529,75 @@ let increase_due_to_let_cont_non_recursive ~cost_metrics_of_handler =
 let increase_due_to_let_cont_recursive ~cost_metrics_of_handlers =
   cost_metrics_of_handlers
 
-let rec expr_size ~find_code expr size =
+let rec expr_size ~find_cost_metrics ~cont expr =
   match Expr.descr expr with
   | Let let_expr ->
-    Let_expr.pattern_match let_expr
-      ~f:(fun bindable_let_bound ~body ->
-        let name_mode = Bindable_let_bound.name_mode bindable_let_bound in
-        let size =
-          if Name_mode.is_phantom name_mode then size
-          else named_size ~find_code (Let_expr.defining_expr let_expr) size
-        in
-        expr_size ~find_code body size)
+     Let_expr.pattern_match let_expr
+       ~f:(fun bindable_let_bound ~body ->
+         let name_mode = Bindable_let_bound.name_mode bindable_let_bound in
+         let is_phantom = Name_mode.is_phantom name_mode in
+         let cost_metrics_of_defining_expr = 
+           named ~find_cost_metrics (Let_expr.defining_expr let_expr)
+         in
+         expr_size ~find_cost_metrics body ~cont:(fun size ->
+             let added =
+               increase_due_to_let_expr
+                 ~is_phantom
+                 ~cost_metrics_of_defining_expr
+             in
+             add size ~added
+       ))
   | Let_cont (Non_recursive { handler; _ }) ->
     Non_recursive_let_cont_handler.pattern_match handler
       ~f:(fun _cont ~body ->
-        expr_size ~find_code body size
-        |> continuation_handler_size ~find_code
-             (Non_recursive_let_cont_handler.handler handler)
-      )
+        let handler = (Non_recursive_let_cont_handler.handler handler) in
+        Continuation_handler.pattern_match handler
+          ~f:(fun _params ~handler ->
+            expr_size ~find_cost_metrics handler ~cont:(fun cost_metrics_of_handler ->
+              expr_size ~find_cost_metrics body ~cont:(fun size ->
+                let added =
+                  increase_due_to_let_cont_non_recursive ~cost_metrics_of_handler
+                in
+                add size ~added
+              ))))
   | Let_cont (Recursive handlers) ->
-    Recursive_let_cont_handlers.pattern_match handlers
-      ~f:(fun ~body handlers ->
-        let size = expr_size ~find_code body size in
-        let handlers = Continuation_handlers.to_map handlers in
-        Continuation.Map.fold (fun _cont handler size ->
-          continuation_handler_size ~find_code handler size)
-          handlers size)
-  | Apply apply ->
-    let call_cost =
-      match Apply.call_kind apply with
-      | Function Direct _ -> direct_call_size
-      (* CR mshinwell: Check / fix these numbers *)
-      | Function Indirect_unknown_arity -> indirect_call_size
-      | Function Indirect_known_arity _ -> indirect_call_size
-      | C_call { alloc = true; _ } -> alloc_extcall_size
-      | C_call { alloc = false; _ } -> nonalloc_extcall_size
-      | Method _ -> 8 (* from flambda/inlining_cost.ml *)
-    in
-    size + call_cost
+    Recursive_let_cont_handlers.pattern_match handlers ~f:(fun ~body rec_handlers ->
+      let handlers = Continuation_handlers.to_map rec_handlers in
+      let _, cont_handler = match Continuation.Map.bindings handlers with
+        | [] | _ :: _ :: _ ->
+          Misc.fatal_error "Support for simplification of multiply-recursive \
+                            continuations is not yet implemented"
+        | [c] -> c
+      in
+      Continuation_handler.pattern_match cont_handler
+        ~f:(fun _params ~handler ->
+          expr_size ~find_cost_metrics handler ~cont:(fun cost_metrics_of_handlers ->
+            expr_size ~find_cost_metrics body ~cont:(fun size ->
+              let added =
+                increase_due_to_let_cont_recursive ~cost_metrics_of_handlers
+              in
+              add size ~added
+            ))))
+  | Apply apply' ->
+    cont (apply apply')
   | Apply_cont e ->
-    let size = match Apply_cont.trap_action e with
-      | None -> size
-      | Some (Push _ | Pop _) -> size + 4
-    in
-    size + 1
-  | Switch switch -> size + (5 * Switch.num_arms switch)
-  | Invalid _ -> size
-and named_size ~find_code (named : Named.t) size =
+    cont (apply_cont e)
+  | Switch switch' -> cont (switch switch')
+  | Invalid _ -> cont invalid
+and named ~find_cost_metrics (named : Named.t) =
   match named with
-  | Simple simple ->
-    Simple.pattern_match simple
-      ~const:(fun _ -> size + 1)
-      ~name:(fun _ -> size)
-  | Set_of_closures set_of_closures ->
-    let func_decls = Set_of_closures.function_decls set_of_closures in
-    let funs = Function_declarations.funs func_decls in
-    Closure_id.Map.fold (fun _ func_decl size ->
-      let code_id = Function_declaration.code_id func_decl in
-      let code = find_code code_id in
-      match Code.params_and_body code with
-      | Present params_and_body ->
-        Function_params_and_body.pattern_match params_and_body
-          ~f:(fun ~return_continuation:_ _exn_continuation _params
-               ~body ~my_closure:_ ~is_my_closure_used:_ ->
-               expr_size ~find_code body size)
-      | Deleted -> size)
-      funs size
-  | Prim (prim, _dbg) ->
-    size + prim_size prim
-  | Static_consts _ -> size
-and continuation_handler_size ~find_code handler size =
-  Continuation_handler.pattern_match handler
-    ~f:(fun _params ~handler -> expr_size ~find_code handler size)
+  | Simple simple' ->
+    simple simple'
+  | Set_of_closures set_of_closures' ->
+    set_of_closures ~find_cost_metrics set_of_closures'
+  | Prim (prim', _dbg) ->
+    prim prim'
+  | Static_consts static_consts' ->
+    static_consts static_consts'
 
-let expr_size ~find_code e = expr_size ~find_code e 0
-let print ppf t = Format.fprintf ppf "%d" t
+let expr ~find_cost_metrics e =
+  expr_size ~find_cost_metrics ~cont:(fun x -> x) e
+
+let print ppf t = Format.fprintf ppf "%d %a"
+                    t.size
+                    Operations.print t.removed

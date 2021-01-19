@@ -31,7 +31,7 @@ open! Flambda.Import
     free names of the [body]. *)
 val make_new_let_bindings
    : Upwards_acc.t
-  -> bindings_outermost_first:(Bindable_let_bound.t * Simplified_named.t) list
+  -> bindings_outermost_first:(Bindable_let_bound.t * Simplified_named.t * Named.t Or_unknown.t) list
   -> body:Expr.t
   -> Expr.t * Upwards_acc.t
 

@@ -33,7 +33,10 @@ type t = private
       cost_metrics: Cost_metrics.t;
       free_names : Name_occurrences.t;
     }
-  | Invalid of Invalid_term_semantics.t
+  | Invalid of {
+      cost_metrics: Cost_metrics.t;
+      semantics: Invalid_term_semantics.t;
+    }
 
 (** It is an error to pass [Set_of_closures] or [Static_consts] to this
     function.  (Sets of closures are disallowed because computation of their
@@ -53,3 +56,7 @@ val invalid : unit -> t
 val is_invalid : t -> bool
 
 val print : Format.formatter -> t -> unit
+
+val cost_metrics : t -> Cost_metrics.t
+
+val update_cost_metrics : Cost_metrics.t -> t -> t

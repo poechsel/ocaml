@@ -34,7 +34,10 @@ type t =
       cost_metrics: Cost_metrics.t;
       free_names : Name_occurrences.t;
     }
-  | Invalid of Invalid_term_semantics.t
+  | Invalid of {
+      cost_metrics: Cost_metrics.t;
+      semantics: Invalid_term_semantics.t;
+    }
 
 let reachable (named : Named.t) =
   let (simplified_named : simplified_named), cost_metrics =
@@ -77,17 +80,27 @@ let reachable_with_known_free_names ~find_cost_metrics (named : Named.t) ~free_n
 
 let invalid () =
   if !Clflags.treat_invalid_code_as_unreachable then
-    Invalid Treat_as_unreachable
+    Invalid { cost_metrics = Cost_metrics.zero; semantics = Treat_as_unreachable }
   else
-    Invalid Halt_and_catch_fire
+    Invalid { cost_metrics = Cost_metrics.zero; semantics = Halt_and_catch_fire }
 
 let print ppf t =
   match t with
   | Reachable { named; _ } ->
     Named.print ppf (to_named named)
-  | Invalid sem -> Invalid_term_semantics.print ppf sem
+  | Invalid {semantics; _} -> Invalid_term_semantics.print ppf semantics
 
 let is_invalid t =
   match t with
   | Reachable _ -> false
   | Invalid _ -> true
+
+let cost_metrics t =
+  match t with
+  | Reachable r -> r.cost_metrics
+  | Invalid r -> r.cost_metrics
+
+let update_cost_metrics cost_metrics t =
+  match t with
+  | Reachable r -> Reachable { r with cost_metrics }
+  | Invalid r -> Invalid { r with cost_metrics }
