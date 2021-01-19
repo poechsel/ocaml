@@ -18,7 +18,9 @@
 
 open! Flambda.Import
 
-module DE = Downwards_env
+module DE = Simplify_envs.Downwards_env
+
+type t = int
 
 let arch32 = Targetint.size = 32 (* are we compiling for a 32-bit arch *)
 let arch64 = Targetint.size = 64 (* are we compiling for a 64-bit arch *)
@@ -162,10 +164,10 @@ let string_or_bigstring_load kind width =
        probably not desirable ? *)
     | Sixteen ->
       2 (* add, load (allow_unaligned_access) *)
-      (* 7 (not allow_unaligned_access) *)
+    (* 7 (not allow_unaligned_access) *)
     | Thirty_two ->
       2 (* add, load (allow_unaligned_access) *)
-      (* 17 (not allow_unaligned_access) *)
+    (* 17 (not allow_unaligned_access) *)
     | Sixty_four ->
       if arch32
       then nonalloc_extcall_size
@@ -368,7 +370,6 @@ let variadic_prim_size prim args =
 
 let prim_size (prim : Flambda_primitive.t) =
   match prim with
-  | Nullary Optimised_out _ -> 0
   | Unary (p, _) -> unary_prim_size p
   | Binary (p, _, _) -> binary_prim_size p
   | Ternary (p, _, _, _) -> ternary_prim_size p
@@ -376,268 +377,80 @@ let prim_size (prim : Flambda_primitive.t) =
 
 (* Simple approximation of the space cost of an Flambda expression. *)
 
-let smaller' denv expr ~than:threshold =
-  let size = ref 0 in
-  let rec expr_size denv expr =
-    if !size > threshold then raise Exit;
-    match Expr.descr expr with
-    | Let let_expr ->
-      (* CR gbury/pchambart: phantom let-bindings should not be
-                             counted towards the size *)
-      named_size denv (Let.defining_expr let_expr);
-      Let.pattern_match let_expr
-        ~f:(fun _bindable_let_bound ~body -> expr_size denv body)
-    | Let_cont (Non_recursive { handler; _ }) ->
-      Non_recursive_let_cont_handler.pattern_match handler
-        ~f:(fun _cont ~body -> expr_size denv body);
-      (* CR mshinwell: Move this next line into the above *)
-      continuation_handler_size denv
-        (Non_recursive_let_cont_handler.handler handler)
-    | Let_cont (Recursive handlers) ->
-      Recursive_let_cont_handlers.pattern_match handlers
-        ~f:(fun ~body handlers ->
-          expr_size denv body;
-          let handlers = Continuation_handlers.to_map handlers in
-          Continuation.Map.iter (fun _cont handler ->
-              continuation_handler_size denv handler)
-            handlers)
-    | Apply apply ->
-      let call_cost =
-        match Apply.call_kind apply with
-        | Function Direct _ -> direct_call_size
-        (* CR mshinwell: Check / fix these numbers *)
-        | Function Indirect_unknown_arity -> indirect_call_size
-        | Function Indirect_known_arity _ -> indirect_call_size
-        | C_call { alloc = true; _ } -> alloc_extcall_size
-        | C_call { alloc = false; _ } -> nonalloc_extcall_size
-        | Method _ -> 8 (* from flambda/inlining_cost.ml *)
-      in
-      size := !size + call_cost
-    | Apply_cont e ->
-      begin match Apply_cont.trap_action e with
-      | None -> ()
-      | Some (Push _ | Pop _) -> size := !size + 4
-      end;
-      incr size
-    | Switch switch -> size := !size + (5 * Switch.num_arms switch)
-    | Invalid _ -> ()
-  and named_size denv (named : Named.t) =
-    if !size > threshold then raise Exit;
-    match named with
-    | Simple simple ->
-      Simple.pattern_match simple
-        ~const:(fun _ -> incr size)
-        ~name:(fun _ -> ())
-    | Set_of_closures set_of_closures ->
-      (* Mimic Closure: do not inline functions containing closures.  Note that
-         there is an additional check for closure-containing functions in
-         [Closure_conversion], to try to replicate Closure's behaviour as
-         closely as possible. *)
-      if Flambda_features.Expert.fallback_inlining_heuristic () then begin
-        raise Exit
-      end;
-      let func_decls = Set_of_closures.function_decls set_of_closures in
-      let funs = Function_declarations.funs func_decls in
-      Closure_id.Map.iter (fun _ func_decl ->
-          let code_id = Function_declaration.code_id func_decl in
-          let code = DE.find_code denv code_id in
-          match Code.params_and_body code with
-          | Present params_and_body ->
-            Function_params_and_body.pattern_match params_and_body
-              ~f:(fun ~return_continuation:_ _exn_continuation _params
-                      ~body ~my_closure:_ ~is_my_closure_used:_ ->
-                expr_size denv body)
-          | Deleted -> ())
-        funs
-    | Prim (prim, _dbg) ->
-      size := !size + prim_size prim
-    | Static_consts _ -> ()
-  and continuation_handler_size denv handler =
-    Continuation_handler.pattern_match handler
-      ~f:(fun _params ~handler -> expr_size denv handler)
-  in
-  let expected_result =
-    let s = Code_size.expr_size denv expr in
-    if Code_size.(smaller s ~than:(of_int threshold)) then Some (Code_size.to_int s) else None
-      in
-  try
-    let out =
-    expr_size denv expr;
-    if !size <= threshold then Some !size
-    else None
-      in
-      assert (out = expected_result);
-       out
-  with Exit ->
-    None
+let rec expr_size denv expr size =
+  match Expr.descr expr with
+  | Let let_expr ->
+    let size = named_size denv (Let.defining_expr let_expr) size in
+    Let.pattern_match let_expr
+      ~f:(fun _bindable_let_bound ~body -> expr_size denv body size)
+  | Let_cont (Non_recursive { handler; _ }) ->
+    Non_recursive_let_cont_handler.pattern_match handler
+      ~f:(fun _cont ~body ->
+        expr_size denv body size
+        |> continuation_handler_size denv
+             (Non_recursive_let_cont_handler.handler handler) 
+      )
+  | Let_cont (Recursive handlers) ->
+    Recursive_let_cont_handlers.pattern_match handlers
+      ~f:(fun ~body handlers ->
+        let size = expr_size denv body size in
+        let handlers = Continuation_handlers.to_map handlers in
+        Continuation.Map.fold (fun _cont handler size ->
+          continuation_handler_size denv handler size)
+          handlers size)
+  | Apply apply ->
+    let call_cost =
+      match Apply.call_kind apply with
+      | Function Direct _ -> direct_call_size
+      (* CR mshinwell: Check / fix these numbers *)
+      | Function Indirect_unknown_arity -> indirect_call_size
+      | Function Indirect_known_arity _ -> indirect_call_size
+      | C_call { alloc = true; _ } -> alloc_extcall_size
+      | C_call { alloc = false; _ } -> nonalloc_extcall_size
+      | Method _ -> 8 (* from flambda/inlining_cost.ml *)
+    in
+    size + call_cost
+  | Apply_cont e ->
+    let size = match Apply_cont.trap_action e with
+      | None -> size
+      | Some (Push _ | Pop _) -> size + 4
+    in
+    size + 1
+  | Switch switch -> size + (5 * Switch.num_arms switch)
+  | Invalid _ -> size
+and named_size denv (named : Named.t) size =
+  match named with
+  | Simple simple ->
+    Simple.pattern_match simple
+      ~const:(fun _ -> size + 1)
+      ~name:(fun _ -> size)
+  | Set_of_closures set_of_closures ->
+    (* Mimic Closure: do not inline functions containing closures.  Note that
+       there is an additional check for closure-containing functions in
+       [Closure_conversion], to try to replicate Closure's behaviour as
+       closely as possible. *)
+    let func_decls = Set_of_closures.function_decls set_of_closures in
+    let funs = Function_declarations.funs func_decls in
+    Closure_id.Map.fold (fun _ func_decl size ->
+      let code_id = Function_declaration.code_id func_decl in
+      let code = DE.find_code denv code_id in
+      match Code.params_and_body code with
+      | Present params_and_body ->
+        Function_params_and_body.pattern_match params_and_body
+          ~f:(fun ~return_continuation:_ _exn_continuation _params
+               ~body ~my_closure:_ ~is_my_closure_used:_ ->
+               expr_size denv body size)
+      | Deleted -> size)
+      funs size
+  | Prim (prim, _dbg) ->
+    size + prim_size prim
+  | Static_consts _ -> size
+and continuation_handler_size denv handler size =
+  Continuation_handler.pattern_match handler
+    ~f:(fun _params ~handler -> expr_size denv handler size)
 
-let size denv expr =
-  match smaller' denv expr ~than:max_int with
-  | Some size -> size
-  | None ->
-    (* There is no way that an expression of size max_int could fit in
-       memory. *)
-    assert false  (* CR mshinwell: this should not be an assertion *)
 
-(*
-let sizes exprs =
-  List.fold_left (fun total expr -> total + size expr) 0 exprs
-*)
-
-module Threshold = struct
-  type t =
-    | Never_inline
-    | Can_inline_if_no_larger_than of int
-
-  let print fmt = function
-    | Never_inline ->
-      Format.fprintf fmt "Never_inline"
-    | Can_inline_if_no_larger_than max_size ->
-      Format.fprintf fmt "Can_inline_if_no_larger_than %d" max_size
-
-  let add t1 t2 =
-    match t1, t2 with
-    | Never_inline, t -> t
-    | t, Never_inline -> t
-    | Can_inline_if_no_larger_than i1, Can_inline_if_no_larger_than i2 ->
-        Can_inline_if_no_larger_than (i1 + i2)
-
-  let sub t1 t2 =
-    match t1, t2 with
-    | Never_inline, _ -> Never_inline
-    | t, Never_inline -> t
-    | Can_inline_if_no_larger_than i1, Can_inline_if_no_larger_than i2 ->
-        if i1 > i2 then Can_inline_if_no_larger_than (i1 - i2)
-        else Never_inline
-
-  let min t1 t2 =
-    match t1, t2 with
-    | Never_inline, _ -> Never_inline
-    | _, Never_inline -> Never_inline
-    | Can_inline_if_no_larger_than i1, Can_inline_if_no_larger_than i2 ->
-      Can_inline_if_no_larger_than (min i1 i2)
-end
-
-type inline_res =
-  | Cannot_inline
-  | Can_inline of int
-  (* size of the inlinable expression, used in inlining reports *)
-
-let can_inline denv lam inlining_threshold ~bonus : inline_res =
-  match inlining_threshold with
-  | Threshold.Never_inline -> Cannot_inline
-  | Threshold.Can_inline_if_no_larger_than inlining_threshold ->
-    begin match smaller' denv lam
-                  ~than:(inlining_threshold + bonus) with
-    | None -> Cannot_inline
-    | Some size -> Can_inline size
-    end
-
-let cost (flag : Clflags.Int_arg_helper.parsed) ~round =
-  Clflags.Int_arg_helper.get ~key:round flag
-
-let benefit_factor = 1
-
-module Benefit = struct
-  type t = {
-    remove_call : int;
-    remove_alloc : int;
-    remove_prim : int;
-    remove_branch : int;
-    (* CR-someday pchambart: branch_benefit : t list; *)
-    direct_call_of_indirect : int;
-    requested_inline : int;
-    (* Benefit to compensate the size of functions marked for inlining *)
-  }
-
-  let zero = {
-    remove_call = 0;
-    remove_alloc = 0;
-    remove_prim = 0;
-    remove_branch = 0;
-    direct_call_of_indirect = 0;
-    requested_inline = 0;
-  }
-
-  let remove_call t = { t with remove_call = t.remove_call + 1; }
-  let remove_alloc t = { t with remove_alloc = t.remove_alloc + 1; }
-
-  let add_primitive _prim t =
-    { t with remove_prim = t.remove_prim - 1; }
-
-  let remove_primitive _prim t =
-    { t with remove_prim = t.remove_prim + 1; }
-
-  let remove_primitive_application _prim t =
-    { t with remove_prim = t.remove_prim + 1; }
-
-  let remove_branch t = { t with remove_branch = t.remove_branch + 1; }
-
-  let direct_call_of_indirect_known_arity t =
-    { t with direct_call_of_indirect = t.direct_call_of_indirect + 1; }
-
-  let direct_call_of_indirect_unknown_arity t =
-    { t with direct_call_of_indirect = t.direct_call_of_indirect + 1; }
-
-  let requested_inline denv t ~size_of =
-    let size = size denv size_of in
-    { t with requested_inline = t.requested_inline + size; }
-
-  let print ppf b =
-    Format.fprintf ppf "@[remove_call: %i@ remove_alloc: %i@ \
-                        remove_prim: %i@ remove_branch: %i@ \
-                        direct: %i@ requested: %i@]"
-      b.remove_call
-      b.remove_alloc
-      b.remove_prim
-      b.remove_branch
-      b.direct_call_of_indirect
-      b.requested_inline
-
-  let evaluate t ~round : int =
-    benefit_factor *
-      (t.remove_call * (cost !Clflags.inline_call_cost ~round)
-       + t.remove_alloc * (cost !Clflags.inline_alloc_cost ~round)
-       + t.remove_prim * (cost !Clflags.inline_prim_cost ~round)
-       + t.remove_branch * (cost !Clflags.inline_branch_cost ~round)
-       + (t.direct_call_of_indirect
-         * (cost !Clflags.inline_indirect_cost ~round)))
-    + t.requested_inline
-
-  let (+) t1 t2 = {
-    remove_call = t1.remove_call + t2.remove_call;
-    remove_alloc = t1.remove_alloc + t2.remove_alloc;
-    remove_prim = t1.remove_prim + t2.remove_prim;
-    remove_branch = t1.remove_branch + t2.remove_branch;
-    direct_call_of_indirect =
-      t1.direct_call_of_indirect + t2.direct_call_of_indirect;
-    requested_inline = t1.requested_inline + t2.requested_inline;
-  }
-
-(*
-  let (-) t1 t2 = {
-    remove_call = t1.remove_call - t2.remove_call;
-    remove_alloc = t1.remove_alloc - t2.remove_alloc;
-    remove_prim = t1.remove_prim - t2.remove_prim;
-    remove_branch = t1.remove_branch - t2.remove_branch;
-    direct_call_of_indirect =
-      t1.direct_call_of_indirect - t2.direct_call_of_indirect;
-    requested_inline = t1.requested_inline - t2.requested_inline;
-  }
-*)
-
-  let max ~round t1 t2 =
-    let c1 = evaluate ~round t1 in
-    let c2 = evaluate ~round t2 in
-    if c1 > c2 then t1 else t2
-
-(*
-  let add_code lam b =
-    b - (remove_code lam zero)
-
-  let add_code_named lam b =
-    b - (remove_code_named lam zero)
-*)
-end
-
-let scale_inline_threshold_by = 8
+let of_int t = t
+let to_int t = t
+let smaller t ~than = t <= than
+let expr_size denv e = expr_size denv e 0 |> to_int
