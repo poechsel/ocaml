@@ -32,12 +32,13 @@ type t = {
   name_occurrences : Name_occurrences.t;
   used_closure_vars : Name_occurrences.t;
   shareable_constants : Symbol.t Static_const.Map.t;
+  size: Flambda.Code_size.t Or_unknown.t
 }
 
 let print ppf
       { uenv; creation_dacc = _; code_age_relation; lifted_constants;
         name_occurrences; used_closure_vars; all_code = _;
-        shareable_constants; } =
+        shareable_constants; size } =
   Format.fprintf ppf "@[<hov 1>(\
       @[<hov 1>(uenv@ %a)@]@ \
       @[<hov 1>(code_age_relation@ %a)@]@ \
@@ -45,6 +46,7 @@ let print ppf
       @[<hov 1>(name_occurrences@ %a)@]@ \
       @[<hov 1>(used_closure_vars@ %a)@]@ \
       @[<hov 1>(shareable_constants@ %a)@]\
+      @[<hov 1>(size %a)@]\
       )@]"
     UE.print uenv
     Code_age_relation.print code_age_relation
@@ -52,6 +54,7 @@ let print ppf
     Name_occurrences.print name_occurrences
     Name_occurrences.print used_closure_vars
     (Static_const.Map.print Symbol.print) shareable_constants
+    (Or_unknown.print Flambda.Code_size.print) size
 
 let create uenv dacc =
   { uenv;
@@ -66,6 +69,7 @@ let create uenv dacc =
        dealing with a [Let_cont]). *)
     used_closure_vars = DA.used_closure_vars dacc;
     shareable_constants = DA.shareable_constants dacc;
+    size = Unknown;
   }
 
 let creation_dacc t = t.creation_dacc

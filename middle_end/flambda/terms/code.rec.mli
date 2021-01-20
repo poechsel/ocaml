@@ -47,6 +47,8 @@ val is_a_functor : t -> bool
 
 val recursive : t -> Recursive.t
 
+val size : t -> Code_size.t Or_unknown.t
+
 val create
    : Code_id.t  (** needed for [compare], although useful otherwise too *)
   -> params_and_body:
@@ -58,6 +60,7 @@ val create
   -> inline:Inline_attribute.t
   -> is_a_functor:bool
   -> recursive:Recursive.t
+  -> size:Code_size.t Or_unknown.t
   -> t
 
 val with_code_id : Code_id.t -> t -> t

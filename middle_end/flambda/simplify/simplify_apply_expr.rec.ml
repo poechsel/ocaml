@@ -288,6 +288,7 @@ let simplify_direct_partial_application dacc apply ~callee's_code_id
         ~inline:Default_inline
         ~is_a_functor:false
         ~recursive
+        ~size:Unknown
     in
     let function_decl =
       Function_declaration.create ~code_id ~is_tupled:false ~dbg
