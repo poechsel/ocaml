@@ -16,10 +16,6 @@
 
 [@@@ocaml.warning "+a-4-30-40-41-42"]
 
-open! Flambda.Import
-
-module DE = Simplify_envs.Downwards_env
-
 type t = int
 
 let arch32 = Targetint.size = 32 (* are we compiling for a 32-bit arch *)
@@ -377,26 +373,26 @@ let prim_size (prim : Flambda_primitive.t) =
 
 (* Simple approximation of the space cost of an Flambda expression. *)
 
-let rec expr_size denv expr size =
+let rec expr_size ~find_code expr size =
   match Expr.descr expr with
   | Let let_expr ->
-    let size = named_size denv (Let.defining_expr let_expr) size in
-    Let.pattern_match let_expr
-      ~f:(fun _bindable_let_bound ~body -> expr_size denv body size)
+    let size = named_size ~find_code (Let_expr.defining_expr let_expr) size in
+    Let_expr.pattern_match let_expr
+      ~f:(fun _bindable_let_bound ~body -> expr_size ~find_code body size)
   | Let_cont (Non_recursive { handler; _ }) ->
     Non_recursive_let_cont_handler.pattern_match handler
       ~f:(fun _cont ~body ->
-        expr_size denv body size
-        |> continuation_handler_size denv
+        expr_size ~find_code body size
+        |> continuation_handler_size ~find_code
              (Non_recursive_let_cont_handler.handler handler) 
       )
   | Let_cont (Recursive handlers) ->
     Recursive_let_cont_handlers.pattern_match handlers
       ~f:(fun ~body handlers ->
-        let size = expr_size denv body size in
+        let size = expr_size ~find_code body size in
         let handlers = Continuation_handlers.to_map handlers in
         Continuation.Map.fold (fun _cont handler size ->
-          continuation_handler_size denv handler size)
+          continuation_handler_size ~find_code handler size)
           handlers size)
   | Apply apply ->
     let call_cost =
@@ -418,7 +414,7 @@ let rec expr_size denv expr size =
     size + 1
   | Switch switch -> size + (5 * Switch.num_arms switch)
   | Invalid _ -> size
-and named_size denv (named : Named.t) size =
+and named_size ~find_code (named : Named.t) size =
   match named with
   | Simple simple ->
     Simple.pattern_match simple
@@ -433,24 +429,24 @@ and named_size denv (named : Named.t) size =
     let funs = Function_declarations.funs func_decls in
     Closure_id.Map.fold (fun _ func_decl size ->
       let code_id = Function_declaration.code_id func_decl in
-      let code = DE.find_code denv code_id in
+      let code = find_code code_id in
       match Code.params_and_body code with
       | Present params_and_body ->
         Function_params_and_body.pattern_match params_and_body
           ~f:(fun ~return_continuation:_ _exn_continuation _params
                ~body ~my_closure:_ ~is_my_closure_used:_ ->
-               expr_size denv body size)
+               expr_size ~find_code body size)
       | Deleted -> size)
       funs size
   | Prim (prim, _dbg) ->
     size + prim_size prim
   | Static_consts _ -> size
-and continuation_handler_size denv handler size =
+and continuation_handler_size ~find_code handler size =
   Continuation_handler.pattern_match handler
-    ~f:(fun _params ~handler -> expr_size denv handler size)
-
+    ~f:(fun _params ~handler -> expr_size ~find_code handler size)
 
 let of_int t = t
 let to_int t = t
 let smaller t ~than = t <= than
-let expr_size denv e = expr_size denv e 0 |> to_int
+let expr_size ~find_code e = expr_size ~find_code e 0 |> of_int
+let print ppf t = Format.fprintf ppf "%d" t

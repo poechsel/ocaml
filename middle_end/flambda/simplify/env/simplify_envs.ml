@@ -474,7 +474,7 @@ end = struct
         Code.print code
     end;
     if not (Code_id.equal code_id (Code.code_id code)) then begin
-      Misc.fatal_errorf "Code ID %a does not match code ID in@ %a"
+        Misc.fatal_errorf "Code ID %a does not match code ID in@ %a"
         Code_id.print code_id
         Code.print code
     end;

@@ -1195,7 +1195,7 @@ partialclean::
            middle_end/flambda/types/structures \
            middle_end/flambda/types/type_of_kind \
            middle_end/flambda/types/type_of_kind/boilerplate \
-        	 middle_end/flambda/types/inlining \
+					 middle_end/flambda/types/inlining \
            middle_end/flambda/unboxing \
            driver toplevel tools; do \
 	  rm -f $$d/*.cm[ioxt] $$d/*.cmti $$d/*.annot $$d/*.s $$d/*.asm \

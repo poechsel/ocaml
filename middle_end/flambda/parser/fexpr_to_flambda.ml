@@ -673,6 +673,7 @@ let rec expr env (e : Fexpr.expr) : Flambda.Expr.t =
             ~inline
             ~is_a_functor:false
             ~recursive
+            ~size:Unknown
         in
         Code code
     in

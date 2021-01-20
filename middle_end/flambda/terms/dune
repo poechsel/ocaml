@@ -5,6 +5,8 @@
     template/flambda.templ.ml
     code.rec.ml
     code.rec.mli
+    code_size.rec.ml
+    code_size.rec.mli
     continuation_handler.rec.ml
     continuation_handler.rec.mli
     continuation_handlers.rec.ml

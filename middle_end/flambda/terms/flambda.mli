@@ -655,6 +655,8 @@ end and Code : sig
 
   val recursive : t -> Recursive.t
 
+  val size : t -> Code_size.t Or_unknown.t
+
   val create
      : Code_id.t
     -> params_and_body:
@@ -666,6 +668,7 @@ end and Code : sig
     -> inline:Inline_attribute.t
     -> is_a_functor:bool
     -> recursive:Recursive.t
+    -> size: Code_size.t Or_unknown.t
     -> t
 
   val with_code_id : Code_id.t -> t -> t
@@ -688,6 +691,14 @@ end and Code : sig
   val make_deleted : t -> t
 
   val is_deleted : t -> bool
+end and Code_size : sig
+  type t
+
+  val expr_size : find_code:(Code_id.t -> Code.t) -> Expr.t -> t
+  val of_int : int -> t
+  val to_int : t -> int
+  val smaller : t -> than:t -> bool
+  val print : Format.formatter -> t -> unit
 end
 
 module Function_declaration = Function_declaration
@@ -716,4 +727,5 @@ module Import : sig
   module Set_of_closures = Set_of_closures
   module Static_const = Static_const
   module Switch = Switch
+  module Code_size = Code_size
 end

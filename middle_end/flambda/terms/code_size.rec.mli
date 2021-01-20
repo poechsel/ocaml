@@ -17,12 +17,11 @@
 
 [@@@ocaml.warning "+a-4-30-40-41-42"]
 
-open! Flambda.Import
-
 type t
 
-val expr_size : Simplify_envs.Downwards_env.t -> Expr.t -> t
+val expr_size : find_code:(Code_id.t -> Code.t) -> Expr.t -> t
 
 val of_int : int -> t
 val to_int : t -> int
 val smaller : t -> than:t -> bool
+val print : Format.formatter -> t -> unit
