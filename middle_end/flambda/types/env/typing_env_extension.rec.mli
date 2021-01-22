@@ -37,12 +37,6 @@ val one_equation : Name.t -> Type_grammar.t -> t
 
 val add_or_replace_equation : t -> Name.t -> Type_grammar.t -> t
 
-val add_cse
-   : t
-  -> prim:Flambda_primitive.Eligible_for_cse.t
-  -> bound_to:Simple.t
-  -> t
-
 val meet : Meet_env.t -> t -> t -> t
 
 (** Same as [meet], but more efficient when the domains are disjoint.
@@ -50,12 +44,5 @@ val meet : Meet_env.t -> t -> t -> t
 val extend : Meet_env.t -> t -> ext:t -> t
 
 val n_way_meet : Meet_env.t -> t list -> t
-
-(* val n_way_join
- *    : env_at_fork:Typing_env.t
- *   (\* CR mshinwell: Introduce "continuation use summary" type or somesuch *\)
- *   -> (Typing_env.t * Apply_cont_rewrite_id.t * Continuation_use_kind.t * t) list
- *   -> params:Kinded_parameter.t list
- *   -> t * Continuation_extra_params_and_args.t *)
 
 val join : Meet_or_join_env.t -> params:Kinded_parameter.t list -> t -> t -> t
