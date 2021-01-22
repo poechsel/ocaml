@@ -24,5 +24,10 @@ val expr_size : find_code:(Code_id.t -> Code.t) -> Expr.t -> t
 
 val of_int : int -> t
 val to_int : t -> int
+val (+) : t -> t -> t
 val smaller : t -> than:t -> bool
 val print : Format.formatter -> t -> unit
+
+val prim : Flambda_primitive.t -> t
+val simple : Simple.t -> t
+val set_of_closures : find_code_size:(Code_id.t -> Code_size.t Or_unknown.t) -> Set_of_closures.t -> t

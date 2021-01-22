@@ -30,6 +30,7 @@ val to_named : simplified_named -> Named.t
 type t = private
   | Reachable of {
       named : simplified_named;
+      size: Code_size.t;
       free_names : Name_occurrences.t;
     }
   | Invalid of Invalid_term_semantics.t
@@ -42,7 +43,8 @@ val reachable : Named.t -> t
 
 (** It is an error to pass [Static_consts] to this function. *)
 val reachable_with_known_free_names
-   : Named.t
+  : find_code_size:(Code_id.t -> Code_size.t Or_unknown.t)
+  -> Named.t
   -> free_names:Name_occurrences.t
   -> t
 

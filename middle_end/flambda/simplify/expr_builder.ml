@@ -169,6 +169,7 @@ let make_new_let_bindings uacc ~bindings_outermost_first ~body =
       | Reachable {
           named = defining_expr;
           free_names = free_names_of_defining_expr;
+          size = _;
         } ->
         let defining_expr = Simplified_named.to_named defining_expr in
         match (bound : Bindable_let_bound.t) with

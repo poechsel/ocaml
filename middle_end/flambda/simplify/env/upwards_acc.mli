@@ -28,6 +28,8 @@ val creation_dacc : t -> Downwards_acc.t
 (** Extract the environment component of the given upwards accumulator. *)
 val uenv : t -> Upwards_env.t
 
+val size : t -> Flambda.Code_size.t
+
 val code_age_relation : t -> Code_age_relation.t
 
 (** Return the lifted constants that still need to be placed (i.e. have
