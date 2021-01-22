@@ -445,6 +445,7 @@ let simplify_function context ~used_closure_vars ~shareable_constants
             end;
             raise Misc.Fatal_error)
     in
+    let size = UA.size uacc_after_upwards_traversal in
     let old_code_id = code_id in
     let new_code_id =
       Code_id.Map.find old_code_id (C.old_to_new_code_ids_all_sets context)
@@ -454,6 +455,7 @@ let simplify_function context ~used_closure_vars ~shareable_constants
       |> Code.with_code_id new_code_id
       |> Code.with_newer_version_of (Some old_code_id)
       |> Code.with_params_and_body
+           ~size:(Known size)
            (Present (params_and_body, free_names_of_code))
     in
     let function_decl = FD.update_code_id function_decl new_code_id in
@@ -744,20 +746,14 @@ let simplify_non_lifted_set_of_closures0 dacc bound_vars ~closure_bound_vars
       set_of_closures ~closure_bound_names ~closure_bound_names_inside
       ~closure_elements ~closure_element_types
   in
-  let defining_expr =
-    let named = Named.create_set_of_closures set_of_closures in
-    Simplified_named.reachable_with_known_free_names
-      (Named.create_set_of_closures set_of_closures)
-      ~free_names:(Named.free_names named)
-  in
   let lifted_constants =
     Code_id.Lmap.fold (fun code_id code lifted_constants ->
-        let lifted_constant =
-          LC.create_code code_id
-            (Static_const_with_free_names.create (Code code)
-              ~free_names:Unknown)
-        in
-        lifted_constant :: lifted_constants)
+      let lifted_constant =
+        LC.create_code code_id
+          (Static_const_with_free_names.create (Code code)
+             ~free_names:Unknown)
+      in
+      lifted_constant :: lifted_constants)
       code
       []
   in
@@ -765,6 +761,17 @@ let simplify_non_lifted_set_of_closures0 dacc bound_vars ~closure_bound_vars
     DA.add_lifted_constants_from_list dacc lifted_constants
     |> DA.map_denv ~f:(fun denv ->
       DE.add_lifted_constants_from_list denv lifted_constants)
+  in
+  let defining_expr =
+    let named = Named.create_set_of_closures set_of_closures in
+    let find_code_size code_id =
+      let env = Downwards_acc.denv dacc in
+      Simplify_envs.Downwards_env.find_code env code_id
+      |> Code.size
+    in
+    Simplified_named.reachable_with_known_free_names ~find_code_size
+      (Named.create_set_of_closures set_of_closures)
+      ~free_names:(Named.free_names named)
   in
   Simplify_named_result.have_simplified_to_single_term dacc
     bound_vars defining_expr

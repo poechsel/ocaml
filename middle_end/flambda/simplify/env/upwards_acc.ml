@@ -32,7 +32,7 @@ type t = {
   name_occurrences : Name_occurrences.t;
   used_closure_vars : Name_occurrences.t;
   shareable_constants : Symbol.t Static_const.Map.t;
-  size: Flambda.Code_size.t Or_unknown.t
+  size: Flambda.Code_size.t;
 }
 
 let print ppf
@@ -54,7 +54,7 @@ let print ppf
     Name_occurrences.print name_occurrences
     Name_occurrences.print used_closure_vars
     (Static_const.Map.print Symbol.print) shareable_constants
-    (Or_unknown.print Flambda.Code_size.print) size
+    Flambda.Code_size.print size
 
 let create uenv dacc =
   { uenv;
@@ -69,13 +69,14 @@ let create uenv dacc =
        dealing with a [Let_cont]). *)
     used_closure_vars = DA.used_closure_vars dacc;
     shareable_constants = DA.shareable_constants dacc;
-    size = Unknown;
+    size = Flambda.Code_size.of_int 0;
   }
 
 let creation_dacc t = t.creation_dacc
 let uenv t = t.uenv
 let code_age_relation t = t.code_age_relation
 let lifted_constants t = t.lifted_constants
+let size t = t.size
 
 (* Don't add empty LCS to the list *)
 

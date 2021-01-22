@@ -18,6 +18,11 @@
 
 type t = int
 
+let of_int t = t
+let to_int t = t
+let smaller t ~than = t <= than
+let (+) (a : t) (b : t) : t = a + b
+
 let arch32 = Targetint.size = 32 (* are we compiling for a 32-bit arch *)
 let arch64 = Targetint.size = 64 (* are we compiling for a 64-bit arch *)
 
@@ -371,6 +376,23 @@ let prim_size (prim : Flambda_primitive.t) =
   | Ternary (p, _, _, _) -> ternary_prim_size p
   | Variadic (p, args) -> variadic_prim_size p args
 
+let simple simple = Simple.pattern_match simple ~const:(fun _ -> 1) ~name:(fun _ -> 0)
+
+let prim = prim_size
+
+let set_of_closures ~find_code_size set_of_closures =
+  let func_decls = Set_of_closures.function_decls set_of_closures in
+  let funs = Function_declarations.funs func_decls in
+  Closure_id.Map.fold (fun _ func_decl size ->
+    let code_id = Function_declaration.code_id func_decl in
+    match find_code_size code_id with
+    | Or_unknown.Known s -> size + s
+    | Or_unknown.Unknown ->
+      Misc.fatal_errorf "Code size should have been computed for:@ %a"
+        Code_id.print code_id
+  )
+    funs (of_int 0)
+
 (* Simple approximation of the space cost of an Flambda expression. *)
 
 let rec expr_size ~find_code expr size =
@@ -445,8 +467,5 @@ and continuation_handler_size ~find_code handler size =
   Continuation_handler.pattern_match handler
     ~f:(fun _params ~handler -> expr_size ~find_code handler size)
 
-let of_int t = t
-let to_int t = t
-let smaller t ~than = t <= than
 let expr_size ~find_code e = expr_size ~find_code e 0 |> of_int
 let print ppf t = Format.fprintf ppf "%d" t

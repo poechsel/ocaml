@@ -118,11 +118,11 @@ let create
 
 let with_code_id code_id t = { t with code_id }
 
-let with_params_and_body params_and_body t =
+let with_params_and_body params_and_body ~size t =
   let params_and_body, free_names_of_params_and_body =
     check_params_and_body t.code_id params_and_body
   in
-  { t with params_and_body; free_names_of_params_and_body; }
+  { t with params_and_body; size; free_names_of_params_and_body; }
 
 let with_newer_version_of newer_version_of t = { t with newer_version_of }
 

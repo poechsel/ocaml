@@ -675,6 +675,8 @@ end and Code : sig
 
   val with_params_and_body
      : (Function_params_and_body.t * Name_occurrences.t) Or_deleted.t
+     (* CR poechsel: remove Or_unknown.t and force size to be provided *)
+    -> size:Code_size.t Or_unknown.t
     -> t
     -> t
 
@@ -699,6 +701,10 @@ end and Code_size : sig
   val to_int : t -> int
   val smaller : t -> than:t -> bool
   val print : Format.formatter -> t -> unit
+
+  val prim : Flambda_primitive.t -> t
+  val simple : Simple.t -> t
+  val set_of_closures : find_code_size:(Code_id.t -> Code_size.t Or_unknown.t) -> Set_of_closures.t -> t
 end
 
 module Function_declaration = Function_declaration

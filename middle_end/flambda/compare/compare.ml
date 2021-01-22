@@ -392,7 +392,7 @@ and subst_code env (code : Code.t)
     Option.map (subst_code_id env) (Code.newer_version_of code)
   in
   code
-  |> Code.with_params_and_body params_and_body
+  |> Code.with_params_and_body ~size:(Code.size code) params_and_body
   |> Code.with_newer_version_of newer_version_of
 and subst_params_and_body env params_and_body =
   Function_params_and_body.pattern_match params_and_body
@@ -1223,7 +1223,7 @@ and codes env (code1 : Code.t) (code2 : Code.t) =
       in
       code1
       |> Code.with_code_id (Code.code_id code2)
-      |> Code.with_params_and_body params_and_body
+      |> Code.with_params_and_body ~size:(Code.size code2) params_and_body
       |> Code.with_newer_version_of newer_version_of)
   |> Comparison.add_condition
       ~approximant:(fun () -> subst_code env code1)
