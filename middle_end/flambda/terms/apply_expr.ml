@@ -214,7 +214,7 @@ let invariant env
       end;
       ignore (dbg : Debuginfo.t);
       ignore (inline : Inline_attribute.t);
-      assert (Inlining_state.valid inlining_state)
+      Inlining_state.invariant inlining_state;
     end
 
 let create ~callee ~continuation exn_continuation ~args ~call_kind dbg ~inline

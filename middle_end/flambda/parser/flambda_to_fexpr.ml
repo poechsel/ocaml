@@ -794,7 +794,7 @@ and apply_expr env (app : Apply_expr.t) : Fexpr.expr =
   in
   let inlining_state =
     let s = Apply_expr.inlining_state app in
-    if Inlining_state.exists s then Some(s) else None
+    if Inlining_state.equal s (Inlining_state.default) then None else Some(s)
   in
   Apply { func; continuation; exn_continuation; args; call_kind; inline;
           inlining_state; arities }

@@ -22,11 +22,7 @@ val increment_depth : t -> t
 
 val default : t
 
-val valid : t -> bool
-
 val print : Format.formatter -> t -> unit
-
-val exists : t -> bool
 
 val is_depth_exceeded : t -> bool
 
@@ -35,3 +31,5 @@ val merge : t -> t -> t
 val create : depth:int -> t
 
 val equal : t -> t -> bool
+
+val invariant : t -> unit
