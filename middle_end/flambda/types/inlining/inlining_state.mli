@@ -16,20 +16,22 @@
 
 [@@@ocaml.warning "+a-4-30-40-41-42"]
 
+(** Abstracts the state used during inlining. *)
+
 type t
 
-val increment_depth : t -> t
+val print : Format.formatter -> t -> unit
+
+val equal : t -> t -> bool
 
 val default : t
 
-val print : Format.formatter -> t -> unit
+val create : depth:int -> t
+
+val increment_depth : t -> t
 
 val is_depth_exceeded : t -> bool
 
 val merge : t -> t -> t
-
-val create : depth:int -> t
-
-val equal : t -> t -> bool
 
 val invariant : t -> unit
