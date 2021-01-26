@@ -620,7 +620,7 @@ end)
 module For_code_ids = For_one_variety_of_names (struct
   include Code_id
   (* We never bind [Code_id]s using [Name_abstraction]. *)
-  let apply_name_permutation t _perm = t
+  let apply_name_permutation t perm = Name_permutation.apply_code_id perm t
 end)
 
 type t = {
