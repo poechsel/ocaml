@@ -76,17 +76,17 @@ type t = {
   call_kind : Call_kind.t;
   dbg : Debuginfo.t;
   inline : Inline_attribute.t;
-  inlining_depth : int;
+  inlining_state : Inlining_state.t;
 }
 
 let print ppf { callee; continuation; exn_continuation; args; call_kind;
-      dbg; inline; inlining_depth; } =
+      dbg; inline; inlining_state; } =
   Format.fprintf ppf "@[<hov 1>(\
       @[<hov 1>(%a\u{3008}%a\u{3009}\u{300a}%a\u{300b}@ (%a))@]@ \
       @[<hov 1>(call_kind@ %a)@]@ \
       @[<hov 1>@<0>%s(dbg@ %a)@<0>%s@]@ \
       @[<hov 1>(inline@ %a)@]@ \
-      @[<hov 1>(inlining_depth@ %d)@]\
+      @[<hov 1>(inlining_state@ %a)@]\
       )@]"
     Simple.print callee
     Result_continuation.print continuation
@@ -97,7 +97,7 @@ let print ppf { callee; continuation; exn_continuation; args; call_kind;
     Debuginfo.print_compact dbg
     (Flambda_colours.normal ())
     Inline_attribute.print inline
-    inlining_depth
+    Inlining_state.print inlining_state
 
 let print_with_cache ~cache:_ ppf t = print ppf t
 
@@ -109,7 +109,7 @@ let invariant env
         call_kind;
         dbg;
         inline;
-        inlining_depth;
+        inlining_state;
       } as t) =
     let unbound_continuation cont reason =
       Misc.fatal_errorf "Unbound continuation %a in %s: %a"
@@ -214,11 +214,11 @@ let invariant env
       end;
       ignore (dbg : Debuginfo.t);
       ignore (inline : Inline_attribute.t);
-      assert (inlining_depth >= 0)
+      Inlining_state.invariant inlining_state;
     end
 
 let create ~callee ~continuation exn_continuation ~args ~call_kind dbg ~inline
-      ~inlining_depth =
+      ~inlining_state =
   (* CR mshinwell: We should still be able to check some of the invariant
      properties now.  (We can't do them all as we don't have the
      environment.) *)
@@ -229,7 +229,7 @@ let create ~callee ~continuation exn_continuation ~args ~call_kind dbg ~inline
     call_kind;
     dbg;
     inline;
-    inlining_depth;
+    inlining_state;
   }
 
 let callee t = t.callee
@@ -239,7 +239,7 @@ let args t = t.args
 let call_kind t = t.call_kind
 let dbg t = t.dbg
 let inline t = t.inline
-let inlining_depth t = t.inlining_depth
+let inlining_state t = t.inlining_state
 
 let free_names
       { callee;
@@ -249,7 +249,7 @@ let free_names
         call_kind;
         dbg = _;
         inline = _;
-        inlining_depth = _;
+        inlining_state = _;
       } =
   Name_occurrences.union_list [
     Simple.free_names callee;
@@ -267,7 +267,7 @@ let apply_name_permutation
          call_kind;
          dbg;
          inline;
-         inlining_depth;
+         inlining_state;
       } as t)
       perm =
   let continuation' =
@@ -294,7 +294,7 @@ let apply_name_permutation
       call_kind = call_kind';
       dbg;
       inline;
-      inlining_depth;
+      inlining_state;
     }
 
 let all_ids_for_export
@@ -305,7 +305,7 @@ let all_ids_for_export
         call_kind;
         dbg = _;
         inline = _;
-        inlining_depth = _;
+        inlining_state = _;
       } =
   let callee_ids = (Ids_for_export.from_simple callee) in
   let callee_and_args_ids =
@@ -333,7 +333,7 @@ let import import_map
         call_kind;
         dbg;
         inline;
-        inlining_depth;
+        inlining_state;
       } =
   let callee = Ids_for_export.Import_map.simple import_map callee in
   let args = List.map (Ids_for_export.Import_map.simple import_map) args in
@@ -347,7 +347,7 @@ let import import_map
     call_kind;
     dbg;
     inline;
-    inlining_depth;
+    inlining_state;
   }
 
 let with_continuation t continuation =

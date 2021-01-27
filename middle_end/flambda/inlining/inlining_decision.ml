@@ -219,7 +219,7 @@ end
 let max_rec_depth = 1
 
 let make_decision_for_call_site denv ~function_decl_rec_info
-      ~apply_inlining_depth (inline : Inline_attribute.t)
+      ~apply_inlining_state (inline : Inline_attribute.t)
       : Call_site_decision.t =
   if (not (DE.can_inline denv)) then
     Environment_says_never_inline
@@ -234,7 +234,7 @@ let make_decision_for_call_site denv ~function_decl_rec_info
         else
           Inline { attribute = None; unroll_to = None; }
       | None ->
-        if apply_inlining_depth >= !Clflags.Flambda.Expert.max_inlining_depth
+        if Inlining_state.is_depth_exceeded apply_inlining_state
         then
           Max_inlining_depth_exceeded
         else

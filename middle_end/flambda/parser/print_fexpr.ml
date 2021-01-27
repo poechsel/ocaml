@@ -449,20 +449,20 @@ let rec expr scope ppf = function
   | Apply {
       call_kind = kind;
       inline = inline;
-      inlining_depth = inlining_depth;
+      inlining_state = inlining_state;
       continuation = ret;
       exn_continuation = ek;
       args;
       func;
       arities } ->
-    let pp_inlining_depth ppf () =
-      pp_option (fun ppf -> Format.fprintf ppf "@ inlining_depth(%d)")
-        ppf inlining_depth
+    let pp_inlining_state ppf () =
+      pp_option (fun ppf -> Format.fprintf ppf "@ inlining_state %a" Inlining_state.print)
+        ppf inlining_state
     in
     Format.fprintf ppf "@[<hv 2>apply%a%a%a@ %a%a@ @[<hov2>->@ %a@]@ %a@]"
       (call_kind ~prefix:"@ " ()) kind
       (inline_attribute_opt ~prefix:"@ " ()) inline
-      pp_inlining_depth ()
+      pp_inlining_state ()
       func_name_with_optional_arities (func, arities)
       (simple_args ~omit_if_empty:true) args
       continuation ret

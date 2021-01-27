@@ -200,9 +200,9 @@ module type Downwards_env = sig
 
   val can_inline : t -> bool
 
-  val set_inlining_depth_increment : t -> int -> t
+  val set_inlining_state : t -> Inlining_state.t -> t
 
-  val get_inlining_depth_increment : t -> int
+  val get_inlining_state : t -> Inlining_state.t
 
   val add_cse
      : t

@@ -161,7 +161,7 @@ let rebuild_non_recursive_let_cont_handler cont
 
 let simplify_non_recursive_let_cont_handler ~denv_before_body ~dacc_after_body
       cont params ~(handler : Expr.t) cont_handler ~prior_lifted_constants
-      ~inlining_depth_increment_at_let_cont ~inlined_debuginfo_at_let_cont
+      ~inlining_state_at_let_cont ~inlined_debuginfo_at_let_cont
       ~scope ~is_exn_handler ~denv_for_toplevel_check ~unit_toplevel_exn_cont
       ~prior_cont_uses_env ~down_to_up =
   let cont_uses_env = DA.continuation_uses_env dacc_after_body in
@@ -260,8 +260,7 @@ let simplify_non_recursive_let_cont_handler ~denv_before_body ~dacc_after_body
            depth increment (e.g. where an [Apply] was inlined, revealing the
            linear inlinable use of the continuation).  We need to make sure the
            handler is simplified using the depth at the [Let_cont]. *)
-        DE.set_inlining_depth_increment denv
-          inlining_depth_increment_at_let_cont
+        DE.set_inlining_state denv inlining_state_at_let_cont
       in
       (* Likewise, the inlined debuginfo may need restoring. *)
       DE.set_inlined_debuginfo denv inlined_debuginfo_at_let_cont
@@ -291,9 +290,7 @@ let simplify_non_recursive_let_cont dacc non_rec ~down_to_up =
          [prior_lifted_constants] back into [dacc] later. *)
       DA.get_and_clear_lifted_constants dacc
     in
-    let inlining_depth_increment_at_let_cont =
-      DE.get_inlining_depth_increment (DA.denv dacc)
-    in
+    let inlining_state_at_let_cont = DE.get_inlining_state (DA.denv dacc) in
     let inlined_debuginfo_at_let_cont =
       DE.get_inlined_debuginfo (DA.denv dacc)
     in
@@ -324,7 +321,7 @@ let simplify_non_recursive_let_cont dacc non_rec ~down_to_up =
              downwards traversal of the handler. *)
           simplify_non_recursive_let_cont_handler ~denv_before_body
             ~dacc_after_body cont params ~handler cont_handler
-            ~prior_lifted_constants ~inlining_depth_increment_at_let_cont
+            ~prior_lifted_constants ~inlining_state_at_let_cont
             ~inlined_debuginfo_at_let_cont ~scope ~is_exn_handler
             ~denv_for_toplevel_check ~unit_toplevel_exn_cont
             ~prior_cont_uses_env

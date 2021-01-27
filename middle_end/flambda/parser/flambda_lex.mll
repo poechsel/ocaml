@@ -54,7 +54,8 @@ let keyword_table =
     "immutable_unique", IMMUTABLE_UNIQUE;
     "in", IN;
     "inline", INLINE;
-    "inlining_depth", INLINING_DEPTH;
+    "inlining_state", INLINING_STATE;
+    "depth", INLINING_STATE_DEPTH;
     "int32", INT32;
     "int64", INT64;
     "let", LET;

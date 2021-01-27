@@ -16,16 +16,20 @@
 
 [@@@ocaml.warning "+a-4-30-40-41-42"]
 
-open! Flambda.Import
+type t = {depth:int}
 
-val inline
-   : Downwards_acc.t
-  -> callee:Simple.t
-  -> args:Simple.t list
-  -> Flambda_type.Function_declaration_type.Inlinable.t
-  -> apply_return_continuation:Apply.Result_continuation.t
-  -> apply_exn_continuation:Exn_continuation.t
-  -> apply_inlining_state:Inlining_state.t
-  -> unroll_to:int option
-  -> Debuginfo.t
-  -> Downwards_acc.t * Expr.t
+let increment_depth t = { depth = t.depth + 1 } 
+
+let default = { depth = 0 }
+
+let create ~depth = { depth }
+
+let print ppf t = Format.fprintf ppf "@[<hov 1>(depth@ %d)@]" t.depth
+
+let is_depth_exceeded t = t.depth >= !Clflags.Flambda.Expert.max_inlining_depth
+
+let merge t1 t2 = { depth = t1.depth + t2.depth }
+
+let equal t1 t2 = t1.depth = t2.depth
+
+let invariant t = assert (t.depth >= 0)

@@ -691,7 +691,7 @@ let rec expr env (e : Fexpr.expr) : Flambda.Expr.t =
     func;
     call_kind;
     inline;
-    inlining_depth;
+    inlining_state;
     continuation;
     exn_continuation;
     args;
@@ -736,8 +736,8 @@ let rec expr env (e : Fexpr.expr) : Flambda.Expr.t =
     let inline =
       inline |> Option.value ~default:Inline_attribute.Default_inline
     in
-    let inlining_depth =
-      inlining_depth |> Option.value ~default:0
+    let inlining_state =
+      inlining_state |> Option.value ~default:Inlining_state.default
     in
     let exn_continuation = find_exn_cont env exn_continuation in
     let apply =
@@ -749,7 +749,7 @@ let rec expr env (e : Fexpr.expr) : Flambda.Expr.t =
         ~call_kind
         (Debuginfo.none)
         ~inline
-        ~inlining_depth
+        ~inlining_state
     in
     Flambda.Expr.create_apply apply
 

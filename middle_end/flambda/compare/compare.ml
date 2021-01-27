@@ -448,7 +448,7 @@ and subst_apply env apply =
   let call_kind = subst_call_kind env (Apply_expr.call_kind apply) in
   let dbg = Apply_expr.dbg apply in
   let inline = Apply_expr.inline apply in
-  let inlining_depth = Apply_expr.inlining_depth apply in
+  let inlining_state = Apply_expr.inlining_state apply in
   Apply_expr.create
     ~callee
     ~continuation
@@ -457,7 +457,7 @@ and subst_apply env apply =
     ~call_kind
     dbg
     ~inline
-    ~inlining_depth
+    ~inlining_state
   |> Expr.create_apply
 and subst_apply_cont env apply_cont =
   let trap_action = Apply_cont_expr.trap_action apply_cont in
@@ -987,7 +987,7 @@ let apply_exprs env apply1 apply2 : Expr.t Comparison.t =
          (Apply.exn_continuation apply1)
          (Apply.exn_continuation apply2)
     && Inline_attribute.equal (Apply.inline apply1) (Apply.inline apply2)
-    && Apply.inlining_depth apply1 = Apply.inlining_depth apply2
+    && Inlining_state.equal (Apply.inlining_state apply1)  (Apply.inlining_state apply2)
   in
   let ok = ref atomic_things_equal in
   let callee1' =
@@ -1013,7 +1013,7 @@ let apply_exprs env apply1 apply2 : Expr.t Comparison.t =
         ~call_kind:call_kind1'
         (Apply.dbg apply1)
         ~inline:(Apply.inline apply1)
-        ~inlining_depth:(Apply.inlining_depth apply1)
+        ~inlining_state:(Apply.inlining_state apply1)
       |> Expr.create_apply
     }
 ;;

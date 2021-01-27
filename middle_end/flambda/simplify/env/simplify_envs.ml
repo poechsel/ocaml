@@ -41,7 +41,7 @@ end = struct
     get_imported_code : (unit -> Exported_code.t);
     inlined_debuginfo : Debuginfo.t;
     can_inline : bool;
-    inlining_depth_increment : int;
+    inlining_state : Inlining_state.t;
     float_const_prop : bool;
     code : Code.t Code_id.Map.t;
     at_unit_toplevel : bool;
@@ -53,7 +53,7 @@ end = struct
 
   let print ppf { backend = _; round; typing_env; get_imported_code = _;
                   inlined_debuginfo; can_inline;
-                  inlining_depth_increment; float_const_prop;
+                  inlining_state; float_const_prop;
                   code; at_unit_toplevel; unit_toplevel_exn_continuation;
                   symbols_currently_being_defined;
                   variables_defined_at_toplevel; cse;
@@ -63,7 +63,7 @@ end = struct
         @[<hov 1>(typing_env@ %a)@]@ \
         @[<hov 1>(inlined_debuginfo@ %a)@]@ \
         @[<hov 1>(can_inline@ %b)@]@ \
-        @[<hov 1>(inlining_depth_increment@ %d)@]@ \
+        @[<hov 1>(inlining_state@ %a)@]@ \
         @[<hov 1>(float_const_prop@ %b)@]@ \
         @[<hov 1>(at_unit_toplevel@ %b)@]@ \
         @[<hov 1>(unit_toplevel_exn_continuation@ %a)@]@ \
@@ -76,7 +76,7 @@ end = struct
       TE.print typing_env
       Debuginfo.print inlined_debuginfo
       can_inline
-      inlining_depth_increment
+      Inlining_state.print inlining_state
       float_const_prop
       at_unit_toplevel
       Continuation.print unit_toplevel_exn_continuation
@@ -97,7 +97,7 @@ end = struct
       get_imported_code;
       inlined_debuginfo = Debuginfo.none;
       can_inline = true;
-      inlining_depth_increment = 0;
+      inlining_state = Inlining_state.default;
       float_const_prop;
       code = Code_id.Map.empty;
       at_unit_toplevel = true;
@@ -128,10 +128,10 @@ end = struct
   let is_defined_at_toplevel t var =
     Variable.Set.mem var t.variables_defined_at_toplevel
 
-  let get_inlining_depth_increment t = t.inlining_depth_increment
+  let get_inlining_state t = t.inlining_state
 
-  let set_inlining_depth_increment t inlining_depth_increment =
-    { t with inlining_depth_increment; }
+  let set_inlining_state t inlining_state =
+    { t with inlining_state; }
 
   (* CR mshinwell: remove "_level" *)
   let increment_continuation_scope_level t =
@@ -177,7 +177,7 @@ end = struct
 
   let enter_closure { backend; round; typing_env; get_imported_code;
                       inlined_debuginfo = _; can_inline;
-                      inlining_depth_increment;
+                      inlining_state;
                       float_const_prop; code; at_unit_toplevel = _;
                       unit_toplevel_exn_continuation;
                       symbols_currently_being_defined;
@@ -189,7 +189,7 @@ end = struct
       get_imported_code;
       inlined_debuginfo = Debuginfo.none;
       can_inline;
-      inlining_depth_increment;
+      inlining_state;
       float_const_prop;
       code;
       at_unit_toplevel = false;
