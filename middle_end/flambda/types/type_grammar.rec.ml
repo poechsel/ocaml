@@ -19,7 +19,7 @@
 module K = Flambda_kind
 module TE = Typing_env
 module TEE = Typing_env_extension
-module TEL = Typing_env_extension.With_extra_variables
+module TEEV = Typing_env_extension.With_extra_variables
 
 module T_V = Type_of_kind_value
 module T_NI = Type_of_kind_naked_immediate
@@ -843,7 +843,7 @@ let rec make_suitable_for_environment0_core t env ~depth ~suitable_for level =
                         make_suitable_for_environment0_core t env
                           ~depth:(depth + 1) ~suitable_for level
                   in
-                  TEL.add_definition level fresh_var kind ty
+                  TEEV.add_definition level fresh_var kind ty
                 in
                 let perm =
                   Name_permutation.add_variable perm to_erase fresh_var
@@ -871,9 +871,9 @@ let make_suitable_for_environment t env ~suitable_for ~bind_to =
       TE.print suitable_for
   end;
   let level, t =
-    make_suitable_for_environment0 t env ~suitable_for (TEL.empty ())
+    make_suitable_for_environment0 t env ~suitable_for (TEEV.empty ())
   in
-  let level = TEL.add_or_replace_equation level bind_to t in
+  let level = TEEV.add_or_replace_equation level bind_to t in
   level
 
 let meet env t1 t2 =
