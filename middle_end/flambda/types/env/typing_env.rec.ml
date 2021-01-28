@@ -1047,24 +1047,19 @@ and add_equation t name ty =
   Simple.pattern_match simple ~name ~const:(fun _ -> t)
 
 and add_env_extension t (env_extension : Typing_env_extension.t) =
-  Name.Map.fold (fun name ty t -> add_equation t name ty)
-    env_extension.equations
+  Typing_env_extension.fold
+    ~equation:(fun name ty t -> add_equation t name ty)
+    env_extension
     t
 
 and add_env_extension_with_extra_variables t
       (env_extension : Typing_env_extension.With_extra_variables.t) =
-  let t =
-    Variable.Map.fold (fun var kind t ->
+  Typing_env_extension.With_extra_variables.fold
+    ~variable:(fun var kind t ->
         add_variable_definition t var kind Name_mode.in_types)
-      env_extension.existential_vars
-      t
-  in
-  let t =
-    Name.Map.fold (fun name ty t -> add_equation t name ty)
-      env_extension.equations
-      t
-  in
-  t
+    ~equation:(fun name ty t -> add_equation t name ty)
+    env_extension
+    t
 
 (* These version is outside the [let rec] and thus does not cause
    [caml_apply*] to be used when calling from outside this module. *)

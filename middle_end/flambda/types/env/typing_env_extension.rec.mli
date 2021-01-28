@@ -19,11 +19,15 @@
 
 [@@@ocaml.warning "+a-4-30-40-41-42"]
 
-type t = private {
-  equations : Type_grammar.t Name.Map.t;
-}[@@unboxed]
+type t
 
 val print : Format.formatter -> t -> unit
+
+val fold
+   : equation:(Name.t -> Type_grammar.t -> 'a -> 'a)
+  -> t
+  -> 'a
+  -> 'a
 
 val invariant : t -> unit
 
@@ -42,12 +46,16 @@ val meet : Meet_env.t -> t -> t -> t Or_bottom.t
 val join : Meet_env.t -> t -> t -> t
 
 module With_extra_variables : sig
-  type t = private {
-    existential_vars : Flambda_kind.t Variable.Map.t;
-    equations : Type_grammar.t Name.Map.t;
-  }
+  type t
 
   val print : Format.formatter -> t -> unit
+
+  val fold
+     : variable:(Variable.t -> Flambda_kind.t -> 'a -> 'a)
+    -> equation:(Name.t -> Type_grammar.t -> 'a -> 'a)
+    -> t
+    -> 'a
+    -> 'a
 
   val empty : unit -> t
 

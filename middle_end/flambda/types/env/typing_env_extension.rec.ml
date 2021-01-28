@@ -42,6 +42,9 @@ let print ppf t =
     "@[<hov 1>(equations@ @[<v 1>%a@])@]"
     print_equations t.equations
 
+let fold ~equation t acc =
+  Name.Map.fold equation t.equations acc
+
 let invariant _ = ()
 
 let empty () = { equations = Name.Map.empty; }
@@ -125,6 +128,10 @@ module With_extra_variables = struct
        @]"
       (Variable.Map.print Flambda_kind.print) existential_vars
       print_equations equations
+
+  let fold ~variable ~equation t acc =
+    let acc = Variable.Map.fold variable t.existential_vars acc in
+    Name.Map.fold equation t.equations acc
 
   let empty () =
     { existential_vars = Variable.Map.empty;
