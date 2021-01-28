@@ -45,14 +45,18 @@ let print ppf t =
 let fold ~equation t acc =
   Name.Map.fold equation t.equations acc
 
-let invariant _ = ()
+let invariant { equations; } =
+  if !Clflags.flambda_invariant_checks then
+    Name.Map.iter Type_grammar.check_equation equations
 
 let empty () = { equations = Name.Map.empty; }
 
 let one_equation name ty =
+  Type_grammar.check_equation name ty;
   { equations = Name.Map.singleton name ty; }
 
 let add_or_replace_equation t name ty =
+  Type_grammar.check_equation name ty;
   { equations = Name.Map.add name ty t.equations; }
 
 exception Bottom_meet
@@ -67,11 +71,14 @@ let rec meet0 env (t1 : t) (t2 : t) extra_extensions =
   let equations, extra_extensions =
     Name.Map.fold (fun name ty (eqs, extra_extensions) ->
         match Name.Map.find_opt name eqs with
-        | None -> Name.Map.add name ty eqs, extra_extensions
+        | None ->
+          Type_grammar.check_equation name ty;
+          Name.Map.add name ty eqs, extra_extensions
         | Some ty0 ->
           begin match Type_grammar.meet env ty0 ty with
           | Bottom -> raise Bottom_meet
           | Ok (ty, new_ext) ->
+            Type_grammar.check_equation name ty;
             Name.Map.add (*replace*) name ty eqs, new_ext :: extra_extensions
           end)
       t2.equations
@@ -146,6 +153,7 @@ module With_extra_variables = struct
     }
 
   let add_or_replace_equation t name ty =
+    Type_grammar.check_equation name ty;
     { existential_vars = t.existential_vars;
       equations = Name.Map.add name ty t.equations;
     }

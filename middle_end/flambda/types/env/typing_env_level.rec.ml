@@ -226,27 +226,8 @@ let add_definition t var kind binding_time =
     binding_times;
   }
 
-let equation_is_directly_recursive name ty =
-  match Type_grammar.get_alias_exn ty with
-  | exception Not_found -> false
-  | simple ->
-    Simple.pattern_match simple
-      ~name:(fun name' -> Name.equal name name')
-      ~const:(fun _ -> false)
-
-let check_equation t name ty =
-  if !Clflags.flambda_invariant_checks then begin
-    if equation_is_directly_recursive name ty then begin
-      Misc.fatal_errorf "Directly recursive equation@ %a = %a@ \
-          disallowed (Typing_env_level):@ %a"
-        Name.print name
-        Type_grammar.print ty
-        print t
-    end
-  end
-
 let add_or_replace_equation t name ty =
-  check_equation t name ty;
+  Type_grammar.check_equation name ty;
   if Type_grammar.is_obviously_unknown ty then
     { t with
       equations = Name.Map.remove name t.equations;

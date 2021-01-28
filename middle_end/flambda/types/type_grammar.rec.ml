@@ -952,3 +952,20 @@ let join ?bound_name env t1 t2 =
       print t1
       print t2
 
+let equation_is_directly_recursive name ty =
+  match get_alias_exn ty with
+  | exception Not_found -> false
+  | simple ->
+    Simple.pattern_match simple
+      ~name:(fun name' -> Name.equal name name')
+      ~const:(fun _ -> false)
+
+let check_equation name ty =
+  if !Clflags.flambda_invariant_checks then begin
+    if equation_is_directly_recursive name ty then begin
+      Misc.fatal_errorf "Directly recursive equation@ %a = %a@ \
+          disallowed"
+        Name.print name
+        print ty
+    end
+  end
