@@ -79,19 +79,27 @@ module rec Expr : sig
     | Have_deleted_comparison_and_branch
     | Nothing_deleted
 
-  (** Create a [Switch] expression, save that zero-arm switches are converted
-      to [Invalid], and one-arm switches to [Apply_cont]. *)
+   (** Create a [Switch] expression, returns the size of the created expr,
+       save that zero-arm switches are converted to [Invalid], and one-arm
+       switches to [Apply_cont]. *)
   val create_switch0
      : scrutinee:Simple.t
     -> arms:Apply_cont_expr.t Target_imm.Map.t
-    -> Expr.t * switch_creation_result
+    -> Expr.t * Code_size.t * switch_creation_result
 
   (** Like [create_switch0], but for use when the caller isn't interested in
-      whether something got deleted. *)
+      whether something got deleted nor the size of the created expression. *)
   val create_switch
      : scrutinee:Simple.t
     -> arms:Apply_cont_expr.t Target_imm.Map.t
     -> Expr.t
+
+   (** Like [create_switch], but for use when the caller isn't interested in
+       whether something got deleted. *)
+   val create_switch_and_size
+     : scrutinee:Simple.t
+     -> arms:Apply_cont_expr.t Target_imm.Map.t
+     -> Expr.t * Code_size.t
 
   (** Build a [Switch] corresponding to a traditional if-then-else. *)
   val create_if_then_else
@@ -104,10 +112,11 @@ module rec Expr : sig
   val create_invalid : ?semantics:Invalid_term_semantics.t -> unit -> t
 
   val bind_no_simplification
-     : bindings:(Var_in_binding_pos.t * Named.t) list
+     : bindings:(Var_in_binding_pos.t * Code_size.t * Named.t) list
     -> body:Expr.t
+    -> size_of_body:Code_size.t
     -> free_names_of_body:Name_occurrences.t
-    -> Expr.t * Name_occurrences.t
+    -> Expr.t * Code_size.t * Name_occurrences.t
 
   val bind_parameters_to_args_no_simplification
      : params:Kinded_parameter.t list
@@ -699,12 +708,22 @@ end and Code_size : sig
   val expr_size : find_code:(Code_id.t -> Code.t) -> Expr.t -> t
   val of_int : int -> t
   val to_int : t -> int
+  val (+) : t -> t -> t
   val smaller : t -> than:t -> bool
+  val equal : t -> t -> bool
   val print : Format.formatter -> t -> unit
 
   val prim : Flambda_primitive.t -> t
   val simple : Simple.t -> t
-  val set_of_closures : find_code_size:(Code_id.t -> Code_size.t Or_unknown.t) -> Set_of_closures.t -> t
+  val set_of_closures : find_code_size:(Code_id.t -> t Or_unknown.t) -> Set_of_closures.t -> t
+  val static_consts : Static_const.Group.t -> t
+  val let_expr_don't_consider_body : size_of_defining_expr:t -> t
+  val apply : Apply.t -> t
+  val apply_cont : Apply_cont.t -> t
+  val switch : Switch.t -> t
+  val invalid : unit -> t
+  val let_cont_non_recursive_don't_consider_body : size_of_handler:t -> t
+  val let_cont_recursive_don't_consider_body : size_of_handlers:t -> t
 end
 
 module Function_declaration = Function_declaration

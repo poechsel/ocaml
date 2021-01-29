@@ -21,6 +21,7 @@ type t = int
 let of_int t = t
 let to_int t = t
 let smaller t ~than = t <= than
+let equal a b = a = b
 let (+) (a : t) (b : t) : t = a + b
 
 let arch32 = Targetint.size = 32 (* are we compiling for a 32-bit arch *)
@@ -380,6 +381,8 @@ let simple simple = Simple.pattern_match simple ~const:(fun _ -> 1) ~name:(fun _
 
 let prim = prim_size
 
+let static_consts _ = 0
+
 let set_of_closures ~find_code_size set_of_closures =
   let func_decls = Set_of_closures.function_decls set_of_closures in
   let funs = Function_declarations.funs func_decls in
@@ -393,7 +396,35 @@ let set_of_closures ~find_code_size set_of_closures =
   )
     funs (of_int 0)
 
-(* Simple approximation of the space cost of an Flambda expression. *)
+let let_expr_don't_consider_body ~size_of_defining_expr =
+  size_of_defining_expr
+
+let apply apply = 
+  match Apply.call_kind apply with
+  | Function Direct _ -> direct_call_size
+  (* CR mshinwell: Check / fix these numbers *)
+  | Function Indirect_unknown_arity -> indirect_call_size
+  | Function Indirect_known_arity _ -> indirect_call_size
+  | C_call { alloc = true; _ } -> alloc_extcall_size
+  | C_call { alloc = false; _ } -> nonalloc_extcall_size
+  | Method _ -> 8 (* from flambda/inlining_cost.ml *)
+
+let apply_cont apply_cont =
+  let size = match Apply_cont.trap_action apply_cont with
+    | None -> 0
+    | Some (Push _ | Pop _) -> 0 + 4
+  in
+  size + 1
+
+let invalid _ = 0
+
+let switch switch = 0 + (5 * Switch.num_arms switch)
+
+let let_cont_non_recursive_don't_consider_body ~size_of_handler =
+  size_of_handler
+
+let let_cont_recursive_don't_consider_body ~size_of_handlers =
+  size_of_handlers
 
 let rec expr_size ~find_code expr size =
   match Expr.descr expr with

@@ -27,6 +27,8 @@ type t =
       (** [free_names_of_handler] includes entries for any occurrences of the
           [params] in the [handler]. *)
       free_names_of_handler : Name_occurrences.t;
+      (** [size_of_handler] is the size of the handler. *)
+      size_of_handler : Flambda.Code_size.t;
     }
   | Other of {
       arity : Flambda_arity.With_subkinds.t;

@@ -474,7 +474,7 @@ end = struct
         Code.print code
     end;
     if not (Code_id.equal code_id (Code.code_id code)) then begin
-        Misc.fatal_errorf "Code ID %a does not match code ID in@ %a"
+      Misc.fatal_errorf "Code ID %a does not match code ID in@ %a"
         Code_id.print code_id
         Code.print code
     end;
@@ -721,10 +721,10 @@ end = struct
     }
 
   let add_linearly_used_inlinable_continuation t cont scope arity ~params
-        ~handler ~free_names_of_handler =
+        ~handler ~free_names_of_handler ~size_of_handler =
     add_continuation0 t cont scope
       (Linearly_used_and_inlinable { arity; handler; free_names_of_handler;
-        params; })
+        params; size_of_handler })
 
   let add_exn_continuation t exn_cont scope =
     (* CR mshinwell: Think more about keeping these in both maps *)

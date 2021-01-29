@@ -71,3 +71,9 @@ val add_free_names : t -> Name_occurrences.t -> t
 val used_closure_vars : t -> Name_occurrences.t
 
 val remove_all_occurrences_of_free_names : t -> Name_occurrences.t -> t
+
+val increment_size : Flambda.Code_size.t -> t -> t
+
+val clear_size : t -> t
+
+val with_size : Flambda.Code_size.t -> t -> t

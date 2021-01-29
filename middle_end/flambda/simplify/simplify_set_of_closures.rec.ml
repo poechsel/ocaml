@@ -748,12 +748,12 @@ let simplify_non_lifted_set_of_closures0 dacc bound_vars ~closure_bound_vars
   in
   let lifted_constants =
     Code_id.Lmap.fold (fun code_id code lifted_constants ->
-      let lifted_constant =
-        LC.create_code code_id
-          (Static_const_with_free_names.create (Code code)
-             ~free_names:Unknown)
-      in
-      lifted_constant :: lifted_constants)
+        let lifted_constant =
+          LC.create_code code_id
+            (Static_const_with_free_names.create (Code code)
+              ~free_names:Unknown)
+        in
+        lifted_constant :: lifted_constants)
       code
       []
   in

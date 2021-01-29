@@ -180,12 +180,12 @@ type switch_creation_result =
   | Have_deleted_comparison_and_branch
   | Nothing_deleted
 
-let create_switch0 ~scrutinee ~arms : t * switch_creation_result =
+let create_switch0 ~scrutinee ~arms : t * Code_size.t * switch_creation_result =
   if Target_imm.Map.cardinal arms < 1 then
-    create_invalid (), Have_deleted_comparison_and_branch
+    create_invalid (), Code_size.invalid (), Have_deleted_comparison_and_branch
   else
     let change_to_apply_cont action =
-      create_apply_cont action, Have_deleted_comparison_but_not_branch
+      create_apply_cont action, Code_size.apply_cont action, Have_deleted_comparison_but_not_branch
     in
     match Target_imm.Map.get_singleton arms with
     | Some (_discriminant, action) -> change_to_apply_cont action
@@ -199,10 +199,14 @@ let create_switch0 ~scrutinee ~arms : t * switch_creation_result =
       | Some action -> change_to_apply_cont action
       | None ->
         let switch = Switch.create ~scrutinee ~arms in
-        create (Switch switch), Nothing_deleted
+        create (Switch switch), Code_size.switch switch, Nothing_deleted
+
+let create_switch_and_size ~scrutinee ~arms =
+  let expr, size, _ = create_switch0 ~scrutinee ~arms in
+  expr, size
 
 let create_switch ~scrutinee ~arms =
-  let expr, _ = create_switch0 ~scrutinee ~arms in
+  let expr, _, _ = create_switch0 ~scrutinee ~arms in
   expr
 
 let create_if_then_else ~scrutinee ~if_true ~if_false =
@@ -214,10 +218,10 @@ let create_if_then_else ~scrutinee ~if_true ~if_false =
   in
   create_switch ~scrutinee ~arms
 
-let bind_no_simplification ~bindings ~body ~free_names_of_body =
+let bind_no_simplification ~bindings ~body ~size_of_body ~free_names_of_body =
   ListLabels.fold_left (List.rev bindings)
-    ~init:(body, free_names_of_body)
-    ~f:(fun (expr, free_names) (var, defining_expr) ->
+    ~init:(body, size_of_body, free_names_of_body)
+    ~f:(fun (expr, size, free_names) (var, size_expr, defining_expr) ->
       let expr =
         Let_expr.create (Bindable_let_bound.singleton var)
           defining_expr
@@ -229,7 +233,8 @@ let bind_no_simplification ~bindings ~body ~free_names_of_body =
         Name_occurrences.union (Named.free_names defining_expr)
           (Name_occurrences.remove_var free_names (Var_in_binding_pos.var var))
       in
-      expr, free_names)
+      let size = Code_size.(+) size size_expr in
+      expr, size, free_names)
 
 let bind_parameters_to_args_no_simplification ~params ~args ~body =
   if List.compare_lengths params args <> 0 then begin

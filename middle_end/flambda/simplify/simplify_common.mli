@@ -73,7 +73,7 @@ val try_cse
 
 type add_wrapper_for_switch_arm_result = private
   | Apply_cont of Flambda.Apply_cont.t
-  | New_wrapper of Continuation.t * Flambda.Continuation_handler.t
+  | New_wrapper of Continuation.t * Flambda.Continuation_handler.t * Flambda.Code_size.t
 
 val add_wrapper_for_switch_arm
    : Upwards_acc.t
@@ -87,7 +87,7 @@ val add_wrapper_for_fixed_arity_apply
   -> use_id:Apply_cont_rewrite_id.t
   -> Flambda_arity.With_subkinds.t
   -> Apply_expr.t
-  -> Flambda.Expr.t
+  -> Flambda.Expr.t * Upwards_acc.t
 
 val update_exn_continuation_extra_args
    : Upwards_acc.t

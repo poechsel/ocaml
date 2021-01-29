@@ -39,7 +39,7 @@ let rebuild_switch dacc ~arms ~scrutinee ~scrutinee_ty uacc
               let cont = Apply_cont.continuation action in
               match UE.find_continuation (UA.uenv uacc) cont with
               | Linearly_used_and_inlinable { arity = _; handler;
-                  free_names_of_handler = _; params; } ->
+                  free_names_of_handler = _; params; size_of_handler = _ } ->
                 assert (List.length params = 0);
                 begin match Expr.descr handler with
                 | Apply_cont action -> Some action
@@ -102,8 +102,8 @@ let rebuild_switch dacc ~arms ~scrutinee ~scrutinee_ty uacc
               Simple.pattern_match arg ~const
                 ~name:(fun _ -> normal_case ~identity_arms ~not_arms)
           end
-        | New_wrapper (new_cont, new_handler) ->
-          let new_let_cont = new_cont, new_handler in
+        | New_wrapper (new_cont, new_handler, size_handler) ->
+          let new_let_cont = new_cont, new_handler, size_handler in
           let new_let_conts = new_let_cont :: new_let_conts in
           let action = Apply_cont.goto new_cont in
           let arms = Target_imm.Map.add arm action arms in
@@ -184,6 +184,8 @@ let rebuild_switch dacc ~arms ~scrutinee ~scrutinee_ty uacc
       match switch_is_identity with
       | Some dest ->
         create_tagged_scrutinee dest ~make_body:(fun ~tagged_scrutinee ->
+          (* No need to increment the size inside [create_tagged_scrutinee] as it
+             will call simplify over the result of [make_body]. *)
           Apply_cont.create dest ~args:[tagged_scrutinee] ~dbg
           |> Expr.create_apply_cont)
       | None ->
@@ -208,7 +210,8 @@ let rebuild_switch dacc ~arms ~scrutinee ~scrutinee_ty uacc
               ~free_names_of_body:(Known (Expr.free_names body))
             |> Expr.create_let)
         | None ->
-          let expr = Expr.create_switch ~scrutinee ~arms in
+          let expr, size = Expr.create_switch_and_size ~scrutinee ~arms in
+          let uacc = UA.increment_size size uacc in
           if !Clflags.flambda_invariant_checks
             && Simple.is_const scrutinee
             && Target_imm.Map.cardinal arms > 1
@@ -222,11 +225,16 @@ let rebuild_switch dacc ~arms ~scrutinee ~scrutinee_ty uacc
   in
   (* The calls to [Expr.free_names] here are only on (very) small expressions,
      so shouldn't be a performance hit. *)
-  let expr =
-    List.fold_left (fun body (new_cont, new_handler) ->
+  let uacc, expr =
+    List.fold_left (fun (uacc, body) (new_cont, new_handler, size_of_handler) ->
+        let uacc =
+          UA.increment_size
+            (Code_size.let_cont_non_recursive_don't_consider_body ~size_of_handler) uacc
+        in
+        uacc,
         Let_cont.create_non_recursive new_cont new_handler ~body
           ~free_names_of_body:(Known (Expr.free_names body)))
-      body
+      (uacc, body)
       new_let_conts
   in
   let uacc =
