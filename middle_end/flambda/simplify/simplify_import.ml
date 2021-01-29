@@ -33,6 +33,7 @@ module Recursive_let_cont_handlers = Flambda.Recursive_let_cont_handlers
 module Set_of_closures = Flambda.Set_of_closures
 module Static_const = Flambda.Static_const
 module Switch = Flambda.Switch
+module Code_size = Flambda.Code_size
 
 module AC = Apply_cont
 module CH = Continuation_handler

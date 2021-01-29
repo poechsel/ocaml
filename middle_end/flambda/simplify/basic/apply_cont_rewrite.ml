@@ -109,8 +109,8 @@ let extra_args t id =
 type rewrite_use_result =
   | Apply_cont of Apply_cont.t
   | Expr of (
-       apply_cont_to_expr:(Apply_cont.t -> (Expr.t * Name_occurrences.t))
-    -> Expr.t * Name_occurrences.t)
+       apply_cont_to_expr:(Apply_cont.t -> (Expr.t * Code_size.t * Name_occurrences.t))
+    -> Expr.t * Code_size.t * Name_occurrences.t)
 
 let no_rewrite apply_cont = Apply_cont apply_cont
 
@@ -141,6 +141,7 @@ let rewrite_use t id apply_cont : rewrite_use_result =
           let extra_args_rev = Simple.var temp :: extra_args_rev in
           let extra_lets =
             (Var_in_binding_pos.create temp Name_mode.normal,
+             Code_size.prim prim,
              Named.create_prim prim Debuginfo.none)
               :: extra_lets
           in
@@ -156,9 +157,8 @@ let rewrite_use t id apply_cont : rewrite_use_result =
   | [] -> Apply_cont apply_cont
   | _::_ ->
     let build_expr ~apply_cont_to_expr =
-      let body, free_names_of_body = apply_cont_to_expr apply_cont in
-      Expr.bind_no_simplification ~bindings:extra_lets ~body
-        ~free_names_of_body
+      let body, size_of_body, free_names_of_body = apply_cont_to_expr apply_cont in
+      Expr.bind_no_simplification ~bindings:extra_lets ~body ~size_of_body ~free_names_of_body
     in
     Expr build_expr
 

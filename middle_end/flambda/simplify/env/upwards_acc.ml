@@ -132,3 +132,11 @@ let remove_all_occurrences_of_free_names t to_remove =
     Name_occurrences.diff t.name_occurrences to_remove
   in
   { t with name_occurrences; }
+
+let increment_size code_size t =
+  let size = Flambda.Code_size.(+) t.size code_size in
+  { t with size}
+
+let clear_size t = { t with size = Flambda.Code_size.of_int 0 }
+
+let with_size size t = { t with size }

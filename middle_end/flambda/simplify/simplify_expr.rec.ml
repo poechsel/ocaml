@@ -70,4 +70,22 @@ let simplify_expr dacc expr ~down_to_up =
                 Name_occurrences.print free_names
                 Expr.print expr
             end;
+
+            let code_size_uacc = UA.size uacc in
+            let denv = UA.creation_dacc uacc |> DA.denv in
+            let code_size =
+              Code_size.expr_size expr ~find_code:(DE.find_code denv)
+            in
+
+            if not (Code_size.equal code_size_uacc code_size)
+            then begin
+              Misc.fatal_errorf "Mismatch on code size:@ \n\
+                  From UA:@ %a@ \n\
+                  From expr:@ %a@ \n\
+                  Expression:@ %a@"
+                Code_size.print code_size_uacc
+                Code_size.print code_size
+                Expr.print expr
+            end;
+
             after_rebuild expr uacc)))

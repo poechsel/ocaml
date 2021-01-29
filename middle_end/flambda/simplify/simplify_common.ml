@@ -54,7 +54,7 @@ let simplify_projection dacc ~original_term ~deconstructing ~shape ~result_var
 type add_wrapper_for_fixed_arity_continuation0_result =
   | This_continuation of Continuation.t
   | Apply_cont of Flambda.Apply_cont.t
-  | New_wrapper of Continuation.t * Flambda.Continuation_handler.t
+  | New_wrapper of Continuation.t * Flambda.Continuation_handler.t * Code_size.t
 
 type cont_or_apply_cont =
   | Continuation of Continuation.t
@@ -94,14 +94,14 @@ let add_wrapper_for_fixed_arity_continuation0 uacc cont_or_apply_cont
        expressions to be inserted, so wrappers cannot always be avoided. *)
     let params = List.map (fun _kind -> Variable.create "param") arity in
     let kinded_params = List.map2 KP.create params arity in
-    let new_wrapper expr ~free_names =
+    let new_wrapper expr ~free_names ~size =
       let new_cont = Continuation.create () in
       let new_handler =
         Continuation_handler.create kinded_params ~handler:expr
           ~free_names_of_handler:free_names
           ~is_exn_handler:false
       in
-      New_wrapper (new_cont, new_handler)
+      New_wrapper (new_cont, new_handler, size)
     in
     match cont_or_apply_cont with
     | Continuation cont ->
@@ -113,27 +113,32 @@ let add_wrapper_for_fixed_arity_continuation0 uacc cont_or_apply_cont
       | Apply_cont apply_cont ->
         new_wrapper (Expr.create_apply_cont apply_cont)
           ~free_names:(Known (Apply_cont.free_names apply_cont))
+          ~size:(Code_size.apply_cont apply_cont)
       | Expr build_expr ->
-        let expr, free_names =
+        let expr, size, free_names =
           build_expr ~apply_cont_to_expr:(fun apply_cont ->
-            Expr.create_apply_cont apply_cont, Apply_cont.free_names apply_cont)
+            Expr.create_apply_cont apply_cont,
+            Code_size.apply_cont apply_cont,
+            Apply_cont.free_names apply_cont)
         in
-        new_wrapper expr ~free_names:(Known free_names)
+        new_wrapper expr ~free_names:(Known free_names) ~size
       end
     | Apply_cont apply_cont ->
       let apply_cont = Apply_cont.update_continuation apply_cont cont in
       match Apply_cont_rewrite.rewrite_use rewrite use_id apply_cont with
       | Apply_cont apply_cont -> Apply_cont apply_cont
       | Expr build_expr ->
-        let expr, free_names =
+        let expr, size, free_names =
           build_expr ~apply_cont_to_expr:(fun apply_cont ->
-            Expr.create_apply_cont apply_cont, Apply_cont.free_names apply_cont)
+            Expr.create_apply_cont apply_cont,
+            Code_size.apply_cont apply_cont,
+            Apply_cont.free_names apply_cont)
         in
-        new_wrapper expr ~free_names:(Known free_names)
+        new_wrapper expr ~free_names:(Known free_names) ~size
 
 type add_wrapper_for_switch_arm_result =
   | Apply_cont of Flambda.Apply_cont.t
-  | New_wrapper of Continuation.t * Flambda.Continuation_handler.t
+  | New_wrapper of Continuation.t * Flambda.Continuation_handler.t * Code_size.t
 
 let add_wrapper_for_switch_arm uacc apply_cont ~use_id arity
       : add_wrapper_for_switch_arm_result =
@@ -144,28 +149,32 @@ let add_wrapper_for_switch_arm uacc apply_cont ~use_id arity
   | This_continuation cont ->
     Apply_cont (Apply_cont.update_continuation apply_cont cont)
   | Apply_cont apply_cont -> Apply_cont apply_cont
-  | New_wrapper (cont, wrapper) -> New_wrapper (cont, wrapper)
+  | New_wrapper (cont, wrapper, size) -> New_wrapper (cont, wrapper, size)
 
 let add_wrapper_for_fixed_arity_continuation uacc cont ~use_id arity ~around =
   match
     add_wrapper_for_fixed_arity_continuation0 uacc (Continuation cont)
       ~use_id arity
   with
-  | This_continuation cont -> around cont
+  | This_continuation cont -> around uacc cont
   | Apply_cont _ -> assert false
-  | New_wrapper (new_cont, new_handler) ->
-    let body = around new_cont in
+  | New_wrapper (new_cont, new_handler, size_of_handler) ->
+    let body, uacc = around uacc new_cont in
+    let size_increment =
+      Code_size.let_cont_non_recursive_don't_consider_body ~size_of_handler
+    in
     Let_cont.create_non_recursive new_cont new_handler ~body
-      ~free_names_of_body:(Known (Expr.free_names body))
+      ~free_names_of_body:(Known (Expr.free_names body)),
+    UA.increment_size size_increment uacc
 
 let add_wrapper_for_fixed_arity_apply uacc ~use_id arity apply =
   match Apply.continuation apply with
   | Never_returns ->
-    Expr.create_apply apply
+    Expr.create_apply apply, UA.increment_size (Code_size.apply apply) uacc
   | Return cont ->
     add_wrapper_for_fixed_arity_continuation uacc cont
       ~use_id arity
-      ~around:(fun return_cont ->
+      ~around:(fun uacc return_cont ->
         let exn_cont =
           UE.resolve_exn_continuation_aliases (UA.uenv uacc)
             (Apply.exn_continuation apply)
@@ -173,7 +182,8 @@ let add_wrapper_for_fixed_arity_apply uacc ~use_id arity apply =
         let apply =
           Apply.with_continuations apply (Return return_cont) exn_cont
         in
-        Expr.create_apply apply)
+        Expr.create_apply apply,
+        UA.increment_size (Code_size.apply apply) uacc)
 
 let update_exn_continuation_extra_args uacc ~exn_cont_use_id apply =
   let exn_cont_rewrite =
