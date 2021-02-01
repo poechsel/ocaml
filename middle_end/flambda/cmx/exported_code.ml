@@ -207,3 +207,6 @@ let import import_map t =
       Code_id.Map.add code_id code_data all_code)
     t
     Code_id.Map.empty
+
+let iter t f =
+  Code_id.Map.iter (fun id -> function | Present {code; _} -> f id code | _ -> ()) t
