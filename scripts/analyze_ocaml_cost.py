@@ -8,6 +8,7 @@ import json
 from collections import namedtuple
 import matplotlib.pyplot as plt
 import argparse
+from math import log
 
 parser = argparse.ArgumentParser(description="Plot the groundtruth code size vs flambda approximated one")
 parser.add_argument("module",
@@ -65,10 +66,14 @@ if args.plot_path is not None:
     symbol_plot = sorted(symbols, key=lambda x: x.groundtruth_size)
     ocaml_plot_size = [x.ocaml_size for x in symbol_plot]
     groundtruth_plot_size = [x.groundtruth_size for x in symbol_plot]
-    plt.plot(ocaml_plot_size, label="ocaml approximation")
-    plt.plot(groundtruth_plot_size, label="groundtruth")
-    plt.legend()
-    plt.title(args.module)
+    _, ax = plt.subplots(1)
+    ax.scatter(list(map(log, ocaml_plot_size)), list(map(log, groundtruth_plot_size)))
+    ax.set_xlabel("Ocaml size")
+    ax.set_ylabel("Binary size")
+    ax.set_ylim(bottom=0)
+    ax.set_xlim(left=0)
+    ax.plot([0, 1], [0, 1], transform=ax.transAxes)
+    plt.title(f"{args.module}.ml")
     plt.savefig(args.plot_path)
 
 if args.dump_path is not None:
