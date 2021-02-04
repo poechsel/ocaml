@@ -36,7 +36,7 @@ module Make
     with type flambda_type := Type_grammar.t
     with type typing_env := Typing_env.t
     with type meet_env := Meet_env.t
-    with type meet_or_join_env := Meet_or_join_env.t
+    with type join_env := Join_env.t
     with type typing_env_extension := Typing_env_extension.t) =
 struct
 
@@ -134,13 +134,12 @@ struct
   let meet (meet_env : Meet_env.t) t1 t2 : (t * Typing_env_extension.t) Or_bottom.t =
     let ({ known_tags = known1; other_tags = other1; } : t) = t1 in
     let ({ known_tags = known2; other_tags = other2; } : t) = t2 in
-    let join_env = Meet_or_join_env.create_for_meet meet_env in
     let env_extension = ref None in
     let join_env_extension ext =
       match !env_extension with
       | None -> env_extension := Some ext
       | Some ext2 ->
-        env_extension := Some (TEE.join ~params:[] join_env ext2 ext)
+        env_extension := Some (TEE.join meet_env ext2 ext)
     in
     let meet_index i1 i2 : index Or_bottom.t =
       match i1, i2 with
@@ -212,7 +211,7 @@ struct
       in
       Ok (result, env_extension)
 
-    let join (env : Meet_or_join_env.t) t1 t2 : t =
+    let join (env : Join_env.t) t1 t2 =
       let ({ known_tags = known1; other_tags = other1; } : t) = t1 in
       let ({ known_tags = known2; other_tags = other2; } : t) = t2 in
       let join_index i1 i2 : index =
@@ -246,10 +245,10 @@ struct
                  Same bellow *)
               (* CR pchambart: This seams terribly inefficient. *)
               let env =
-                Meet_or_join_env.create_for_join
-                  (Meet_or_join_env.target_join_env env)
-                  ~left_env:(Meet_or_join_env.left_join_env env)
-                  ~right_env:(Meet_or_join_env.left_join_env env)
+                Join_env.create
+                  (Join_env.target_join_env env)
+                  ~left_env:(Join_env.left_join_env env)
+                  ~right_env:(Join_env.left_join_env env)
               in
               let case1 = join_case env case1 case1 in
               Some case1
@@ -261,10 +260,10 @@ struct
             | Bottom ->
               (* See at the other bottom case *)
               let env =
-                Meet_or_join_env.create_for_join
-                  (Meet_or_join_env.target_join_env env)
-                  ~left_env:(Meet_or_join_env.right_join_env env)
-                  ~right_env:(Meet_or_join_env.right_join_env env)
+                Join_env.create
+                  (Join_env.target_join_env env)
+                  ~left_env:(Join_env.right_join_env env)
+                  ~right_env:(Join_env.right_join_env env)
               in
               let case2 = join_case env case2 case2 in
               Some case2
@@ -285,20 +284,20 @@ struct
         | Ok other1, Bottom ->
           (* See the previous cases *)
           let env =
-            Meet_or_join_env.create_for_join
-              (Meet_or_join_env.target_join_env env)
-              ~left_env:(Meet_or_join_env.left_join_env env)
-              ~right_env:(Meet_or_join_env.left_join_env env)
+            Join_env.create
+              (Join_env.target_join_env env)
+              ~left_env:(Join_env.left_join_env env)
+              ~right_env:(Join_env.left_join_env env)
           in
           let other1 = join_case env other1 other1 in
           Ok other1
         | Bottom, Ok other2 ->
           (* See the previous cases *)
           let env =
-            Meet_or_join_env.create_for_join
-              (Meet_or_join_env.target_join_env env)
-              ~left_env:(Meet_or_join_env.right_join_env env)
-              ~right_env:(Meet_or_join_env.right_join_env env)
+            Join_env.create
+              (Join_env.target_join_env env)
+              ~left_env:(Join_env.right_join_env env)
+              ~right_env:(Join_env.right_join_env env)
           in
           let other2 = join_case env other2 other2 in
           Ok other2

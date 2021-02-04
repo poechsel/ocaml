@@ -71,12 +71,19 @@ module Make (Index : Product_intf.Index) = struct
     let env_extension = ref (TEE.empty ()) in
     let components_by_index =
       Index.Map.union (fun _index ty1 ty2 ->
-          let ty, env_extension' = Type_grammar.meet' env ty1 ty2 in
-          env_extension := TEE.meet env !env_extension env_extension';
-          if (Type_grammar.is_obviously_bottom ty) then begin
-            any_bottom := true
-          end;
-          Some ty)
+          match Type_grammar.meet env ty1 ty2 with
+          | Ok (ty, env_extension') ->
+            begin match TEE.meet env !env_extension env_extension' with
+            | Bottom ->
+              any_bottom := true;
+              Some (Type_grammar.bottom_like ty1)
+            | Ok extension ->
+              env_extension := extension;
+              Some ty
+            end
+          | Bottom ->
+            any_bottom := true;
+            Some (Type_grammar.bottom_like ty1))
         components_by_index1
         components_by_index2
     in
@@ -91,8 +98,14 @@ module Make (Index : Product_intf.Index) = struct
         Flambda_kind.print kind1 Flambda_kind.print kind2
     end;
     let components_by_index =
-      Index.Map.inter (fun _index ty1 ty2 ->
-          Type_grammar.join' env ty1 ty2)
+      Index.Map.merge (fun _index ty1_opt ty2_opt ->
+          match ty1_opt, ty2_opt with
+          | None, _ | _, None -> None
+          | Some ty1, Some ty2 ->
+            begin match Type_grammar.join env ty1 ty2 with
+            | Known ty -> Some ty
+            | Unknown -> None
+            end)
         components_by_index1
         components_by_index2
     in
@@ -222,12 +235,20 @@ module Int_indexed = struct
         | None, None -> assert false
         | Some t, None | None, Some t -> t
         | Some ty1, Some ty2 ->
-          let ty, env_extension' = Type_grammar.meet' env ty1 ty2 in
-          env_extension := TEE.extend env !env_extension ~ext:env_extension';
-          if (Type_grammar.is_obviously_bottom ty) then begin
-            any_bottom := true
-          end;
-          ty)
+          begin match Type_grammar.meet env ty1 ty2 with
+          | Ok (ty, env_extension') ->
+            begin match TEE.meet env !env_extension env_extension' with
+            | Bottom ->
+              any_bottom := true;
+              Type_grammar.bottom_like ty1
+            | Ok extension ->
+              env_extension := extension;
+              ty
+            end
+          | Bottom ->
+            any_bottom := true;
+            Type_grammar.bottom_like ty1
+          end)
     in
     if !any_bottom then Bottom
     else Ok ({ fields; kind = t1.kind; }, !env_extension)
@@ -264,7 +285,10 @@ module Int_indexed = struct
       else
         Array.init length (fun index ->
           if fields1.(index) == fields2.(index) then fields1.(index)
-          else Type_grammar.join' env fields1.(index) fields2.(index))
+          else match Type_grammar.join env fields1.(index) fields2.(index) with
+            | Unknown ->
+              Type_grammar.unknown t1.kind
+            | Known ty -> ty)
     in
     { kind = t1.kind; fields }
 

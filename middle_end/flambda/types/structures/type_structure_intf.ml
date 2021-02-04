@@ -19,7 +19,7 @@
 module type S = sig
   type typing_env
   type meet_env
-  type meet_or_join_env
+  type join_env
   type typing_env_extension
   type flambda_type
 
@@ -33,10 +33,13 @@ module type S = sig
 
   val meet : meet_env -> t -> t -> (t * typing_env_extension) Or_bottom.t
 
-  (* CR mshinwell: The signature of [join] implies that each [t] must have
-     a bottom element in itself.  How do we reconcile that against the fact
-     that we're trying to propagate bottom upwards? *)
-  val join : meet_or_join_env -> t -> t -> t
+  (* Note that unlike the [join] function on regular types, for structures
+     the return type is [t] (and not [t Or_unknown.t]).
+     This simplifies a bit some parts of the code that cannot handle
+     the Unknown case gracefully, and all implementations of this interface
+     can handle [Unknown] results from generic [join]s without needing to
+     propagate it. *)
+  val join : join_env -> t -> t -> t
 
   include Contains_names.S with type t := t
 
