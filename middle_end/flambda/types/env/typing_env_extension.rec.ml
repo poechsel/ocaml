@@ -16,8 +16,6 @@
 
 [@@@ocaml.warning "+a-4-30-40-41-42"]
 
-module FPEM = Flambda_primitive.Eligible_for_cse.Map
-
 type t = {
   equations : Type_grammar.t Name.Map.t;
 }[@@unboxed]
@@ -57,6 +55,17 @@ let one_equation name ty =
 
 let add_or_replace_equation t name ty =
   Type_grammar.check_equation name ty;
+  if !Clflags.flambda_invariant_checks
+  && Name.Map.mem name t.equations
+  then begin
+    Format.eprintf
+      "Warning: Overriding equation for name %a@\n\
+       Old equation is@ @[%a@]@\n\
+       New equation is@ @[%a@]@."
+      Name.print name
+      Type_grammar.print (Name.Map.find name t.equations)
+      Type_grammar.print ty
+  end;
   { equations = Name.Map.add name ty t.equations; }
 
 exception Bottom_meet
@@ -88,13 +97,14 @@ let rec meet0 env (t1 : t) (t2 : t) extra_extensions =
   match extra_extensions with
   | [] -> ext
   | new_ext :: extra_extensions ->
-    (* CR vlaviron: I think that with recursive types we could get into an
-       infinite loop. It doesn't seem to occur at the moment, but it might be
-       a good idea to guard against this, or limit the number of recursive calls
-       to better control the complexity.
-       Since we're doing a meet, dropping the additional extensions is sound,
-       but then we'd probably want to switch to a queue instead of a list so
-       that only the newest/deepest equtions are lost. *)
+    (* CR vlaviron: It's a bad idea to drop the extensions in the general case,
+       but since we lack the property that the new extensions are stricter than
+       the existing ones we can get into an infinite loop here
+       (see flambdatest/unit_test/extension_meet.ml, function
+       test_double_recursion for an example)
+       This is very uncommon though (it needs recursive types involving at least
+       three different names), so for now we still do the meet systematically.
+    *)
     meet0 env ext new_ext extra_extensions
 
 let meet env t1 t2 : _ Or_bottom.t =
