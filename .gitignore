@@ -99,6 +99,9 @@ middle_end/flambda/simplify/simplify.ml
 middle_end/flambda/terms/flambda.ml
 middle_end/flambda/types/flambda_type.ml
 
+/flambdatest/api_tests/*.byte
+/flambdatest/api_tests/*.native
+
 /ocamldoc/ocamldoc
 /ocamldoc/ocamldoc.opt
 /ocamldoc/odoc
