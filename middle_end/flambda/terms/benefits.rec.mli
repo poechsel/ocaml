@@ -25,9 +25,9 @@ val (+): t -> t -> t
 val (-): t -> t -> t
 
 val call: t -> t
-val alloc: t -> t
+val alloc: count:int -> t -> t
 val prim: t -> t
-val branch: t -> t
+val branch: count:int -> t -> t
 val direct_call_of_indirect: t -> t
 val requested_inline: size_of:Code_size.t -> t -> t
 

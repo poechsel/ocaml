@@ -37,9 +37,9 @@ let zero = {
 }
 
 let call t = { t with call = t.call + 1; }
-let alloc t = { t with alloc = t.alloc + 1; }
+let alloc ~count t = { t with alloc = t.alloc + count; }
 let prim t = { t with prim = t.prim + 1; }
-let branch t = { t with branch = t.branch + 1; }
+let branch ~count t = { t with branch = t.branch + count; }
 let direct_call_of_indirect t =
   { t with direct_call_of_indirect = t.direct_call_of_indirect + 1; }
 let requested_inline ~size_of t =

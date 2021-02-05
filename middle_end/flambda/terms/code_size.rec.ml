@@ -16,13 +16,15 @@
 
 [@@@ocaml.warning "+a-4-30-40-41-42"]
 
-type t = int
+type t = {
+  size: int;
+  benefits: Benefits.t
+}
 
-let of_int t = t
-let to_int t = t
-let smaller t ~than = t <= than
-let equal a b = a = b
-let (+) (a : t) (b : t) : t = a + b
+let of_int t = { size = t; benefits = Benefits.zero }
+let to_int t = t.size
+let smaller t ~than = t.size <= than.size
+let equal a b = a.size = b.size
 
 let arch32 = Targetint.size = 32 (* are we compiling for a 32-bit arch *)
 let arch64 = Targetint.size = 64 (* are we compiling for a 64-bit arch *)
@@ -377,54 +379,77 @@ let prim_size (prim : Flambda_primitive.t) =
   | Ternary (p, _, _, _) -> ternary_prim_size p
   | Variadic (p, args) -> variadic_prim_size p args
 
-let simple simple = Simple.pattern_match simple ~const:(fun _ -> 1) ~name:(fun _ -> 0)
+let simple simple =
+  let size =
+    Simple.pattern_match simple ~const:(fun _ -> 1) ~name:(fun _ -> 0)
+  in
+  { size; benefits = Benefits.zero }
 
-let prim = prim_size
+let prim prim =
+  let size = prim_size prim in
+  { size; benefits = Benefits.prim (Benefits.zero) }
 
-let static_consts _ = 0
+let static_consts _ = of_int 0
+
+let add (a : t) (b : t) : t = {
+  size = a.size + b.size;
+  benefits = Benefits.(+) a.benefits b.benefits
+}
 
 let set_of_closures ~find_code_size set_of_closures =
   let func_decls = Set_of_closures.function_decls set_of_closures in
   let funs = Function_declarations.funs func_decls in
-  Closure_id.Map.fold (fun _ func_decl size ->
-    let code_id = Function_declaration.code_id func_decl in
-    match find_code_size code_id with
-    | Or_unknown.Known s -> size + s
-    | Or_unknown.Unknown ->
-      Misc.fatal_errorf "Code size should have been computed for:@ %a"
-        Code_id.print code_id
-  )
-    funs (of_int 0)
+  let { size; benefits } =
+    Closure_id.Map.fold (fun _ func_decl size ->
+      let code_id = Function_declaration.code_id func_decl in
+      match find_code_size code_id with
+      | Or_unknown.Known s -> add size s
+      | Or_unknown.Unknown ->
+        Misc.fatal_errorf "Code size should have been computed for:@ %a"
+          Code_id.print code_id
+    )
+      funs (of_int 0)
+  in
+  { size; benefits = Benefits.alloc ~count:(Closure_id.Map.cardinal funs) benefits }
 
 let let_expr_don't_consider_body ~size_of_defining_expr =
   size_of_defining_expr
 
-let apply apply = 
-  match Apply.call_kind apply with
-  | Function Direct _ -> direct_call_size
-  (* CR mshinwell: Check / fix these numbers *)
-  | Function Indirect_unknown_arity -> indirect_call_size
-  | Function Indirect_known_arity _ -> indirect_call_size
-  | C_call { alloc = true; _ } -> alloc_extcall_size
-  | C_call { alloc = false; _ } -> nonalloc_extcall_size
-  | Method _ -> 8 (* from flambda/inlining_cost.ml *)
+let apply apply =
+  let size =
+    match Apply.call_kind apply with
+    | Function Direct _ -> direct_call_size
+    (* CR mshinwell: Check / fix these numbers *)
+    | Function Indirect_unknown_arity -> indirect_call_size
+    | Function Indirect_known_arity _ -> indirect_call_size
+    | C_call { alloc = true; _ } -> alloc_extcall_size
+    | C_call { alloc = false; _ } -> nonalloc_extcall_size
+    | Method _ -> 8 (* from flambda/inlining_cost.ml *)
+  in
+  { size; benefits = Benefits.call (Benefits.zero); }
 
 let apply_cont apply_cont =
-  let size = match Apply_cont.trap_action apply_cont with
-    | None -> 0
-    | Some (Push _ | Pop _) -> 0 + 4
+  let size =
+    match Apply_cont.trap_action apply_cont with
+    | None -> 1
+    | Some (Push _ | Pop _) -> 1 + 4
   in
-  size + 1
+  { size; benefits = Benefits.zero }
 
-let invalid _ = 0
+let invalid _ = { size = 0; benefits = Benefits.zero }
 
-let switch switch = 0 + (5 * Switch.num_arms switch)
+let switch switch =
+  let n_arms = Switch.num_arms switch in
+  let size = 5 * n_arms in
+  { size; benefits = Benefits.branch ~count:n_arms (Benefits.zero) }
 
 let let_cont_non_recursive_don't_consider_body ~size_of_handler =
-  size_of_handler
+  let {size; benefits} = size_of_handler in
+  { size = size; benefits = Benefits.alloc ~count:1 benefits }
 
 let let_cont_recursive_don't_consider_body ~size_of_handlers =
-  size_of_handlers
+  let {size; benefits} = size_of_handlers in
+  { size = size; benefits = Benefits.alloc ~count:1 benefits }
 
 let rec expr_size ~find_code expr size =
   match Expr.descr expr with
@@ -499,4 +524,6 @@ and continuation_handler_size ~find_code handler size =
     ~f:(fun _params ~handler -> expr_size ~find_code handler size)
 
 let expr_size ~find_code e = expr_size ~find_code e 0 |> of_int
-let print ppf t = Format.fprintf ppf "%d" t
+let print ppf t = Format.fprintf ppf "%d %a" t.size Benefits.print t.benefits
+
+let (+) = add
