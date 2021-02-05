@@ -7,6 +7,8 @@
     code.rec.mli
     code_size.rec.ml
     code_size.rec.mli
+    benefits.rec.ml
+    benefits.rec.mli
     continuation_handler.rec.ml
     continuation_handler.rec.mli
     continuation_handlers.rec.ml

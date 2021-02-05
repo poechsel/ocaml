@@ -724,6 +724,21 @@ end and Code_size : sig
   val invalid : unit -> t
   val let_cont_non_recursive_don't_consider_body : size_of_handler:t -> t
   val let_cont_recursive_don't_consider_body : size_of_handlers:t -> t
+end and Benefits : sig
+  type t
+
+  val zero: t
+  val print: Format.formatter -> t -> unit
+
+  val (+): t -> t -> t
+  val (-): t -> t -> t
+
+  val call: t -> t
+  val alloc: t -> t
+  val prim: t -> t
+  val branch: t -> t
+  val direct_call_of_indirect: t -> t
+  val requested_inline: size_of:Code_size.t -> t -> t
 end
 
 module Function_declaration = Function_declaration
