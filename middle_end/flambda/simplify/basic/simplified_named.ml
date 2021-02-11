@@ -34,7 +34,10 @@ type t =
       size: Code_size.t;
       free_names : Name_occurrences.t;
     }
-  | Invalid of Invalid_term_semantics.t
+  | Invalid of {
+      size: Code_size.t;
+      semantics: Invalid_term_semantics.t;
+    }
 
 let reachable (named : Named.t) =
   let (simplified_named : simplified_named), size =
@@ -77,17 +80,27 @@ let reachable_with_known_free_names ~find_code_size (named : Named.t) ~free_name
 
 let invalid () =
   if !Clflags.treat_invalid_code_as_unreachable then
-    Invalid Treat_as_unreachable
+    Invalid { size = Code_size.of_int 0; semantics = Treat_as_unreachable }
   else
-    Invalid Halt_and_catch_fire
+    Invalid { size = Code_size.of_int 0; semantics = Halt_and_catch_fire }
 
 let print ppf t =
   match t with
   | Reachable { named; _ } ->
     Named.print ppf (to_named named)
-  | Invalid sem -> Invalid_term_semantics.print ppf sem
+  | Invalid {semantics; _} -> Invalid_term_semantics.print ppf semantics
 
 let is_invalid t =
   match t with
   | Reachable _ -> false
   | Invalid _ -> true
+
+let size t =
+  match t with
+  | Reachable r -> r.size
+  | Invalid r -> r.size
+
+let update_size size t =
+  match t with
+  | Reachable r -> Reachable { r with size }
+  | Invalid r -> Invalid { r with size }

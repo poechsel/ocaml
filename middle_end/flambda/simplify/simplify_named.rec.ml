@@ -312,9 +312,64 @@ let simplify_named0 dacc (bindable_let_bound : Bindable_let_bound.t)
        constant. *)
     Simplify_named_result.have_simplified_to_zero_terms dacc
 
+let adjust_negative_benefits (named : Named.t) result =
+  let descr = Simplify_named_result.descr result  in
+  let dacc = Simplify_named_result.dacc result in
+  match named with
+  | Set_of_closures _ -> begin
+      match descr with
+      | Multiple_bindings_to_symbols _ -> result
+      | Single_term (_, Reachable {named = Set_of_closures _ ;_}) ->
+        (* Nothing was deleted, there is no need to adjust the negative benefit*)
+        result
+      | Single_term (_, Invalid _)
+      | Single_term (_, Reachable {named = Prim _ ;_})
+      | Single_term (_, Reachable {named = Simple _ ;_})
+      | Zero_terms -> assert false
+    end
+  | Static_consts _ -> begin
+      match descr with
+      | Zero_terms -> result
+      | Single_term _
+      | Multiple_bindings_to_symbols _ -> assert false
+    end
+  | Simple _ -> begin
+      match descr with
+      | Single_term (_, Reachable {named = Simple _; _}) -> result
+      | Single_term (_,  Invalid _) ->
+        (* A simple has 0 benefit.*)
+        result
+      | Zero_terms
+      | Multiple_bindings_to_symbols _
+      | Single_term (_, Reachable {named = Set_of_closures _; _})
+      | Single_term (_, Reachable {named = Prim _; _}) -> assert false
+    end
+  | Prim (original_prim, _) -> begin
+      let adjust_size (simplified_named : Simplified_named.t) =
+        let size =
+          Simplified_named.size simplified_named
+          |> Code_size.remove_prim ~prim:original_prim
+        in
+        Simplified_named.update_size size simplified_named
+      in
+      match descr with
+      | Single_term (bound, simplified_named) -> begin
+          match simplified_named with
+          | Reachable { named = Prim (rewritten_prim, _); _ } ->
+            if Flambda_primitive.equal original_prim rewritten_prim then
+              result
+            else
+              Simplify_named_result.have_simplified_to_single_term dacc bound (adjust_size simplified_named)
+          | _ ->
+            Simplify_named_result.have_simplified_to_single_term dacc bound (adjust_size simplified_named)
+        end
+      | Zero_terms | Multiple_bindings_to_symbols _ -> assert false
+    end
+
 let simplify_named dacc bindable_let_bound named =
   try
     simplify_named0 dacc bindable_let_bound named
+    |> adjust_negative_benefits named
   with Misc.Fatal_error -> begin
     if !Clflags.flambda_context_on_error then begin
       Format.eprintf "\n%sContext is:%s simplifying [Let] binding@ %a =@ %a@ \

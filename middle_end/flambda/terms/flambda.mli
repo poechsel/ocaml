@@ -705,13 +705,16 @@ end and Code : sig
 end and Code_size : sig
   type t
 
-  val expr_size : find_code:(Code_id.t -> Code.t) -> Expr.t -> t
+  val expr : find_code_size:(Code_id.t -> Code_size.t Or_unknown.t) -> Expr.t -> t
   val of_int : int -> t
   val to_int : t -> int
   val (+) : t -> t -> t
   val smaller : t -> than:t -> bool
   val equal : t -> t -> bool
   val print : Format.formatter -> t -> unit
+
+  val positive_benefits : t -> Benefits.t
+  val negative_benefits : t -> Benefits.t
 
   val prim : Flambda_primitive.t -> t
   val simple : Simple.t -> t
@@ -724,6 +727,13 @@ end and Code_size : sig
   val invalid : unit -> t
   val let_cont_non_recursive_don't_consider_body : size_of_handler:t -> t
   val let_cont_recursive_don't_consider_body : size_of_handlers:t -> t
+
+  val remove_call : t -> t
+  val remove_alloc : t -> t
+  val remove_prim : prim:Flambda_primitive.t -> t -> t
+  val remove_branch : count:int -> t -> t
+  val direct_call_of_indirect : t -> t
+  val delete_code_track_benefits : positive_benefits : Benefits.t -> t -> t
 end and Benefits : sig
   type t
 
@@ -735,7 +745,7 @@ end and Benefits : sig
 
   val call: t -> t
   val alloc: count:int -> t -> t
-  val prim: t -> t
+  val prim: prim:Flambda_primitive.t -> t -> t
   val branch: count:int -> t -> t
   val direct_call_of_indirect: t -> t
   val requested_inline: size_of:Code_size.t -> t -> t

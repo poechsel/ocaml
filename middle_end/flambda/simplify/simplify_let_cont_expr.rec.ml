@@ -192,10 +192,21 @@ let simplify_non_recursive_let_cont_handler ~denv_before_body ~dacc_after_body
     let cont_uses_env =
       CUE.union prior_cont_uses_env (CUE.remove cont_uses_env cont)
     in
+    (* This continuation can be discarded. As it is not simplified its size
+       is computed separately and the corresponding positive benefits is then
+       removed from the current code size.*)
+    let size_of_handler =
+      Code_size.expr handler ~find_code_size:(fun code_id ->
+        DE.find_code denv_before_body code_id
+        |> Code.size
+      )
+    in
+    let positive_benefits = Code_size.positive_benefits size_of_handler in
     let dacc = DA.with_continuation_uses_env dacc ~cont_uses_env in
     down_to_up dacc
       ~continuation_has_zero_uses:true
       ~rebuild:(fun uacc ~after_rebuild ->
+        let uacc = UA.delete_code_track_benefits ~positive_benefits uacc in
         rebuild_non_recursive_let_cont_handler cont uses ~params
           ~handler ~free_names_of_handler:Name_occurrences.empty
           ~is_single_inlinable_use:false ~is_single_use:false scope
@@ -403,11 +414,17 @@ let simplify_non_recursive_let_cont dacc non_rec ~down_to_up =
                     let expr, uacc =
                       if remove_let_cont_leaving_body then
                         let uacc =
+                          let positive_benefits_of_handler =
+                            Code_size.positive_benefits size_of_handler
+                          in
                           let name_occurrences =
                             Name_occurrences.union name_occurrences_body
                               name_occurrences_subsequent_exprs
                           in
                           UA.with_name_occurrences uacc ~name_occurrences
+                          |> UA.delete_code_track_benefits ~positive_benefits:positive_benefits_of_handler
+                            (* At this point one let cont has been removed *)
+                          |> UA.notify_remove_alloc
                         in
                         (* The size stored in uacc is the size of the body at
                            this point *)
@@ -439,10 +456,14 @@ let simplify_non_recursive_let_cont dacc non_rec ~down_to_up =
                               Name_occurrences.union name_occurrences_handler
                                 name_occurrences_subsequent_exprs
                             in
+                            let positive_benefits_of_body = Code_size.positive_benefits (UA.size uacc) in
                             UA.with_name_occurrences uacc ~name_occurrences
-                            (* The body was discarded -- the size in uacc should
-                               be set to the size of handler.*)
-                            |>  UA.with_size size_of_handler
+                            |> UA.with_size size_of_handler
+                            (* The body was discarded -- the negative benefit should be the one of
+                               the handler plus the benefit accumulated while building the body
+                               plus the removal of one allocation. *)
+                            |> UA.delete_code_track_benefits ~positive_benefits:positive_benefits_of_body
+                            |> UA.notify_remove_alloc
                           in
                           handler, uacc
                         else
@@ -468,7 +489,9 @@ let simplify_non_recursive_let_cont dacc non_rec ~down_to_up =
                     in
                     (* Add the size of subsequent expressions back on the accumulator
                        as the accumulated size was cleared before rebuilding the let cont.*)
-                    let uacc = UA.increment_size size_of_subsequent_exprs uacc in
+                    let uacc =
+                      UA.increment_size size_of_subsequent_exprs uacc
+                    in
                     after_rebuild expr uacc)))))))
 
 let rebuild_recursive_let_cont_handlers cont arity ~original_cont_scope_level

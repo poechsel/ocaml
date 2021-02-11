@@ -18,10 +18,14 @@
 
 type t = {
   size: int;
-  benefits: Benefits.t
+  positive_benefits: Benefits.t;
+  negative_benefits: Benefits.t;
 }
 
-let of_int t = { size = t; benefits = Benefits.zero }
+let positive_benefits t = t.positive_benefits
+let negative_benefits t = t.negative_benefits
+
+let of_int t = { size = t; positive_benefits = Benefits.zero; negative_benefits = Benefits.zero }
 let to_int t = t.size
 let smaller t ~than = t.size <= than.size
 let equal a b = a.size = b.size
@@ -383,23 +387,24 @@ let simple simple =
   let size =
     Simple.pattern_match simple ~const:(fun _ -> 1) ~name:(fun _ -> 0)
   in
-  { size; benefits = Benefits.zero }
+  { size; positive_benefits = Benefits.zero; negative_benefits = Benefits.zero }
 
 let prim prim =
   let size = prim_size prim in
-  { size; benefits = Benefits.prim (Benefits.zero) }
+  { size; positive_benefits = Benefits.prim ~prim (Benefits.zero); negative_benefits = Benefits.zero }
 
 let static_consts _ = of_int 0
 
 let add (a : t) (b : t) : t = {
   size = a.size + b.size;
-  benefits = Benefits.(+) a.benefits b.benefits
+  positive_benefits = Benefits.(+) a.positive_benefits b.positive_benefits;
+  negative_benefits = Benefits.(+) a.negative_benefits b.negative_benefits
 }
 
 let set_of_closures ~find_code_size set_of_closures =
   let func_decls = Set_of_closures.function_decls set_of_closures in
   let funs = Function_declarations.funs func_decls in
-  let { size; benefits } =
+  let code_size =
     Closure_id.Map.fold (fun _ func_decl size ->
       let code_id = Function_declaration.code_id func_decl in
       match find_code_size code_id with
@@ -410,7 +415,9 @@ let set_of_closures ~find_code_size set_of_closures =
     )
       funs (of_int 0)
   in
-  { size; benefits = Benefits.alloc ~count:(Closure_id.Map.cardinal funs) benefits }
+  { code_size with
+    (* Adjusts the number of allocation for this set of closures. *)
+    positive_benefits = Benefits.alloc ~count:(Closure_id.Map.cardinal funs) code_size.positive_benefits }
 
 let let_expr_don't_consider_body ~size_of_defining_expr =
   size_of_defining_expr
@@ -426,7 +433,7 @@ let apply apply =
     | C_call { alloc = false; _ } -> nonalloc_extcall_size
     | Method _ -> 8 (* from flambda/inlining_cost.ml *)
   in
-  { size; benefits = Benefits.call (Benefits.zero); }
+  { size; positive_benefits = Benefits.call (Benefits.zero); negative_benefits = Benefits.zero }
 
 let apply_cont apply_cont =
   let size =
@@ -434,96 +441,94 @@ let apply_cont apply_cont =
     | None -> 1
     | Some (Push _ | Pop _) -> 1 + 4
   in
-  { size; benefits = Benefits.zero }
+  { size; positive_benefits = Benefits.branch ~count:1 (Benefits.zero); negative_benefits = Benefits.zero }
 
-let invalid _ = { size = 0; benefits = Benefits.zero }
+let invalid _ = { size = 0; positive_benefits = Benefits.zero; negative_benefits = Benefits.zero }
 
 let switch switch =
   let n_arms = Switch.num_arms switch in
   let size = 5 * n_arms in
-  { size; benefits = Benefits.branch ~count:n_arms (Benefits.zero) }
+  { size; positive_benefits = Benefits.branch ~count:n_arms (Benefits.zero); negative_benefits = Benefits.zero }
 
 let let_cont_non_recursive_don't_consider_body ~size_of_handler =
-  let {size; benefits} = size_of_handler in
-  { size = size; benefits = Benefits.alloc ~count:1 benefits }
+  let {size; positive_benefits; negative_benefits} = size_of_handler in
+  { size = size; positive_benefits = Benefits.alloc ~count:1 positive_benefits; negative_benefits }
 
 let let_cont_recursive_don't_consider_body ~size_of_handlers =
-  let {size; benefits} = size_of_handlers in
-  { size = size; benefits = Benefits.alloc ~count:1 benefits }
+  let {size; positive_benefits; negative_benefits} = size_of_handlers in
+  { size = size; positive_benefits = Benefits.alloc ~count:1 positive_benefits; negative_benefits }
 
-let rec expr_size ~find_code expr size =
+let rec expr_size ~find_code_size ~cont expr =
   match Expr.descr expr with
   | Let let_expr ->
-    let size = named_size ~find_code (Let_expr.defining_expr let_expr) size in
+    let size_of_defining_expr = named ~find_code_size (Let_expr.defining_expr let_expr) in
     Let_expr.pattern_match let_expr
-      ~f:(fun _bindable_let_bound ~body -> expr_size ~find_code body size)
+      ~f:(fun _bindable_let_bound ~body ->
+        expr_size ~find_code_size body ~cont:(fun size ->
+          add size (let_expr_don't_consider_body ~size_of_defining_expr)
+        ))
   | Let_cont (Non_recursive { handler; _ }) ->
     Non_recursive_let_cont_handler.pattern_match handler
       ~f:(fun _cont ~body ->
-        expr_size ~find_code body size
-        |> continuation_handler_size ~find_code
-             (Non_recursive_let_cont_handler.handler handler) 
-      )
+        let handler = (Non_recursive_let_cont_handler.handler handler) in
+        Continuation_handler.pattern_match handler
+          ~f:(fun _params ~handler ->
+            expr_size ~find_code_size handler ~cont:(fun size_of_handler ->
+              expr_size ~find_code_size body ~cont:(fun size ->
+                add size (let_cont_non_recursive_don't_consider_body ~size_of_handler)
+              ))))
   | Let_cont (Recursive handlers) ->
-    Recursive_let_cont_handlers.pattern_match handlers
-      ~f:(fun ~body handlers ->
-        let size = expr_size ~find_code body size in
-        let handlers = Continuation_handlers.to_map handlers in
-        Continuation.Map.fold (fun _cont handler size ->
-          continuation_handler_size ~find_code handler size)
-          handlers size)
-  | Apply apply ->
-    let call_cost =
-      match Apply.call_kind apply with
-      | Function Direct _ -> direct_call_size
-      (* CR mshinwell: Check / fix these numbers *)
-      | Function Indirect_unknown_arity -> indirect_call_size
-      | Function Indirect_known_arity _ -> indirect_call_size
-      | C_call { alloc = true; _ } -> alloc_extcall_size
-      | C_call { alloc = false; _ } -> nonalloc_extcall_size
-      | Method _ -> 8 (* from flambda/inlining_cost.ml *)
-    in
-    size + call_cost
+    Recursive_let_cont_handlers.pattern_match handlers ~f:(fun ~body rec_handlers ->
+      let handlers = Continuation_handlers.to_map rec_handlers in
+      let _, cont_handler = match Continuation.Map.bindings handlers with
+        | [] | _ :: _ :: _ ->
+          Misc.fatal_error "Support for simplification of multiply-recursive \
+                            continuations is not yet implemented"
+        | [c] -> c
+      in
+      Continuation_handler.pattern_match cont_handler
+        ~f:(fun _params ~handler ->
+          expr_size ~find_code_size handler ~cont:(fun size_of_handlers ->
+            expr_size ~find_code_size body ~cont:(fun size ->
+              add size (let_cont_recursive_don't_consider_body ~size_of_handlers
+                       )))))
+  | Apply apply' ->
+    cont (apply apply')
   | Apply_cont e ->
-    let size = match Apply_cont.trap_action e with
-      | None -> size
-      | Some (Push _ | Pop _) -> size + 4
-    in
-    size + 1
-  | Switch switch -> size + (5 * Switch.num_arms switch)
-  | Invalid _ -> size
-and named_size ~find_code (named : Named.t) size =
+    cont (apply_cont e)
+  | Switch switch' -> cont (switch switch')
+  | Invalid _ -> cont (invalid ())
+and named ~find_code_size (named : Named.t) =
   match named with
-  | Simple simple ->
-    Simple.pattern_match simple
-      ~const:(fun _ -> size + 1)
-      ~name:(fun _ -> size)
-  | Set_of_closures set_of_closures ->
-    (* Mimic Closure: do not inline functions containing closures.  Note that
-       there is an additional check for closure-containing functions in
-       [Closure_conversion], to try to replicate Closure's behaviour as
-       closely as possible. *)
-    let func_decls = Set_of_closures.function_decls set_of_closures in
-    let funs = Function_declarations.funs func_decls in
-    Closure_id.Map.fold (fun _ func_decl size ->
-      let code_id = Function_declaration.code_id func_decl in
-      let code = find_code code_id in
-      match Code.params_and_body code with
-      | Present params_and_body ->
-        Function_params_and_body.pattern_match params_and_body
-          ~f:(fun ~return_continuation:_ _exn_continuation _params
-               ~body ~my_closure:_ ~is_my_closure_used:_ ->
-               expr_size ~find_code body size)
-      | Deleted -> size)
-      funs size
-  | Prim (prim, _dbg) ->
-    size + prim_size prim
-  | Static_consts _ -> size
-and continuation_handler_size ~find_code handler size =
-  Continuation_handler.pattern_match handler
-    ~f:(fun _params ~handler -> expr_size ~find_code handler size)
+  | Simple simple' ->
+    simple simple'
+  | Set_of_closures set_of_closures' ->
+    set_of_closures ~find_code_size set_of_closures'
+  | Prim (prim', _dbg) ->
+    prim prim'
+  | Static_consts static_consts' ->
+    static_consts static_consts'
 
-let expr_size ~find_code e = expr_size ~find_code e 0 |> of_int
-let print ppf t = Format.fprintf ppf "%d %a" t.size Benefits.print t.benefits
+let expr ~find_code_size e = expr_size ~find_code_size ~cont:(fun x -> x) e
+
+let print ppf t = Format.fprintf ppf "%d %a %a"
+                    t.size
+                    Benefits.print t.positive_benefits
+                    Benefits.print t.negative_benefits
 
 let (+) = add
+
+let remove_call t =
+  { t with negative_benefits = Benefits.call t.negative_benefits }
+let remove_alloc t =
+  { t with negative_benefits = Benefits.alloc ~count:1 t.negative_benefits }
+let remove_prim ~prim t =
+  { t with negative_benefits = Benefits.prim ~prim t.negative_benefits }
+let remove_branch ~count t =
+  { t with negative_benefits = Benefits.branch ~count t.negative_benefits }
+
+let direct_call_of_indirect t =
+   { t with negative_benefits = Benefits.direct_call_of_indirect t.negative_benefits }
+
+let delete_code_track_benefits ~positive_benefits t =
+  { t with negative_benefits = Benefits.(+) t.negative_benefits positive_benefits }

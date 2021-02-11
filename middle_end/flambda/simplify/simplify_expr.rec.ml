@@ -74,7 +74,8 @@ let simplify_expr dacc expr ~down_to_up =
             let code_size_uacc = UA.size uacc in
             let denv = UA.creation_dacc uacc |> DA.denv in
             let code_size =
-              Code_size.expr_size expr ~find_code:(DE.find_code denv)
+              Code_size.expr expr ~find_code_size:(fun code_id ->
+                DE.find_code denv code_id |> Code.size)
             in
 
             if not (Code_size.equal code_size_uacc code_size)

@@ -38,7 +38,7 @@ type t = {
 let print ppf
       { uenv; creation_dacc = _; code_age_relation; lifted_constants;
         name_occurrences; used_closure_vars; all_code = _;
-        shareable_constants; size } =
+        shareable_constants; size; } =
   Format.fprintf ppf "@[<hov 1>(\
       @[<hov 1>(uenv@ %a)@]@ \
       @[<hov 1>(code_age_relation@ %a)@]@ \
@@ -140,3 +140,21 @@ let increment_size code_size t =
 let clear_size t = { t with size = Flambda.Code_size.of_int 0 }
 
 let with_size size t = { t with size }
+
+let notify_remove_call t =
+  { t with size = Flambda.Code_size.remove_call t.size }
+
+let notify_remove_alloc t =
+  { t with size = Flambda.Code_size.remove_alloc t.size }
+
+let notify_remove_branch ~count t =
+  { t with size = Flambda.Code_size.remove_branch ~count t.size }
+
+let notify_remove_prim ~prim t =
+  { t with size = Flambda.Code_size.remove_prim ~prim t.size }
+
+let notify_direct_call_of_indirect t =
+  { t with size = Flambda.Code_size.direct_call_of_indirect t.size }
+
+let delete_code_track_benefits ~positive_benefits t =
+  { t with size = Flambda.Code_size.delete_code_track_benefits ~positive_benefits t.size }

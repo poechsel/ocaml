@@ -26,7 +26,10 @@ type t = {
   descr : descr;
 }
 
+let with_dacc ~dacc t = { t with dacc }
+
 let have_simplified_to_zero_terms dacc =
+  (* No need to adjust the negative benefits here *)
   { dacc;
     descr = Zero_terms;
   }
@@ -37,6 +40,8 @@ let have_simplified_to_single_term dacc bindable_let_bound defining_expr =
   }
 
 let have_lifted_set_of_closures dacc bound_vars_to_symbols =
+  (* As simple does not account in the benefit calculation there's no need
+     to adjust the negative benefits here *)
   { dacc;
     descr = Multiple_bindings_to_symbols bound_vars_to_symbols;
   }

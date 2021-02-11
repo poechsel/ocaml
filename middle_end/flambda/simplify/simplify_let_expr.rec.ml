@@ -53,6 +53,8 @@ let rebuild_let symbol_scoping_rule simplify_named_result
     let body, uacc =
       EB.make_new_let_bindings uacc ~bindings_outermost_first:bindings ~body
     in
+    (* The let binding was removed *)
+    let uacc = UA.notify_remove_alloc uacc in
     after_rebuild body uacc
   else
     let scoping_rule =

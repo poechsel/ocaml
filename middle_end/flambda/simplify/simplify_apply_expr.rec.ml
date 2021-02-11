@@ -69,7 +69,8 @@ let simplify_direct_tuple_application dacc apply code_id ~down_to_up =
   Simplify_expr.simplify_expr dacc expr ~down_to_up
 
 let rebuild_non_inlined_direct_full_application apply ~use_id ~exn_cont_use_id
-      ~result_arity uacc ~after_rebuild =
+      ~result_arity ~coming_from_indirect uacc ~after_rebuild =
+  let uacc = if coming_from_indirect then UA.notify_direct_call_of_indirect uacc else uacc in
   let apply =
     Simplify_common.update_exn_continuation_extra_args uacc ~exn_cont_use_id
       apply
@@ -87,7 +88,7 @@ let rebuild_non_inlined_direct_full_application apply ~use_id ~exn_cont_use_id
   after_rebuild expr uacc
 
 let simplify_direct_full_application dacc apply function_decl_opt
-      ~callee's_code_id ~result_arity ~down_to_up =
+      ~callee's_code_id ~result_arity ~down_to_up ~coming_from_indirect =
   let callee = Apply.callee apply in
   let args = Apply.args apply in
   let inlined =
@@ -158,11 +159,11 @@ let simplify_direct_full_application dacc apply function_decl_opt
     in
     down_to_up dacc
       ~rebuild:(rebuild_non_inlined_direct_full_application apply ~use_id
-        ~exn_cont_use_id ~result_arity)
+        ~exn_cont_use_id ~result_arity ~coming_from_indirect)
 
 let simplify_direct_partial_application dacc apply ~callee's_code_id
       ~callee's_closure_id ~param_arity ~result_arity ~recursive
-      ~down_to_up =
+      ~down_to_up ~coming_from_indirect =
   (* For simplicity, we disallow [@inline] attributes on partial
      applications.  The user may always write an explicit wrapper instead
      with such an attribute. *)
@@ -342,6 +343,9 @@ let simplify_direct_partial_application dacc apply ~callee's_code_id
   Simplify_expr.simplify_expr dacc expr
     ~down_to_up:(fun dacc ~rebuild ->
       down_to_up dacc ~rebuild:(fun uacc ~after_rebuild ->
+        let uacc = if coming_from_indirect then UA.notify_direct_call_of_indirect uacc else uacc in
+        (* Remove one function call as this apply was removed and replaced by two new ones. *)
+        let uacc = UA.notify_remove_call uacc in
         let uacc = UA.add_outermost_lifted_constant uacc dummy_code in
         rebuild uacc ~after_rebuild))
 
@@ -350,9 +354,16 @@ let simplify_direct_partial_application dacc apply ~callee's_code_id
    sure it cannot in every case. *)
 
 let simplify_direct_over_application dacc apply ~param_arity ~result_arity:_
-      ~down_to_up =
+      ~down_to_up ~coming_from_indirect =
   let expr = Simplify_common.split_direct_over_application apply ~param_arity in
-  Simplify_expr.simplify_expr dacc expr ~down_to_up
+  Simplify_expr.simplify_expr dacc expr
+    ~down_to_up:(fun dacc ~rebuild ->
+      down_to_up dacc ~rebuild:(fun uacc ~after_rebuild ->
+        (* Remove one function call as this apply was removed and replaced by two new ones. *)
+        let uacc = if coming_from_indirect then UA.notify_direct_call_of_indirect uacc else uacc in
+        let uacc = UA.notify_remove_call uacc in
+        rebuild uacc ~after_rebuild))
+
 
 let simplify_direct_function_call dacc apply ~callee's_code_id_from_type
       ~callee's_code_id_from_call_kind ~callee's_closure_id ~result_arity
@@ -370,6 +381,7 @@ let simplify_direct_function_call dacc apply ~callee's_code_id_from_type
       Flambda_arity.With_subkinds.print result_arity_of_application
       Apply.print apply
   end;
+  let coming_from_indirect = callee's_code_id_from_call_kind = None in
   let callee's_code_id : _ Or_bottom.t =
     match callee's_code_id_from_call_kind with
     | None -> Ok callee's_code_id_from_type
@@ -381,7 +393,10 @@ let simplify_direct_function_call dacc apply ~callee's_code_id_from_type
   in
   match callee's_code_id with
   | Bottom ->
-    down_to_up dacc ~rebuild:Simplify_common.rebuild_invalid
+    down_to_up dacc ~rebuild:(fun uacc ~after_rebuild ->
+      let uacc = UA.notify_remove_call uacc in
+      Simplify_common.rebuild_invalid uacc ~after_rebuild
+    )
   | Ok callee's_code_id ->
     let call_kind =
       Call_kind.direct_function_call callee's_code_id callee's_closure_id
@@ -405,14 +420,14 @@ let simplify_direct_function_call dacc apply ~callee's_code_id_from_type
       let num_params = List.length param_arity in
       if provided_num_args = num_params then
         simplify_direct_full_application dacc apply function_decl_opt
-          ~callee's_code_id ~result_arity ~down_to_up
+          ~callee's_code_id ~result_arity ~down_to_up ~coming_from_indirect
       else if provided_num_args > num_params then
         simplify_direct_over_application dacc apply ~param_arity ~result_arity
-          ~down_to_up
+          ~down_to_up ~coming_from_indirect
       else if provided_num_args > 0 && provided_num_args < num_params then
         simplify_direct_partial_application dacc apply ~callee's_code_id
           ~callee's_closure_id ~param_arity ~result_arity ~recursive
-          ~down_to_up
+          ~down_to_up ~coming_from_indirect
       else
         Misc.fatal_errorf "Function with %d params when simplifying \
                            direct OCaml function call with %d arguments: %a"
@@ -627,12 +642,18 @@ let simplify_function_call dacc apply ~callee_ty
         None
         ~down_to_up
     | Bottom ->
-      down_to_up dacc ~rebuild:Simplify_common.rebuild_invalid
+      down_to_up dacc ~rebuild:(fun uacc ~after_rebuild ->
+        let uacc = UA.notify_remove_call uacc in
+        Simplify_common.rebuild_invalid uacc ~after_rebuild
+      )
     | Unknown -> type_unavailable ()
     end
   | Unknown -> type_unavailable ()
   | Invalid ->
-    down_to_up dacc ~rebuild:Simplify_common.rebuild_invalid
+    down_to_up dacc ~rebuild:(fun uacc ~after_rebuild ->
+      let uacc = UA.notify_remove_call uacc in
+      Simplify_common.rebuild_invalid uacc ~after_rebuild
+    )
 
 let simplify_apply_shared dacc apply : _ Or_bottom.t =
   let min_name_mode = Name_mode.normal in
@@ -786,7 +807,11 @@ let simplify_c_call dacc apply ~callee_ty ~param_arity ~return_arity
 
 let simplify_apply dacc apply ~down_to_up =
   match simplify_apply_shared dacc apply with
-  | Bottom -> down_to_up dacc ~rebuild:Simplify_common.rebuild_invalid
+  | Bottom ->
+    down_to_up dacc ~rebuild:(fun uacc ~after_rebuild ->
+      let uacc = UA.notify_remove_call uacc in
+      Simplify_common.rebuild_invalid uacc ~after_rebuild
+    )
   | Ok (callee_ty, apply, arg_types) ->
     match Apply.call_kind apply with
     | Function call ->

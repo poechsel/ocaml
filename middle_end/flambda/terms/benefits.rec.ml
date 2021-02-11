@@ -38,7 +38,30 @@ let zero = {
 
 let call t = { t with call = t.call + 1; }
 let alloc ~count t = { t with alloc = t.alloc + count; }
-let prim t = { t with prim = t.prim + 1; }
+
+type classify_prim =
+  | Is_alloc
+  | Is_prim
+
+let prim ~(prim : Flambda_primitive.t) t =
+  let type_ =
+    match prim with
+    | Unary (prim, _) -> begin match prim with
+      | Duplicate_block _ | Duplicate_array _ | Box_number _ | Unbox_number _ ->
+        Is_alloc
+      | _ -> Is_prim
+    end
+    | Binary (_prim, _, _) -> Is_prim
+    | Ternary (_prim, _, _, _) -> Is_prim
+    | Variadic (prim, _) -> begin match prim with
+      | Make_block _ | Make_array _ -> Is_alloc
+    end
+  in
+  if type_ = Is_alloc then
+    { t with prim = t.alloc + 1; }
+  else
+    { t with prim = t.prim + 1; }
+
 let branch ~count t = { t with branch = t.branch + count; }
 let direct_call_of_indirect t =
   { t with direct_call_of_indirect = t.direct_call_of_indirect + 1; }

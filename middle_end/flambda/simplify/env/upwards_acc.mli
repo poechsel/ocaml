@@ -77,3 +77,15 @@ val increment_size : Flambda.Code_size.t -> t -> t
 val clear_size : t -> t
 
 val with_size : Flambda.Code_size.t -> t -> t
+
+val notify_remove_call : t -> t
+
+val notify_remove_alloc : t -> t
+
+val notify_remove_prim : prim:Flambda_primitive.t -> t -> t
+
+val notify_remove_branch : count:int -> t -> t
+
+val notify_direct_call_of_indirect : t -> t
+
+val delete_code_track_benefits : positive_benefits:Flambda.Benefits.t -> t -> t

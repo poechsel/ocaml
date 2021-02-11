@@ -18,7 +18,7 @@
 
 open! Simplify_import
 
-let rebuild_switch dacc ~arms ~scrutinee ~scrutinee_ty uacc
+let rebuild_switch dacc ~original_number_of_arms ~arms ~scrutinee ~scrutinee_ty uacc
       ~after_rebuild =
   let new_let_conts, arms, identity_arms, not_arms =
     Target_imm.Map.fold
@@ -135,7 +135,7 @@ let rebuild_switch dacc ~arms ~scrutinee ~scrutinee_ty uacc
       |> Continuation.Set.of_list
       |> Continuation.Set.get_singleton
   in
-  let create_tagged_scrutinee dest ~make_body =
+  let create_tagged_scrutinee uacc dest ~make_body =
     (* A problem with using [simplify_let] below is that the continuation
        [dest] might have [Apply_cont_rewrite]s in the environment, left over
        from the simplification of the existing uses.  We must clear these to
@@ -178,12 +178,14 @@ let rebuild_switch dacc ~arms ~scrutinee ~scrutinee_ty uacc
   let free_names_after = UA.name_occurrences uacc in
   let body, uacc =
     if Target_imm.Map.cardinal arms < 1 then
+      let uacc = UA.notify_remove_branch ~count:original_number_of_arms uacc in
       Expr.create_invalid (), uacc
     else
       let dbg = Debuginfo.none in
       match switch_is_identity with
       | Some dest ->
-        create_tagged_scrutinee dest ~make_body:(fun ~tagged_scrutinee ->
+        let uacc = UA.notify_remove_branch ~count:original_number_of_arms uacc in
+        create_tagged_scrutinee uacc dest ~make_body:(fun ~tagged_scrutinee ->
           (* No need to increment the size inside [create_tagged_scrutinee] as it
              will call simplify over the result of [make_body]. *)
           Apply_cont.create dest ~args:[tagged_scrutinee] ~dbg
@@ -191,7 +193,8 @@ let rebuild_switch dacc ~arms ~scrutinee ~scrutinee_ty uacc
       | None ->
         match switch_is_boolean_not with
         | Some dest ->
-          create_tagged_scrutinee dest ~make_body:(fun ~tagged_scrutinee ->
+          let uacc = UA.notify_remove_branch ~count:original_number_of_arms uacc in
+          create_tagged_scrutinee uacc dest ~make_body:(fun ~tagged_scrutinee ->
             let not_scrutinee = Variable.create "not_scrutinee" in
             let not_scrutinee' = Simple.var not_scrutinee in
             let do_tagging =
@@ -210,6 +213,9 @@ let rebuild_switch dacc ~arms ~scrutinee ~scrutinee_ty uacc
               ~free_names_of_body:(Known (Expr.free_names body))
             |> Expr.create_let)
         | None ->
+          let number_of_arms = Target_imm.Map.cardinal arms in
+          let number_of_removed_arms = original_number_of_arms - number_of_arms in 
+          let uacc = UA.notify_remove_branch ~count:number_of_removed_arms uacc in
           let expr, size = Expr.create_switch_and_size ~scrutinee ~arms in
           let uacc = UA.increment_size size uacc in
           if !Clflags.flambda_invariant_checks
@@ -248,9 +254,13 @@ let simplify_switch dacc switch ~down_to_up =
   let module AC = Apply_cont in
   let min_name_mode = Name_mode.normal in
   let scrutinee = Switch.scrutinee switch in
+  let original_number_of_arms = Target_imm.Map.cardinal (Switch.arms switch) in
   match S.simplify_simple dacc scrutinee ~min_name_mode with
   | Bottom, _ty ->
-    down_to_up dacc ~rebuild:Simplify_common.rebuild_invalid
+    down_to_up dacc ~rebuild:(fun uacc ~after_rebuild ->
+      let uacc = UA.notify_remove_branch ~count:original_number_of_arms uacc in
+      Simplify_common.rebuild_invalid uacc ~after_rebuild
+    )
   | Ok scrutinee, scrutinee_ty ->
     let arms, dacc =
       let typing_env_at_use = DA.typing_env dacc in
@@ -295,4 +305,4 @@ let simplify_switch dacc switch ~down_to_up =
         (Target_imm.Map.empty, dacc)
     in
     down_to_up dacc
-      ~rebuild:(rebuild_switch dacc ~arms ~scrutinee ~scrutinee_ty)
+      ~rebuild:(rebuild_switch ~original_number_of_arms dacc ~arms ~scrutinee ~scrutinee_ty)

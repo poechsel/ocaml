@@ -19,7 +19,9 @@
 
 type t
 
-val expr_size : find_code:(Code_id.t -> Code.t) -> Expr.t -> t
+(* It's best to avoid calling this function too much as it is
+   quite slow. *)
+val expr : find_code_size:(Code_id.t -> Code_size.t Or_unknown.t) -> Expr.t -> t
 
 val of_int : int -> t
 val to_int : t -> int
@@ -40,3 +42,19 @@ val switch : Switch.t -> t
 val invalid : unit -> t
 val let_cont_non_recursive_don't_consider_body : size_of_handler:t -> t
 val let_cont_recursive_don't_consider_body : size_of_handlers:t -> t
+
+(* Benefits are finer grained metrics (number of calls / allocations) about
+   the size of an expression. [positive_benefits], which maps to expression
+   that are newly created, are separated from [negative_benefits] which are
+   benefits belonging to expression that were omitted while rebuilding a
+   term. *)
+val positive_benefits : t -> Benefits.t
+val negative_benefits : t -> Benefits.t
+
+val remove_call : t -> t
+val remove_alloc : t -> t
+val remove_prim : prim:Flambda_primitive.t -> t -> t
+val remove_branch : count:int -> t -> t
+val direct_call_of_indirect: t -> t
+
+val delete_code_track_benefits : positive_benefits:Benefits.t -> t -> t

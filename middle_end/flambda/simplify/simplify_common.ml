@@ -77,7 +77,12 @@ let try_cse dacc ~original_prim ~result_kind ~min_name_mode ~args
       let named = Named.create_simple replace_with in
       let ty = T.alias_type_of result_kind replace_with in
       let env_extension = TEE.one_equation (Name.var result_var) ty in
-      Applied (Simplified_named.reachable named, env_extension, args, dacc)
+      let simplified_named =
+        let size = Code_size.remove_prim ~prim:original_prim (Code_size.of_int 0) in
+        Simplified_named.reachable named
+        |> Simplified_named.update_size size
+      in
+      Applied (simplified_named, env_extension, args, dacc)
     | None ->
       let dacc =
         match P.Eligible_for_cse.create original_prim with
