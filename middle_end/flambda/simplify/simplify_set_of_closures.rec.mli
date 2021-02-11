@@ -26,7 +26,7 @@ val simplify_non_lifted_set_of_closures
    : Downwards_acc.t
   -> Bindable_let_bound.t
   -> Set_of_closures.t
-  -> (Bindable_let_bound.t * Simplified_named.t) list * Downwards_acc.t
+  -> Simplify_named_result.t
 
 (** Simplify a group of possibly-recursive sets of closures, as may occur on
     the right-hand side of a [Let_symbol] binding. *)

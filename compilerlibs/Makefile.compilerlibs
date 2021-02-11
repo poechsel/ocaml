@@ -276,7 +276,7 @@ MIDDLE_END_FLAMBDA_TYPES=\
   middle_end/flambda/types/basic/closure_id_set.cmo \
   middle_end/flambda/types/basic/closure_id_or_unknown_and_var_within_closure_set.cmo \
   middle_end/flambda/types/basic/closure_id_and_var_within_closure_set.cmo \
-  middle_end/flambda/types/inlining/inlining_state.cmo 
+  middle_end/flambda/types/inlining/inlining_state.cmo
 
 MIDDLE_END_FLAMBDA_TERMS=\
   middle_end/flambda/terms/apply_cont_expr.cmo \
@@ -318,6 +318,7 @@ MIDDLE_END_FLAMBDA_SIMPLIFY=\
   middle_end/flambda/inlining/inlining_transforms.cmo \
   middle_end/flambda/simplify/simplify_simple.cmo \
   middle_end/flambda/simplify/simplify_import.cmo \
+  middle_end/flambda/simplify/basic/simplify_named_result.cmo \
   middle_end/flambda/unboxing/unbox_continuation_params.cmo \
   middle_end/flambda/lifting/sort_lifted_constants.cmo \
   middle_end/flambda/lifting/reification.cmo \

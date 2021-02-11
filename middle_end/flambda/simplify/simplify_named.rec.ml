@@ -18,14 +18,6 @@
 
 open! Simplify_import
 
-type simplify_named_result = {
-  bindings_outermost_first : (Bindable_let_bound.t * Simplified_named.t) list;
-  dacc : Downwards_acc.t;
-}
-
-let bindings_result bindings_outermost_first dacc =
-  { bindings_outermost_first; dacc; }
-
 let record_any_symbol_projection dacc (defining_expr : Simplified_named.t)
       (prim : P.t) args bindable_let_bound ~bound_var named =
   (* Projections from symbols bound to variables are important to remember,
@@ -159,14 +151,16 @@ let simplify_named0 dacc (bindable_let_bound : Bindable_let_bound.t)
     | Bottom, ty ->
       let dacc = DA.add_variable dacc bound_var (T.bottom (T.kind ty)) in
       let defining_expr = Simplified_named.invalid () in
-      bindings_result [bindable_let_bound, defining_expr] dacc
+      Simplify_named_result.have_simplified_to_single_term dacc
+        bindable_let_bound defining_expr
     | Ok new_simple, ty ->
       let dacc = DA.add_variable dacc bound_var ty in
       let defining_expr =
         if simple == new_simple then Simplified_named.reachable named
         else Simplified_named.reachable (Named.create_simple simple)
       in
-      bindings_result [bindable_let_bound, defining_expr] dacc
+      Simplify_named_result.have_simplified_to_single_term dacc
+        bindable_let_bound defining_expr
     end
   | Prim (prim, dbg) ->
     let bound_var = Bindable_let_bound.must_be_singleton bindable_let_bound in
@@ -213,13 +207,11 @@ let simplify_named0 dacc (bindable_let_bound : Bindable_let_bound.t)
       record_any_symbol_projection dacc defining_expr prim simplified_args
         bindable_let_bound ~bound_var named
     in
-    bindings_result [bindable_let_bound, defining_expr] dacc
+    Simplify_named_result.have_simplified_to_single_term dacc
+      bindable_let_bound defining_expr
   | Set_of_closures set_of_closures ->
-    let bindings, dacc =
-      Simplify_set_of_closures.simplify_non_lifted_set_of_closures dacc
-        bindable_let_bound set_of_closures
-    in
-    bindings_result bindings dacc
+    Simplify_set_of_closures.simplify_non_lifted_set_of_closures dacc
+      bindable_let_bound set_of_closures
   | Static_consts static_consts ->
     let { Bindable_let_bound. bound_symbols; scoping_rule = _; } =
       Bindable_let_bound.must_be_symbols bindable_let_bound
@@ -318,7 +310,7 @@ let simplify_named0 dacc (bindable_let_bound : Bindable_let_bound.t)
     (* We don't need to return any bindings; [Simplify_expr.simplify_let]
        will create the "let symbol" binding when it sees the lifted
        constant. *)
-    { bindings_outermost_first = []; dacc; }
+    Simplify_named_result.have_simplified_to_zero_terms dacc
 
 let simplify_named dacc bindable_let_bound named =
   try
