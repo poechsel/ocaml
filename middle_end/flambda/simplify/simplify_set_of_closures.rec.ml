@@ -704,16 +704,20 @@ let simplify_and_lift_set_of_closures dacc ~closure_bound_vars_inverse
           Misc.fatal_errorf "No closure symbol for closure ID %a"
             Closure_id.print closure_id
         | closure_symbol ->
-          let simple = Simple.symbol closure_symbol in
-          let defining_expr = Named.create_simple simple in
-          let typ = T.alias_type_of K.value simple in
-          let denv = DE.add_variable denv bound_var typ in
-          let bound_var = Bindable_let_bound.singleton bound_var in
-          denv, (bound_var, Simplified_named.reachable defining_expr) :: bindings)
+          let denv =
+            let simple = Simple.symbol closure_symbol in
+            let typ = T.alias_type_of K.value simple in
+            DE.add_variable denv bound_var typ
+          in
+          let bindings =
+            Var_in_binding_pos.Map.add bound_var closure_symbol bindings
+          in
+          denv, bindings)
       closure_bound_vars
-      (denv, [])
+      (denv, Var_in_binding_pos.Map.empty)
   in
-  bindings, DA.with_denv dacc denv
+  Simplify_named_result.have_lifted_set_of_closures (DA.with_denv dacc denv)
+    bindings
 
 let simplify_non_lifted_set_of_closures0 dacc bound_vars ~closure_bound_vars
       set_of_closures ~closure_elements ~closure_element_types =
@@ -762,7 +766,8 @@ let simplify_non_lifted_set_of_closures0 dacc bound_vars ~closure_bound_vars
     |> DA.map_denv ~f:(fun denv ->
       DE.add_lifted_constants_from_list denv lifted_constants)
   in
-  [bound_vars, defining_expr], dacc
+  Simplify_named_result.have_simplified_to_single_term dacc
+    bound_vars defining_expr
 
 type lifting_decision_result = {
   can_lift : bool;
