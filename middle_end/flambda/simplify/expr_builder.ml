@@ -119,7 +119,7 @@ let create_singleton_let uacc (bound_var : VB.t) defining_expr
     in
     let uacc =
       UA.with_name_occurrences uacc ~name_occurrences:free_names_of_let
-      |> UA.increment_size (Code_size.let_expr_don't_consider_body ~size_of_defining_expr)
+      |> UA.increment_size (Code_size.increase_due_to_let_expr ~size_of_defining_expr)
     in
     let let_expr =
       Let.create (Bindable_let_bound.singleton bound_var)
@@ -149,7 +149,7 @@ let create_set_of_closures_let uacc bound_vars defining_expr
     in
     let uacc =
       UA.with_name_occurrences uacc ~name_occurrences:free_names_of_let
-      |> UA.increment_size (Code_size.let_expr_don't_consider_body ~size_of_defining_expr)
+      |> UA.increment_size (Code_size.increase_due_to_let_expr ~size_of_defining_expr)
     in
     let let_expr =
       Let.create bound_vars defining_expr ~body
@@ -222,7 +222,7 @@ let create_raw_let_symbol uacc bound_symbols scoping_rule static_consts ~body =
   in
   let uacc =
     UA.with_name_occurrences uacc ~name_occurrences:free_names_of_let
-    |> UA.increment_size (Code_size.let_expr_don't_consider_body ~size_of_defining_expr)
+    |> UA.increment_size (Code_size.increase_due_to_let_expr ~size_of_defining_expr)
   in
   let let_expr =
     Let.create bindable defining_expr ~body
@@ -380,12 +380,6 @@ let create_let_symbols uacc (scoping_rule : Symbol_scoping_rule.t)
       expr, uacc
   in
   Variable.Map.fold (fun var proj (expr, uacc) ->
-      let create_simple simple =
-        Named.create_simple simple, Code_size.simple simple
-      in
-      let create_prim prim dbg =
-        Named.create_prim prim dbg, Code_size.prim prim
-      in
       let rec apply_projection proj =
         match LC.apply_projection lifted_constant proj with
         | Some simple ->
@@ -403,11 +397,14 @@ let create_let_symbols uacc (scoping_rule : Symbol_scoping_rule.t)
              in turn defined by another symbol projection, so we need to
              expand transitively. *)
           Simple.pattern_match' simple
-            ~const:(fun _ -> create_simple simple)
-            ~symbol:(fun _ -> create_simple simple)
+            ~const:(fun _ ->
+              Named.create_simple simple, Code_size.simple simple)
+            ~symbol:(fun _ ->
+              Named.create_simple simple, Code_size.simple simple)
             ~var:(fun var ->
               match Variable.Map.find var symbol_projections with
-              | exception Not_found -> create_simple simple
+              | exception Not_found ->
+                Named.create_simple simple, Code_size.simple simple
               | proj -> apply_projection proj)
         | None ->
           let prim : P.t =
@@ -427,7 +424,7 @@ let create_let_symbols uacc (scoping_rule : Symbol_scoping_rule.t)
             | Project_var { project_from; var; } ->
               Unary (Project_var { project_from; var; }, symbol)
           in
-          create_prim prim Debuginfo.none
+          Named.create_prim prim Debuginfo.none, Code_size.prim prim
       in
       (* It's possible that this might create duplicates of the same
          projection operation, but it's unlikely there will be a

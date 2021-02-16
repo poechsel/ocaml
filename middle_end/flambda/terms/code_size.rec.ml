@@ -18,6 +18,7 @@
 
 type t = int
 
+let zero = 0
 let of_int t = t
 let to_int t = t
 let smaller t ~than = t <= than
@@ -384,6 +385,10 @@ let prim = prim_size
 
 let static_consts _ = 0
 
+(* The size of a set of closures is roughly the sum of the size of the
+   functions it refers to. This is mainly due to the fact that if we do inline
+   a function f where a set of closure is defined then we will copy the body of
+   all functions referred by this set of closure as they are dependent upon f.*)
 let set_of_closures ~find_code_size set_of_closures =
   let func_decls = Set_of_closures.function_decls set_of_closures in
   let funs = Function_declarations.funs func_decls in
@@ -395,9 +400,9 @@ let set_of_closures ~find_code_size set_of_closures =
       Misc.fatal_errorf "Code size should have been computed for:@ %a"
         Code_id.print code_id
   )
-    funs (of_int 0)
+    funs (zero)
 
-let let_expr_don't_consider_body ~size_of_defining_expr =
+let increase_due_to_let_expr ~size_of_defining_expr =
   size_of_defining_expr
 
 let apply apply = 
@@ -421,10 +426,10 @@ let invalid _ = 0
 
 let switch switch = 0 + (5 * Switch.num_arms switch)
 
-let let_cont_non_recursive_don't_consider_body ~size_of_handler =
+let increase_due_to_let_cont_non_recursive ~size_of_handler =
   size_of_handler
 
-let let_cont_recursive_don't_consider_body ~size_of_handlers =
+let increase_due_to_let_cont_recursive ~size_of_handlers =
   size_of_handlers
 
 let rec expr_size ~find_code expr size =
@@ -475,10 +480,6 @@ and named_size ~find_code (named : Named.t) size =
       ~const:(fun _ -> size + 1)
       ~name:(fun _ -> size)
   | Set_of_closures set_of_closures ->
-    (* Mimic Closure: do not inline functions containing closures.  Note that
-       there is an additional check for closure-containing functions in
-       [Closure_conversion], to try to replicate Closure's behaviour as
-       closely as possible. *)
     let func_decls = Set_of_closures.function_decls set_of_closures in
     let funs = Function_declarations.funs func_decls in
     Closure_id.Map.fold (fun _ func_decl size ->
@@ -499,5 +500,5 @@ and continuation_handler_size ~find_code handler size =
   Continuation_handler.pattern_match handler
     ~f:(fun _params ~handler -> expr_size ~find_code handler size)
 
-let expr_size ~find_code e = expr_size ~find_code e 0 |> of_int
+let expr_size ~find_code e = expr_size ~find_code e 0
 let print ppf t = Format.fprintf ppf "%d" t

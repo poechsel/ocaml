@@ -378,7 +378,8 @@ let simplify_non_recursive_let_cont dacc non_rec ~down_to_up =
                   UA.size uacc
                 in
                 let uacc =
-                  UA.clear_name_occurrences uacc
+                  uacc
+                  |> UA.clear_name_occurrences
                   |> UA.clear_size
                 in
                 rebuild_handler uacc ~after_rebuild:(fun handler uacc ->
@@ -388,7 +389,8 @@ let simplify_non_recursive_let_cont dacc non_rec ~down_to_up =
                   in
                   let size_of_handler = UA.size uacc in
                   let uacc =
-                    UA.clear_name_occurrences uacc
+                    uacc
+                    |> UA.clear_name_occurrences
                     |> UA.clear_size
                   in
                   (* Having rebuilt the handler, we now rebuild the body. *)
@@ -489,7 +491,7 @@ let simplify_non_recursive_let_cont dacc non_rec ~down_to_up =
                           in
                           let uacc =
                             UA.increment_size
-                              (Code_size.let_cont_non_recursive_don't_consider_body ~size_of_handler) uacc
+                              (Code_size.increase_due_to_let_cont_non_recursive ~size_of_handler) uacc
                           in
                           expr, uacc
                     in
@@ -573,7 +575,7 @@ let rebuild_recursive_let_cont ~body handlers ~size_of_handlers ~uenv_without_co
       ~after_rebuild : Expr.t * UA.t =
   let uacc = UA.with_uenv uacc uenv_without_cont in
   let expr = Flambda.Let_cont.create_recursive handlers ~body in
-  let uacc = UA.increment_size (Code_size.let_cont_recursive_don't_consider_body ~size_of_handlers) uacc in
+  let uacc = UA.increment_size (Code_size.increase_due_to_let_cont_recursive ~size_of_handlers) uacc in
   after_rebuild expr uacc
 
 (* CR mshinwell: We should not simplify recursive continuations with no

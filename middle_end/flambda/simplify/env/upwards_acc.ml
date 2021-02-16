@@ -137,6 +137,6 @@ let increment_size code_size t =
   let size = Flambda.Code_size.(+) t.size code_size in
   { t with size}
 
-let clear_size t = { t with size = Flambda.Code_size.of_int 0 }
+let clear_size t = { t with size = Flambda.Code_size.zero }
 
 let with_size size t = { t with size }

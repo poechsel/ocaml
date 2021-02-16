@@ -228,7 +228,7 @@ let rebuild_switch dacc ~arms ~scrutinee ~scrutinee_ty uacc
     List.fold_left (fun (uacc, body) (new_cont, new_handler, size_of_handler) ->
         let uacc =
           UA.increment_size
-            (Code_size.let_cont_non_recursive_don't_consider_body ~size_of_handler) uacc
+            (Code_size.increase_due_to_let_cont_non_recursive ~size_of_handler) uacc
         in
         uacc,
         Let_cont.create_non_recursive new_cont new_handler ~body

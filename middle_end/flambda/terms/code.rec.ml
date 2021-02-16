@@ -148,7 +148,7 @@ let print_with_cache ~cache ppf
         @[<hov 1>@<0>%s(params_arity@ @<0>%s%a@<0>%s)@<0>%s@]@ \
         @[<hov 1>@<0>%s(result_arity@ @<0>%s%a@<0>%s)@<0>%s@]@ \
         @[<hov 1>@<0>%s(recursive@ %a)@<0>%s@]@ \
-        @[<hov 1>@<0>(size@ %a)@<0>@]@ \
+        @[<hov 1>@<0>%s(size@ %a)@<0>%s@]@ \
         %a\
         )@]"
       (if Option.is_none newer_version_of then Flambda_colours.elide ()
@@ -189,7 +189,11 @@ let print_with_cache ~cache ppf
       | Recursive -> Flambda_colours.normal ())
       Recursive.print recursive
       (Flambda_colours.normal ())
+      (match size with
+       | Unknown -> Flambda_colours.elide ()
+       | Known _ -> Flambda_colours.normal ())
       (Or_unknown.print Code_size.print) size
+      (Flambda_colours.normal ())
       (print_params_and_body_with_cache ~cache) params_and_body
   | Deleted ->
     Format.fprintf ppf "@[<hov 1>(\

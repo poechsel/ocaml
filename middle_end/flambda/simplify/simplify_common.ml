@@ -161,7 +161,7 @@ let add_wrapper_for_fixed_arity_continuation uacc cont ~use_id arity ~around =
   | New_wrapper (new_cont, new_handler, size_of_handler) ->
     let body, uacc = around uacc new_cont in
     let size_increment =
-      Code_size.let_cont_non_recursive_don't_consider_body ~size_of_handler
+      Code_size.increase_due_to_let_cont_non_recursive ~size_of_handler
     in
     Let_cont.create_non_recursive new_cont new_handler ~body
       ~free_names_of_body:(Known (Expr.free_names body)),

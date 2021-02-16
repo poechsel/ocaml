@@ -16,12 +16,16 @@
 
 [@@@ocaml.warning "+a-4-30-40-41-42"]
 
-(* Computes an approximatation for the code size corresponding to flambda terms.*)
+(* Computes an approximation for the code size corresponding to flambda terms.
+   The code size of a given term should be a rough estimate of the size of
+   the generated machine code.
+*)
 
 type t
 
 val expr_size : find_code:(Code_id.t -> Code.t) -> Expr.t -> t
 
+val zero : t
 val of_int : int -> t
 val to_int : t -> int
 val (+) : t -> t -> t
@@ -34,10 +38,10 @@ val simple : Simple.t -> t
 val static_consts : Static_const.Group.t -> t
 val set_of_closures : find_code_size:(Code_id.t -> Code_size.t Or_unknown.t) -> Set_of_closures.t -> t
 
-val let_expr_don't_consider_body : size_of_defining_expr:t -> t
 val apply : Apply.t -> t
 val apply_cont : Apply_cont.t -> t
 val switch : Switch.t -> t
 val invalid : unit -> t
-val let_cont_non_recursive_don't_consider_body : size_of_handler:t -> t
-val let_cont_recursive_don't_consider_body : size_of_handlers:t -> t
+val increase_due_to_let_expr : size_of_defining_expr:t -> t
+val increase_due_to_let_cont_non_recursive : size_of_handler:t -> t
+val increase_due_to_let_cont_recursive : size_of_handlers:t -> t
