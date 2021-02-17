@@ -201,12 +201,11 @@ let simplify_non_recursive_let_cont_handler ~denv_before_body ~dacc_after_body
         |> Code.cost_metrics
       )
     in
-    let positive_benefits = Cost_metrics.positive_benefits cost_metrics_of_handler in
     let dacc = DA.with_continuation_uses_env dacc ~cont_uses_env in
     down_to_up dacc
       ~continuation_has_zero_uses:true
       ~rebuild:(fun uacc ~after_rebuild ->
-        let uacc = UA.delete_code_track_benefits ~positive_benefits uacc in
+        let uacc = UA.remove_code ~removed:cost_metrics_of_handler uacc in
         rebuild_non_recursive_let_cont_handler cont uses ~params
           ~handler ~free_names_of_handler:Name_occurrences.empty
           ~is_single_inlinable_use:false ~is_single_use:false scope
@@ -414,15 +413,13 @@ let simplify_non_recursive_let_cont dacc non_rec ~down_to_up =
                     let expr, uacc =
                       if remove_let_cont_leaving_body then
                         let uacc =
-                          let positive_benefits_of_handler =
-                            Cost_metrics.positive_benefits cost_metrics_of_handler
-                          in
                           let name_occurrences =
                             Name_occurrences.union name_occurrences_body
                               name_occurrences_subsequent_exprs
                           in
-                          UA.with_name_occurrences uacc ~name_occurrences
-                          |> UA.delete_code_track_benefits ~positive_benefits:positive_benefits_of_handler
+                          uacc
+                          |> UA.with_name_occurrences ~name_occurrences
+                          |> UA.remove_code ~removed:cost_metrics_of_handler
                             (* At this point one let cont has been removed *)
                           |> UA.notify_remove_alloc
                         in
@@ -456,13 +453,14 @@ let simplify_non_recursive_let_cont dacc non_rec ~down_to_up =
                               Name_occurrences.union name_occurrences_handler
                                 name_occurrences_subsequent_exprs
                             in
-                            let positive_benefits_of_body = Cost_metrics.positive_benefits (UA.cost_metrics uacc) in
-                            UA.with_name_occurrences uacc ~name_occurrences
+                            let cost_metrics_of_body = UA.cost_metrics uacc in
+                            uacc
+                            |> UA.with_name_occurrences ~name_occurrences
                             |> UA.with_cost_metrics cost_metrics_of_handler
                             (* The body was discarded -- the negative benefit should be the one of
                                the handler plus the benefit accumulated while building the body
                                plus the removal of one allocation. *)
-                            |> UA.delete_code_track_benefits ~positive_benefits:positive_benefits_of_body
+                            |> UA.remove_code ~removed:cost_metrics_of_body
                             |> UA.notify_remove_alloc
                           in
                           handler, uacc

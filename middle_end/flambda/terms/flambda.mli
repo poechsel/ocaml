@@ -704,19 +704,6 @@ end and Code : sig
 
   val is_deleted : t -> bool
 end and Cost_metrics : sig
-  module Benefits : sig
-    type t
-
-    val zero: t
-    val print: Format.formatter -> t -> unit
-
-    val call: t -> t
-    val alloc: count:int -> t -> t
-    val prim: prim:Flambda_primitive.t -> t -> t
-    val branch: count:int -> t -> t
-    val direct_call_of_indirect: t -> t
-  end
-
   type t
 
   val expr : find_code_cost_metrics:(Code_id.t -> t Or_unknown.t) -> Expr.t -> t
@@ -726,9 +713,6 @@ end and Cost_metrics : sig
   val smaller : t -> than:t -> bool
   val equal : t -> t -> bool
   val print : Format.formatter -> t -> unit
-
-  val positive_benefits : t -> Benefits.t
-  val negative_benefits : t -> Benefits.t
 
   val prim : Flambda_primitive.t -> t
   val simple : Simple.t -> t
@@ -747,7 +731,7 @@ end and Cost_metrics : sig
   val remove_prim : prim:Flambda_primitive.t -> t -> t
   val remove_branch : count:int -> t -> t
   val direct_call_of_indirect : t -> t
-  val delete_code_track_benefits : positive_benefits : Benefits.t -> t -> t
+  val remove_code : removed:t -> t -> t
 end
 
 module Function_declaration = Function_declaration

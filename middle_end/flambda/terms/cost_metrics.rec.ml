@@ -16,7 +16,13 @@
 
 [@@@ocaml.warning "+a-4-30-40-41-42"]
 
-module Benefits = struct
+module Operations = struct
+  (* Operations are finer grained metrics (number of calls / allocations) about
+     the size of an expression. [added], which maps to expression
+     that are newly created, are separated from [removed] which are
+     operations belonging to expression that were omitted while rebuilding a
+     term. *)
+
   type t = {
     call : int;
     alloc : int;
@@ -91,14 +97,11 @@ end
 
 type t = {
   size: int;
-  positive_benefits: Benefits.t;
-  negative_benefits: Benefits.t;
+  added: Operations.t;
+  removed: Operations.t;
 }
 
-let positive_benefits t = t.positive_benefits
-let negative_benefits t = t.negative_benefits
-
-let of_int t = { size = t; positive_benefits = Benefits.zero; negative_benefits = Benefits.zero }
+let of_int t = { size = t; added = Operations.zero; removed = Operations.zero }
 let to_int t = t.size
 let smaller t ~than = t.size <= than.size
 let equal a b = a.size = b.size
@@ -460,18 +463,18 @@ let simple simple =
   let size =
     Simple.pattern_match simple ~const:(fun _ -> 1) ~name:(fun _ -> 0)
   in
-  { size; positive_benefits = Benefits.zero; negative_benefits = Benefits.zero }
+  { size; added = Operations.zero; removed = Operations.zero }
 
 let prim prim =
   let size = prim_size prim in
-  { size; positive_benefits = Benefits.prim ~prim (Benefits.zero); negative_benefits = Benefits.zero }
+  { size; added = Operations.prim ~prim (Operations.zero); removed = Operations.zero }
 
 let static_consts _ = of_int 0
 
 let add (a : t) (b : t) : t = {
   size = a.size + b.size;
-  positive_benefits = Benefits.(+) a.positive_benefits b.positive_benefits;
-  negative_benefits = Benefits.(+) a.negative_benefits b.negative_benefits
+  added = Operations.(+) a.added b.added;
+  removed = Operations.(+) a.removed b.removed
 }
 
 let set_of_closures ~find_code_cost_metrics set_of_closures =
@@ -490,7 +493,7 @@ let set_of_closures ~find_code_cost_metrics set_of_closures =
   in
   { code_size with
     (* Adjusts the number of allocation for this set of closures. *)
-    positive_benefits = Benefits.alloc ~count:(Closure_id.Map.cardinal funs) code_size.positive_benefits }
+    added = Operations.alloc ~count:(Closure_id.Map.cardinal funs) code_size.added }
 
 let let_expr_don't_consider_body ~cost_metrics_of_defining_expr =
   cost_metrics_of_defining_expr
@@ -506,7 +509,7 @@ let apply apply =
     | C_call { alloc = false; _ } -> nonalloc_extcall_size
     | Method _ -> 8 (* from flambda/inlining_cost.ml *)
   in
-  { size; positive_benefits = Benefits.call (Benefits.zero); negative_benefits = Benefits.zero }
+  { size; added = Operations.call (Operations.zero); removed = Operations.zero }
 
 let apply_cont apply_cont =
   let size =
@@ -514,26 +517,26 @@ let apply_cont apply_cont =
     | None -> 1
     | Some (Push _ | Pop _) -> 1 + 4
   in
-  { size; positive_benefits = Benefits.branch ~count:1 (Benefits.zero); negative_benefits = Benefits.zero }
+  { size; added = Operations.branch ~count:1 (Operations.zero); removed = Operations.zero }
 
-let invalid _ = { size = 0; positive_benefits = Benefits.zero; negative_benefits = Benefits.zero }
+let invalid _ = { size = 0; added = Operations.zero; removed = Operations.zero }
 
 let switch switch =
   let n_arms = Switch.num_arms switch in
   let size = 5 * n_arms in
-  { size; positive_benefits = Benefits.branch ~count:n_arms (Benefits.zero); negative_benefits = Benefits.zero }
+  { size; added = Operations.branch ~count:n_arms (Operations.zero); removed = Operations.zero }
 
 let let_cont_non_recursive_don't_consider_body ~cost_metrics_of_handler =
-  let {size; positive_benefits; negative_benefits} = cost_metrics_of_handler in
+  let {size; added; removed} = cost_metrics_of_handler in
   { size;
-    positive_benefits = Benefits.alloc ~count:1 positive_benefits;
-    negative_benefits }
+    added = Operations.alloc ~count:1 added;
+    removed }
 
 let let_cont_recursive_don't_consider_body ~cost_metrics_of_handlers =
-  let {size; positive_benefits; negative_benefits} = cost_metrics_of_handlers in
+  let {size; added; removed} = cost_metrics_of_handlers in
   { size;
-    positive_benefits = Benefits.alloc ~count:1 positive_benefits;
-    negative_benefits }
+    added = Operations.alloc ~count:1 added;
+    removed }
 
 let rec expr_size ~find_code_cost_metrics ~cont expr =
   match Expr.descr expr with
@@ -593,22 +596,22 @@ let expr ~find_code_cost_metrics e =
 
 let print ppf t = Format.fprintf ppf "%d %a %a"
                     t.size
-                    Benefits.print t.positive_benefits
-                    Benefits.print t.negative_benefits
+                    Operations.print t.added
+                    Operations.print t.removed
 
 let (+) = add
 
 let remove_call t =
-  { t with negative_benefits = Benefits.call t.negative_benefits }
+  { t with removed = Operations.call t.removed }
 let remove_alloc t =
-  { t with negative_benefits = Benefits.alloc ~count:1 t.negative_benefits }
+  { t with removed = Operations.alloc ~count:1 t.removed }
 let remove_prim ~prim t =
-  { t with negative_benefits = Benefits.prim ~prim t.negative_benefits }
+  { t with removed = Operations.prim ~prim t.removed }
 let remove_branch ~count t =
-  { t with negative_benefits = Benefits.branch ~count t.negative_benefits }
+  { t with removed = Operations.branch ~count t.removed }
 
 let direct_call_of_indirect t =
-   { t with negative_benefits = Benefits.direct_call_of_indirect t.negative_benefits }
+   { t with removed = Operations.direct_call_of_indirect t.removed }
 
-let delete_code_track_benefits ~positive_benefits t =
-  { t with negative_benefits = Benefits.(+) t.negative_benefits positive_benefits }
+let remove_code ~removed t =
+  { t with removed = Operations.(+) t.removed removed.added }

@@ -17,19 +17,6 @@
 
 [@@@ocaml.warning "+a-4-30-40-41-42"]
 
-module Benefits : sig
-  type t
-
-  val zero: t
-  val print: Format.formatter -> t -> unit
-
-  val call: t -> t
-  val alloc: count:int -> t -> t
-  val prim: prim:Flambda_primitive.t -> t -> t
-  val branch: count:int -> t -> t
-  val direct_call_of_indirect: t -> t
-end
-
 type t
 (* It's best to avoid calling this function too much as it is
    quite slow. *)
@@ -55,18 +42,9 @@ val invalid : unit -> t
 val let_cont_non_recursive_don't_consider_body : cost_metrics_of_handler:t -> t
 val let_cont_recursive_don't_consider_body : cost_metrics_of_handlers:t -> t
 
-(* Benefits are finer grained metrics (number of calls / allocations) about
-   the size of an expression. [positive_benefits], which maps to expression
-   that are newly created, are separated from [negative_benefits] which are
-   benefits belonging to expression that were omitted while rebuilding a
-   term. *)
-val positive_benefits : t -> Benefits.t
-val negative_benefits : t -> Benefits.t
-
 val remove_call : t -> t
 val remove_alloc : t -> t
 val remove_prim : prim:Flambda_primitive.t -> t -> t
 val remove_branch : count:int -> t -> t
 val direct_call_of_indirect: t -> t
-
-val delete_code_track_benefits : positive_benefits:Benefits.t -> t -> t
+val remove_code : removed:t -> t -> t

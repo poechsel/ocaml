@@ -156,5 +156,5 @@ let notify_remove_prim ~prim t =
 let notify_direct_call_of_indirect t =
   { t with cost_metrics = Flambda.Cost_metrics.direct_call_of_indirect t.cost_metrics }
 
-let delete_code_track_benefits ~positive_benefits t =
-  { t with cost_metrics = Flambda.Cost_metrics.delete_code_track_benefits ~positive_benefits t.cost_metrics }
+let remove_code ~removed t =
+  { t with cost_metrics = Flambda.Cost_metrics.remove_code ~removed t.cost_metrics }

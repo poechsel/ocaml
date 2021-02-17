@@ -24,11 +24,8 @@ module P = Flambda_primitive
 module UA = Upwards_acc
 module VB = Var_in_binding_pos
 
-(* The constructed values of this type aren't currently used, but will be
-   needed when we import the Flambda 1 inliner. *)
-(* CR mshinwell: This should turn into a full "benefit" type *)
 type let_creation_result =
-  | Have_deleted of Cost_metrics.Benefits.t
+  | Have_deleted of Cost_metrics.t
   | Nothing_deleted
 
 let create_singleton_let uacc (bound_var : VB.t) defining_expr
@@ -84,7 +81,7 @@ let create_singleton_let uacc (bound_var : VB.t) defining_expr
         not (has_uses || (generate_phantom_lets && user_visible))
       in
       if will_delete_binding then begin
-        bound_var, false, Have_deleted (Cost_metrics.positive_benefits cost_metrics_of_defining_expr)
+        bound_var, false, Have_deleted cost_metrics_of_defining_expr
       end else
         let name_mode =
           match greatest_name_mode with
@@ -94,7 +91,7 @@ let create_singleton_let uacc (bound_var : VB.t) defining_expr
         assert (Name_mode.can_be_in_terms name_mode);
         let bound_var = VB.with_name_mode bound_var name_mode in
         if Name_mode.is_normal name_mode then bound_var, true, Nothing_deleted
-        else bound_var, true, Have_deleted (Cost_metrics.positive_benefits cost_metrics_of_defining_expr)
+        else bound_var, true, Have_deleted cost_metrics_of_defining_expr
     end
   in
   (* CR mshinwell: When leaving behind phantom lets, maybe we should turn
@@ -139,9 +136,7 @@ let create_set_of_closures_let uacc bound_vars defining_expr
       not (Name_occurrences.mem_var free_names_of_body (VB.var closure_var)))
   in
   if all_bound_vars_unused then
-    body,
-    uacc,
-    Have_deleted (Cost_metrics.positive_benefits cost_metrics_of_defining_expr)
+    body, uacc, Have_deleted cost_metrics_of_defining_expr
   else
     let free_names_of_body = UA.name_occurrences uacc in
     let free_names_of_let =
@@ -160,10 +155,10 @@ let create_set_of_closures_let uacc bound_vars defining_expr
     in
     Expr.create_let let_expr, uacc, Nothing_deleted
 
-let let_creation_remove_defining_expr_benefit uacc =
+let let_creation_remove_defining_expr_cost_metrics uacc =
   function
-  | Have_deleted positive_benefits ->
-    UA.delete_code_track_benefits ~positive_benefits uacc
+  | Have_deleted removed ->
+    UA.remove_code ~removed uacc
   | Nothing_deleted -> uacc
 
 let make_new_let_bindings uacc ~bindings_outermost_first ~body =
@@ -191,7 +186,7 @@ let make_new_let_bindings uacc ~bindings_outermost_first ~body =
               ~free_names_of_defining_expr ~body:expr
               ~cost_metrics_of_defining_expr
           in
-          let uacc = let_creation_remove_defining_expr_benefit uacc creation_result in
+          let uacc = let_creation_remove_defining_expr_cost_metrics uacc creation_result in
           expr, uacc
         | Set_of_closures { closure_vars = bound_closure_vars; _ } ->
           let expr, uacc, creation_result =
@@ -199,7 +194,7 @@ let make_new_let_bindings uacc ~bindings_outermost_first ~body =
               ~free_names_of_defining_expr ~body ~bound_closure_vars
               ~cost_metrics_of_defining_expr
           in
-          let uacc = let_creation_remove_defining_expr_benefit uacc creation_result in
+          let uacc = let_creation_remove_defining_expr_cost_metrics uacc creation_result in
           expr, uacc
         | Symbols _ ->
           (* Since [Simplified_named] doesn't permit the [Static_consts] case,
@@ -451,7 +446,7 @@ let create_let_symbols uacc (scoping_rule : Symbol_scoping_rule.t)
           defining_expr ~free_names_of_defining_expr ~body:expr
           ~cost_metrics_of_defining_expr
       in
-      let uacc = let_creation_remove_defining_expr_benefit uacc creation_result in
+      let uacc = let_creation_remove_defining_expr_cost_metrics uacc creation_result in
       expr, uacc)
     symbol_projections
     (expr, uacc)

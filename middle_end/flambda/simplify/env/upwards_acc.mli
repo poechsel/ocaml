@@ -88,4 +88,4 @@ val notify_remove_branch : count:int -> t -> t
 
 val notify_direct_call_of_indirect : t -> t
 
-val delete_code_track_benefits : positive_benefits:Flambda.Cost_metrics.Benefits.t -> t -> t
+val remove_code: removed:Flambda.Cost_metrics.t -> t -> t
