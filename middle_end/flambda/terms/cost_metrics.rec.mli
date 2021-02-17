@@ -20,7 +20,7 @@
 type t
 (* It's best to avoid calling this function too much as it is
    quite slow. *)
-val expr : find_code_cost_metrics:(Code_id.t -> t Or_unknown.t) -> Expr.t -> t
+val expr : find_cost_metrics:(Code_id.t -> t Or_unknown.t) -> Expr.t -> t
 
 val of_int : int -> t
 val to_int : t -> int
@@ -32,7 +32,7 @@ val print : Format.formatter -> t -> unit
 val prim : Flambda_primitive.t -> t
 val simple : Simple.t -> t
 val static_consts : Static_const.Group.t -> t
-val set_of_closures : find_code_cost_metrics:(Code_id.t -> t Or_unknown.t) -> Set_of_closures.t -> t
+val set_of_closures : find_cost_metrics:(Code_id.t -> t Or_unknown.t) -> Set_of_closures.t -> t
 
 val let_expr_don't_consider_body : cost_metrics_of_defining_expr:t -> t
 val apply : Apply.t -> t

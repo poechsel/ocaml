@@ -477,13 +477,13 @@ let add (a : t) (b : t) : t = {
   removed = Operations.(+) a.removed b.removed
 }
 
-let set_of_closures ~find_code_cost_metrics set_of_closures =
+let set_of_closures ~find_cost_metrics set_of_closures =
   let func_decls = Set_of_closures.function_decls set_of_closures in
   let funs = Function_declarations.funs func_decls in
   let code_size =
     Closure_id.Map.fold (fun _ func_decl size ->
       let code_id = Function_declaration.code_id func_decl in
-      match find_code_cost_metrics code_id with
+      match find_cost_metrics code_id with
       | Or_unknown.Known s -> add size s
       | Or_unknown.Unknown ->
         Misc.fatal_errorf "Code size should have been computed for:@ %a"
@@ -538,15 +538,15 @@ let let_cont_recursive_don't_consider_body ~cost_metrics_of_handlers =
     added = Operations.alloc ~count:1 added;
     removed }
 
-let rec expr_size ~find_code_cost_metrics ~cont expr =
+let rec expr_size ~find_cost_metrics ~cont expr =
   match Expr.descr expr with
   | Let let_expr ->
     let cost_metrics_of_defining_expr =
-      named ~find_code_cost_metrics (Let_expr.defining_expr let_expr)
+      named ~find_cost_metrics (Let_expr.defining_expr let_expr)
     in
     Let_expr.pattern_match let_expr
       ~f:(fun _bindable_let_bound ~body ->
-        expr_size ~find_code_cost_metrics body ~cont:(fun size ->
+        expr_size ~find_cost_metrics body ~cont:(fun size ->
           add size (let_expr_don't_consider_body ~cost_metrics_of_defining_expr)
         ))
   | Let_cont (Non_recursive { handler; _ }) ->
@@ -555,8 +555,8 @@ let rec expr_size ~find_code_cost_metrics ~cont expr =
         let handler = (Non_recursive_let_cont_handler.handler handler) in
         Continuation_handler.pattern_match handler
           ~f:(fun _params ~handler ->
-            expr_size ~find_code_cost_metrics handler ~cont:(fun cost_metrics_of_handler ->
-              expr_size ~find_code_cost_metrics body ~cont:(fun size ->
+            expr_size ~find_cost_metrics handler ~cont:(fun cost_metrics_of_handler ->
+              expr_size ~find_cost_metrics body ~cont:(fun size ->
                 add size (let_cont_non_recursive_don't_consider_body ~cost_metrics_of_handler)
               ))))
   | Let_cont (Recursive handlers) ->
@@ -570,8 +570,8 @@ let rec expr_size ~find_code_cost_metrics ~cont expr =
       in
       Continuation_handler.pattern_match cont_handler
         ~f:(fun _params ~handler ->
-          expr_size ~find_code_cost_metrics handler ~cont:(fun cost_metrics_of_handlers ->
-            expr_size ~find_code_cost_metrics body ~cont:(fun size ->
+          expr_size ~find_cost_metrics handler ~cont:(fun cost_metrics_of_handlers ->
+            expr_size ~find_cost_metrics body ~cont:(fun size ->
               add size (let_cont_recursive_don't_consider_body ~cost_metrics_of_handlers
                        )))))
   | Apply apply' ->
@@ -580,19 +580,19 @@ let rec expr_size ~find_code_cost_metrics ~cont expr =
     cont (apply_cont e)
   | Switch switch' -> cont (switch switch')
   | Invalid _ -> cont (invalid ())
-and named ~find_code_cost_metrics (named : Named.t) =
+and named ~find_cost_metrics (named : Named.t) =
   match named with
   | Simple simple' ->
     simple simple'
   | Set_of_closures set_of_closures' ->
-    set_of_closures ~find_code_cost_metrics set_of_closures'
+    set_of_closures ~find_cost_metrics set_of_closures'
   | Prim (prim', _dbg) ->
     prim prim'
   | Static_consts static_consts' ->
     static_consts static_consts'
 
-let expr ~find_code_cost_metrics e =
-  expr_size ~find_code_cost_metrics ~cont:(fun x -> x) e
+let expr ~find_cost_metrics e =
+  expr_size ~find_cost_metrics ~cont:(fun x -> x) e
 
 let print ppf t = Format.fprintf ppf "%d %a %a"
                     t.size

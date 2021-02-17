@@ -46,7 +46,7 @@ val reachable : Named.t -> t
 
 (** It is an error to pass [Static_consts] to this function. *)
 val reachable_with_known_free_names
-  : find_code_cost_metrics:(Code_id.t -> Cost_metrics.t Or_unknown.t)
+  : find_cost_metrics:(Code_id.t -> Cost_metrics.t Or_unknown.t)
   -> Named.t
   -> free_names:Name_occurrences.t
   -> t

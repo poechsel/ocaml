@@ -74,7 +74,7 @@ let simplify_expr dacc expr ~down_to_up =
             let code_cost_metrics_uacc = UA.cost_metrics uacc in
             let denv = UA.creation_dacc uacc |> DA.denv in
             let code_cost_metrics =
-              Cost_metrics.expr expr ~find_code_cost_metrics:(fun code_id ->
+              Cost_metrics.expr expr ~find_cost_metrics:(fun code_id ->
                 DE.find_code denv code_id |> Code.cost_metrics)
             in
 

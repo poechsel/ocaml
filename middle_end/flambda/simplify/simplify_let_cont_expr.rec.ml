@@ -196,7 +196,7 @@ let simplify_non_recursive_let_cont_handler ~denv_before_body ~dacc_after_body
        is computed separately and the corresponding positive benefits is then
        removed from the current code cost_metrics.*)
     let cost_metrics_of_handler =
-      Cost_metrics.expr handler ~find_code_cost_metrics:(fun code_id ->
+      Cost_metrics.expr handler ~find_cost_metrics:(fun code_id ->
         DE.find_code denv_before_body code_id
         |> Code.cost_metrics
       )
