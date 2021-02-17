@@ -71,21 +71,21 @@ let simplify_expr dacc expr ~down_to_up =
                 Expr.print expr
             end;
 
-            let code_size_uacc = UA.size uacc in
+            let code_cost_metrics_uacc = UA.cost_metrics uacc in
             let denv = UA.creation_dacc uacc |> DA.denv in
-            let code_size =
-              Code_size.expr expr ~find_code_size:(fun code_id ->
-                DE.find_code denv code_id |> Code.size)
+            let code_cost_metrics =
+              Cost_metrics.expr expr ~find_code_cost_metrics:(fun code_id ->
+                DE.find_code denv code_id |> Code.cost_metrics)
             in
 
-            if not (Code_size.equal code_size_uacc code_size)
+            if not (Cost_metrics.equal code_cost_metrics_uacc code_cost_metrics)
             then begin
-              Misc.fatal_errorf "Mismatch on code size:@ \n\
+              Misc.fatal_errorf "Mismatch on code cost_metrics:@ \n\
                   From UA:@ %a@ \n\
                   From expr:@ %a@ \n\
                   Expression:@ %a@"
-                Code_size.print code_size_uacc
-                Code_size.print code_size
+                Cost_metrics.print code_cost_metrics_uacc
+                Cost_metrics.print code_cost_metrics
                 Expr.print expr
             end;
 

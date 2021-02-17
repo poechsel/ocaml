@@ -5,8 +5,8 @@
     template/flambda.templ.ml
     code.rec.ml
     code.rec.mli
-    code_size.rec.ml
-    code_size.rec.mli
+    cost_metrics.rec.ml
+    cost_metrics.rec.mli
     benefits.rec.ml
     benefits.rec.mli
     continuation_handler.rec.ml

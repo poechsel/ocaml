@@ -79,16 +79,17 @@ module rec Expr : sig
     | Have_deleted_comparison_and_branch
     | Nothing_deleted
 
-   (** Create a [Switch] expression, returns the size of the created expr,
+   (** Create a [Switch] expression, returns the cost metrics of the created expr,
        save that zero-arm switches are converted to [Invalid], and one-arm
        switches to [Apply_cont]. *)
   val create_switch0
      : scrutinee:Simple.t
     -> arms:Apply_cont_expr.t Target_imm.Map.t
-    -> Expr.t * Code_size.t * switch_creation_result
+    -> Expr.t * Cost_metrics.t * switch_creation_result
 
   (** Like [create_switch0], but for use when the caller isn't interested in
-      whether something got deleted nor the size of the created expression. *)
+      whether something got deleted nor the cost metrics of the created expression.
+  *)
   val create_switch
      : scrutinee:Simple.t
     -> arms:Apply_cont_expr.t Target_imm.Map.t
@@ -96,10 +97,10 @@ module rec Expr : sig
 
    (** Like [create_switch], but for use when the caller isn't interested in
        whether something got deleted. *)
-   val create_switch_and_size
+   val create_switch_and_cost_metrics
      : scrutinee:Simple.t
      -> arms:Apply_cont_expr.t Target_imm.Map.t
-     -> Expr.t * Code_size.t
+     -> Expr.t * Cost_metrics.t
 
   (** Build a [Switch] corresponding to a traditional if-then-else. *)
   val create_if_then_else
@@ -112,11 +113,11 @@ module rec Expr : sig
   val create_invalid : ?semantics:Invalid_term_semantics.t -> unit -> t
 
   val bind_no_simplification
-     : bindings:(Var_in_binding_pos.t * Code_size.t * Named.t) list
+     : bindings:(Var_in_binding_pos.t * Cost_metrics.t * Named.t) list
     -> body:Expr.t
-    -> size_of_body:Code_size.t
+    -> cost_metrics_of_body:Cost_metrics.t
     -> free_names_of_body:Name_occurrences.t
-    -> Expr.t * Code_size.t * Name_occurrences.t
+    -> Expr.t * Cost_metrics.t * Name_occurrences.t
 
   val bind_parameters_to_args_no_simplification
      : params:Kinded_parameter.t list
@@ -664,7 +665,7 @@ end and Code : sig
 
   val recursive : t -> Recursive.t
 
-  val size : t -> Code_size.t Or_unknown.t
+  val cost_metrics : t -> Cost_metrics.t Or_unknown.t
 
   val create
      : Code_id.t
@@ -677,15 +678,15 @@ end and Code : sig
     -> inline:Inline_attribute.t
     -> is_a_functor:bool
     -> recursive:Recursive.t
-    -> size: Code_size.t Or_unknown.t
+    -> cost_metrics: Cost_metrics.t Or_unknown.t
     -> t
 
   val with_code_id : Code_id.t -> t -> t
 
   val with_params_and_body
      : (Function_params_and_body.t * Name_occurrences.t) Or_deleted.t
-     (* CR poechsel: remove Or_unknown.t and force size to be provided *)
-    -> size:Code_size.t Or_unknown.t
+     (* CR poechsel: remove Or_unknown.t and force cost_metrics to be provided *)
+    -> cost_metrics:Cost_metrics.t Or_unknown.t
     -> t
     -> t
 
@@ -702,10 +703,10 @@ end and Code : sig
   val make_deleted : t -> t
 
   val is_deleted : t -> bool
-end and Code_size : sig
+end and Cost_metrics : sig
   type t
 
-  val expr : find_code_size:(Code_id.t -> Code_size.t Or_unknown.t) -> Expr.t -> t
+  val expr : find_code_cost_metrics:(Code_id.t -> Cost_metrics.t Or_unknown.t) -> Expr.t -> t
   val of_int : int -> t
   val to_int : t -> int
   val (+) : t -> t -> t
@@ -718,15 +719,15 @@ end and Code_size : sig
 
   val prim : Flambda_primitive.t -> t
   val simple : Simple.t -> t
-  val set_of_closures : find_code_size:(Code_id.t -> t Or_unknown.t) -> Set_of_closures.t -> t
+  val set_of_closures : find_code_cost_metrics:(Code_id.t -> t Or_unknown.t) -> Set_of_closures.t -> t
   val static_consts : Static_const.Group.t -> t
-  val let_expr_don't_consider_body : size_of_defining_expr:t -> t
+  val let_expr_don't_consider_body : cost_metrics_of_defining_expr:t -> t
   val apply : Apply.t -> t
   val apply_cont : Apply_cont.t -> t
   val switch : Switch.t -> t
   val invalid : unit -> t
-  val let_cont_non_recursive_don't_consider_body : size_of_handler:t -> t
-  val let_cont_recursive_don't_consider_body : size_of_handlers:t -> t
+  val let_cont_non_recursive_don't_consider_body : cost_metrics_of_handler:t -> t
+  val let_cont_recursive_don't_consider_body : cost_metrics_of_handlers:t -> t
 
   val remove_call : t -> t
   val remove_alloc : t -> t
@@ -748,7 +749,7 @@ end and Benefits : sig
   val prim: prim:Flambda_primitive.t -> t -> t
   val branch: count:int -> t -> t
   val direct_call_of_indirect: t -> t
-  val requested_inline: size_of:Code_size.t -> t -> t
+  val requested_inline: cost_metrics_of:Cost_metrics.t -> t -> t
 end
 
 module Function_declaration = Function_declaration
@@ -777,5 +778,5 @@ module Import : sig
   module Set_of_closures = Set_of_closures
   module Static_const = Static_const
   module Switch = Switch
-  module Code_size = Code_size
+  module Cost_metrics = Cost_metrics
 end

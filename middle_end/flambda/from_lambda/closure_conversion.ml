@@ -881,7 +881,7 @@ and close_one_function t ~external_env ~by_closure_id decl
       ~is_a_functor:(Function_decl.is_a_functor decl)
       ~recursive
       ~newer_version_of:None
-      ~size:Unknown
+      ~cost_metrics:Unknown
   in
   t.code <- (code_id, code) :: t.code;
   Closure_id.Map.add my_closure_id fun_decl by_closure_id

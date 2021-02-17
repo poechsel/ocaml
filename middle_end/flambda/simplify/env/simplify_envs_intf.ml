@@ -265,7 +265,7 @@ module type Upwards_env = sig
     -> params:Kinded_parameter.t list
     -> handler:Flambda.Expr.t
     -> free_names_of_handler:Name_occurrences.t
-    -> size_of_handler:Code_size.t
+    -> cost_metrics_of_handler:Cost_metrics.t
     -> t
 
   val add_exn_continuation

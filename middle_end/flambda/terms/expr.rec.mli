@@ -61,16 +61,16 @@ type switch_creation_result = private
   | Have_deleted_comparison_and_branch
   | Nothing_deleted
 
-(** Create a [Switch] expression, returns the size of the created expr,
+(** Create a [Switch] expression, returns the cost metrics of the created expr,
     save that zero-arm switches are converted to [Invalid], and one-arm
     switches to [Apply_cont]. *)
 val create_switch0
    : scrutinee:Simple.t
   -> arms:Apply_cont_expr.t Target_imm.Map.t
-  -> Expr.t * Code_size.t * switch_creation_result
+  -> Expr.t * Cost_metrics.t * switch_creation_result
 
 (** Like [create_switch0], but for use when the caller isn't interested in
-    whether something got deleted nor the size of the created expression. *)
+    whether something got deleted nor the cost metrics of the created expression. *)
 val create_switch
    : scrutinee:Simple.t
   -> arms:Apply_cont_expr.t Target_imm.Map.t
@@ -78,10 +78,10 @@ val create_switch
 
 (** Like [create_switch], but for use when the caller isn't interested in
     whether something got deleted. *)
-val create_switch_and_size
+val create_switch_and_cost_metrics
   : scrutinee:Simple.t
   -> arms:Apply_cont_expr.t Target_imm.Map.t
-  -> Expr.t * Code_size.t
+  -> Expr.t * Cost_metrics.t
 
 (** Build a [Switch] corresponding to a traditional if-then-else. *)
 val create_if_then_else
@@ -94,11 +94,11 @@ val create_if_then_else
 val create_invalid : ?semantics:Invalid_term_semantics.t -> unit -> t
 
 val bind_no_simplification
-   : bindings:(Var_in_binding_pos.t * Code_size.t * Named.t) list
+   : bindings:(Var_in_binding_pos.t * Cost_metrics.t * Named.t) list
   -> body:Expr.t
-  -> size_of_body:Code_size.t
+  -> cost_metrics_of_body:Cost_metrics.t
   -> free_names_of_body:Name_occurrences.t
-  -> Expr.t * Code_size.t * Name_occurrences.t
+  -> Expr.t * Cost_metrics.t * Name_occurrences.t
 
 val bind_parameters_to_args_no_simplification
    : params:Kinded_parameter.t list

@@ -345,12 +345,12 @@ let adjust_negative_benefits (named : Named.t) result =
       | Single_term (_, Reachable {named = Prim _; _}) -> assert false
     end
   | Prim (original_prim, _) -> begin
-      let adjust_size (simplified_named : Simplified_named.t) =
-        let size =
-          Simplified_named.size simplified_named
-          |> Code_size.remove_prim ~prim:original_prim
+      let adjust_cost_metrics (simplified_named : Simplified_named.t) =
+        let cost_metrics =
+          Simplified_named.cost_metrics simplified_named
+          |> Cost_metrics.remove_prim ~prim:original_prim
         in
-        Simplified_named.update_size size simplified_named
+        Simplified_named.update_cost_metrics cost_metrics simplified_named
       in
       match descr with
       | Single_term (bound, simplified_named) -> begin
@@ -359,9 +359,15 @@ let adjust_negative_benefits (named : Named.t) result =
             if Flambda_primitive.equal original_prim rewritten_prim then
               result
             else
-              Simplify_named_result.have_simplified_to_single_term dacc bound (adjust_size simplified_named)
+              Simplify_named_result.have_simplified_to_single_term
+                dacc
+                bound
+                (adjust_cost_metrics simplified_named)
           | _ ->
-            Simplify_named_result.have_simplified_to_single_term dacc bound (adjust_size simplified_named)
+            Simplify_named_result.have_simplified_to_single_term
+              dacc
+              bound
+              (adjust_cost_metrics simplified_named)
         end
       | Zero_terms | Multiple_bindings_to_symbols _ -> assert false
     end

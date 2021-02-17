@@ -79,7 +79,7 @@ let rebuild_non_inlined_direct_full_application apply ~use_id ~exn_cont_use_id
     match use_id with
     | None ->
       Expr.create_apply apply,
-      UA.increment_size (Code_size.apply apply) uacc
+      UA.increment_cost_metrics (Cost_metrics.apply apply) uacc
     | Some use_id ->
       Simplify_common.add_wrapper_for_fixed_arity_apply uacc ~use_id
         result_arity apply
@@ -291,7 +291,7 @@ let simplify_direct_partial_application dacc apply ~callee's_code_id
         ~inline:Default_inline
         ~is_a_functor:false
         ~recursive
-        ~size:Unknown
+        ~cost_metrics:Unknown
     in
     let function_decl =
       Function_declaration.create ~code_id ~is_tupled:false ~dbg
@@ -312,7 +312,7 @@ let simplify_direct_partial_application dacc apply ~callee's_code_id
          A new piece of code will always be generated when the [Let] we
          generate below is simplified.  As such we can simply add a lifted
          constant identifying deleted code.  This will ensure, if for some
-         reason the constant makes it to Cmm stage, that code size is not
+         reason the constant makes it to Cmm stage, that code cost_metrics is not
          increased unnecessarily. *)
       let code = Code.make_deleted code in
       Lifted_constant.create_code code_id
@@ -748,7 +748,7 @@ let rebuild_c_call apply ~use_id ~exn_cont_use_id ~return_arity uacc
         (Flambda_arity.With_subkinds.of_arity return_arity) apply
     | None ->
       Expr.create_apply apply,
-      UA.increment_size (Code_size.apply apply) uacc
+      UA.increment_cost_metrics (Cost_metrics.apply apply) uacc
   in
   let uacc = UA.add_free_names uacc (Expr.free_names expr) in
   after_rebuild expr uacc

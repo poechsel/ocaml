@@ -445,7 +445,7 @@ let simplify_function context ~used_closure_vars ~shareable_constants
             end;
             raise Misc.Fatal_error)
     in
-    let size = UA.size uacc_after_upwards_traversal in
+    let cost_metrics = UA.cost_metrics uacc_after_upwards_traversal in
     let old_code_id = code_id in
     let new_code_id =
       Code_id.Map.find old_code_id (C.old_to_new_code_ids_all_sets context)
@@ -455,7 +455,7 @@ let simplify_function context ~used_closure_vars ~shareable_constants
       |> Code.with_code_id new_code_id
       |> Code.with_newer_version_of (Some old_code_id)
       |> Code.with_params_and_body
-           ~size:(Known size)
+           ~cost_metrics:(Known cost_metrics)
            (Present (params_and_body, free_names_of_code))
     in
     let function_decl = FD.update_code_id function_decl new_code_id in
@@ -764,12 +764,13 @@ let simplify_non_lifted_set_of_closures0 dacc bound_vars ~closure_bound_vars
   in
   let defining_expr =
     let named = Named.create_set_of_closures set_of_closures in
-    let find_code_size code_id =
+    let find_code_cost_metrics code_id =
       let env = Downwards_acc.denv dacc in
       Simplify_envs.Downwards_env.find_code env code_id
-      |> Code.size
+      |> Code.cost_metrics
     in
-    Simplified_named.reachable_with_known_free_names ~find_code_size
+    Simplified_named.reachable_with_known_free_names
+      ~find_code_cost_metrics
       (Named.create_set_of_closures set_of_closures)
       ~free_names:(Named.free_names named)
   in

@@ -27,7 +27,7 @@ type t = {
   inline : Inline_attribute.t;
   is_a_functor : bool;
   recursive : Recursive.t;
-  size : Code_size.t Or_unknown.t;
+  cost_metrics : Cost_metrics.t Or_unknown.t;
 }
 
 let code_id { code_id; _ } = code_id
@@ -58,7 +58,7 @@ let is_a_functor { is_a_functor; _ } = is_a_functor
 
 let recursive { recursive; _ } = recursive
 
-let size {size; _} = size
+let cost_metrics {cost_metrics; _} = cost_metrics
 
 let check_params_and_body code_id (params_and_body : _ Or_deleted.t) =
   let free_names_of_params_and_body =
@@ -93,7 +93,7 @@ let create
       ~(inline:Inline_attribute.t)
       ~is_a_functor
       ~recursive
-      ~size =
+      ~cost_metrics =
   begin match stub, inline with
   | true, (Hint_inline | Never_inline | Default_inline)
   | false, (Never_inline | Default_inline | Always_inline | Hint_inline | Unroll _) -> ()
@@ -113,16 +113,16 @@ let create
     inline;
     is_a_functor;
     recursive;
-    size;
+    cost_metrics;
   }
 
 let with_code_id code_id t = { t with code_id }
 
-let with_params_and_body params_and_body ~size t =
+let with_params_and_body params_and_body ~cost_metrics t =
   let params_and_body, free_names_of_params_and_body =
     check_params_and_body t.code_id params_and_body
   in
-  { t with params_and_body; size; free_names_of_params_and_body; }
+  { t with params_and_body; cost_metrics; free_names_of_params_and_body; }
 
 let with_newer_version_of newer_version_of t = { t with newer_version_of }
 
@@ -136,7 +136,7 @@ let print_params_and_body_with_cache ~cache ppf params_and_body =
 let print_with_cache ~cache ppf
       { code_id = _; params_and_body; newer_version_of; stub; inline;
         is_a_functor; params_arity; result_arity; recursive;
-        free_names_of_params_and_body = _; size } =
+        free_names_of_params_and_body = _; cost_metrics } =
   let module C = Flambda_colours in
   match params_and_body with
   | Present _ ->
@@ -148,7 +148,7 @@ let print_with_cache ~cache ppf
         @[<hov 1>@<0>%s(params_arity@ @<0>%s%a@<0>%s)@<0>%s@]@ \
         @[<hov 1>@<0>%s(result_arity@ @<0>%s%a@<0>%s)@<0>%s@]@ \
         @[<hov 1>@<0>%s(recursive@ %a)@<0>%s@]@ \
-        @[<hov 1>@<0>(size@ %a)@<0>@]@ \
+        @[<hov 1>@<0>(cost_metrics@ %a)@<0>@]@ \
         %a\
         )@]"
       (if Option.is_none newer_version_of then Flambda_colours.elide ()
@@ -189,7 +189,7 @@ let print_with_cache ~cache ppf
       | Recursive -> Flambda_colours.normal ())
       Recursive.print recursive
       (Flambda_colours.normal ())
-      (Or_unknown.print Code_size.print) size
+      (Or_unknown.print Cost_metrics.print) cost_metrics
       (print_params_and_body_with_cache ~cache) params_and_body
   | Deleted ->
     Format.fprintf ppf "@[<hov 1>(\
@@ -222,7 +222,7 @@ let free_names t =
 let apply_name_permutation
       ({ code_id; params_and_body; newer_version_of; params_arity = _;
          result_arity = _; stub = _; inline = _; is_a_functor = _;
-         recursive = _; size = _; free_names_of_params_and_body; } as t)
+         recursive = _; cost_metrics = _; free_names_of_params_and_body; } as t)
       perm =
   (* inlined and modified version of Option.map to preserve sharing *)
   let newer_version_of' =
@@ -265,7 +265,7 @@ let apply_name_permutation
 let all_ids_for_export { code_id; params_and_body; newer_version_of;
                          params_arity = _; result_arity = _; stub = _;
                          inline = _; is_a_functor = _; recursive = _;
-                         size = _; free_names_of_params_and_body = _; } =
+                         cost_metrics = _; free_names_of_params_and_body = _; } =
   let newer_version_of_ids =
     match newer_version_of with
     | None -> Ids_for_export.empty
@@ -285,7 +285,7 @@ let all_ids_for_export { code_id; params_and_body; newer_version_of;
 let import import_map
       ({ code_id; params_and_body; newer_version_of; params_arity = _;
          result_arity = _; stub = _; inline = _; is_a_functor = _;
-         size = _; recursive = _; free_names_of_params_and_body; } as t) =
+         cost_metrics = _; recursive = _; free_names_of_params_and_body; } as t) =
   let code_id = Ids_for_export.Import_map.code_id import_map code_id in
   let params_and_body : Function_params_and_body.t Or_deleted.t =
     match params_and_body with

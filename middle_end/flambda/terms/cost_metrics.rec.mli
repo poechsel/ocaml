@@ -21,7 +21,7 @@ type t
 
 (* It's best to avoid calling this function too much as it is
    quite slow. *)
-val expr : find_code_size:(Code_id.t -> Code_size.t Or_unknown.t) -> Expr.t -> t
+val expr : find_code_cost_metrics:(Code_id.t -> Cost_metrics.t Or_unknown.t) -> Expr.t -> t
 
 val of_int : int -> t
 val to_int : t -> int
@@ -33,15 +33,15 @@ val print : Format.formatter -> t -> unit
 val prim : Flambda_primitive.t -> t
 val simple : Simple.t -> t
 val static_consts : Static_const.Group.t -> t
-val set_of_closures : find_code_size:(Code_id.t -> Code_size.t Or_unknown.t) -> Set_of_closures.t -> t
+val set_of_closures : find_code_cost_metrics:(Code_id.t -> Cost_metrics.t Or_unknown.t) -> Set_of_closures.t -> t
 
-val let_expr_don't_consider_body : size_of_defining_expr:t -> t
+val let_expr_don't_consider_body : cost_metrics_of_defining_expr:t -> t
 val apply : Apply.t -> t
 val apply_cont : Apply_cont.t -> t
 val switch : Switch.t -> t
 val invalid : unit -> t
-val let_cont_non_recursive_don't_consider_body : size_of_handler:t -> t
-val let_cont_recursive_don't_consider_body : size_of_handlers:t -> t
+val let_cont_non_recursive_don't_consider_body : cost_metrics_of_handler:t -> t
+val let_cont_recursive_don't_consider_body : cost_metrics_of_handlers:t -> t
 
 (* Benefits are finer grained metrics (number of calls / allocations) about
    the size of an expression. [positive_benefits], which maps to expression

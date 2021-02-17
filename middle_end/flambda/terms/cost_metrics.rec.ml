@@ -401,13 +401,13 @@ let add (a : t) (b : t) : t = {
   negative_benefits = Benefits.(+) a.negative_benefits b.negative_benefits
 }
 
-let set_of_closures ~find_code_size set_of_closures =
+let set_of_closures ~find_code_cost_metrics set_of_closures =
   let func_decls = Set_of_closures.function_decls set_of_closures in
   let funs = Function_declarations.funs func_decls in
   let code_size =
     Closure_id.Map.fold (fun _ func_decl size ->
       let code_id = Function_declaration.code_id func_decl in
-      match find_code_size code_id with
+      match find_code_cost_metrics code_id with
       | Or_unknown.Known s -> add size s
       | Or_unknown.Unknown ->
         Misc.fatal_errorf "Code size should have been computed for:@ %a"
@@ -419,8 +419,8 @@ let set_of_closures ~find_code_size set_of_closures =
     (* Adjusts the number of allocation for this set of closures. *)
     positive_benefits = Benefits.alloc ~count:(Closure_id.Map.cardinal funs) code_size.positive_benefits }
 
-let let_expr_don't_consider_body ~size_of_defining_expr =
-  size_of_defining_expr
+let let_expr_don't_consider_body ~cost_metrics_of_defining_expr =
+  cost_metrics_of_defining_expr
 
 let apply apply =
   let size =
@@ -450,22 +450,28 @@ let switch switch =
   let size = 5 * n_arms in
   { size; positive_benefits = Benefits.branch ~count:n_arms (Benefits.zero); negative_benefits = Benefits.zero }
 
-let let_cont_non_recursive_don't_consider_body ~size_of_handler =
-  let {size; positive_benefits; negative_benefits} = size_of_handler in
-  { size = size; positive_benefits = Benefits.alloc ~count:1 positive_benefits; negative_benefits }
+let let_cont_non_recursive_don't_consider_body ~cost_metrics_of_handler =
+  let {size; positive_benefits; negative_benefits} = cost_metrics_of_handler in
+  { size;
+    positive_benefits = Benefits.alloc ~count:1 positive_benefits;
+    negative_benefits }
 
-let let_cont_recursive_don't_consider_body ~size_of_handlers =
-  let {size; positive_benefits; negative_benefits} = size_of_handlers in
-  { size = size; positive_benefits = Benefits.alloc ~count:1 positive_benefits; negative_benefits }
+let let_cont_recursive_don't_consider_body ~cost_metrics_of_handlers =
+  let {size; positive_benefits; negative_benefits} = cost_metrics_of_handlers in
+  { size;
+    positive_benefits = Benefits.alloc ~count:1 positive_benefits;
+    negative_benefits }
 
-let rec expr_size ~find_code_size ~cont expr =
+let rec expr_size ~find_code_cost_metrics ~cont expr =
   match Expr.descr expr with
   | Let let_expr ->
-    let size_of_defining_expr = named ~find_code_size (Let_expr.defining_expr let_expr) in
+    let cost_metrics_of_defining_expr =
+      named ~find_code_cost_metrics (Let_expr.defining_expr let_expr)
+    in
     Let_expr.pattern_match let_expr
       ~f:(fun _bindable_let_bound ~body ->
-        expr_size ~find_code_size body ~cont:(fun size ->
-          add size (let_expr_don't_consider_body ~size_of_defining_expr)
+        expr_size ~find_code_cost_metrics body ~cont:(fun size ->
+          add size (let_expr_don't_consider_body ~cost_metrics_of_defining_expr)
         ))
   | Let_cont (Non_recursive { handler; _ }) ->
     Non_recursive_let_cont_handler.pattern_match handler
@@ -473,9 +479,9 @@ let rec expr_size ~find_code_size ~cont expr =
         let handler = (Non_recursive_let_cont_handler.handler handler) in
         Continuation_handler.pattern_match handler
           ~f:(fun _params ~handler ->
-            expr_size ~find_code_size handler ~cont:(fun size_of_handler ->
-              expr_size ~find_code_size body ~cont:(fun size ->
-                add size (let_cont_non_recursive_don't_consider_body ~size_of_handler)
+            expr_size ~find_code_cost_metrics handler ~cont:(fun cost_metrics_of_handler ->
+              expr_size ~find_code_cost_metrics body ~cont:(fun size ->
+                add size (let_cont_non_recursive_don't_consider_body ~cost_metrics_of_handler)
               ))))
   | Let_cont (Recursive handlers) ->
     Recursive_let_cont_handlers.pattern_match handlers ~f:(fun ~body rec_handlers ->
@@ -488,9 +494,9 @@ let rec expr_size ~find_code_size ~cont expr =
       in
       Continuation_handler.pattern_match cont_handler
         ~f:(fun _params ~handler ->
-          expr_size ~find_code_size handler ~cont:(fun size_of_handlers ->
-            expr_size ~find_code_size body ~cont:(fun size ->
-              add size (let_cont_recursive_don't_consider_body ~size_of_handlers
+          expr_size ~find_code_cost_metrics handler ~cont:(fun cost_metrics_of_handlers ->
+            expr_size ~find_code_cost_metrics body ~cont:(fun size ->
+              add size (let_cont_recursive_don't_consider_body ~cost_metrics_of_handlers
                        )))))
   | Apply apply' ->
     cont (apply apply')
@@ -498,18 +504,19 @@ let rec expr_size ~find_code_size ~cont expr =
     cont (apply_cont e)
   | Switch switch' -> cont (switch switch')
   | Invalid _ -> cont (invalid ())
-and named ~find_code_size (named : Named.t) =
+and named ~find_code_cost_metrics (named : Named.t) =
   match named with
   | Simple simple' ->
     simple simple'
   | Set_of_closures set_of_closures' ->
-    set_of_closures ~find_code_size set_of_closures'
+    set_of_closures ~find_code_cost_metrics set_of_closures'
   | Prim (prim', _dbg) ->
     prim prim'
   | Static_consts static_consts' ->
     static_consts static_consts'
 
-let expr ~find_code_size e = expr_size ~find_code_size ~cont:(fun x -> x) e
+let expr ~find_code_cost_metrics e =
+  expr_size ~find_code_cost_metrics ~cont:(fun x -> x) e
 
 let print ppf t = Format.fprintf ppf "%d %a %a"
                     t.size

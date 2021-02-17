@@ -19,7 +19,7 @@
 open! Simplify_import
 
 let inline_linearly_used_continuation uacc ~create_apply_cont ~params ~handler
-      ~free_names_of_handler ~size_of_handler =
+      ~free_names_of_handler ~cost_metrics_of_handler =
   (* CR mshinwell: With -g, we can end up with continuations that are
      just a sequence of phantom lets then "goto".  These would normally
      be treated as aliases, but of course aren't in this scenario,
@@ -53,12 +53,12 @@ let inline_linearly_used_continuation uacc ~create_apply_cont ~params ~handler
     let expr, uacc =
       let uacc =
         UA.with_name_occurrences uacc ~name_occurrences:free_names_of_handler
-        |> UA.increment_size size_of_handler
+        |> UA.increment_cost_metrics cost_metrics_of_handler
       in
       Expr_builder.make_new_let_bindings uacc ~bindings_outermost_first
         ~body:handler
     in
-    expr, UA.size uacc, UA.name_occurrences uacc)
+    expr, UA.cost_metrics uacc, UA.name_occurrences uacc)
 
 let rebuild_apply_cont apply_cont ~args ~rewrite_id uacc ~after_rebuild =
   let uenv = UA.uenv uacc in
@@ -88,22 +88,22 @@ let rebuild_apply_cont apply_cont ~args ~rewrite_id uacc ~after_rebuild =
     in
     match rewrite_use_result with
     | Apply_cont apply_cont ->
-      let expr, size, free_names = apply_cont_to_expr apply_cont in
-      let uacc = UA.add_free_names uacc free_names |> UA.increment_size size in
+      let expr, cost_metrics, free_names = apply_cont_to_expr apply_cont in
+      let uacc = UA.add_free_names uacc free_names |> UA.increment_cost_metrics cost_metrics in
       after_rebuild expr uacc
     | Expr build_expr ->
-      let expr, size, free_names = build_expr ~apply_cont_to_expr in
-      let uacc = UA.add_free_names uacc free_names |> UA.increment_size size in
+      let expr, cost_metrics, free_names = build_expr ~apply_cont_to_expr in
+      let uacc = UA.add_free_names uacc free_names |> UA.increment_cost_metrics cost_metrics in
       after_rebuild expr uacc
   in
   match UE.find_continuation uenv cont with
   | Linearly_used_and_inlinable { arity = _; params; handler;
-      free_names_of_handler; size_of_handler } ->
+      free_names_of_handler; cost_metrics_of_handler } ->
     (* We must not fail to inline here, since we've already decided that the
        relevant [Let_cont] is no longer needed. *)
     let uacc = UA.notify_remove_branch ~count:1 uacc in
     inline_linearly_used_continuation uacc ~create_apply_cont ~params ~handler
-      ~free_names_of_handler ~size_of_handler
+      ~free_names_of_handler ~cost_metrics_of_handler
   | Unreachable { arity = _; } ->
     (* We allow this transformation even if there is a trap action, on the
        basis that there wouldn't be any opportunity to collect any backtrace,
@@ -113,7 +113,7 @@ let rebuild_apply_cont apply_cont ~args ~rewrite_id uacc ~after_rebuild =
   | Other { arity = _; handler = _; } ->
     create_apply_cont ~apply_cont_to_expr:(fun apply_cont ->
       Expr.create_apply_cont apply_cont,
-      Code_size.apply_cont apply_cont,
+      Cost_metrics.apply_cont apply_cont,
       Apply_cont.free_names apply_cont)
 
 let simplify_apply_cont dacc apply_cont ~down_to_up =

@@ -30,11 +30,11 @@ val to_named : simplified_named -> Named.t
 type t = private
   | Reachable of {
       named : simplified_named;
-      size: Code_size.t;
+      cost_metrics: Cost_metrics.t;
       free_names : Name_occurrences.t;
     }
   | Invalid of {
-      size: Code_size.t;
+      cost_metrics: Cost_metrics.t;
       semantics: Invalid_term_semantics.t;
     }
 
@@ -46,7 +46,7 @@ val reachable : Named.t -> t
 
 (** It is an error to pass [Static_consts] to this function. *)
 val reachable_with_known_free_names
-  : find_code_size:(Code_id.t -> Code_size.t Or_unknown.t)
+  : find_code_cost_metrics:(Code_id.t -> Cost_metrics.t Or_unknown.t)
   -> Named.t
   -> free_names:Name_occurrences.t
   -> t
@@ -57,6 +57,6 @@ val is_invalid : t -> bool
 
 val print : Format.formatter -> t -> unit
 
-val size : t -> Code_size.t
+val cost_metrics : t -> Cost_metrics.t
 
-val update_size : Code_size.t -> t -> t
+val update_cost_metrics : Cost_metrics.t -> t -> t

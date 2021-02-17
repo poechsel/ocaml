@@ -20,12 +20,12 @@ open! Flambda.Import
 (* Simple approximation of the space cost of an Flambda expression. *)
 
 let smaller' denv expr ~than:threshold =
-  let s = Code_size.expr ~find_code_size:(fun code_id ->
-    Simplify_envs.Downwards_env.find_code denv code_id |> Code.size)
+  let s = Cost_metrics.expr ~find_code_cost_metrics:(fun code_id ->
+    Simplify_envs.Downwards_env.find_code denv code_id |> Code.cost_metrics)
     expr
   in
-  if Code_size.(smaller s ~than:(of_int threshold)) then
-    Some (Code_size.to_int s)
+  if Cost_metrics.(smaller s ~than:(of_int threshold)) then
+    Some (Cost_metrics.to_int s)
   else None
 
 let size denv expr =

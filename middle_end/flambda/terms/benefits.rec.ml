@@ -65,9 +65,9 @@ let prim ~(prim : Flambda_primitive.t) t =
 let branch ~count t = { t with branch = t.branch + count; }
 let direct_call_of_indirect t =
   { t with direct_call_of_indirect = t.direct_call_of_indirect + 1; }
-let requested_inline ~size_of t =
-  let size = Code_size.to_int size_of in
-  { t with requested_inline = t.requested_inline + size; }
+let requested_inline ~cost_metrics_of t =
+  let cost_metrics = Cost_metrics.to_int cost_metrics_of in
+  { t with requested_inline = t.requested_inline + cost_metrics; }
 
 let print ppf b =
   Format.fprintf ppf "@[call: %i@ alloc: %i@ \

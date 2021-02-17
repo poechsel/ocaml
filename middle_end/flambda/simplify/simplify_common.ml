@@ -78,9 +78,9 @@ let try_cse dacc ~original_prim ~result_kind ~min_name_mode ~args
       let ty = T.alias_type_of result_kind replace_with in
       let env_extension = TEE.one_equation (Name.var result_var) ty in
       let simplified_named =
-        let size = Code_size.remove_prim ~prim:original_prim (Code_size.of_int 0) in
+        let cost_metrics = Cost_metrics.remove_prim ~prim:original_prim (Cost_metrics.of_int 0) in
         Simplified_named.reachable named
-        |> Simplified_named.update_size size
+        |> Simplified_named.update_cost_metrics cost_metrics
       in
       Applied (simplified_named, env_extension, args, dacc)
     | None ->
@@ -97,7 +97,7 @@ let try_cse dacc ~original_prim ~result_kind ~min_name_mode ~args
 type add_wrapper_for_fixed_arity_continuation0_result =
   | This_continuation of Continuation.t
   | Apply_cont of Flambda.Apply_cont.t
-  | New_wrapper of Continuation.t * Flambda.Continuation_handler.t * Code_size.t
+  | New_wrapper of Continuation.t * Flambda.Continuation_handler.t * Cost_metrics.t
 
 type cont_or_apply_cont =
   | Continuation of Continuation.t
@@ -137,14 +137,14 @@ let add_wrapper_for_fixed_arity_continuation0 uacc cont_or_apply_cont
        expressions to be inserted, so wrappers cannot always be avoided. *)
     let params = List.map (fun _kind -> Variable.create "param") arity in
     let kinded_params = List.map2 KP.create params arity in
-    let new_wrapper expr ~free_names ~size =
+    let new_wrapper expr ~free_names ~cost_metrics =
       let new_cont = Continuation.create () in
       let new_handler =
         Continuation_handler.create kinded_params ~handler:expr
           ~free_names_of_handler:free_names
           ~is_exn_handler:false
       in
-      New_wrapper (new_cont, new_handler, size)
+      New_wrapper (new_cont, new_handler, cost_metrics)
     in
     match cont_or_apply_cont with
     | Continuation cont ->
@@ -156,32 +156,32 @@ let add_wrapper_for_fixed_arity_continuation0 uacc cont_or_apply_cont
       | Apply_cont apply_cont ->
         new_wrapper (Expr.create_apply_cont apply_cont)
           ~free_names:(Known (Apply_cont.free_names apply_cont))
-          ~size:(Code_size.apply_cont apply_cont)
+          ~cost_metrics:(Cost_metrics.apply_cont apply_cont)
       | Expr build_expr ->
-        let expr, size, free_names =
+        let expr, cost_metrics, free_names =
           build_expr ~apply_cont_to_expr:(fun apply_cont ->
             Expr.create_apply_cont apply_cont,
-            Code_size.apply_cont apply_cont,
+            Cost_metrics.apply_cont apply_cont,
             Apply_cont.free_names apply_cont)
         in
-        new_wrapper expr ~free_names:(Known free_names) ~size
+        new_wrapper expr ~free_names:(Known free_names) ~cost_metrics
       end
     | Apply_cont apply_cont ->
       let apply_cont = Apply_cont.update_continuation apply_cont cont in
       match Apply_cont_rewrite.rewrite_use rewrite use_id apply_cont with
       | Apply_cont apply_cont -> Apply_cont apply_cont
       | Expr build_expr ->
-        let expr, size, free_names =
+        let expr, cost_metrics, free_names =
           build_expr ~apply_cont_to_expr:(fun apply_cont ->
             Expr.create_apply_cont apply_cont,
-            Code_size.apply_cont apply_cont,
+            Cost_metrics.apply_cont apply_cont,
             Apply_cont.free_names apply_cont)
         in
-        new_wrapper expr ~free_names:(Known free_names) ~size
+        new_wrapper expr ~free_names:(Known free_names) ~cost_metrics
 
 type add_wrapper_for_switch_arm_result =
   | Apply_cont of Flambda.Apply_cont.t
-  | New_wrapper of Continuation.t * Flambda.Continuation_handler.t * Code_size.t
+  | New_wrapper of Continuation.t * Flambda.Continuation_handler.t * Cost_metrics.t
 
 let add_wrapper_for_switch_arm uacc apply_cont ~use_id arity
       : add_wrapper_for_switch_arm_result =
@@ -192,7 +192,7 @@ let add_wrapper_for_switch_arm uacc apply_cont ~use_id arity
   | This_continuation cont ->
     Apply_cont (Apply_cont.update_continuation apply_cont cont)
   | Apply_cont apply_cont -> Apply_cont apply_cont
-  | New_wrapper (cont, wrapper, size) -> New_wrapper (cont, wrapper, size)
+  | New_wrapper (cont, wrapper, cost_metrics) -> New_wrapper (cont, wrapper, cost_metrics)
 
 let add_wrapper_for_fixed_arity_continuation uacc cont ~use_id arity ~around =
   match
@@ -201,19 +201,19 @@ let add_wrapper_for_fixed_arity_continuation uacc cont ~use_id arity ~around =
   with
   | This_continuation cont -> around uacc cont
   | Apply_cont _ -> assert false
-  | New_wrapper (new_cont, new_handler, size_of_handler) ->
+  | New_wrapper (new_cont, new_handler, cost_metrics_of_handler) ->
     let body, uacc = around uacc new_cont in
-    let size_increment =
-      Code_size.let_cont_non_recursive_don't_consider_body ~size_of_handler
+    let cost_metrics_increment =
+      Cost_metrics.let_cont_non_recursive_don't_consider_body ~cost_metrics_of_handler
     in
     Let_cont.create_non_recursive new_cont new_handler ~body
       ~free_names_of_body:(Known (Expr.free_names body)),
-    UA.increment_size size_increment uacc
+    UA.increment_cost_metrics cost_metrics_increment uacc
 
 let add_wrapper_for_fixed_arity_apply uacc ~use_id arity apply =
   match Apply.continuation apply with
   | Never_returns ->
-    Expr.create_apply apply, UA.increment_size (Code_size.apply apply) uacc
+    Expr.create_apply apply, UA.increment_cost_metrics (Cost_metrics.apply apply) uacc
   | Return cont ->
     add_wrapper_for_fixed_arity_continuation uacc cont
       ~use_id arity
@@ -226,7 +226,7 @@ let add_wrapper_for_fixed_arity_apply uacc ~use_id arity apply =
           Apply.with_continuations apply (Return return_cont) exn_cont
         in
         Expr.create_apply apply,
-        UA.increment_size (Code_size.apply apply) uacc)
+        UA.increment_cost_metrics (Cost_metrics.apply apply) uacc)
 
 let update_exn_continuation_extra_args uacc ~exn_cont_use_id apply =
   let exn_cont_rewrite =
