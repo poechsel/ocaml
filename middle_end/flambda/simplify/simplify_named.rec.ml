@@ -312,7 +312,7 @@ let simplify_named0 dacc (bindable_let_bound : Bindable_let_bound.t)
        constant. *)
     Simplify_named_result.have_simplified_to_zero_terms dacc
 
-let adjust_negative_benefits (named : Named.t) result =
+let adjust_cost_metrics (named : Named.t) result =
   let descr = Simplify_named_result.descr result  in
   let dacc = Simplify_named_result.dacc result in
   match named with
@@ -348,7 +348,7 @@ let adjust_negative_benefits (named : Named.t) result =
       let adjust_cost_metrics (simplified_named : Simplified_named.t) =
         let cost_metrics =
           Simplified_named.cost_metrics simplified_named
-          |> Cost_metrics.remove_prim ~prim:original_prim
+          |> Cost_metrics.virtually_remove ~removed:(Cost_metrics.prim original_prim)
         in
         Simplified_named.update_cost_metrics cost_metrics simplified_named
       in
@@ -375,7 +375,7 @@ let adjust_negative_benefits (named : Named.t) result =
 let simplify_named dacc bindable_let_bound named =
   try
     simplify_named0 dacc bindable_let_bound named
-    |> adjust_negative_benefits named
+    |> adjust_cost_metrics named
   with Misc.Fatal_error -> begin
     if !Clflags.flambda_context_on_error then begin
       Format.eprintf "\n%sContext is:%s simplifying [Let] binding@ %a =@ %a@ \

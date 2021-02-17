@@ -182,7 +182,7 @@ type switch_creation_result =
 
 let create_switch0 ~scrutinee ~arms : t * Cost_metrics.t * switch_creation_result =
   if Target_imm.Map.cardinal arms < 1 then
-    create_invalid (), Cost_metrics.invalid (), Have_deleted_comparison_and_branch
+    create_invalid (), Cost_metrics.invalid, Have_deleted_comparison_and_branch
   else
     let change_to_apply_cont action =
       create_apply_cont action, Cost_metrics.apply_cont action, Have_deleted_comparison_but_not_branch
@@ -233,7 +233,7 @@ let bind_no_simplification ~bindings ~body ~cost_metrics_of_body ~free_names_of_
         Name_occurrences.union (Named.free_names defining_expr)
           (Name_occurrences.remove_var free_names (Var_in_binding_pos.var var))
       in
-      let cost_metrics = Cost_metrics.(+) cost_metrics cost_metrics_expr in
+      let cost_metrics = Cost_metrics.add cost_metrics ~added:cost_metrics_expr in
       expr, cost_metrics, free_names)
 
 let bind_parameters_to_args_no_simplification ~params ~args ~body =

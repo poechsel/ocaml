@@ -133,28 +133,12 @@ let remove_all_occurrences_of_free_names t to_remove =
   in
   { t with name_occurrences; }
 
-let increment_cost_metrics code_cost_metrics t =
-  let cost_metrics = Flambda.Cost_metrics.(+) t.cost_metrics code_cost_metrics in
-  { t with cost_metrics}
-
 let clear_cost_metrics t = { t with cost_metrics = Flambda.Cost_metrics.of_int 0 }
 
 let with_cost_metrics cost_metrics t = { t with cost_metrics }
 
-let notify_remove_call t =
-  { t with cost_metrics = Flambda.Cost_metrics.remove_call t.cost_metrics }
+let cost_metrics_add ~added t =
+  { t with cost_metrics = Flambda.Cost_metrics.add ~added t.cost_metrics }
 
-let notify_remove_alloc t =
-  { t with cost_metrics = Flambda.Cost_metrics.remove_alloc t.cost_metrics }
-
-let notify_remove_branch ~count t =
-  { t with cost_metrics = Flambda.Cost_metrics.remove_branch ~count t.cost_metrics }
-
-let notify_remove_prim ~prim t =
-  { t with cost_metrics = Flambda.Cost_metrics.remove_prim ~prim t.cost_metrics }
-
-let notify_direct_call_of_indirect t =
-  { t with cost_metrics = Flambda.Cost_metrics.direct_call_of_indirect t.cost_metrics }
-
-let remove_code ~removed t =
-  { t with cost_metrics = Flambda.Cost_metrics.remove_code ~removed t.cost_metrics }
+let cost_metrics_virtually_remove ~removed t =
+  { t with cost_metrics = Flambda.Cost_metrics.virtually_remove ~removed t.cost_metrics }

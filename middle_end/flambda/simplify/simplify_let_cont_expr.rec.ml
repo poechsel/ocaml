@@ -205,7 +205,9 @@ let simplify_non_recursive_let_cont_handler ~denv_before_body ~dacc_after_body
     down_to_up dacc
       ~continuation_has_zero_uses:true
       ~rebuild:(fun uacc ~after_rebuild ->
-        let uacc = UA.remove_code ~removed:cost_metrics_of_handler uacc in
+        let uacc =
+          UA.cost_metrics_virtually_remove ~removed:cost_metrics_of_handler uacc
+        in
         rebuild_non_recursive_let_cont_handler cont uses ~params
           ~handler ~free_names_of_handler:Name_occurrences.empty
           ~is_single_inlinable_use:false ~is_single_use:false scope
@@ -419,9 +421,10 @@ let simplify_non_recursive_let_cont dacc non_rec ~down_to_up =
                           in
                           uacc
                           |> UA.with_name_occurrences ~name_occurrences
-                          |> UA.remove_code ~removed:cost_metrics_of_handler
                             (* At this point one let cont has been removed *)
-                          |> UA.notify_remove_alloc
+                          |> UA.cost_metrics_virtually_remove
+                               ~removed:(Cost_metrics.let_cont_non_recursive_don't_consider_body
+                                           ~cost_metrics_of_handler)
                         in
                         (* The cost_metrics stored in uacc is the cost_metrics of the body at
                            this point *)
@@ -460,8 +463,7 @@ let simplify_non_recursive_let_cont dacc non_rec ~down_to_up =
                             (* The body was discarded -- the negative benefit should be the one of
                                the handler plus the benefit accumulated while building the body
                                plus the removal of one allocation. *)
-                            |> UA.remove_code ~removed:cost_metrics_of_body
-                            |> UA.notify_remove_alloc
+                            |> UA.cost_metrics_virtually_remove ~removed:cost_metrics_of_body
                           in
                           handler, uacc
                         else
@@ -480,15 +482,17 @@ let simplify_non_recursive_let_cont dacc non_rec ~down_to_up =
                               ~is_applied_with_traps
                           in
                           let uacc =
-                            UA.increment_cost_metrics
-                              (Cost_metrics.let_cont_non_recursive_don't_consider_body ~cost_metrics_of_handler) uacc
+                            UA.cost_metrics_add
+                              ~added:(Cost_metrics.let_cont_non_recursive_don't_consider_body
+                                        ~cost_metrics_of_handler)
+                              uacc
                           in
                           expr, uacc
                     in
                     (* Add the cost_metrics of subsequent expressions back on the accumulator
                        as the accumulated cost_metrics was cleared before rebuilding the let cont.*)
                     let uacc =
-                      UA.increment_cost_metrics cost_metrics_of_subsequent_exprs uacc
+                      UA.cost_metrics_add ~added:cost_metrics_of_subsequent_exprs uacc
                     in
                     after_rebuild expr uacc)))))))
 
@@ -567,7 +571,12 @@ let rebuild_recursive_let_cont ~body handlers ~cost_metrics_of_handlers ~uenv_wi
       ~after_rebuild : Expr.t * UA.t =
   let uacc = UA.with_uenv uacc uenv_without_cont in
   let expr = Flambda.Let_cont.create_recursive handlers ~body in
-  let uacc = UA.increment_cost_metrics (Cost_metrics.let_cont_recursive_don't_consider_body ~cost_metrics_of_handlers) uacc in
+  let uacc =
+    UA.cost_metrics_add
+      ~added:(Cost_metrics.let_cont_recursive_don't_consider_body
+                ~cost_metrics_of_handlers)
+      uacc
+  in
   after_rebuild expr uacc
 
 (* CR mshinwell: We should not simplify recursive continuations with no

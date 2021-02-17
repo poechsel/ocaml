@@ -78,7 +78,11 @@ let try_cse dacc ~original_prim ~result_kind ~min_name_mode ~args
       let ty = T.alias_type_of result_kind replace_with in
       let env_extension = TEE.one_equation (Name.var result_var) ty in
       let simplified_named =
-        let cost_metrics = Cost_metrics.remove_prim ~prim:original_prim (Cost_metrics.of_int 0) in
+        let cost_metrics =
+          Cost_metrics.virtually_remove
+            ~removed:(Cost_metrics.prim original_prim)
+            Cost_metrics.zero
+        in
         Simplified_named.reachable named
         |> Simplified_named.update_cost_metrics cost_metrics
       in
@@ -208,12 +212,12 @@ let add_wrapper_for_fixed_arity_continuation uacc cont ~use_id arity ~around =
     in
     Let_cont.create_non_recursive new_cont new_handler ~body
       ~free_names_of_body:(Known (Expr.free_names body)),
-    UA.increment_cost_metrics cost_metrics_increment uacc
+    UA.cost_metrics_add ~added:cost_metrics_increment uacc
 
 let add_wrapper_for_fixed_arity_apply uacc ~use_id arity apply =
   match Apply.continuation apply with
   | Never_returns ->
-    Expr.create_apply apply, UA.increment_cost_metrics (Cost_metrics.apply apply) uacc
+    Expr.create_apply apply, UA.cost_metrics_add ~added:(Cost_metrics.apply apply) uacc
   | Return cont ->
     add_wrapper_for_fixed_arity_continuation uacc cont
       ~use_id arity
@@ -226,7 +230,7 @@ let add_wrapper_for_fixed_arity_apply uacc ~use_id arity apply =
           Apply.with_continuations apply (Return return_cont) exn_cont
         in
         Expr.create_apply apply,
-        UA.increment_cost_metrics (Cost_metrics.apply apply) uacc)
+        UA.cost_metrics_add ~added:(Cost_metrics.apply apply) uacc)
 
 let update_exn_continuation_extra_args uacc ~exn_cont_use_id apply =
   let exn_cont_rewrite =

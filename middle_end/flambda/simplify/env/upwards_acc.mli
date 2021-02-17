@@ -72,20 +72,10 @@ val used_closure_vars : t -> Name_occurrences.t
 
 val remove_all_occurrences_of_free_names : t -> Name_occurrences.t -> t
 
-val increment_cost_metrics : Flambda.Cost_metrics.t -> t -> t
-
 val clear_cost_metrics : t -> t
 
 val with_cost_metrics : Flambda.Cost_metrics.t -> t -> t
 
-val notify_remove_call : t -> t
+val cost_metrics_add: added:Flambda.Cost_metrics.t -> t -> t
 
-val notify_remove_alloc : t -> t
-
-val notify_remove_prim : prim:Flambda_primitive.t -> t -> t
-
-val notify_remove_branch : count:int -> t -> t
-
-val notify_direct_call_of_indirect : t -> t
-
-val remove_code: removed:Flambda.Cost_metrics.t -> t -> t
+val cost_metrics_virtually_remove: removed:Flambda.Cost_metrics.t -> t -> t

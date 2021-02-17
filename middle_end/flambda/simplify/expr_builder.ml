@@ -116,7 +116,8 @@ let create_singleton_let uacc (bound_var : VB.t) defining_expr
     in
     let uacc =
       UA.with_name_occurrences uacc ~name_occurrences:free_names_of_let
-      |> UA.increment_cost_metrics (Cost_metrics.let_expr_don't_consider_body ~cost_metrics_of_defining_expr)
+      |> UA.cost_metrics_add
+           ~added:(Cost_metrics.let_expr_don't_consider_body ~cost_metrics_of_defining_expr)
     in
     let let_expr =
       Let.create (Bindable_let_bound.singleton bound_var)
@@ -147,7 +148,8 @@ let create_set_of_closures_let uacc bound_vars defining_expr
     in
     let uacc =
       UA.with_name_occurrences uacc ~name_occurrences:free_names_of_let
-      |> UA.increment_cost_metrics (Cost_metrics.let_expr_don't_consider_body ~cost_metrics_of_defining_expr)
+      |> UA.cost_metrics_add
+           ~added:(Cost_metrics.let_expr_don't_consider_body ~cost_metrics_of_defining_expr)
     in
     let let_expr =
       Let.create bound_vars defining_expr ~body
@@ -158,7 +160,7 @@ let create_set_of_closures_let uacc bound_vars defining_expr
 let let_creation_remove_defining_expr_cost_metrics uacc =
   function
   | Have_deleted removed ->
-    UA.remove_code ~removed uacc
+    UA.cost_metrics_virtually_remove ~removed uacc
   | Nothing_deleted -> uacc
 
 let make_new_let_bindings uacc ~bindings_outermost_first ~body =
@@ -170,7 +172,7 @@ let make_new_let_bindings uacc ~bindings_outermost_first ~body =
       | Invalid _ ->
         let uacc =
           UA.with_name_occurrences uacc ~name_occurrences:Name_occurrences.empty
-          |> UA.increment_cost_metrics (Cost_metrics.invalid ())
+          |> UA.cost_metrics_add ~added:Cost_metrics.invalid
         in
         Expr.create_invalid (), uacc
       | Reachable {
@@ -228,7 +230,8 @@ let create_raw_let_symbol uacc bound_symbols scoping_rule static_consts ~body =
   in
   let uacc =
     UA.with_name_occurrences uacc ~name_occurrences:free_names_of_let
-    |> UA.increment_cost_metrics (Cost_metrics.let_expr_don't_consider_body ~cost_metrics_of_defining_expr)
+    |> UA.cost_metrics_add
+         ~added:(Cost_metrics.let_expr_don't_consider_body ~cost_metrics_of_defining_expr)
   in
   let let_expr =
     Let.create bindable defining_expr ~body

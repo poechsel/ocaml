@@ -18,17 +18,15 @@
 
 module Operations = struct
   (* Operations are finer grained metrics (number of calls / allocations) about
-     the size of an expression. [added], which maps to expression
-     that are newly created, are separated from [removed] which are
-     operations belonging to expression that were omitted while rebuilding a
-     term. *)
+     the size of an expression.
+  *)
 
   type t = {
     call : int;
     alloc : int;
     prim : int;
     branch : int;
-    (* CR-someday pchambart: branch_benefit : t list; *)
+    (* CR-someday pchambart: branch : t list; *)
     direct_call_of_indirect : int;
     requested_inline : int;
     (* Benefit to compensate the size of functions marked for inlining *)
@@ -101,10 +99,26 @@ type t = {
   removed: Operations.t;
 }
 
+let zero = { size = 0; added = Operations.zero; removed = Operations.zero } 
 let of_int t = { size = t; added = Operations.zero; removed = Operations.zero }
 let to_int t = t.size
 let smaller t ~than = t.size <= than.size
 let equal a b = a.size = b.size
+
+let add ~added t =
+  { size = t.size + added.size;
+    added = Operations.(+) t.added added.added;
+    removed = Operations.(+) t.removed added.removed }
+
+(* Virtually remove a terms that was removed during simplification.
+   As the simplifier will not build this term its size will not be added
+   to the cost metrics. However, the operations that would have been added
+   in this term are now removed, hence they are added to the number of
+   removed operations.
+*)
+let virtually_remove ~removed t =
+  { t with removed = Operations.(+) t.removed removed.added }
+
 
 let arch32 = Targetint.size = 32 (* are we compiling for a 32-bit arch *)
 let arch64 = Targetint.size = 64 (* are we compiling for a 64-bit arch *)
@@ -469,13 +483,7 @@ let prim prim =
   let size = prim_size prim in
   { size; added = Operations.prim ~prim (Operations.zero); removed = Operations.zero }
 
-let static_consts _ = of_int 0
-
-let add (a : t) (b : t) : t = {
-  size = a.size + b.size;
-  added = Operations.(+) a.added b.added;
-  removed = Operations.(+) a.removed b.removed
-}
+let static_consts _ = zero
 
 let set_of_closures ~find_cost_metrics set_of_closures =
   let func_decls = Set_of_closures.function_decls set_of_closures in
@@ -484,7 +492,7 @@ let set_of_closures ~find_cost_metrics set_of_closures =
     Closure_id.Map.fold (fun _ func_decl size ->
       let code_id = Function_declaration.code_id func_decl in
       match find_cost_metrics code_id with
-      | Or_unknown.Known s -> add size s
+      | Or_unknown.Known s -> add size ~added:s
       | Or_unknown.Unknown ->
         Misc.fatal_errorf "Code size should have been computed for:@ %a"
           Code_id.print code_id
@@ -519,7 +527,12 @@ let apply_cont apply_cont =
   in
   { size; added = Operations.branch ~count:1 (Operations.zero); removed = Operations.zero }
 
-let invalid _ = { size = 0; added = Operations.zero; removed = Operations.zero }
+let invalid = { size = 0; added = Operations.zero; removed = Operations.zero }
+
+let branch ~count =
+  { size = 0;
+    added = Operations.branch ~count Operations.zero;
+    removed = Operations.zero }
 
 let switch switch =
   let n_arms = Switch.num_arms switch in
@@ -547,7 +560,7 @@ let rec expr_size ~find_cost_metrics ~cont expr =
     Let_expr.pattern_match let_expr
       ~f:(fun _bindable_let_bound ~body ->
         expr_size ~find_cost_metrics body ~cont:(fun size ->
-          add size (let_expr_don't_consider_body ~cost_metrics_of_defining_expr)
+          add size ~added:(let_expr_don't_consider_body ~cost_metrics_of_defining_expr)
         ))
   | Let_cont (Non_recursive { handler; _ }) ->
     Non_recursive_let_cont_handler.pattern_match handler
@@ -557,7 +570,10 @@ let rec expr_size ~find_cost_metrics ~cont expr =
           ~f:(fun _params ~handler ->
             expr_size ~find_cost_metrics handler ~cont:(fun cost_metrics_of_handler ->
               expr_size ~find_cost_metrics body ~cont:(fun size ->
-                add size (let_cont_non_recursive_don't_consider_body ~cost_metrics_of_handler)
+                let added =
+                  let_cont_non_recursive_don't_consider_body ~cost_metrics_of_handler
+                in
+                add size ~added
               ))))
   | Let_cont (Recursive handlers) ->
     Recursive_let_cont_handlers.pattern_match handlers ~f:(fun ~body rec_handlers ->
@@ -572,14 +588,17 @@ let rec expr_size ~find_cost_metrics ~cont expr =
         ~f:(fun _params ~handler ->
           expr_size ~find_cost_metrics handler ~cont:(fun cost_metrics_of_handlers ->
             expr_size ~find_cost_metrics body ~cont:(fun size ->
-              add size (let_cont_recursive_don't_consider_body ~cost_metrics_of_handlers
-                       )))))
+              let added =
+                let_cont_recursive_don't_consider_body ~cost_metrics_of_handlers
+              in
+              add size ~added
+            ))))
   | Apply apply' ->
     cont (apply apply')
   | Apply_cont e ->
     cont (apply_cont e)
   | Switch switch' -> cont (switch switch')
-  | Invalid _ -> cont (invalid ())
+  | Invalid _ -> cont invalid
 and named ~find_cost_metrics (named : Named.t) =
   match named with
   | Simple simple' ->
@@ -599,19 +618,6 @@ let print ppf t = Format.fprintf ppf "%d %a %a"
                     Operations.print t.added
                     Operations.print t.removed
 
-let (+) = add
-
-let remove_call t =
-  { t with removed = Operations.call t.removed }
-let remove_alloc t =
-  { t with removed = Operations.alloc ~count:1 t.removed }
-let remove_prim ~prim t =
-  { t with removed = Operations.prim ~prim t.removed }
-let remove_branch ~count t =
-  { t with removed = Operations.branch ~count t.removed }
-
-let direct_call_of_indirect t =
-   { t with removed = Operations.direct_call_of_indirect t.removed }
-
-let remove_code ~removed t =
-  { t with removed = Operations.(+) t.removed removed.added }
+let direct_call_of_indirect =
+  let t = zero in
+  { t with removed = Operations.direct_call_of_indirect t.removed }

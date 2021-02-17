@@ -706,10 +706,10 @@ end and Code : sig
 end and Cost_metrics : sig
   type t
 
+  val zero : t
   val expr : find_cost_metrics:(Code_id.t -> t Or_unknown.t) -> Expr.t -> t
   val of_int : int -> t
   val to_int : t -> int
-  val (+) : t -> t -> t
   val smaller : t -> than:t -> bool
   val equal : t -> t -> bool
   val print : Format.formatter -> t -> unit
@@ -722,16 +722,13 @@ end and Cost_metrics : sig
   val apply : Apply.t -> t
   val apply_cont : Apply_cont.t -> t
   val switch : Switch.t -> t
-  val invalid : unit -> t
+  val branch : count:int -> t
+  val invalid : t
+  val direct_call_of_indirect : t
   val let_cont_non_recursive_don't_consider_body : cost_metrics_of_handler:t -> t
   val let_cont_recursive_don't_consider_body : cost_metrics_of_handlers:t -> t
-
-  val remove_call : t -> t
-  val remove_alloc : t -> t
-  val remove_prim : prim:Flambda_primitive.t -> t -> t
-  val remove_branch : count:int -> t -> t
-  val direct_call_of_indirect : t -> t
-  val remove_code : removed:t -> t -> t
+  val add : added:t -> t -> t
+  val virtually_remove : removed:t -> t -> t
 end
 
 module Function_declaration = Function_declaration
