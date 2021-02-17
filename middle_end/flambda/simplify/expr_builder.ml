@@ -28,7 +28,7 @@ module VB = Var_in_binding_pos
    needed when we import the Flambda 1 inliner. *)
 (* CR mshinwell: This should turn into a full "benefit" type *)
 type let_creation_result =
-  | Have_deleted of Flambda.Benefits.t
+  | Have_deleted of Cost_metrics.Benefits.t
   | Nothing_deleted
 
 let create_singleton_let uacc (bound_var : VB.t) defining_expr
