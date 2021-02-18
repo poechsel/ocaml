@@ -22,7 +22,7 @@ open! Flambda.Import
 
 let smaller' denv expr ~than:threshold =
   let s = Code_size.expr_size ~find_code:(Downwards_env.find_code denv) expr in
-  if Code_size.(smaller s ~than:(of_int threshold)) then
+  if Code_size.smaller_than_threshold s ~threshold then
     Some (Code_size.to_int s)
   else None
 

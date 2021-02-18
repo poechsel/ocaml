@@ -307,8 +307,8 @@ let print_let_symbol_with_cache ~cache ppf t =
 let print_with_cache ~cache ppf
       ({ name_abstraction = _; defining_expr; } as t) =
   let let_bound_var_colour bindable_let_bound =
-    let kind = Bindable_let_bound.name_mode bindable_let_bound in
-    if Name_mode.is_phantom kind then Flambda_colours.elide ()
+    let name_mode = Bindable_let_bound.name_mode bindable_let_bound in
+    if Name_mode.is_phantom name_mode then Flambda_colours.elide ()
     else Flambda_colours.variable ()
   in
   let rec let_body (expr : Expr.t) =

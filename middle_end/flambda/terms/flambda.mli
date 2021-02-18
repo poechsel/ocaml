@@ -681,10 +681,9 @@ end and Code_size : sig
 
   val expr_size : find_code:(Code_id.t -> Code.t) -> Expr.t -> t
   val zero : t
-  val of_int : int -> t
   val to_int : t -> int
   val (+) : t -> t -> t
-  val smaller : t -> than:t -> bool
+  val smaller_than_threshold : t -> threshold:int -> bool
   val equal : t -> t -> bool
   val print : Format.formatter -> t -> unit
 

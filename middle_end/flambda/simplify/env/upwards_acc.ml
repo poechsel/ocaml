@@ -69,7 +69,7 @@ let create uenv dacc =
        dealing with a [Let_cont]). *)
     used_closure_vars = DA.used_closure_vars dacc;
     shareable_constants = DA.shareable_constants dacc;
-    size = Flambda.Code_size.of_int 0;
+    size = Flambda.Code_size.zero;
   }
 
 let creation_dacc t = t.creation_dacc

@@ -19,9 +19,8 @@
 type t = int
 
 let zero = 0
-let of_int t = t
 let to_int t = t
-let smaller t ~than = t <= than
+let smaller_than_threshold t ~threshold = t <= threshold
 let equal a b = a = b
 let (+) (a : t) (b : t) : t = a + b
 
@@ -437,9 +436,9 @@ let rec expr_size ~find_code expr size =
   | Let let_expr ->
     Let_expr.pattern_match let_expr
       ~f:(fun bindable_let_bound ~body ->
-        let kind = Bindable_let_bound.name_mode bindable_let_bound in
+        let name_mode = Bindable_let_bound.name_mode bindable_let_bound in
         let size =
-          if Name_mode.is_phantom kind then size
+          if Name_mode.is_phantom name_mode then size
           else named_size ~find_code (Let_expr.defining_expr let_expr) size
         in
         expr_size ~find_code body size)
