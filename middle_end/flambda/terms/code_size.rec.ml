@@ -402,8 +402,8 @@ let set_of_closures ~find_code_size set_of_closures =
   )
     funs (zero)
 
-let increase_due_to_let_expr ~size_of_defining_expr =
-  size_of_defining_expr
+let increase_due_to_let_expr ~is_phantom ~size_of_defining_expr =
+  if is_phantom then zero else size_of_defining_expr
 
 let apply apply = 
   match Apply.call_kind apply with
@@ -435,9 +435,14 @@ let increase_due_to_let_cont_recursive ~size_of_handlers =
 let rec expr_size ~find_code expr size =
   match Expr.descr expr with
   | Let let_expr ->
-    let size = named_size ~find_code (Let_expr.defining_expr let_expr) size in
     Let_expr.pattern_match let_expr
-      ~f:(fun _bindable_let_bound ~body -> expr_size ~find_code body size)
+      ~f:(fun bindable_let_bound ~body ->
+        let kind = Bindable_let_bound.name_mode bindable_let_bound in
+        let size =
+          if Name_mode.is_phantom kind then size
+          else named_size ~find_code (Let_expr.defining_expr let_expr) size
+        in
+        expr_size ~find_code body size)
   | Let_cont (Non_recursive { handler; _ }) ->
     Non_recursive_let_cont_handler.pattern_match handler
       ~f:(fun _cont ~body ->

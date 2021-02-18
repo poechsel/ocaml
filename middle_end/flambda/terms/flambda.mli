@@ -696,7 +696,7 @@ end and Code_size : sig
   val apply_cont : Apply_cont.t -> t
   val switch : Switch.t -> t
   val invalid : unit -> t
-  val increase_due_to_let_expr : size_of_defining_expr:t -> t
+  val increase_due_to_let_expr : is_phantom:bool -> size_of_defining_expr:t -> t
   val increase_due_to_let_cont_non_recursive : size_of_handler:t -> t
   val increase_due_to_let_cont_recursive : size_of_handlers:t -> t
 end

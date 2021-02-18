@@ -119,7 +119,10 @@ let create_singleton_let uacc (bound_var : VB.t) defining_expr
     in
     let uacc =
       UA.with_name_occurrences uacc ~name_occurrences:free_names_of_let
-      |> UA.increment_size (Code_size.increase_due_to_let_expr ~size_of_defining_expr)
+      |> UA.increment_size
+           (Code_size.increase_due_to_let_expr
+              ~is_phantom:(Name_mode.is_phantom (VB.name_mode bound_var))
+              ~size_of_defining_expr)
     in
     let let_expr =
       Let.create (Bindable_let_bound.singleton bound_var)
@@ -149,7 +152,10 @@ let create_set_of_closures_let uacc bound_vars defining_expr
     in
     let uacc =
       UA.with_name_occurrences uacc ~name_occurrences:free_names_of_let
-      |> UA.increment_size (Code_size.increase_due_to_let_expr ~size_of_defining_expr)
+      |> UA.increment_size
+           (Code_size.increase_due_to_let_expr
+              ~is_phantom:false
+              ~size_of_defining_expr)
     in
     let let_expr =
       Let.create bound_vars defining_expr ~body
@@ -222,7 +228,10 @@ let create_raw_let_symbol uacc bound_symbols scoping_rule static_consts ~body =
   in
   let uacc =
     UA.with_name_occurrences uacc ~name_occurrences:free_names_of_let
-    |> UA.increment_size (Code_size.increase_due_to_let_expr ~size_of_defining_expr)
+    |> UA.increment_size
+         (Code_size.increase_due_to_let_expr
+            ~is_phantom:false
+            ~size_of_defining_expr)
   in
   let let_expr =
     Let.create bindable defining_expr ~body
