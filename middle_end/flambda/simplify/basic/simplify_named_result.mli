@@ -26,6 +26,7 @@ val have_simplified_to_single_term
   : DA.t
   -> Bindable_let_bound.t
   -> Simplified_named.t
+  -> Named.t
   -> t
 
 val have_lifted_set_of_closures
@@ -35,7 +36,7 @@ val have_lifted_set_of_closures
 
 type descr = private
   | Zero_terms
-  | Single_term of Bindable_let_bound.t * Simplified_named.t
+  | Single_term of Bindable_let_bound.t * Simplified_named.t * Named.t
   | Multiple_bindings_to_symbols of Symbol.t Var_in_binding_pos.Map.t
 
 val descr : t -> descr
@@ -44,6 +45,6 @@ val dacc : t -> DA.t
 
 val bindings_to_place_in_any_order
    : t
-  -> (Bindable_let_bound.t * Simplified_named.t) list
+  -> (Bindable_let_bound.t * Simplified_named.t * Named.t Or_unknown.t) list
 
 val with_dacc : dacc:DA.t -> t -> t

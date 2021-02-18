@@ -78,4 +78,4 @@ val with_cost_metrics : Flambda.Cost_metrics.t -> t -> t
 
 val cost_metrics_add: added:Flambda.Cost_metrics.t -> t -> t
 
-val cost_metrics_virtually_remove: removed:Flambda.Cost_metrics.t -> t -> t
+val cost_metrics_remove_operation: Flambda.Cost_metrics.Operations.t -> t -> t

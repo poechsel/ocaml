@@ -79,8 +79,8 @@ let try_cse dacc ~original_prim ~result_kind ~min_name_mode ~args
       let env_extension = TEE.one_equation (Name.var result_var) ty in
       let simplified_named =
         let cost_metrics =
-          Cost_metrics.virtually_remove
-            ~removed:(Cost_metrics.prim original_prim)
+          Cost_metrics.remove_operation
+            (Cost_metrics.Operations.prim original_prim)
             Cost_metrics.zero
         in
         Simplified_named.reachable named

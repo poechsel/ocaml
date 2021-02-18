@@ -140,5 +140,5 @@ let with_cost_metrics cost_metrics t = { t with cost_metrics }
 let cost_metrics_add ~added t =
   { t with cost_metrics = Flambda.Cost_metrics.add ~added t.cost_metrics }
 
-let cost_metrics_virtually_remove ~removed t =
-  { t with cost_metrics = Flambda.Cost_metrics.virtually_remove ~removed t.cost_metrics }
+let cost_metrics_remove_operation op t =
+  { t with cost_metrics = Flambda.Cost_metrics.remove_operation op t.cost_metrics }

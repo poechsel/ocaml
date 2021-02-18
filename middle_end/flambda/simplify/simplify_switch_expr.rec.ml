@@ -18,7 +18,7 @@
 
 open! Simplify_import
 
-let rebuild_switch dacc ~original_number_of_arms ~arms ~scrutinee ~scrutinee_ty uacc
+let rebuild_switch dacc ~arms ~scrutinee ~scrutinee_ty uacc
       ~after_rebuild =
   let new_let_conts, arms, identity_arms, not_arms =
     Target_imm.Map.fold
@@ -179,9 +179,7 @@ let rebuild_switch dacc ~original_number_of_arms ~arms ~scrutinee ~scrutinee_ty 
   let body, uacc =
     if Target_imm.Map.cardinal arms < 1 then
       let uacc =
-        UA.cost_metrics_virtually_remove
-          ~removed:(Cost_metrics.branch ~count:original_number_of_arms)
-          uacc
+        UA.cost_metrics_remove_operation (Cost_metrics.Operations.branch) uacc
       in
       Expr.create_invalid (), uacc
     else
@@ -189,9 +187,7 @@ let rebuild_switch dacc ~original_number_of_arms ~arms ~scrutinee ~scrutinee_ty 
       match switch_is_identity with
       | Some dest ->
         let uacc =
-          UA.cost_metrics_virtually_remove
-            ~removed:(Cost_metrics.branch ~count:original_number_of_arms)
-            uacc
+          UA.cost_metrics_remove_operation (Cost_metrics.Operations.branch) uacc
         in
         create_tagged_scrutinee uacc dest ~make_body:(fun ~tagged_scrutinee ->
           (* No need to increment the cost_metrics inside [create_tagged_scrutinee] as it
@@ -202,9 +198,7 @@ let rebuild_switch dacc ~original_number_of_arms ~arms ~scrutinee ~scrutinee_ty 
         match switch_is_boolean_not with
         | Some dest ->
           let uacc =
-            UA.cost_metrics_virtually_remove
-              ~removed:(Cost_metrics.branch ~count:original_number_of_arms)
-              uacc
+            UA.cost_metrics_remove_operation (Cost_metrics.Operations.branch) uacc
           in
           create_tagged_scrutinee uacc dest ~make_body:(fun ~tagged_scrutinee ->
             let not_scrutinee = Variable.create "not_scrutinee" in
@@ -225,13 +219,10 @@ let rebuild_switch dacc ~original_number_of_arms ~arms ~scrutinee ~scrutinee_ty 
               ~free_names_of_body:(Known (Expr.free_names body))
             |> Expr.create_let)
         | None ->
-          let number_of_arms = Target_imm.Map.cardinal arms in
-          let number_of_removed_arms = original_number_of_arms - number_of_arms in 
-          let uacc =
-            UA.cost_metrics_virtually_remove
-              ~removed:(Cost_metrics.branch ~count:number_of_removed_arms)
-              uacc
-          in
+          (* In that case, even though some branches were removed by simplify we
+             should not count them in the number of removed operations: these
+             branches wouldn't have been taken during execution anyway.
+          *)
           let expr, cost_metrics = Expr.create_switch_and_cost_metrics ~scrutinee ~arms in
           let uacc = UA.cost_metrics_add ~added:cost_metrics uacc in
           if !Clflags.flambda_invariant_checks
@@ -271,12 +262,11 @@ let simplify_switch dacc switch ~down_to_up =
   let module AC = Apply_cont in
   let min_name_mode = Name_mode.normal in
   let scrutinee = Switch.scrutinee switch in
-  let original_number_of_arms = Target_imm.Map.cardinal (Switch.arms switch) in
   match S.simplify_simple dacc scrutinee ~min_name_mode with
   | Bottom, _ty ->
     down_to_up dacc ~rebuild:(fun uacc ~after_rebuild ->
       let uacc =
-        UA.cost_metrics_virtually_remove ~removed:(Cost_metrics.switch switch) uacc
+        UA.cost_metrics_remove_operation Cost_metrics.Operations.branch uacc
       in
       Simplify_common.rebuild_invalid uacc ~after_rebuild
     )
@@ -324,4 +314,4 @@ let simplify_switch dacc switch ~down_to_up =
         (Target_imm.Map.empty, dacc)
     in
     down_to_up dacc
-      ~rebuild:(rebuild_switch ~original_number_of_arms dacc ~arms ~scrutinee ~scrutinee_ty)
+      ~rebuild:(rebuild_switch dacc ~arms ~scrutinee ~scrutinee_ty)

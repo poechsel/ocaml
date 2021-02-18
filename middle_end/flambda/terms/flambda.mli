@@ -704,6 +704,16 @@ end and Code : sig
 
   val is_deleted : t -> bool
 end and Cost_metrics : sig
+  module Operations : sig
+    type t
+
+    val call: t
+    val branch: t
+    val prim: Flambda_primitive.t -> t
+    val alloc: t
+    val direct_call_of_indirect: t
+  end
+
   type t
 
   val zero : t
@@ -722,13 +732,11 @@ end and Cost_metrics : sig
   val apply : Apply.t -> t
   val apply_cont : Apply_cont.t -> t
   val switch : Switch.t -> t
-  val branch : count:int -> t
   val invalid : t
-  val direct_call_of_indirect : t
   val let_cont_non_recursive_don't_consider_body : cost_metrics_of_handler:t -> t
   val let_cont_recursive_don't_consider_body : cost_metrics_of_handlers:t -> t
   val add : added:t -> t -> t
-  val virtually_remove : removed:t -> t -> t
+  val remove_operation : Operations.t -> t -> t
 end
 
 module Function_declaration = Function_declaration

@@ -192,22 +192,13 @@ let simplify_non_recursive_let_cont_handler ~denv_before_body ~dacc_after_body
     let cont_uses_env =
       CUE.union prior_cont_uses_env (CUE.remove cont_uses_env cont)
     in
-    (* This continuation can be discarded. As it is not simplified its cost_metrics
-       is computed separately and the corresponding positive benefits is then
-       removed from the current code cost_metrics.*)
-    let cost_metrics_of_handler =
-      Cost_metrics.expr handler ~find_cost_metrics:(fun code_id ->
-        DE.find_code denv_before_body code_id
-        |> Code.cost_metrics
-      )
-    in
     let dacc = DA.with_continuation_uses_env dacc ~cont_uses_env in
     down_to_up dacc
       ~continuation_has_zero_uses:true
       ~rebuild:(fun uacc ~after_rebuild ->
-        let uacc =
-          UA.cost_metrics_virtually_remove ~removed:cost_metrics_of_handler uacc
-        in
+        (* Even though the handler is discarded we removing an operation
+           is unnecessary: the handler would have been left untouched during
+           execution.*)
         rebuild_non_recursive_let_cont_handler cont uses ~params
           ~handler ~free_names_of_handler:Name_occurrences.empty
           ~is_single_inlinable_use:false ~is_single_use:false scope
@@ -422,9 +413,8 @@ let simplify_non_recursive_let_cont dacc non_rec ~down_to_up =
                           uacc
                           |> UA.with_name_occurrences ~name_occurrences
                             (* At this point one let cont has been removed *)
-                          |> UA.cost_metrics_virtually_remove
-                               ~removed:(Cost_metrics.let_cont_non_recursive_don't_consider_body
-                                           ~cost_metrics_of_handler)
+                          |> UA.cost_metrics_remove_operation
+                               Cost_metrics.Operations.alloc
                         in
                         (* The cost_metrics stored in uacc is the cost_metrics of the body at
                            this point *)
@@ -456,14 +446,9 @@ let simplify_non_recursive_let_cont dacc non_rec ~down_to_up =
                               Name_occurrences.union name_occurrences_handler
                                 name_occurrences_subsequent_exprs
                             in
-                            let cost_metrics_of_body = UA.cost_metrics uacc in
                             uacc
                             |> UA.with_name_occurrences ~name_occurrences
                             |> UA.with_cost_metrics cost_metrics_of_handler
-                            (* The body was discarded -- the negative benefit should be the one of
-                               the handler plus the benefit accumulated while building the body
-                               plus the removal of one allocation. *)
-                            |> UA.cost_metrics_virtually_remove ~removed:cost_metrics_of_body
                           in
                           handler, uacc
                         else

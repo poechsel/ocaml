@@ -20,11 +20,21 @@
 (** Cost metrics are a group of metrics tracking the impact of simplifying an
     expression. One of these is an approximation of the size of the machine
     code that will be generated for this expression. It also tracks the
-    number of operations that where added (and removed) while simplifying the
-    expression.
-*)
+    number of operations that should have been executed but were removed
+    by the simplifier.*)
+
+module Operations : sig
+  type t
+
+  val call: t
+  val branch: t
+  val prim: Flambda_primitive.t -> t
+  val alloc: t
+  val direct_call_of_indirect: t
+end
 
 type t
+
 (* It's best to avoid calling this function too much as it is
    quite slow. *)
 val expr : find_cost_metrics:(Code_id.t -> t Or_unknown.t) -> Expr.t -> t
@@ -45,11 +55,9 @@ val let_expr_don't_consider_body : cost_metrics_of_defining_expr:t -> t
 val apply : Apply.t -> t
 val apply_cont : Apply_cont.t -> t
 val switch : Switch.t -> t
-val branch : count:int -> t
 val invalid : t
-val direct_call_of_indirect : t
 val let_cont_non_recursive_don't_consider_body : cost_metrics_of_handler:t -> t
 val let_cont_recursive_don't_consider_body : cost_metrics_of_handlers:t -> t
 
 val add : added:t -> t -> t
-val virtually_remove : removed:t -> t -> t
+val remove_operation : Operations.t -> t -> t

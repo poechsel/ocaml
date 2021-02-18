@@ -41,14 +41,14 @@ module Operations = struct
     requested_inline = 0;
   }
 
-  let call t = { t with call = t.call + 1; }
-  let alloc ~count t = { t with alloc = t.alloc + count; }
+  let call = { zero with call = 1; }
+  let alloc = { zero with alloc = 1; }
 
   type classify_prim =
     | Is_alloc
     | Is_prim
 
-  let prim ~(prim : Flambda_primitive.t) t =
+  let prim (prim:Flambda_primitive.t) =
     let type_ =
       match prim with
       | Unary (prim, _) -> begin match prim with
@@ -62,14 +62,12 @@ module Operations = struct
         | Make_block _ | Make_array _ -> Is_alloc
       end
     in
-    if type_ = Is_alloc then
-      { t with prim = t.alloc + 1; }
-    else
-      { t with prim = t.prim + 1; }
+    if type_ = Is_alloc then alloc else { zero with prim = 1 }
 
-  let branch ~count t = { t with branch = t.branch + count; }
-  let direct_call_of_indirect t =
-    { t with direct_call_of_indirect = t.direct_call_of_indirect + 1; }
+  let branch = { zero with branch = 1; }
+
+  let direct_call_of_indirect =
+    { zero with direct_call_of_indirect = 1; }
 
   let print ppf b =
     Format.fprintf ppf "@[call: %i@ alloc: %i@ \
@@ -95,29 +93,22 @@ end
 
 type t = {
   size: int;
-  added: Operations.t;
   removed: Operations.t;
 }
 
-let zero = { size = 0; added = Operations.zero; removed = Operations.zero } 
-let of_int t = { size = t; added = Operations.zero; removed = Operations.zero }
+let zero = { size = 0; removed = Operations.zero } 
+let of_int t = { size = t; removed = Operations.zero }
 let to_int t = t.size
 let smaller t ~than = t.size <= than.size
 let equal a b = a.size = b.size
 
 let add ~added t =
   { size = t.size + added.size;
-    added = Operations.(+) t.added added.added;
-    removed = Operations.(+) t.removed added.removed }
+    removed = Operations.(+) t.removed added.removed; }
 
-(* Virtually remove a terms that was removed during simplification.
-   As the simplifier will not build this term its size will not be added
-   to the cost metrics. However, the operations that would have been added
-   in this term are now removed, hence they are added to the number of
-   removed operations.
-*)
-let virtually_remove ~removed t =
-  { t with removed = Operations.(+) t.removed removed.added }
+(* Increments the benefit caused by removing an operation. *)
+let remove_operation op t =
+  { t with removed = Operations.(+) t.removed op }
 
 
 let arch32 = Targetint.size = 32 (* are we compiling for a 32-bit arch *)
@@ -477,31 +468,26 @@ let simple simple =
   let size =
     Simple.pattern_match simple ~const:(fun _ -> 1) ~name:(fun _ -> 0)
   in
-  { size; added = Operations.zero; removed = Operations.zero }
+  { size; removed = Operations.zero }
 
 let prim prim =
   let size = prim_size prim in
-  { size; added = Operations.prim ~prim (Operations.zero); removed = Operations.zero }
+  { size; removed = Operations.zero }
 
 let static_consts _ = zero
 
 let set_of_closures ~find_cost_metrics set_of_closures =
   let func_decls = Set_of_closures.function_decls set_of_closures in
   let funs = Function_declarations.funs func_decls in
-  let code_size =
-    Closure_id.Map.fold (fun _ func_decl size ->
-      let code_id = Function_declaration.code_id func_decl in
-      match find_cost_metrics code_id with
-      | Or_unknown.Known s -> add size ~added:s
-      | Or_unknown.Unknown ->
-        Misc.fatal_errorf "Code size should have been computed for:@ %a"
-          Code_id.print code_id
-    )
-      funs (of_int 0)
-  in
-  { code_size with
-    (* Adjusts the number of allocation for this set of closures. *)
-    added = Operations.alloc ~count:(Closure_id.Map.cardinal funs) code_size.added }
+  Closure_id.Map.fold (fun _ func_decl size ->
+    let code_id = Function_declaration.code_id func_decl in
+    match find_cost_metrics code_id with
+    | Or_unknown.Known s -> add size ~added:s
+    | Or_unknown.Unknown ->
+      Misc.fatal_errorf "Code size should have been computed for:@ %a"
+        Code_id.print code_id
+  )
+    funs (of_int 0)
 
 let let_expr_don't_consider_body ~cost_metrics_of_defining_expr =
   cost_metrics_of_defining_expr
@@ -517,7 +503,7 @@ let apply apply =
     | C_call { alloc = false; _ } -> nonalloc_extcall_size
     | Method _ -> 8 (* from flambda/inlining_cost.ml *)
   in
-  { size; added = Operations.call (Operations.zero); removed = Operations.zero }
+  { size; removed = Operations.zero }
 
 let apply_cont apply_cont =
   let size =
@@ -525,31 +511,20 @@ let apply_cont apply_cont =
     | None -> 1
     | Some (Push _ | Pop _) -> 1 + 4
   in
-  { size; added = Operations.branch ~count:1 (Operations.zero); removed = Operations.zero }
+  { size; removed = Operations.zero }
 
-let invalid = { size = 0; added = Operations.zero; removed = Operations.zero }
-
-let branch ~count =
-  { size = 0;
-    added = Operations.branch ~count Operations.zero;
-    removed = Operations.zero }
+let invalid = zero
 
 let switch switch =
   let n_arms = Switch.num_arms switch in
   let size = 5 * n_arms in
-  { size; added = Operations.branch ~count:n_arms (Operations.zero); removed = Operations.zero }
+  { size; removed = Operations.zero }
 
 let let_cont_non_recursive_don't_consider_body ~cost_metrics_of_handler =
-  let {size; added; removed} = cost_metrics_of_handler in
-  { size;
-    added = Operations.alloc ~count:1 added;
-    removed }
+  cost_metrics_of_handler
 
 let let_cont_recursive_don't_consider_body ~cost_metrics_of_handlers =
-  let {size; added; removed} = cost_metrics_of_handlers in
-  { size;
-    added = Operations.alloc ~count:1 added;
-    removed }
+  cost_metrics_of_handlers
 
 let rec expr_size ~find_cost_metrics ~cont expr =
   match Expr.descr expr with
@@ -613,11 +588,6 @@ and named ~find_cost_metrics (named : Named.t) =
 let expr ~find_cost_metrics e =
   expr_size ~find_cost_metrics ~cont:(fun x -> x) e
 
-let print ppf t = Format.fprintf ppf "%d %a %a"
+let print ppf t = Format.fprintf ppf "%d %a"
                     t.size
-                    Operations.print t.added
                     Operations.print t.removed
-
-let direct_call_of_indirect =
-  let t = zero in
-  { t with removed = Operations.direct_call_of_indirect t.removed }

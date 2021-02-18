@@ -48,7 +48,8 @@ let inline_linearly_used_continuation uacc ~create_apply_cont ~params ~handler
             Var_in_binding_pos.create (KP.var param) Name_mode.normal
             |> Bindable_let_bound.singleton
           in
-          bound, Simplified_named.reachable (Named.create_simple arg))
+          let named = Named.create_simple arg in
+          bound, Simplified_named.reachable named, Or_unknown.Known named)
     in
     let expr, uacc =
       let uacc =
@@ -109,7 +110,7 @@ let rebuild_apply_cont apply_cont ~args ~rewrite_id uacc ~after_rebuild =
     (* We must not fail to inline here, since we've already decided that the
        relevant [Let_cont] is no longer needed. *)
     let uacc =
-      UA.cost_metrics_virtually_remove ~removed:(Cost_metrics.apply_cont apply_cont) uacc
+      UA.cost_metrics_remove_operation (Cost_metrics.Operations.branch) uacc
     in
     inline_linearly_used_continuation uacc ~create_apply_cont ~params ~handler
       ~free_names_of_handler ~cost_metrics_of_handler
@@ -118,7 +119,7 @@ let rebuild_apply_cont apply_cont ~args ~rewrite_id uacc ~after_rebuild =
        basis that there wouldn't be any opportunity to collect any backtrace,
        even if the [Apply_cont] were compiled as "raise". *)
     let uacc =
-      UA.cost_metrics_virtually_remove ~removed:(Cost_metrics.apply_cont apply_cont) uacc
+      UA.cost_metrics_remove_operation (Cost_metrics.Operations.branch) uacc
     in
     after_rebuild (Expr.create_invalid ()) uacc
   | Other { arity = _; handler = _; } ->
@@ -133,7 +134,7 @@ let simplify_apply_cont dacc apply_cont ~down_to_up =
   | _, Bottom ->
     down_to_up dacc ~rebuild:(fun uacc ~after_rebuild ->
       let uacc =
-        UA.cost_metrics_virtually_remove ~removed:(Cost_metrics.apply_cont apply_cont) uacc
+        UA.cost_metrics_remove_operation (Cost_metrics.Operations.branch) uacc
       in
       Simplify_common.rebuild_invalid uacc ~after_rebuild
     )

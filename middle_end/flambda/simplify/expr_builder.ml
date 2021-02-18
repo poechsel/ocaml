@@ -25,7 +25,7 @@ module UA = Upwards_acc
 module VB = Var_in_binding_pos
 
 type let_creation_result =
-  | Have_deleted of Cost_metrics.t
+  | Have_deleted
   | Nothing_deleted
 
 let create_singleton_let uacc (bound_var : VB.t) defining_expr
@@ -81,7 +81,7 @@ let create_singleton_let uacc (bound_var : VB.t) defining_expr
         not (has_uses || (generate_phantom_lets && user_visible))
       in
       if will_delete_binding then begin
-        bound_var, false, Have_deleted cost_metrics_of_defining_expr
+        bound_var, false, Have_deleted
       end else
         let name_mode =
           match greatest_name_mode with
@@ -91,7 +91,7 @@ let create_singleton_let uacc (bound_var : VB.t) defining_expr
         assert (Name_mode.can_be_in_terms name_mode);
         let bound_var = VB.with_name_mode bound_var name_mode in
         if Name_mode.is_normal name_mode then bound_var, true, Nothing_deleted
-        else bound_var, true, Have_deleted cost_metrics_of_defining_expr
+        else bound_var, true, Have_deleted
     end
   in
   (* CR mshinwell: When leaving behind phantom lets, maybe we should turn
@@ -137,7 +137,7 @@ let create_set_of_closures_let uacc bound_vars defining_expr
       not (Name_occurrences.mem_var free_names_of_body (VB.var closure_var)))
   in
   if all_bound_vars_unused then
-    body, uacc, Have_deleted cost_metrics_of_defining_expr
+    body, uacc, Have_deleted
   else
     let free_names_of_body = UA.name_occurrences uacc in
     let free_names_of_let =
@@ -157,17 +157,11 @@ let create_set_of_closures_let uacc bound_vars defining_expr
     in
     Expr.create_let let_expr, uacc, Nothing_deleted
 
-let let_creation_remove_defining_expr_cost_metrics uacc =
-  function
-  | Have_deleted removed ->
-    UA.cost_metrics_virtually_remove ~removed uacc
-  | Nothing_deleted -> uacc
-
 let make_new_let_bindings uacc ~bindings_outermost_first ~body =
   (* The name occurrences component of [uacc] is expected to be in the state
      described in the comment at the top of [Simplify_let.rebuild_let]. *)
   ListLabels.fold_left (List.rev bindings_outermost_first) ~init:(body, uacc)
-    ~f:(fun (expr, uacc) (bound, defining_expr) ->
+    ~f:(fun (expr, uacc) (bound, defining_expr, original_named) ->
       match (defining_expr : Simplified_named.t) with
       | Invalid _ ->
         let uacc =
@@ -176,35 +170,50 @@ let make_new_let_bindings uacc ~bindings_outermost_first ~body =
         in
         Expr.create_invalid (), uacc
       | Reachable {
-          named = defining_expr;
-          free_names = free_names_of_defining_expr;
-          cost_metrics = cost_metrics_of_defining_expr;
-        } ->
+        named = defining_expr;
+        free_names = free_names_of_defining_expr;
+        cost_metrics = cost_metrics_of_defining_expr;
+      } ->
         let defining_expr = Simplified_named.to_named defining_expr in
-        match (bound : Bindable_let_bound.t) with
-        | Singleton var ->
-          let expr, uacc, creation_result =
+        let expr, uacc, creation_result =
+          match (bound : Bindable_let_bound.t) with
+          | Singleton var ->
             create_singleton_let uacc var defining_expr
               ~free_names_of_defining_expr ~body:expr
               ~cost_metrics_of_defining_expr
-          in
-          let uacc = let_creation_remove_defining_expr_cost_metrics uacc creation_result in
-          expr, uacc
-        | Set_of_closures { closure_vars = bound_closure_vars; _ } ->
-          let expr, uacc, creation_result =
+          | Set_of_closures { closure_vars = bound_closure_vars; _ } ->
             create_set_of_closures_let uacc bound defining_expr
               ~free_names_of_defining_expr ~body ~bound_closure_vars
               ~cost_metrics_of_defining_expr
-          in
-          let uacc = let_creation_remove_defining_expr_cost_metrics uacc creation_result in
-          expr, uacc
-        | Symbols _ ->
-          (* Since [Simplified_named] doesn't permit the [Static_consts] case,
-             this must be a malformed binding. *)
-          Misc.fatal_errorf "Mismatch between bound name(s) and defining \
-              expression:@ %a@ =@ %a"
-            Bindable_let_bound.print bound
-            Named.print defining_expr)
+          | Symbols _ ->
+            (* Since [Simplified_named] doesn't permit the [Static_consts] case,
+               this must be a malformed binding. *)
+            Misc.fatal_errorf "Mismatch between bound name(s) and defining \
+                               expression:@ %a@ =@ %a"
+              Bindable_let_bound.print bound
+              Named.print defining_expr
+        in
+        let uacc =
+          match creation_result with
+          | Nothing_deleted -> uacc
+          | Have_deleted ->
+            begin
+              match (original_named : Named.t Or_unknown.t) with
+              | Known (Prim (prim, _dbg)) ->
+                UA.cost_metrics_remove_operation
+                  (Cost_metrics.Operations.prim prim)
+                  uacc
+              | Known (Set_of_closures _) ->
+                UA.cost_metrics_remove_operation
+                  Cost_metrics.Operations.alloc
+                  uacc
+              | Known (Simple _)
+              | Known (Static_consts _)
+              | Unknown -> uacc
+            end
+        in
+        expr, uacc
+    )
 
 let create_raw_let_symbol uacc bound_symbols scoping_rule static_consts ~body =
   (* Upon entry to this function, [UA.name_occurrences uacc] must precisely
@@ -444,12 +453,13 @@ let create_let_symbols uacc (scoping_rule : Symbol_scoping_rule.t)
          them. *)
       let defining_expr, cost_metrics_of_defining_expr = apply_projection proj in
       let free_names_of_defining_expr = Named.free_names defining_expr in
-      let expr, uacc, creation_result =
+      let expr, uacc, _creation_result =
         create_singleton_let uacc (VB.create var Name_mode.normal)
           defining_expr ~free_names_of_defining_expr ~body:expr
           ~cost_metrics_of_defining_expr
       in
-      let uacc = let_creation_remove_defining_expr_cost_metrics uacc creation_result in
+      (* Not removing any operation here as the let bindings would have
+         been created for the first time here.*)
       expr, uacc)
     symbol_projections
     (expr, uacc)

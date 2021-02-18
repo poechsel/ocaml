@@ -65,7 +65,7 @@ let rebuild_let symbol_scoping_rule simplify_named_result
     let critical_deps_of_bindings =
       ListLabels.fold_left bindings
         ~init:Name_occurrences.empty
-        ~f:(fun critical_deps (bound, _) ->
+        ~f:(fun critical_deps (bound, _, _) ->
           Name_occurrences.union (Bindable_let_bound.free_names bound)
             critical_deps)
     in
