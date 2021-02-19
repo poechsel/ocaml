@@ -335,10 +335,10 @@ let adjust_cost_metrics (named : Named.t) result =
     end
   | Simple _ -> begin
       match descr with
-      | Single_term (_, Reachable {named = Simple _; _}, _) -> result
-      | Single_term (_,  Invalid _, _) ->
+      | Single_term (_, Reachable {named = Simple _; _}, _) ->
         (* A simple has 0 benefit.*)
         result
+      | Single_term (_,  Invalid _, _) -> result
       | Zero_terms
       | Multiple_bindings_to_symbols _
       | Single_term (_, Reachable {named = Set_of_closures _; _}, _)
@@ -364,7 +364,9 @@ let adjust_cost_metrics (named : Named.t) result =
                 bound
                 (adjust_cost_metrics simplified_named)
                 named
-          | _ ->
+          | Reachable { named = Simple _; _}
+          | Reachable { named = Set_of_closures _; _} 
+          | Invalid _ ->
             Simplify_named_result.have_simplified_to_single_term
               dacc
               bound
