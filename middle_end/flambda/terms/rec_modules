@@ -9,3 +9,4 @@ named.rec.ml
 non_recursive_let_cont_handler.rec.ml
 recursive_let_cont_handlers.rec.ml
 static_const.rec.ml
+code_size.rec.ml

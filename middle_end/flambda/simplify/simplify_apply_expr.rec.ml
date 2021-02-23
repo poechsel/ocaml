@@ -74,9 +74,11 @@ let rebuild_non_inlined_direct_full_application apply ~use_id ~exn_cont_use_id
     Simplify_common.update_exn_continuation_extra_args uacc ~exn_cont_use_id
       apply
   in
-  let expr =
+  let expr, uacc =
     match use_id with
-    | None -> Expr.create_apply apply
+    | None ->
+      Expr.create_apply apply,
+      UA.increment_size (Code_size.apply apply) uacc
     | Some use_id ->
       Simplify_common.add_wrapper_for_fixed_arity_apply uacc ~use_id
         result_arity apply
@@ -289,6 +291,7 @@ let simplify_direct_partial_application dacc apply ~callee's_code_id
         ~inline:Default_inline
         ~is_a_functor:false
         ~recursive
+        ~size:Unknown
     in
     let function_decl =
       Function_declaration.create ~code_id ~is_tupled:false ~dbg
@@ -426,7 +429,7 @@ let rebuild_function_call_where_callee's_type_unavailable apply call_kind
     Apply.with_call_kind apply call_kind
     |> Simplify_common.update_exn_continuation_extra_args uacc ~exn_cont_use_id
   in
-  let expr =
+  let expr, uacc =
     Simplify_common.add_wrapper_for_fixed_arity_apply uacc ~use_id
       (Call_kind.return_arity call_kind) apply
   in
@@ -663,7 +666,7 @@ let rebuild_method_call apply ~use_id ~exn_cont_use_id uacc ~after_rebuild =
     Simplify_common.update_exn_continuation_extra_args uacc ~exn_cont_use_id
       apply
   in
-  let expr =
+  let expr, uacc =
     Simplify_common.add_wrapper_for_fixed_arity_apply uacc ~use_id
       (Flambda_arity.With_subkinds.create [K.With_subkind.any_value]) apply
   in
@@ -719,13 +722,14 @@ let rebuild_c_call apply ~use_id ~exn_cont_use_id ~return_arity uacc
     Simplify_common.update_exn_continuation_extra_args uacc ~exn_cont_use_id
       apply
   in
-  let expr =
+  let expr, uacc =
     match use_id with
     | Some use_id ->
       Simplify_common.add_wrapper_for_fixed_arity_apply uacc ~use_id
         (Flambda_arity.With_subkinds.of_arity return_arity) apply
     | None ->
-      Expr.create_apply apply
+      Expr.create_apply apply,
+      UA.increment_size (Code_size.apply apply) uacc
   in
   let uacc = UA.add_free_names uacc (Expr.free_names expr) in
   after_rebuild expr uacc

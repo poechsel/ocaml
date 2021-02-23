@@ -22,6 +22,7 @@ type t =
       params : Kinded_parameter.t list;
       handler : Flambda.Expr.t;
       free_names_of_handler : Name_occurrences.t;
+      size_of_handler : Flambda.Code_size.t;
     }
   | Other of {
       arity : Flambda_arity.With_subkinds.t;
@@ -33,7 +34,7 @@ type t =
 let print ppf t =
   match t with
   | Linearly_used_and_inlinable { arity = _; params = _; handler = _;
-      free_names_of_handler = _; } ->
+      free_names_of_handler = _; size_of_handler = _ } ->
     Format.pp_print_string ppf "Linearly_used_and_inlinable _"
   | Other { arity = _; handler = _; } ->
     Format.pp_print_string ppf "Other"
@@ -42,7 +43,7 @@ let print ppf t =
 let arity t =
   match t with
   | Linearly_used_and_inlinable { arity; params = _; handler = _;
-      free_names_of_handler = _; }
+      free_names_of_handler = _; size_of_handler = _ }
   | Other { arity; handler = _; }
   | Unreachable { arity; } ->
     arity

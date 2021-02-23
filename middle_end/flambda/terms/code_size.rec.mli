@@ -16,40 +16,31 @@
 
 [@@@ocaml.warning "+a-4-30-40-41-42"]
 
-open! Flambda.Import
+(* Computes an approximation for the code size corresponding to flambda terms.
+   The code size of a given term should be a rough estimate of the size of
+   the generated machine code.
+*)
 
-(** Unlike [Named.t], this type does not include [Static_consts] because
-    such constants are propagated separately after simplification. *)
-type simplified_named = private
-  | Simple of Simple.t
-  | Prim of Flambda_primitive.t * Debuginfo.t
-  | Set_of_closures of Set_of_closures.t
+type t
 
-val to_named : simplified_named -> Named.t
+val expr_size : find_code:(Code_id.t -> Code.t) -> Expr.t -> t
 
-type t = private
-  | Reachable of {
-      named : simplified_named;
-      size: Code_size.t;
-      free_names : Name_occurrences.t;
-    }
-  | Invalid of Invalid_term_semantics.t
-
-(** It is an error to pass [Set_of_closures] or [Static_consts] to this
-    function.  (Sets of closures are disallowed because computation of their
-    free names might be expensive; use [reachable_with_known_free_names]
-    instead.) *)
-val reachable : Named.t -> t
-
-(** It is an error to pass [Static_consts] to this function. *)
-val reachable_with_known_free_names
-  : find_code_size:(Code_id.t -> Code_size.t Or_unknown.t)
-  -> Named.t
-  -> free_names:Name_occurrences.t
-  -> t
-
-val invalid : unit -> t
-
-val is_invalid : t -> bool
-
+val zero : t
+val to_int : t -> int
+val (+) : t -> t -> t
+val smaller_than_threshold : t -> threshold:int -> bool
+val equal : t -> t -> bool
 val print : Format.formatter -> t -> unit
+
+val prim : Flambda_primitive.t -> t
+val simple : Simple.t -> t
+val static_consts : Static_const.Group.t -> t
+val set_of_closures : find_code_size:(Code_id.t -> Code_size.t Or_unknown.t) -> Set_of_closures.t -> t
+
+val apply : Apply.t -> t
+val apply_cont : Apply_cont.t -> t
+val switch : Switch.t -> t
+val invalid : unit -> t
+val increase_due_to_let_expr : is_phantom:bool -> size_of_defining_expr:t -> t
+val increase_due_to_let_cont_non_recursive : size_of_handler:t -> t
+val increase_due_to_let_cont_recursive : size_of_handlers:t -> t

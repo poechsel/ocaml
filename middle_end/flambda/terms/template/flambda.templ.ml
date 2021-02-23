@@ -63,4 +63,5 @@ module Import = struct
   module Set_of_closures = Set_of_closures
   module Static_const = Static_const
   module Switch = Switch
+  module Code_size = Code_size
 end

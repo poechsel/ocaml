@@ -142,10 +142,10 @@ let add_continuation_alias t cont arity ~alias_for =
   }
 
 let add_linearly_used_inlinable_continuation t cont scope arity ~params
-      ~handler ~free_names_of_handler =
+      ~handler ~free_names_of_handler ~size_of_handler =
   add_continuation0 t cont scope
     (Linearly_used_and_inlinable { arity; handler; free_names_of_handler;
-      params; })
+      params; size_of_handler })
 
 let add_exn_continuation t exn_cont scope =
   (* CR mshinwell: Think more about keeping these in both maps *)
