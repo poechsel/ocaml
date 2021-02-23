@@ -168,6 +168,14 @@ let middle_end ~ppf_dump:ppf ~prefixname ~backend ~filename ~module_ident
       middle_end0 ppf ~prefixname ~backend ~filename ~module_ident
         ~module_block_size_in_words ~module_initializer
     in
+    begin match Sys.getenv "PRINT_SIZES" with
+    | exception Not_found -> ()
+    | _ ->
+      Exported_code.iter simplify_result.all_code (fun id code ->
+        match Flambda.Code.size code with
+        | Known size -> Format.fprintf Format.std_formatter "%a %a\n" Code_id.print id Flambda.Code_size.print size
+        | _ -> assert false);
+    end;
     { cmx = simplify_result.cmx;
       unit = simplify_result.unit;
       all_code = simplify_result.all_code;

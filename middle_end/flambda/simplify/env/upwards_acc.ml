@@ -32,12 +32,13 @@ type t = {
   name_occurrences : Name_occurrences.t;
   used_closure_vars : Name_occurrences.t;
   shareable_constants : Symbol.t Static_const.Map.t;
+  size: Flambda.Code_size.t;
 }
 
 let print ppf
       { uenv; creation_dacc = _; code_age_relation; lifted_constants;
         name_occurrences; used_closure_vars; all_code = _;
-        shareable_constants; } =
+        shareable_constants; size } =
   Format.fprintf ppf "@[<hov 1>(\
       @[<hov 1>(uenv@ %a)@]@ \
       @[<hov 1>(code_age_relation@ %a)@]@ \
@@ -45,6 +46,7 @@ let print ppf
       @[<hov 1>(name_occurrences@ %a)@]@ \
       @[<hov 1>(used_closure_vars@ %a)@]@ \
       @[<hov 1>(shareable_constants@ %a)@]\
+      @[<hov 1>(size %a)@]\
       )@]"
     UE.print uenv
     Code_age_relation.print code_age_relation
@@ -52,6 +54,7 @@ let print ppf
     Name_occurrences.print name_occurrences
     Name_occurrences.print used_closure_vars
     (Static_const.Map.print Symbol.print) shareable_constants
+    Flambda.Code_size.print size
 
 let create uenv dacc =
   { uenv;
@@ -66,12 +69,14 @@ let create uenv dacc =
        dealing with a [Let_cont]). *)
     used_closure_vars = DA.used_closure_vars dacc;
     shareable_constants = DA.shareable_constants dacc;
+    size = Flambda.Code_size.zero;
   }
 
 let creation_dacc t = t.creation_dacc
 let uenv t = t.uenv
 let code_age_relation t = t.code_age_relation
 let lifted_constants t = t.lifted_constants
+let size t = t.size
 
 (* Don't add empty LCS to the list *)
 
@@ -127,3 +132,11 @@ let remove_all_occurrences_of_free_names t to_remove =
     Name_occurrences.diff t.name_occurrences to_remove
   in
   { t with name_occurrences; }
+
+let increment_size code_size t =
+  let size = Flambda.Code_size.(+) t.size code_size in
+  { t with size}
+
+let clear_size t = { t with size = Flambda.Code_size.zero }
+
+let with_size size t = { t with size }
