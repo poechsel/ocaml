@@ -55,7 +55,7 @@ val simplify_projection
 
 type add_wrapper_for_switch_arm_result = private
   | Apply_cont of Flambda.Apply_cont.t
-  | New_wrapper of Continuation.t * Flambda.Continuation_handler.t * Flambda.Code_size.t
+  | New_wrapper of Continuation.t * Flambda.Continuation_handler.t * Flambda.Cost_metrics.t
 
 val add_wrapper_for_switch_arm
    : Upwards_acc.t

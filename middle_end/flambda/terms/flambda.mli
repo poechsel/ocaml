@@ -86,11 +86,11 @@ module rec Expr : sig
   val create_invalid : ?semantics:Invalid_term_semantics.t -> unit -> t
 
   val bind_no_simplification
-     : bindings:(Var_in_binding_pos.t * Code_size.t * Named.t) list
+     : bindings:(Var_in_binding_pos.t * Cost_metrics.t * Named.t) list
     -> body:Expr.t
-    -> size_of_body:Code_size.t
+    -> cost_metrics_of_body:Cost_metrics.t
     -> free_names_of_body:Name_occurrences.t
-    -> Expr.t * Code_size.t * Name_occurrences.t
+    -> Expr.t * Cost_metrics.t * Name_occurrences.t
 
   val bind_parameters_to_args_no_simplification
      : params:Kinded_parameter.t list
@@ -638,7 +638,7 @@ end and Code : sig
 
   val recursive : t -> Recursive.t
 
-  val size : t -> Code_size.t Or_unknown.t
+  val cost_metrics : t -> Cost_metrics.t Or_unknown.t
 
   val create
      : Code_id.t
@@ -651,15 +651,15 @@ end and Code : sig
     -> inline:Inline_attribute.t
     -> is_a_functor:bool
     -> recursive:Recursive.t
-    -> size: Code_size.t Or_unknown.t
+    -> cost_metrics: Cost_metrics.t Or_unknown.t
     -> t
 
   val with_code_id : Code_id.t -> t -> t
 
   val with_params_and_body
      : (Function_params_and_body.t * Name_occurrences.t) Or_deleted.t
-     (* CR poechsel: remove Or_unknown.t and force size to be provided *)
-    -> size:Code_size.t Or_unknown.t
+     (* CR poechsel: remove Or_unknown.t and force cost_metrics to be provided *)
+    -> cost_metrics:Cost_metrics.t Or_unknown.t
     -> t
     -> t
 
@@ -676,7 +676,7 @@ end and Code : sig
   val make_deleted : t -> t
 
   val is_deleted : t -> bool
-end and Code_size : sig
+end and Cost_metrics : sig
   type t
 
   val expr_size : find_code:(Code_id.t -> Code.t) -> Expr.t -> t
@@ -689,15 +689,15 @@ end and Code_size : sig
 
   val prim : Flambda_primitive.t -> t
   val simple : Simple.t -> t
-  val set_of_closures : find_code_size:(Code_id.t -> t Or_unknown.t) -> Set_of_closures.t -> t
+  val set_of_closures : find_cost_metrics:(Code_id.t -> t Or_unknown.t) -> Set_of_closures.t -> t
   val static_consts : Static_const.Group.t -> t
   val apply : Apply.t -> t
   val apply_cont : Apply_cont.t -> t
   val switch : Switch.t -> t
   val invalid : unit -> t
-  val increase_due_to_let_expr : is_phantom:bool -> size_of_defining_expr:t -> t
-  val increase_due_to_let_cont_non_recursive : size_of_handler:t -> t
-  val increase_due_to_let_cont_recursive : size_of_handlers:t -> t
+  val increase_due_to_let_expr : is_phantom:bool -> cost_metrics_of_defining_expr:t -> t
+  val increase_due_to_let_cont_non_recursive : cost_metrics_of_handler:t -> t
+  val increase_due_to_let_cont_recursive : cost_metrics_of_handlers:t -> t
 end
 
 module Function_declaration = Function_declaration
@@ -726,5 +726,5 @@ module Import : sig
   module Set_of_closures = Set_of_closures
   module Static_const = Static_const
   module Switch = Switch
-  module Code_size = Code_size
+  module Cost_metrics = Cost_metrics
 end

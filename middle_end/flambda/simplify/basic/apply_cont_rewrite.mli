@@ -45,8 +45,8 @@ val extra_args
 type rewrite_use_result = private
   | Apply_cont of Apply_cont.t
   | Expr of (
-       apply_cont_to_expr:(Apply_cont.t -> (Expr.t * Code_size.t * Name_occurrences.t))
-    -> Expr.t * Code_size.t * Name_occurrences.t)
+       apply_cont_to_expr:(Apply_cont.t -> (Expr.t * Cost_metrics.t * Name_occurrences.t))
+    -> Expr.t * Cost_metrics.t * Name_occurrences.t)
 
 val no_rewrite : Apply_cont.t -> rewrite_use_result
 

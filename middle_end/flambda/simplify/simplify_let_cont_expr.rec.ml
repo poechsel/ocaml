@@ -158,7 +158,7 @@ let rebuild_non_recursive_let_cont_handler cont
         (* We pass the parameters and the handler expression, rather than
            the [CH.t], to avoid re-opening the name abstraction. *)
         UE.add_linearly_used_inlinable_continuation uenv cont scope arity
-          ~params ~handler ~free_names_of_handler ~size_of_handler:(UA.size uacc)
+          ~params ~handler ~free_names_of_handler ~cost_metrics_of_handler:(UA.cost_metrics uacc)
       end else begin
         match CH.behaviour cont_handler with
         | Unreachable { arity; } ->
@@ -374,24 +374,24 @@ let simplify_non_recursive_let_cont dacc non_rec ~down_to_up =
                 let name_occurrences_subsequent_exprs =
                   UA.name_occurrences uacc
                 in
-                let size_of_subsequent_exprs =
-                  UA.size uacc
+                let cost_metrics_of_subsequent_exprs =
+                  UA.cost_metrics uacc
                 in
                 let uacc =
                   uacc
                   |> UA.clear_name_occurrences
-                  |> UA.clear_size
+                  |> UA.clear_cost_metrics
                 in
                 rebuild_handler uacc ~after_rebuild:(fun handler uacc ->
                   let name_occurrences_handler =
                     if continuation_has_zero_uses then Name_occurrences.empty
                     else UA.name_occurrences uacc
                   in
-                  let size_of_handler = UA.size uacc in
+                  let cost_metrics_of_handler = UA.cost_metrics uacc in
                   let uacc =
                     uacc
                     |> UA.clear_name_occurrences
-                    |> UA.clear_size
+                    |> UA.clear_cost_metrics
                   in
                   (* Having rebuilt the handler, we now rebuild the body. *)
                   rebuild_body uacc ~after_rebuild:(fun body uacc ->
@@ -438,7 +438,7 @@ let simplify_non_recursive_let_cont dacc non_rec ~down_to_up =
                           in
                           UA.with_name_occurrences uacc ~name_occurrences
                         in
-                        (* The size stored in uacc is the size of the body at
+                        (* The cost_metrics stored in uacc is the cost_metrics of the body at
                            this point *)
                         body, uacc
                       else
@@ -469,9 +469,9 @@ let simplify_non_recursive_let_cont dacc non_rec ~down_to_up =
                                 name_occurrences_subsequent_exprs
                             in
                             UA.with_name_occurrences uacc ~name_occurrences
-                            (* The body was discarded -- the size in uacc should
-                               be set to the size of handler.*)
-                            |>  UA.with_size size_of_handler
+                            (* The body was discarded -- the cost_metrics in uacc should
+                               be set to the cost_metrics of handler.*)
+                            |>  UA.with_cost_metrics cost_metrics_of_handler
                           in
                           handler, uacc
                         else
@@ -489,15 +489,21 @@ let simplify_non_recursive_let_cont dacc non_rec ~down_to_up =
                                 (Known num_free_occurrences_of_cont_in_body)
                               ~is_applied_with_traps
                           in
-                          let uacc =
-                            UA.increment_size
-                              (Code_size.increase_due_to_let_cont_non_recursive ~size_of_handler) uacc
+                          let added = 
+                            Cost_metrics.increase_due_to_let_cont_non_recursive
+                              ~cost_metrics_of_handler
                           in
+                          let uacc = UA.cost_metrics_add ~added uacc in
                           expr, uacc
                     in
-                    (* Add the size of subsequent expressions back on the accumulator
-                       as the accumulated size was cleared before rebuilding the let cont.*)
-                    let uacc = UA.increment_size size_of_subsequent_exprs uacc in
+                    (* Add the cost_metrics of subsequent expressions back on
+                       the accumulator as the accumulated cost_metrics was
+                       cleared before rebuilding the let cont.*)
+                    let uacc =
+                      UA.cost_metrics_add
+                        ~added:cost_metrics_of_subsequent_exprs
+                        uacc
+                    in
                     after_rebuild expr uacc)))))))
 
 let rebuild_recursive_let_cont_handlers cont arity ~original_cont_scope_level
@@ -571,11 +577,16 @@ let simplify_recursive_let_cont_handlers ~denv_before_body ~dacc_after_body
           rebuild_recursive_let_cont_handlers cont arity
             ~original_cont_scope_level cont_handler uacc ~after_rebuild)))
 
-let rebuild_recursive_let_cont ~body handlers ~size_of_handlers ~uenv_without_cont uacc
+let rebuild_recursive_let_cont ~body handlers ~cost_metrics_of_handlers ~uenv_without_cont uacc
       ~after_rebuild : Expr.t * UA.t =
   let uacc = UA.with_uenv uacc uenv_without_cont in
   let expr = Flambda.Let_cont.create_recursive handlers ~body in
-  let uacc = UA.increment_size (Code_size.increase_due_to_let_cont_recursive ~size_of_handlers) uacc in
+  let uacc =
+    UA.cost_metrics_add
+      ~added:(Cost_metrics.increase_due_to_let_cont_recursive
+                ~cost_metrics_of_handlers)
+      uacc
+  in
   after_rebuild expr uacc
 
 (* CR mshinwell: We should not simplify recursive continuations with no
@@ -616,10 +627,10 @@ let simplify_recursive_let_cont dacc recs ~down_to_up : Expr.t * UA.t =
             ~down_to_up:(fun dacc ~rebuild:rebuild_handlers ->
               down_to_up dacc ~rebuild:(fun uacc ~after_rebuild ->
                 let uenv_without_cont = UA.uenv uacc in
-                let uacc = UA.clear_size uacc in
+                let uacc = UA.clear_cost_metrics uacc in
                 rebuild_handlers uacc ~after_rebuild:(fun handlers uacc ->
-                  let size_of_handlers = UA.size uacc in
-                  let uacc = UA.clear_size uacc in
+                  let cost_metrics_of_handlers = UA.cost_metrics uacc in
+                  let uacc = UA.clear_cost_metrics uacc in
                   rebuild_body uacc ~after_rebuild:(fun body uacc ->
                     (* We are passing back over a binder, so remove the
                        bound continuation from the free name information. *)
@@ -631,7 +642,7 @@ let simplify_recursive_let_cont dacc recs ~down_to_up : Expr.t * UA.t =
                       UA.with_name_occurrences uacc ~name_occurrences
                     in
                     rebuild_recursive_let_cont ~body handlers
-                      ~uenv_without_cont uacc ~size_of_handlers ~after_rebuild)))))))
+                      ~uenv_without_cont uacc ~cost_metrics_of_handlers ~after_rebuild)))))))
 
 let simplify_let_cont dacc (let_cont : Let_cont.t) ~down_to_up : Expr.t * UA.t =
   match let_cont with
