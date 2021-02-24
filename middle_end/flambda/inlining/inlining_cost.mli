@@ -84,7 +84,7 @@ module Benefit : sig
   val requested_inline
      : Downwards_env.t
     -> t
-    -> size_of:Expr.t
+    -> cost_metrics_of:Expr.t
     -> t
 
   val print : Format.formatter -> t -> unit

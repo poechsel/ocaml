@@ -185,9 +185,9 @@ let create_if_then_else ~scrutinee ~if_true ~if_false =
   in
   create_switch (Switch_expr.create ~scrutinee ~arms)
 
-let bind_no_simplification ~bindings ~body ~size_of_body ~free_names_of_body =
+let bind_no_simplification ~bindings ~body ~cost_metrics_of_body ~free_names_of_body =
   ListLabels.fold_left (List.rev bindings)
-    ~init:(body, size_of_body, free_names_of_body)
+    ~init:(body, cost_metrics_of_body, free_names_of_body)
     ~f:(fun (expr, size, free_names) (var, size_expr, defining_expr) ->
       let expr =
         Let_expr.create (Bindable_let_bound.singleton var)
@@ -200,7 +200,7 @@ let bind_no_simplification ~bindings ~body ~size_of_body ~free_names_of_body =
         Name_occurrences.union (Named.free_names defining_expr)
           (Name_occurrences.remove_var free_names (Var_in_binding_pos.var var))
       in
-      let size = Code_size.(+) size size_expr in
+      let size = Cost_metrics.(+) size size_expr in
       expr, size, free_names)
 
 let bind_parameters_to_args_no_simplification ~params ~args ~body =

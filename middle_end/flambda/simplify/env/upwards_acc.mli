@@ -28,7 +28,7 @@ val creation_dacc : t -> Downwards_acc.t
 (** Extract the environment component of the given upwards accumulator. *)
 val uenv : t -> Upwards_env.t
 
-val size : t -> Flambda.Code_size.t
+val cost_metrics : t -> Flambda.Cost_metrics.t
 
 val code_age_relation : t -> Code_age_relation.t
 
@@ -72,8 +72,8 @@ val used_closure_vars : t -> Name_occurrences.t
 
 val remove_all_occurrences_of_free_names : t -> Name_occurrences.t -> t
 
-val increment_size : Flambda.Code_size.t -> t -> t
+val clear_cost_metrics : t -> t
 
-val clear_size : t -> t
+val with_cost_metrics : Flambda.Cost_metrics.t -> t -> t
 
-val with_size : Flambda.Code_size.t -> t -> t
+val cost_metrics_add: added:Flambda.Cost_metrics.t -> t -> t

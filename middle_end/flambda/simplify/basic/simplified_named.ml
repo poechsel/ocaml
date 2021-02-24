@@ -31,16 +31,16 @@ let to_named = function
 type t =
   | Reachable of {
       named : simplified_named;
-      size: Code_size.t;
+      cost_metrics: Cost_metrics.t;
       free_names : Name_occurrences.t;
     }
   | Invalid of Invalid_term_semantics.t
 
 let reachable (named : Named.t) =
-  let (simplified_named : simplified_named), size =
+  let (simplified_named : simplified_named), cost_metrics =
     match named with
-    | Simple simple -> Simple simple, Code_size.simple simple
-    | Prim (prim, dbg) -> Prim (prim, dbg), Code_size.prim prim
+    | Simple simple -> Simple simple, Cost_metrics.simple simple
+    | Prim (prim, dbg) -> Prim (prim, dbg), Cost_metrics.prim prim
     | Set_of_closures _ ->
       Misc.fatal_errorf "Cannot use [Simplified_named.reachable] on \
           [Set_of_closures];@ use [reachable_with_known_free_names] \
@@ -53,17 +53,17 @@ let reachable (named : Named.t) =
   in
   Reachable {
     named = simplified_named;
-    size;
+    cost_metrics;
     free_names = Named.free_names named;
   }
 
-let reachable_with_known_free_names ~find_code_size (named : Named.t) ~free_names =
-  let (simplified_named : simplified_named), size =
+let reachable_with_known_free_names ~find_cost_metrics (named : Named.t) ~free_names =
+  let (simplified_named : simplified_named), cost_metrics =
     match named with
-    | Simple simple -> Simple simple, Code_size.simple simple
-    | Prim (prim, dbg) -> Prim (prim, dbg), Code_size.prim prim
+    | Simple simple -> Simple simple, Cost_metrics.simple simple
+    | Prim (prim, dbg) -> Prim (prim, dbg), Cost_metrics.prim prim
     | Set_of_closures set ->
-      Set_of_closures set, Code_size.set_of_closures ~find_code_size set
+      Set_of_closures set, Cost_metrics.set_of_closures ~find_cost_metrics set
     | Static_consts _ ->
       Misc.fatal_errorf "Cannot create [Simplified_named] from \
           [Static_consts];@ use the lifted constant infrastructure instead:@ %a"
@@ -71,7 +71,7 @@ let reachable_with_known_free_names ~find_code_size (named : Named.t) ~free_name
   in
   Reachable {
     named = simplified_named;
-    size;
+    cost_metrics;
     free_names;
   }
 

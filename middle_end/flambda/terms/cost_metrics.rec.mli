@@ -35,12 +35,12 @@ val print : Format.formatter -> t -> unit
 val prim : Flambda_primitive.t -> t
 val simple : Simple.t -> t
 val static_consts : Static_const.Group.t -> t
-val set_of_closures : find_code_size:(Code_id.t -> Code_size.t Or_unknown.t) -> Set_of_closures.t -> t
+val set_of_closures : find_cost_metrics:(Code_id.t -> Cost_metrics.t Or_unknown.t) -> Set_of_closures.t -> t
 
 val apply : Apply.t -> t
 val apply_cont : Apply_cont.t -> t
 val switch : Switch.t -> t
 val invalid : unit -> t
-val increase_due_to_let_expr : is_phantom:bool -> size_of_defining_expr:t -> t
-val increase_due_to_let_cont_non_recursive : size_of_handler:t -> t
-val increase_due_to_let_cont_recursive : size_of_handlers:t -> t
+val increase_due_to_let_expr : is_phantom:bool -> cost_metrics_of_defining_expr:t -> t
+val increase_due_to_let_cont_non_recursive : cost_metrics_of_handler:t -> t
+val increase_due_to_let_cont_recursive : cost_metrics_of_handlers:t -> t

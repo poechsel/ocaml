@@ -47,7 +47,7 @@ val is_a_functor : t -> bool
 
 val recursive : t -> Recursive.t
 
-val size : t -> Code_size.t Or_unknown.t
+val cost_metrics : t -> Cost_metrics.t Or_unknown.t
 
 val create
    : Code_id.t  (** needed for [compare], although useful otherwise too *)
@@ -60,14 +60,14 @@ val create
   -> inline:Inline_attribute.t
   -> is_a_functor:bool
   -> recursive:Recursive.t
-  -> size:Code_size.t Or_unknown.t
+  -> cost_metrics:Cost_metrics.t Or_unknown.t
   -> t
 
 val with_code_id : Code_id.t -> t -> t
 
 val with_params_and_body
    : (Function_params_and_body.t * Name_occurrences.t) Or_deleted.t
-  -> size:Code_size.t Or_unknown.t
+  -> cost_metrics:Cost_metrics.t Or_unknown.t
   -> t
   -> t
 
