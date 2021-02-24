@@ -21,9 +21,9 @@ open! Flambda.Import
 (* Simple approximation of the space cost of an Flambda expression. *)
 
 let smaller' denv expr ~than:threshold =
-  let s = Code_size.expr_size ~find_code:(Downwards_env.find_code denv) expr in
-  if Code_size.smaller_than_threshold s ~threshold then
-    Some (Code_size.to_int s)
+  let s = Cost_metrics.expr_size ~find_code:(Downwards_env.find_code denv) expr in
+  if Cost_metrics.smaller_than_threshold s ~threshold then
+    Some (Cost_metrics.to_int s)
   else None
 
 let size denv expr =
@@ -134,8 +134,8 @@ module Benefit = struct
   let direct_call_of_indirect_unknown_arity t =
     { t with direct_call_of_indirect = t.direct_call_of_indirect + 1; }
 
-  let requested_inline denv t ~size_of =
-    let size = size denv size_of in
+  let requested_inline denv t ~cost_metrics_of =
+    let size = size denv cost_metrics_of in
     { t with requested_inline = t.requested_inline + size; }
 
   let print ppf b =
