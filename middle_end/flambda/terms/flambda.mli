@@ -690,7 +690,7 @@ end and Cost_metrics : sig
   type t
 
   val zero : t
-  val expr : find_cost_metrics:(Code_id.t -> t Or_unknown.t) -> Expr.t -> t
+  val expr_size : find_code:(Code_id.t -> Code.t) -> Expr.t -> t
   val size : t -> int
   val smaller_than_threshold : t -> threshold:int -> bool
   val equal_size : t -> t -> bool

@@ -35,7 +35,7 @@ type t
 
 (* It's best to avoid calling this function too much as it is
    quite slow. *)
-val expr : find_cost_metrics:(Code_id.t -> t Or_unknown.t) -> Expr.t -> t
+val expr_size : find_code:(Code_id.t -> Code.t) -> Expr.t -> t
 
 val zero : t
 val smaller_than_threshold : t -> threshold:int -> bool

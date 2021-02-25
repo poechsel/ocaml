@@ -22,9 +22,8 @@ open! Flambda.Import
 
 let smaller' denv expr ~than:threshold =
   let s =
-    Cost_metrics.expr
-      ~find_cost_metrics:(fun code_id ->
-        Downwards_env.find_code denv code_id |> Code.cost_metrics)
+    Cost_metrics.expr_size
+      ~find_code:(Downwards_env.find_code denv)
       expr
   in
   if Cost_metrics.smaller_than_threshold s ~threshold then

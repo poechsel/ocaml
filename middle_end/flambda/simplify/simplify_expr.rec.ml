@@ -74,8 +74,7 @@ let simplify_expr dacc expr ~down_to_up =
             let code_cost_metrics_uacc = UA.cost_metrics uacc in
             let denv = UA.creation_dacc uacc |> DA.denv in
             let code_cost_metrics =
-              Cost_metrics.expr expr ~find_cost_metrics:(fun code_id ->
-                DE.find_code denv code_id |> Code.cost_metrics)
+              Cost_metrics.expr_size expr ~find_code:(Downwards_env.find_code denv)
             in
             if not (Cost_metrics.equal_size code_cost_metrics_uacc code_cost_metrics)
             then begin

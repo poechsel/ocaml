@@ -529,74 +529,82 @@ let increase_due_to_let_cont_non_recursive ~cost_metrics_of_handler =
 let increase_due_to_let_cont_recursive ~cost_metrics_of_handlers =
   cost_metrics_of_handlers
 
-let rec expr_size ~find_cost_metrics ~cont expr =
+let rec expr_size ~find_code expr size =
   match Expr.descr expr with
   | Let let_expr ->
-     Let_expr.pattern_match let_expr
-       ~f:(fun bindable_let_bound ~body ->
-         let name_mode = Bindable_let_bound.name_mode bindable_let_bound in
-         let is_phantom = Name_mode.is_phantom name_mode in
-         let cost_metrics_of_defining_expr = 
-           named ~find_cost_metrics (Let_expr.defining_expr let_expr)
-         in
-         expr_size ~find_cost_metrics body ~cont:(fun size ->
-             let added =
-               increase_due_to_let_expr
-                 ~is_phantom
-                 ~cost_metrics_of_defining_expr
-             in
-             add size ~added
-       ))
+    Let_expr.pattern_match let_expr
+      ~f:(fun bindable_let_bound ~body ->
+        let name_mode = Bindable_let_bound.name_mode bindable_let_bound in
+        let size =
+          if Name_mode.is_phantom name_mode then size
+          else named_size ~find_code (Let_expr.defining_expr let_expr) size
+        in
+        expr_size ~find_code body size)
   | Let_cont (Non_recursive { handler; _ }) ->
     Non_recursive_let_cont_handler.pattern_match handler
       ~f:(fun _cont ~body ->
-        let handler = (Non_recursive_let_cont_handler.handler handler) in
-        Continuation_handler.pattern_match handler
-          ~f:(fun _params ~handler ->
-            expr_size ~find_cost_metrics handler ~cont:(fun cost_metrics_of_handler ->
-              expr_size ~find_cost_metrics body ~cont:(fun size ->
-                let added =
-                  increase_due_to_let_cont_non_recursive ~cost_metrics_of_handler
-                in
-                add size ~added
-              ))))
+        expr_size ~find_code body size
+        |> continuation_handler_size ~find_code
+             (Non_recursive_let_cont_handler.handler handler)
+      )
   | Let_cont (Recursive handlers) ->
-    Recursive_let_cont_handlers.pattern_match handlers ~f:(fun ~body rec_handlers ->
-      let handlers = Continuation_handlers.to_map rec_handlers in
-      let _, cont_handler = match Continuation.Map.bindings handlers with
-        | [] | _ :: _ :: _ ->
-          Misc.fatal_error "Support for simplification of multiply-recursive \
-                            continuations is not yet implemented"
-        | [c] -> c
-      in
-      Continuation_handler.pattern_match cont_handler
-        ~f:(fun _params ~handler ->
-          expr_size ~find_cost_metrics handler ~cont:(fun cost_metrics_of_handlers ->
-            expr_size ~find_cost_metrics body ~cont:(fun size ->
-              let added =
-                increase_due_to_let_cont_recursive ~cost_metrics_of_handlers
-              in
-              add size ~added
-            ))))
-  | Apply apply' ->
-    cont (apply apply')
+    Recursive_let_cont_handlers.pattern_match handlers
+      ~f:(fun ~body handlers ->
+        let size = expr_size ~find_code body size in
+        let handlers = Continuation_handlers.to_map handlers in
+        Continuation.Map.fold (fun _cont handler size ->
+          continuation_handler_size ~find_code handler size)
+          handlers size)
+  | Apply apply ->
+    let call_cost =
+      match Apply.call_kind apply with
+      | Function Direct _ -> direct_call_size
+      (* CR mshinwell: Check / fix these numbers *)
+      | Function Indirect_unknown_arity -> indirect_call_size
+      | Function Indirect_known_arity _ -> indirect_call_size
+      | C_call { alloc = true; _ } -> alloc_extcall_size
+      | C_call { alloc = false; _ } -> nonalloc_extcall_size
+      | Method _ -> 8 (* from flambda/inlining_cost.ml *)
+    in
+    size + call_cost
   | Apply_cont e ->
-    cont (apply_cont e)
-  | Switch switch' -> cont (switch switch')
-  | Invalid _ -> cont invalid
-and named ~find_cost_metrics (named : Named.t) =
+    let size = match Apply_cont.trap_action e with
+      | None -> size
+      | Some (Push _ | Pop _) -> size + 4
+    in
+    size + 1
+  | Switch switch -> size + (5 * Switch.num_arms switch)
+  | Invalid _ -> size
+and named_size ~find_code (named : Named.t) size =
   match named with
-  | Simple simple' ->
-    simple simple'
-  | Set_of_closures set_of_closures' ->
-    set_of_closures ~find_cost_metrics set_of_closures'
-  | Prim (prim', _dbg) ->
-    prim prim'
-  | Static_consts static_consts' ->
-    static_consts static_consts'
+  | Simple simple ->
+    Simple.pattern_match simple
+      ~const:(fun _ -> size + 1)
+      ~name:(fun _ -> size)
+  | Set_of_closures set_of_closures ->
+    let func_decls = Set_of_closures.function_decls set_of_closures in
+    let funs = Function_declarations.funs func_decls in
+    Closure_id.Map.fold (fun _ func_decl size ->
+      let code_id = Function_declaration.code_id func_decl in
+      let code = find_code code_id in
+      match Code.params_and_body code with
+      | Present params_and_body ->
+        Function_params_and_body.pattern_match params_and_body
+          ~f:(fun ~return_continuation:_ _exn_continuation _params
+               ~body ~my_closure:_ ~is_my_closure_used:_ ->
+               expr_size ~find_code body size)
+      | Deleted -> size)
+      funs size
+  | Prim (prim, _dbg) ->
+    size + prim_size prim
+  | Static_consts _ -> size
+and continuation_handler_size ~find_code handler size =
+  Continuation_handler.pattern_match handler
+    ~f:(fun _params ~handler -> expr_size ~find_code handler size)
 
-let expr ~find_cost_metrics e =
-  expr_size ~find_cost_metrics ~cont:(fun x -> x) e
+let expr_size ~find_code e =
+  let size = expr_size ~find_code e 0 in
+  { size; removed = Operations.zero }
 
 let print ppf t = Format.fprintf ppf "%d %a"
                     t.size
