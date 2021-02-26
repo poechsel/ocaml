@@ -276,7 +276,7 @@ MIDDLE_END_FLAMBDA_TYPES=\
   middle_end/flambda/types/basic/closure_id_set.cmo \
   middle_end/flambda/types/basic/closure_id_or_unknown_and_var_within_closure_set.cmo \
   middle_end/flambda/types/basic/closure_id_and_var_within_closure_set.cmo \
-  middle_end/flambda/types/inlining/inlining_state.cmo
+  middle_end/flambda/types/inlining/inlining_state.cmo \
 
 MIDDLE_END_FLAMBDA_TERMS=\
   middle_end/flambda/terms/apply_cont_expr.cmo \
@@ -286,6 +286,8 @@ MIDDLE_END_FLAMBDA_TERMS=\
   middle_end/flambda/terms/function_declaration.cmo \
   middle_end/flambda/terms/function_declarations.cmo \
   middle_end/flambda/terms/set_of_closures.cmo \
+  middle_end/flambda/inlining/metrics/code_size.cmo \
+  middle_end/flambda/inlining/metrics/removed_operations.cmo \
   middle_end/flambda/terms/flambda.cmo \
   middle_end/flambda/terms/flambda_unit.cmo
 
