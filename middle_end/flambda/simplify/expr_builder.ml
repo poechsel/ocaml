@@ -116,10 +116,10 @@ let create_singleton_let uacc (bound_var : VB.t) defining_expr
     in
     let uacc =
       UA.with_name_occurrences uacc ~name_occurrences:free_names_of_let
-      |> UA.cost_metrics_add
-           ~added:(Cost_metrics.increase_due_to_let_expr
-                     ~is_phantom:(Name_mode.is_phantom (VB.name_mode bound_var))
-                     ~cost_metrics_of_defining_expr)
+      |> UA.add_cost_metrics
+           (Cost_metrics.increase_due_to_let_expr
+              ~is_phantom:(Name_mode.is_phantom (VB.name_mode bound_var))
+              ~cost_metrics_of_defining_expr)
     in
     let let_expr =
       Let.create (Bindable_let_bound.singleton bound_var)
@@ -150,10 +150,10 @@ let create_set_of_closures_let uacc bound_vars defining_expr
     in
     let uacc =
       UA.with_name_occurrences uacc ~name_occurrences:free_names_of_let
-      |> UA.cost_metrics_add
-           ~added:(Cost_metrics.increase_due_to_let_expr
-                     ~is_phantom:false
-                     ~cost_metrics_of_defining_expr)
+      |> UA.add_cost_metrics
+           (Cost_metrics.increase_due_to_let_expr
+              ~is_phantom:false
+              ~cost_metrics_of_defining_expr)
     in
     let let_expr =
       Let.create bound_vars defining_expr ~body
@@ -170,7 +170,7 @@ let make_new_let_bindings uacc ~bindings_outermost_first ~body =
       | Invalid _ ->
         let uacc =
           UA.with_name_occurrences uacc ~name_occurrences:Name_occurrences.empty
-          |> UA.cost_metrics_add ~added:Cost_metrics.invalid
+          |> UA.notify_added ~code_size:Code_size.invalid
         in
         Expr.create_invalid (), uacc
       | Reachable {
@@ -204,12 +204,12 @@ let make_new_let_bindings uacc ~bindings_outermost_first ~body =
             begin
               match (original_named : Named.t Or_unknown.t) with
               | Known (Prim (prim, _dbg)) ->
-                UA.cost_metrics_remove_operation
-                  (Cost_metrics.Operations.prim prim)
+                UA.notify_removed
+                  ~operation:(Removed_operations.prim prim)
                   uacc
               | Known (Set_of_closures _) ->
-                UA.cost_metrics_remove_operation
-                  Cost_metrics.Operations.alloc
+                UA.notify_removed
+                  ~operation:Removed_operations.alloc
                   uacc
               | Known (Simple _)
               | Known (Static_consts _)
@@ -228,7 +228,8 @@ let create_raw_let_symbol uacc bound_symbols scoping_rule static_consts ~body =
   in
   let defining_expr, cost_metrics_of_defining_expr =
     let static_consts = Static_const_with_free_names.Group.consts static_consts in
-    Named.create_static_consts static_consts, Cost_metrics.static_consts static_consts
+    Named.create_static_consts static_consts,
+    Cost_metrics.from_size (Code_size.static_consts ())
   in
   let free_names_of_body = UA.name_occurrences uacc in
   let free_names_of_let =
@@ -243,10 +244,10 @@ let create_raw_let_symbol uacc bound_symbols scoping_rule static_consts ~body =
   in
   let uacc =
     UA.with_name_occurrences uacc ~name_occurrences:free_names_of_let
-    |> UA.cost_metrics_add
-         ~added:(Cost_metrics.increase_due_to_let_expr
-                   ~is_phantom:false
-                   ~cost_metrics_of_defining_expr)
+    |> UA.add_cost_metrics
+         (Cost_metrics.increase_due_to_let_expr
+            ~is_phantom:false
+            ~cost_metrics_of_defining_expr)
   in
   let let_expr =
     Let.create bindable defining_expr ~body
@@ -422,13 +423,13 @@ let create_let_symbols uacc (scoping_rule : Symbol_scoping_rule.t)
              expand transitively. *)
           Simple.pattern_match' simple
             ~const:(fun _ ->
-              Named.create_simple simple, Cost_metrics.simple simple)
+              Named.create_simple simple, Code_size.simple simple)
             ~symbol:(fun _ ->
-              Named.create_simple simple, Cost_metrics.simple simple)
+              Named.create_simple simple, Code_size.simple simple)
             ~var:(fun var ->
               match Variable.Map.find var symbol_projections with
               | exception Not_found ->
-                Named.create_simple simple, Cost_metrics.simple simple
+                Named.create_simple simple, Code_size.simple simple
               | proj -> apply_projection proj)
         | None ->
           let prim : P.t =
@@ -448,13 +449,16 @@ let create_let_symbols uacc (scoping_rule : Symbol_scoping_rule.t)
             | Project_var { project_from; var; } ->
               Unary (Project_var { project_from; var; }, symbol)
           in
-          Named.create_prim prim Debuginfo.none, Cost_metrics.prim prim
+          Named.create_prim prim Debuginfo.none, Code_size.prim prim
       in
       (* It's possible that this might create duplicates of the same
          projection operation, but it's unlikely there will be a
          significant number, and since we're at toplevel we tolerate
          them. *)
-      let defining_expr, cost_metrics_of_defining_expr = apply_projection proj in
+      let defining_expr, code_size_of_defining_expr = apply_projection proj in
+      let cost_metrics_of_defining_expr =
+        Cost_metrics.from_size code_size_of_defining_expr
+      in
       let free_names_of_defining_expr = Named.free_names defining_expr in
       let expr, uacc, _creation_result =
         create_singleton_let uacc (VB.create var Name_mode.normal)
@@ -544,11 +548,11 @@ let place_lifted_constants uacc (scoping_rule : Symbol_scoping_rule.t)
 let create_switch uacc ~scrutinee ~arms =
   if Target_imm.Map.cardinal arms < 1 then
     Expr.create_invalid (),
-    UA.cost_metrics_add ~added:Cost_metrics.invalid uacc
+    UA.notify_added ~code_size:Code_size.invalid uacc
   else
     let change_to_apply_cont action =
       Expr.create_apply_cont action,
-      UA.cost_metrics_add ~added:(Cost_metrics.apply_cont action) uacc
+      UA.notify_added ~code_size:(Code_size.apply_cont action) uacc
     in
     match Target_imm.Map.get_singleton arms with
     | Some (_discriminant, action) -> change_to_apply_cont action
@@ -563,5 +567,5 @@ let create_switch uacc ~scrutinee ~arms =
       | None ->
         let switch = Switch.create ~scrutinee ~arms in
         Expr.create_switch switch,
-        UA.cost_metrics_add ~added:(Cost_metrics.switch switch) uacc
+        UA.notify_added ~code_size:(Code_size.switch switch) uacc
 

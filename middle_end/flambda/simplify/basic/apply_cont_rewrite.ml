@@ -141,7 +141,7 @@ let rewrite_use t id apply_cont : rewrite_use_result =
           let extra_args_rev = Simple.var temp :: extra_args_rev in
           let extra_lets =
             (Var_in_binding_pos.create temp Name_mode.normal,
-             Cost_metrics.prim prim,
+             Code_size.prim prim,
              Named.create_prim prim Debuginfo.none)
               :: extra_lets
           in

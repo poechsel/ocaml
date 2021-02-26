@@ -189,7 +189,7 @@ let bind_no_simplification ~bindings ~body ~cost_metrics_of_body ~free_names_of_
   ListLabels.fold_left (List.rev bindings)
     ~init:(body, cost_metrics_of_body, free_names_of_body)
     ~f:(fun (expr, cost_metrics, free_names)
-            (var, cost_metrics_expr, defining_expr) ->
+            (var, size_of_defining_expr, defining_expr) ->
       let expr =
         Let_expr.create (Bindable_let_bound.singleton var)
           defining_expr
@@ -201,7 +201,17 @@ let bind_no_simplification ~bindings ~body ~cost_metrics_of_body ~free_names_of_
         Name_occurrences.union (Named.free_names defining_expr)
           (Name_occurrences.remove_var free_names (Var_in_binding_pos.var var))
       in
-      let cost_metrics = Cost_metrics.add cost_metrics ~added:cost_metrics_expr in
+      let is_phantom = Name_mode.is_phantom (Var_in_binding_pos.name_mode var) in
+      let cost_metrics_of_defining_expr =
+        Cost_metrics.from_size size_of_defining_expr
+      in
+      let cost_metrics =
+        Cost_metrics.(+)
+          cost_metrics
+          (Cost_metrics.increase_due_to_let_expr
+             ~is_phantom
+             ~cost_metrics_of_defining_expr)
+      in
       expr, cost_metrics, free_names)
 
 let bind_parameters_to_args_no_simplification ~params ~args ~body =

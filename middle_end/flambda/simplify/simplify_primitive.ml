@@ -51,8 +51,8 @@ let try_cse dacc ~original_prim ~simplified_args_with_tys ~min_name_mode
       let args = List.map fst simplified_args_with_tys in
       let simplified_named =
         let cost_metrics =
-          Cost_metrics.remove_operation
-            (Cost_metrics.Operations.prim original_prim)
+          Cost_metrics.notify_removed
+            ~operation:(Removed_operations.prim original_prim)
             Cost_metrics.zero
         in
         Simplified_named.reachable named

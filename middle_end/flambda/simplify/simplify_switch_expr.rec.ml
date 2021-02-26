@@ -179,7 +179,7 @@ let rebuild_switch dacc ~arms ~scrutinee ~scrutinee_ty uacc
   let body, uacc =
     if Target_imm.Map.cardinal arms < 1 then
       let uacc =
-        UA.cost_metrics_remove_operation (Cost_metrics.Operations.branch) uacc
+        UA.notify_removed ~operation:Removed_operations.branch uacc
       in
       Expr.create_invalid (), uacc
     else
@@ -187,7 +187,7 @@ let rebuild_switch dacc ~arms ~scrutinee ~scrutinee_ty uacc
       match switch_is_identity with
       | Some dest ->
         let uacc =
-          UA.cost_metrics_remove_operation (Cost_metrics.Operations.branch) uacc
+          UA.notify_removed ~operation:Removed_operations.branch uacc
         in
         create_tagged_scrutinee uacc dest ~make_body:(fun ~tagged_scrutinee ->
           (* No need to increment the cost_metrics inside [create_tagged_scrutinee] as it
@@ -198,7 +198,7 @@ let rebuild_switch dacc ~arms ~scrutinee ~scrutinee_ty uacc
         match switch_is_boolean_not with
         | Some dest ->
           let uacc =
-            UA.cost_metrics_remove_operation (Cost_metrics.Operations.branch) uacc
+            UA.notify_removed ~operation:Removed_operations.branch uacc
           in
           create_tagged_scrutinee uacc dest ~make_body:(fun ~tagged_scrutinee ->
             let not_scrutinee = Variable.create "not_scrutinee" in
@@ -240,9 +240,9 @@ let rebuild_switch dacc ~arms ~scrutinee ~scrutinee_ty uacc
   let uacc, expr =
     List.fold_left (fun (uacc, body) (new_cont, new_handler, cost_metrics_of_handler) ->
         let uacc =
-          UA.cost_metrics_add
-            ~added:(Cost_metrics.increase_due_to_let_cont_non_recursive
-                      ~cost_metrics_of_handler)
+          UA.add_cost_metrics
+            (Cost_metrics.increase_due_to_let_cont_non_recursive
+               ~cost_metrics_of_handler)
             uacc
         in
         uacc,
@@ -266,7 +266,7 @@ let simplify_switch dacc switch ~down_to_up =
   | Bottom, _ty ->
     down_to_up dacc ~rebuild:(fun uacc ~after_rebuild ->
       let uacc =
-        UA.cost_metrics_remove_operation Cost_metrics.Operations.branch uacc
+        UA.notify_removed ~operation:Removed_operations.branch uacc
       in
       Simplify_common.rebuild_invalid uacc ~after_rebuild
     )

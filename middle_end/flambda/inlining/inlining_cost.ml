@@ -25,9 +25,10 @@ let smaller' denv expr ~than:threshold =
     Cost_metrics.expr_size
       ~find_code:(Downwards_env.find_code denv)
       expr
+    |> Cost_metrics.from_size
   in
   if Cost_metrics.smaller_than_threshold s ~threshold then
-    Some (Cost_metrics.size s)
+    Some (Cost_metrics.size s |> Code_size.to_int)
   else None
 
 let size denv expr =

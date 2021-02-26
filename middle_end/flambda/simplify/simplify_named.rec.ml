@@ -349,7 +349,8 @@ let adjust_cost_metrics (named : Named.t) result =
       let adjust_cost_metrics (simplified_named : Simplified_named.t) =
         let cost_metrics =
           Simplified_named.cost_metrics simplified_named
-          |> Cost_metrics.remove_operation (Cost_metrics.Operations.prim original_prim)
+          |> Cost_metrics.notify_removed
+               ~operation:(Removed_operations.prim original_prim)
         in
         Simplified_named.update_cost_metrics cost_metrics simplified_named
       in

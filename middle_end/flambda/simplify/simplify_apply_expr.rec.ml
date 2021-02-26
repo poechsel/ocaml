@@ -72,8 +72,8 @@ let rebuild_non_inlined_direct_full_application apply ~use_id ~exn_cont_use_id
       ~result_arity ~coming_from_indirect uacc ~after_rebuild =
   let uacc =
     if coming_from_indirect then
-      UA.cost_metrics_remove_operation
-        Cost_metrics.Operations.direct_call_of_indirect
+      UA.notify_removed
+        ~operation:Removed_operations.direct_call_of_indirect
         uacc
     else
       uacc
@@ -86,7 +86,7 @@ let rebuild_non_inlined_direct_full_application apply ~use_id ~exn_cont_use_id
     match use_id with
     | None ->
       Expr.create_apply apply,
-      UA.cost_metrics_add ~added:(Cost_metrics.apply apply) uacc
+      UA.notify_added ~code_size:(Code_size.apply apply) uacc
     | Some use_id ->
       Simplify_common.add_wrapper_for_fixed_arity_apply uacc ~use_id
         result_arity apply
@@ -354,14 +354,14 @@ let simplify_direct_partial_application dacc apply ~callee's_code_id
       down_to_up dacc ~rebuild:(fun uacc ~after_rebuild ->
         let uacc =
           if coming_from_indirect then
-            UA.cost_metrics_remove_operation
-              Cost_metrics.Operations.direct_call_of_indirect
+            UA.notify_removed
+              ~operation:Removed_operations.direct_call_of_indirect
               uacc
           else
             uacc
         in
         (* Remove one function call as this apply was removed and replaced by two new ones. *)
-        let uacc = UA.cost_metrics_remove_operation Cost_metrics.Operations.call uacc in
+        let uacc = UA.notify_removed ~operation:Removed_operations.call uacc in
         let uacc = UA.add_outermost_lifted_constant uacc dummy_code in
         rebuild uacc ~after_rebuild))
 
@@ -378,14 +378,14 @@ let simplify_direct_over_application dacc apply ~param_arity ~result_arity:_
         (* Remove one function call as this apply was removed and replaced by two new ones. *)
         let uacc =
           if coming_from_indirect then
-            UA.cost_metrics_remove_operation
-              Cost_metrics.Operations.direct_call_of_indirect
+            UA.notify_removed 
+              ~operation:Removed_operations.direct_call_of_indirect
               uacc
           else
             uacc
         in
         let uacc =
-          UA.cost_metrics_remove_operation Cost_metrics.Operations.call uacc
+          UA.notify_removed ~operation:Removed_operations.call uacc
         in
         rebuild uacc ~after_rebuild))
 
@@ -420,7 +420,7 @@ let simplify_direct_function_call dacc apply ~callee's_code_id_from_type
   | Bottom ->
     down_to_up dacc ~rebuild:(fun uacc ~after_rebuild ->
       let uacc =
-        UA.cost_metrics_remove_operation Cost_metrics.Operations.call uacc
+        UA.notify_removed ~operation:Removed_operations.call uacc
       in
       Simplify_common.rebuild_invalid uacc ~after_rebuild
     )
@@ -671,7 +671,7 @@ let simplify_function_call dacc apply ~callee_ty
     | Bottom ->
       down_to_up dacc ~rebuild:(fun uacc ~after_rebuild ->
         let uacc =
-          UA.cost_metrics_remove_operation Cost_metrics.Operations.call uacc
+          UA.notify_removed ~operation:Removed_operations.call uacc
         in
         Simplify_common.rebuild_invalid uacc ~after_rebuild
       )
@@ -681,7 +681,7 @@ let simplify_function_call dacc apply ~callee_ty
   | Invalid ->
     down_to_up dacc ~rebuild:(fun uacc ~after_rebuild ->
       let uacc =
-        UA.cost_metrics_remove_operation Cost_metrics.Operations.call uacc
+        UA.notify_removed ~operation:Removed_operations.call uacc
       in
       Simplify_common.rebuild_invalid uacc ~after_rebuild
     )
@@ -779,7 +779,7 @@ let rebuild_c_call apply ~use_id ~exn_cont_use_id ~return_arity uacc
         (Flambda_arity.With_subkinds.of_arity return_arity) apply
     | None ->
       Expr.create_apply apply,
-      UA.cost_metrics_add ~added:(Cost_metrics.apply apply) uacc
+      UA.notify_added ~code_size:(Code_size.apply apply) uacc
   in
   let uacc = UA.add_free_names uacc (Expr.free_names expr) in
   after_rebuild expr uacc
@@ -841,7 +841,7 @@ let simplify_apply dacc apply ~down_to_up =
   | Bottom ->
     down_to_up dacc ~rebuild:(fun uacc ~after_rebuild ->
       let uacc =
-        UA.cost_metrics_remove_operation Cost_metrics.Operations.call uacc
+        UA.notify_removed ~operation:Removed_operations.call uacc
       in
       Simplify_common.rebuild_invalid uacc ~after_rebuild
     )

@@ -137,8 +137,11 @@ let clear_cost_metrics t = { t with cost_metrics = Flambda.Cost_metrics.zero }
 
 let with_cost_metrics cost_metrics t = { t with cost_metrics }
 
-let cost_metrics_add ~added t =
-  { t with cost_metrics = Flambda.Cost_metrics.add ~added t.cost_metrics }
+let notify_added ~code_size t =
+  { t with cost_metrics = Flambda.Cost_metrics.notify_added ~code_size t.cost_metrics }
 
-let cost_metrics_remove_operation op t =
-  { t with cost_metrics = Flambda.Cost_metrics.remove_operation op t.cost_metrics }
+let notify_removed ~operation t =
+  { t with cost_metrics = Flambda.Cost_metrics.notify_removed ~operation t.cost_metrics }
+
+let add_cost_metrics cost_metrics t =
+  { t with cost_metrics = Flambda.Cost_metrics.(+) t.cost_metrics cost_metrics }

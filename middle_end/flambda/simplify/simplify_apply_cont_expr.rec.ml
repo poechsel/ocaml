@@ -54,7 +54,7 @@ let inline_linearly_used_continuation uacc ~create_apply_cont ~params ~handler
     let expr, uacc =
       let uacc =
         UA.with_name_occurrences uacc ~name_occurrences:free_names_of_handler
-        |> UA.cost_metrics_add ~added:cost_metrics_of_handler
+        |> UA.add_cost_metrics cost_metrics_of_handler
       in
       Expr_builder.make_new_let_bindings uacc ~bindings_outermost_first
         ~body:handler
@@ -92,14 +92,14 @@ let rebuild_apply_cont apply_cont ~args ~rewrite_id uacc ~after_rebuild =
       let expr, cost_metrics, free_names = apply_cont_to_expr apply_cont in
       let uacc =
         UA.add_free_names uacc free_names
-        |> UA.cost_metrics_add ~added:cost_metrics
+        |> UA.add_cost_metrics cost_metrics
       in
       after_rebuild expr uacc
     | Expr build_expr ->
       let expr, cost_metrics, free_names = build_expr ~apply_cont_to_expr in
       let uacc =
         UA.add_free_names uacc free_names
-        |> UA.cost_metrics_add ~added:cost_metrics
+        |> UA.add_cost_metrics cost_metrics
       in
       after_rebuild expr uacc
   in
@@ -109,7 +109,7 @@ let rebuild_apply_cont apply_cont ~args ~rewrite_id uacc ~after_rebuild =
     (* We must not fail to inline here, since we've already decided that the
        relevant [Let_cont] is no longer needed. *)
     let uacc =
-      UA.cost_metrics_remove_operation (Cost_metrics.Operations.branch) uacc
+      UA.notify_removed ~operation:Removed_operations.branch uacc
     in
     inline_linearly_used_continuation uacc ~create_apply_cont ~params ~handler
       ~free_names_of_handler ~cost_metrics_of_handler
@@ -118,13 +118,13 @@ let rebuild_apply_cont apply_cont ~args ~rewrite_id uacc ~after_rebuild =
        basis that there wouldn't be any opportunity to collect any backtrace,
        even if the [Apply_cont] were compiled as "raise". *)
     let uacc =
-      UA.cost_metrics_remove_operation (Cost_metrics.Operations.branch) uacc
+      UA.notify_removed ~operation:Removed_operations.branch uacc
     in
     after_rebuild (Expr.create_invalid ()) uacc
   | Other { arity = _; handler = _; } ->
     create_apply_cont ~apply_cont_to_expr:(fun apply_cont ->
       Expr.create_apply_cont apply_cont,
-      Cost_metrics.apply_cont apply_cont,
+      Cost_metrics.from_size (Code_size.apply_cont apply_cont),
       Apply_cont.free_names apply_cont)
 
 let simplify_apply_cont dacc apply_cont ~down_to_up =
@@ -133,7 +133,7 @@ let simplify_apply_cont dacc apply_cont ~down_to_up =
   | _, Bottom ->
     down_to_up dacc ~rebuild:(fun uacc ~after_rebuild ->
       let uacc =
-        UA.cost_metrics_remove_operation (Cost_metrics.Operations.branch) uacc
+        UA.notify_removed ~operation:Removed_operations.branch uacc
       in
       Simplify_common.rebuild_invalid uacc ~after_rebuild
     )

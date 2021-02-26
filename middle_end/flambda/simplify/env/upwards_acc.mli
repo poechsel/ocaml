@@ -76,6 +76,9 @@ val clear_cost_metrics : t -> t
 
 val with_cost_metrics : Flambda.Cost_metrics.t -> t -> t
 
-val cost_metrics_add: added:Flambda.Cost_metrics.t -> t -> t
+val add_cost_metrics : Flambda.Cost_metrics.t -> t -> t
 
-val cost_metrics_remove_operation: Flambda.Cost_metrics.Operations.t -> t -> t
+val notify_added: code_size:Code_size.t -> t -> t
+
+val notify_removed: operation:Removed_operations.t -> t -> t
+
