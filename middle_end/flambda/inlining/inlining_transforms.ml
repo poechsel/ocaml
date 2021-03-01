@@ -28,7 +28,7 @@ let make_inlined_body ~callee ~unroll_to ~params ~args ~my_closure ~body
       ~apply_return_continuation =
   let perm = Name_permutation.empty in
   let perm =
-    match (apply_return_continuation : Apply.Result_continuation.t)with
+    match (apply_return_continuation : Apply.Result_continuation.t) with
     | Return k ->
        Name_permutation.add_continuation perm
          return_continuation k
@@ -53,8 +53,8 @@ let make_inlined_body ~callee ~unroll_to ~params ~args ~my_closure ~body
                 (Named.create_simple callee)
                 ~body
                 (* Here and below, we don't need to give any name occurrence
-                      information (thank goodness!) since the entirety of the
-                      expression we're building will be re-simplified. *)
+                   information (thank goodness!) since the entirety of the
+                   expression we're building will be re-simplified. *)
                 ~free_names_of_body:Unknown
               |> Expr.create_let))
     perm
@@ -103,25 +103,19 @@ let wrap_inlined_body_for_exn_support ~extra_args ~apply_exn_continuation
        let pop_wrapper_cont = Continuation.create () in
        let pop_wrapper_handler =
          let kinded_params =
-           List.map (fun k -> Variable.create "wrapper_return", k)
-             result_arity
+           List.map (fun k -> Variable.create "wrapper_return", k) result_arity
          in
          let trap_action =
            Trap_action.Pop { exn_handler = wrapper; raise_kind = None; }
          in
          let args = List.map (fun (v, _) -> Simple.var v) kinded_params in
-         let apply_cont =
-           Apply_cont.create ~trap_action
-             apply_return_continuation
-             ~args
+         let handler =
+           Apply_cont.create ~trap_actionapply_return_continuation ~args
              ~dbg:Debuginfo.none
+           |> Expr.create_apply_cont
          in
-         let handler = Expr.create_apply_cont apply_cont in
-         Continuation_handler.create
-           (Kinded_parameter.List.create kinded_params)
-           ~handler
-           ~free_names_of_handler:Unknown
-           ~is_exn_handler:false
+         Continuation_handler.create (Kinded_parameter.List.create kinded_params)
+           ~handler ~free_names_of_handler:Unknown ~is_exn_handler:false
        in
        let new_apply_return_continuation =
          Apply.Result_continuation.Return pop_wrapper_cont
@@ -130,59 +124,44 @@ let wrap_inlined_body_for_exn_support ~extra_args ~apply_exn_continuation
          make_inlined_body ~apply_exn_continuation:wrapper
            ~apply_return_continuation:new_apply_return_continuation
        in
-       Let_cont.create_non_recursive pop_wrapper_cont
-         pop_wrapper_handler ~body
+       Let_cont.create_non_recursive pop_wrapper_cont pop_wrapper_handler ~body
          ~free_names_of_body:Unknown
   in
   let wrapper_handler =
     let param = Variable.create "exn" in
-    let kinded_params =
-      [KP.create param K.With_subkind.any_value]
-    in
-    let exn_handler =
-      Exn_continuation.exn_handler apply_exn_continuation
-    in
-    let trap_action =
-      Trap_action.Pop { exn_handler; raise_kind = None; }
-    in
+    let kinded_params = [KP.create param K.With_subkind.any_value] in
+    let exn_handler = Exn_continuation.exn_handler apply_exn_continuation in
+    let trap_action = Trap_action.Pop { exn_handler; raise_kind = None; } in
     let handler =
-      Expr.create_apply_cont (Apply_cont.create
-                                ~trap_action
-                                (Exn_continuation.exn_handler apply_exn_continuation)
-                                ~args:((Simple.var param) :: (List.map fst extra_args))
-                                ~dbg:Debuginfo.none) (* Backtrace building functions expect
-                                            compiler-generated raises not to
-                                            have any debug info *)
+      (* Backtrace building functions expect compiler-generated raises not to
+         have any debug info *)
+      Apply_cont.create ~trap_action
+        (Exn_continuation.exn_handler apply_exn_continuation)
+        ~args:((Simple.var param) :: (List.map fst extra_args))
+        ~dbg:Debuginfo.none
+      |> Expr.create_apply_cont
     in
     Continuation_handler.create kinded_params ~handler
-      ~free_names_of_handler:Unknown
-      ~is_exn_handler:true
+      ~free_names_of_handler:Unknown ~is_exn_handler:true
   in
   let body_with_push =
     (* Wrap the body between push and pop of the wrapper handler *)
     let push_wrapper_cont = Continuation.create () in
     let handler = body_with_pop in
     let push_wrapper_handler =
-      Continuation_handler.create [] ~handler
-        ~free_names_of_handler:Unknown
+      Continuation_handler.create [] ~handler ~free_names_of_handler:Unknown
         ~is_exn_handler:false
     in
-    let trap_action =
-      Trap_action.Push { exn_handler = wrapper; }
-    in
+    let trap_action = Trap_action.Push { exn_handler = wrapper; } in
     let body =
-      Expr.create_apply_cont (Apply_cont.create
-                                ~trap_action
-                                push_wrapper_cont
-                                ~args: []
-                                ~dbg: Debuginfo.none)
+      Apply_cont.create ~trap_action push_wrapper_cont ~args:[]
+        ~dbg:Debuginfo.none
+      |> Expr.create_apply_cont 
     in
-    Let_cont.create_non_recursive push_wrapper_cont
-      push_wrapper_handler ~body
+    Let_cont.create_non_recursive push_wrapper_cont push_wrapper_handler ~body
       ~free_names_of_body:Unknown
   in
-  Let_cont.create_non_recursive wrapper wrapper_handler
-    ~body:body_with_push
+  Let_cont.create_non_recursive wrapper wrapper_handler ~body:body_with_push
     ~free_names_of_body:Unknown
 
 
