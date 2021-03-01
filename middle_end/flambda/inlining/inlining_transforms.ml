@@ -110,7 +110,7 @@ let wrap_inlined_body_for_exn_support ~extra_args ~apply_exn_continuation
          in
          let args = List.map (fun (v, _) -> Simple.var v) kinded_params in
          let handler =
-           Apply_cont.create ~trap_actionapply_return_continuation ~args
+           Apply_cont.create ~trap_action apply_return_continuation ~args
              ~dbg:Debuginfo.none
            |> Expr.create_apply_cont
          in
