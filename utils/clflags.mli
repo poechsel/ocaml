@@ -258,6 +258,10 @@ module Flambda : sig
     val inline_effects_in_cmm : bool ref
     val phantom_lets : bool ref
     val max_inlining_depth : int ref
+    val default_small_function_threshold : int
+    val default_big_function_threshold : int
+    val small_function_threshold : Int_arg_helper.parsed ref
+    val big_function_threshold : Int_arg_helper.parsed ref
     val max_block_size_for_projections : int option ref
   end
 

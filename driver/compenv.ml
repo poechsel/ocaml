@@ -493,6 +493,16 @@ let read_one_param ppf position name v =
   | "flambda-debug-concrete-types-only-on-canonicals" ->
     set "flambda-debug-concrete-types-only-on-canonicals"
       [ Flambda.Debug.concrete_types_only_on_canonicals ] v
+  | "flambda-expert-small-function-threshold" ->
+     Int_arg_helper.parse v
+       "Bad syntax in OCAMLPARAM for \
+        'flambda-expert-small-function-threshold'"
+       Flambda.Expert.small_function_threshold
+  | "flambda-expert-big-function-threshold" ->
+     Int_arg_helper.parse v
+       "Bad syntax in OCAMLPARAM for \
+        'flambda-expert-big-function-threshold'"
+       Flambda.Expert.big_function_threshold
   | _ ->
     if not (List.mem name !can_discard) then begin
       can_discard := name :: !can_discard;
