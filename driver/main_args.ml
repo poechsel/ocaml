@@ -988,6 +988,16 @@ let mk_flambda_expert_max_inlining_depth f =
   " Set maximum inlining depth"
 ;;
 
+let mk_flambda_expert_inlining_small_function_threshold f =
+  "-flambda-expert-inlining-small-function-threshold", Arg.Int f,
+  " Set threshold for always inlining small functions "
+;;
+
+let mk_flambda_expert_inlining_big_function_threshold f =
+  "-flambda-expert-inlining-big-function-threshold", Arg.Int f,
+  " Set threshold for never inlining big functions "
+;;
+
 let mk_flambda_expert_max_block_size_for_projections f =
   "-flambda-expert-max-block-size-for-projections", Arg.Int f,
   " Do not simplify projections from blocks if the block size exceeds \
@@ -1252,6 +1262,8 @@ module type Optcommon_options = sig
   val _flambda_expert_phantom_lets : unit -> unit
   val _no_flambda_expert_phantom_lets : unit -> unit
   val _flambda_expert_max_inlining_depth : int -> unit
+  val _flambda_expert_inlining_small_function_threshold : int -> unit
+  val _flambda_expert_inlining_big_function_threshold : int -> unit
   val _flambda_expert_max_block_size_for_projections : int -> unit
   val _flambda_debug_permute_every_name : unit -> unit
   val _no_flambda_debug_permute_every_name : unit -> unit
@@ -1618,6 +1630,10 @@ struct
       F._no_flambda_expert_phantom_lets;
     mk_flambda_expert_max_inlining_depth
       F._flambda_expert_max_inlining_depth;
+    mk_flambda_expert_inlining_small_function_threshold
+      F._flambda_expert_inlining_small_function_threshold;
+    mk_flambda_expert_inlining_big_function_threshold
+      F._flambda_expert_inlining_big_function_threshold;
     mk_flambda_expert_max_block_size_for_projections
       F._flambda_expert_max_block_size_for_projections;
     mk_flambda_debug_permute_every_name
@@ -2096,6 +2112,10 @@ module Default = struct
       clear Flambda.Expert.phantom_lets
     let _flambda_expert_max_inlining_depth depth =
       Flambda.Expert.max_inlining_depth := depth
+    let _flambda_expert_inlining_small_function_threshold threshold =
+      Flambda.Expert.inlining_small_function_threshold := threshold
+    let _flambda_expert_inlining_big_function_threshold threshold =
+      Flambda.Expert.inlining_big_function_threshold := threshold
     let _flambda_expert_max_block_size_for_projections size =
       Flambda.Expert.max_block_size_for_projections := Some size
     let _flambda_debug_permute_every_name =

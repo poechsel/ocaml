@@ -439,6 +439,8 @@ module Flambda = struct
     let phantom_lets = ref true
     let max_inlining_depth = ref 1
     let max_block_size_for_projections = ref None
+    let inlining_small_function_threshold = ref 128
+    let inlining_big_function_threshold = ref 65536
   end
 
   module Debug = struct
