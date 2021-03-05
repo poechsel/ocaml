@@ -321,11 +321,11 @@ let unary_prim_size prim =
   | Float_arith _ -> 2
   | Num_conv { src; dst; } -> arith_conversion_size src dst
   | Boolean_not -> 1
+  | Reinterpret_int64_as_float -> 0
   | Unbox_number k -> unbox_number k
   | Box_number k -> box_number k
   | Select_closure _ -> 1 (* caddv *)
   | Project_var _ -> 1 (* load *)
-  | Reinterpret_int64_as_float -> 1
 
 let binary_prim_size prim =
   match (prim : Flambda_primitive.binary_primitive) with
