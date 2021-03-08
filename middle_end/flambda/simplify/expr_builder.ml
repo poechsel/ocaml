@@ -161,12 +161,16 @@ let create_set_of_closures_let uacc bound_vars defining_expr
     in
     Expr.create_let let_expr, uacc, Nothing_deleted
 
-let make_new_let_bindings uacc ~bindings_outermost_first ~body =
+let make_new_let_bindings uacc
+      ~(bindings_outermost_first : Simplify_named_result.binding_to_place list)
+      ~body =
   (* The name occurrences component of [uacc] is expected to be in the state
      described in the comment at the top of [Simplify_let.rebuild_let]. *)
   ListLabels.fold_left (List.rev bindings_outermost_first) ~init:(body, uacc)
-    ~f:(fun (expr, uacc) (bound, defining_expr, original_named) ->
-      match (defining_expr : Simplified_named.t) with
+    ~f:(fun (expr, uacc)
+         ({ let_bound; simplified_defining_expr; original_defining_expr }
+          : Simplify_named_result.binding_to_place) ->
+      match (simplified_defining_expr : Simplified_named.t) with
       | Invalid _ ->
         let uacc =
           UA.with_name_occurrences uacc ~name_occurrences:Name_occurrences.empty
@@ -174,19 +178,19 @@ let make_new_let_bindings uacc ~bindings_outermost_first ~body =
         in
         Expr.create_invalid (), uacc
       | Reachable {
-        named = defining_expr;
-        free_names = free_names_of_defining_expr;
-        cost_metrics = cost_metrics_of_defining_expr;
-      } ->
+          named = defining_expr;
+          free_names = free_names_of_defining_expr;
+          cost_metrics = cost_metrics_of_defining_expr;
+        } ->
         let defining_expr = Simplified_named.to_named defining_expr in
         let expr, uacc, creation_result =
-          match (bound : Bindable_let_bound.t) with
+          match (let_bound : Bindable_let_bound.t) with
           | Singleton var ->
             create_singleton_let uacc var defining_expr
               ~free_names_of_defining_expr ~body:expr
               ~cost_metrics_of_defining_expr
           | Set_of_closures { closure_vars = bound_closure_vars; _ } ->
-            create_set_of_closures_let uacc bound defining_expr
+            create_set_of_closures_let uacc let_bound defining_expr
               ~free_names_of_defining_expr ~body ~bound_closure_vars
               ~cost_metrics_of_defining_expr
           | Symbols _ ->
@@ -194,7 +198,7 @@ let make_new_let_bindings uacc ~bindings_outermost_first ~body =
                this must be a malformed binding. *)
             Misc.fatal_errorf "Mismatch between bound name(s) and defining \
                                expression:@ %a@ =@ %a"
-              Bindable_let_bound.print bound
+              Bindable_let_bound.print let_bound
               Named.print defining_expr
         in
         let uacc =
@@ -202,18 +206,18 @@ let make_new_let_bindings uacc ~bindings_outermost_first ~body =
           | Nothing_deleted -> uacc
           | Have_deleted ->
             begin
-              match (original_named : Named.t Or_unknown.t) with
-              | Known (Prim (prim, _dbg)) ->
+              match (original_defining_expr : Named.t option) with
+              | Some (Prim (prim, _dbg)) ->
                 UA.notify_removed
                   ~operation:(Removed_operations.prim prim)
                   uacc
-              | Known (Set_of_closures _) ->
+              | Some (Set_of_closures _) ->
                 UA.notify_removed
                   ~operation:Removed_operations.alloc
                   uacc
-              | Known (Simple _)
-              | Known (Static_consts _)
-              | Unknown -> uacc
+              | Some (Simple _)
+              | Some (Static_consts _)
+              | None -> uacc
             end
         in
         expr, uacc

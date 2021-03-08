@@ -78,7 +78,7 @@ let simplify_expr dacc expr ~down_to_up =
             in
             if not (Code_size.equal code_size_uacc code_size_expr)
             then begin
-              Misc.fatal_errorf "Mismatch on code cost_metrics:@ \n\
+              Misc.fatal_errorf "Mismatch on code size:@ \n\
                   From UA:@ %a@ \n\
                   From expr:@ %a@ \n\
                   Expression:@ %a@"

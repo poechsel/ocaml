@@ -320,7 +320,7 @@ let simplify_direct_partial_application dacc apply ~callee's_code_id
          A new piece of code will always be generated when the [Let] we
          generate below is simplified.  As such we can simply add a lifted
          constant identifying deleted code.  This will ensure, if for some
-         reason the constant makes it to Cmm stage, that code cost_metrics is not
+         reason the constant makes it to Cmm stage, that code size is not
          increased unnecessarily. *)
       let code = Code.make_deleted code in
       LC.create_code code_id
@@ -360,7 +360,10 @@ let simplify_direct_partial_application dacc apply ~callee's_code_id
           else
             uacc
         in
-        (* Remove one function call as this apply was removed and replaced by two new ones. *)
+        (* Increase the counter of calls as the original apply node was removed.
+           [simplify] is called over the two apply nodes that were created to
+           replace the original one so they will be taken into account in the
+           cost metrics, mainly by increasing the code size. *)
         let uacc = UA.notify_removed ~operation:Removed_operations.call uacc in
         let uacc = UA.add_outermost_lifted_constant uacc dummy_code in
         rebuild uacc ~after_rebuild))

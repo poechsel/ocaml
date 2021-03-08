@@ -16,7 +16,7 @@
 
 [@@@ocaml.warning "+a-4-30-40-41-42"]
 
-(* Operations are finer grained metrics (number of calls / allocations) about
+(* Operations are fine grained metrics (number of calls / allocations) about
      the size of an expression.
  *)
 
@@ -50,12 +50,14 @@ let prim (prim:Flambda_primitive.t) =
       | Duplicate_block _ | Duplicate_array _ | Box_number _ | Unbox_number _ ->
          alloc
       | _ ->
+        (* Some allocating primitives ([Num_conv] to naked_int64 on arch32 for example) are
+        not counted here. *)
          { zero with prim = 1 }
     end
   | Nullary _ ->
      zero
   | Binary (_, _, _)
-    | Ternary (_, _, _, _) ->
+  | Ternary (_, _, _, _) ->
      { zero with prim = 1 }
   | Variadic (prim, _) -> begin
       match prim with

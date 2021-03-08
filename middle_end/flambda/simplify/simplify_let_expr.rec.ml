@@ -19,8 +19,8 @@
 open! Simplify_import
 
 let rebuild_let symbol_scoping_rule simplify_named_result
-      ~lifted_constants_from_defining_expr ~at_unit_toplevel ~body uacc
-      ~after_rebuild =
+      removed_operations ~lifted_constants_from_defining_expr
+      ~at_unit_toplevel ~body uacc ~after_rebuild =
   (* At this point, the free names in [uacc] are the free names of [body],
      plus all used closure vars seen in the whole compilation unit. *)
   let no_constants_from_defining_expr =
@@ -36,6 +36,7 @@ let rebuild_let symbol_scoping_rule simplify_named_result
     no_constants_from_defining_expr
       && LCS.is_empty lifted_constants_from_body
   in
+  let uacc = UA.notify_removed ~operation:removed_operations uacc in
   let bindings =
     Simplify_named_result.bindings_to_place_in_any_order simplify_named_result
   in
@@ -65,8 +66,8 @@ let rebuild_let symbol_scoping_rule simplify_named_result
     let critical_deps_of_bindings =
       ListLabels.fold_left bindings
         ~init:Name_occurrences.empty
-        ~f:(fun critical_deps (bound, _, _) ->
-          Name_occurrences.union (Bindable_let_bound.free_names bound)
+        ~f:(fun critical_deps { Simplify_named_result.let_bound; _ } ->
+          Name_occurrences.union (Bindable_let_bound.free_names let_bound)
             critical_deps)
     in
     let body, uacc =
@@ -94,7 +95,7 @@ let simplify_let dacc let_expr ~down_to_up =
        of the defining expression and the [body]. *)
     let dacc, prior_lifted_constants = DA.get_and_clear_lifted_constants dacc in
     (* Simplify the defining expression. *)
-    let simplify_named_result =
+    let simplify_named_result, removed_operations =
       Simplify_named.simplify_named dacc bindable_let_bound
         (L.defining_expr let_expr)
     in
@@ -126,5 +127,5 @@ let simplify_let dacc let_expr ~down_to_up =
         down_to_up dacc ~rebuild:(fun uacc ~after_rebuild ->
           rebuild_body uacc ~after_rebuild:(fun body uacc ->
             rebuild_let symbol_scoping_rule simplify_named_result
-              ~lifted_constants_from_defining_expr ~at_unit_toplevel ~body uacc
-              ~after_rebuild))))
+              removed_operations ~lifted_constants_from_defining_expr
+              ~at_unit_toplevel ~body uacc ~after_rebuild))))

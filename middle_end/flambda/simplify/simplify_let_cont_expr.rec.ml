@@ -86,11 +86,13 @@ let rebuild_one_continuation_handler cont ~at_unit_toplevel
         let v = KP.var param in
         let k = K.With_subkind.kind (KP.kind param) in
         let var = Var_in_binding_pos.create v Name_mode.phantom in
-        let bound = Bindable_let_bound.singleton var in
+        let let_bound = Bindable_let_bound.singleton var in
         let prim = Flambda_primitive.(Nullary (Optimised_out k)) in
         let named = Named.create_prim prim Debuginfo.none in
-        let simplified = Simplified_named.reachable named in
-        bound, simplified, Or_unknown.Known named
+        let simplified_defining_expr = Simplified_named.reachable named in
+        { Simplify_named_result.let_bound;
+          simplified_defining_expr;
+          original_defining_expr = Some named }
       ) new_phantom_params)
   in
   let used_extra_params =

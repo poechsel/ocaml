@@ -370,7 +370,7 @@ let variadic_prim_size prim args =
      more expensive than the other cases *)
   | Make_array (_, _mut) -> alloc_size + List.length args
 
-let prim_size (prim : Flambda_primitive.t) =
+let prim (prim : Flambda_primitive.t) =
   match prim with
   | Nullary Optimised_out _ -> 0
   | Unary (p, _) -> unary_prim_size p
@@ -379,8 +379,6 @@ let prim_size (prim : Flambda_primitive.t) =
   | Variadic (p, args) -> variadic_prim_size p args
 
 let simple simple = Simple.pattern_match simple ~const:(fun _ -> 1) ~name:(fun _ -> 0)
-
-let prim = prim_size
 
 let static_consts _ = 0
 

@@ -776,7 +776,8 @@ let simplify_non_lifted_set_of_closures0 dacc bound_vars ~closure_bound_vars
       ~free_names:(Named.free_names named)
   in
   Simplify_named_result.have_simplified_to_single_term dacc
-    bound_vars defining_expr (Named.create_set_of_closures set_of_closures)
+    bound_vars defining_expr
+    ~original_defining_expr:(Named.create_set_of_closures set_of_closures)
 
 type lifting_decision_result = {
   can_lift : bool;

@@ -44,12 +44,14 @@ let inline_linearly_used_continuation uacc ~create_apply_cont ~params ~handler
     let bindings_outermost_first =
       ListLabels.map2 params args
         ~f:(fun param arg ->
-          let bound =
+          let let_bound =
             Var_in_binding_pos.create (KP.var param) Name_mode.normal
             |> Bindable_let_bound.singleton
           in
           let named = Named.create_simple arg in
-          bound, Simplified_named.reachable named, Or_unknown.Known named)
+          { Simplify_named_result.let_bound;
+            simplified_defining_expr = Simplified_named.reachable named;
+            original_defining_expr = Some named })
     in
     let expr, uacc =
       let uacc =
@@ -108,18 +110,28 @@ let rebuild_apply_cont apply_cont ~args ~rewrite_id uacc ~after_rebuild =
       free_names_of_handler; cost_metrics_of_handler } ->
     (* We must not fail to inline here, since we've already decided that the
        relevant [Let_cont] is no longer needed. *)
-    let uacc =
-      UA.notify_removed ~operation:Removed_operations.branch uacc
-    in
+
+    (* When removing continuations don't increment the removed branch counter.
+       We can't be sure that removing a continuation maps to removing a branch
+       as the decision will be taken later on by the backend. If we were able
+       to track the number of times each continuation is used then we would be
+       able to track this a bit better (or to create a new counter to count the
+       number of continuations) that became linearly used.
+       In any case the impact of branches is harder to quantify than the impact
+       of allocating (branches can be moved by the backend, their runtime
+       depends on the branch predictor...). Underestimating the number of
+       removed branch is fine.
+
+       let uacc =
+        UA.notify_removed ~operation:Removed_operations.branch uacc
+      in
+    *)
     inline_linearly_used_continuation uacc ~create_apply_cont ~params ~handler
       ~free_names_of_handler ~cost_metrics_of_handler
   | Unreachable { arity = _; } ->
     (* We allow this transformation even if there is a trap action, on the
        basis that there wouldn't be any opportunity to collect any backtrace,
        even if the [Apply_cont] were compiled as "raise". *)
-    let uacc =
-      UA.notify_removed ~operation:Removed_operations.branch uacc
-    in
     after_rebuild (Expr.create_invalid ()) uacc
   | Other { arity = _; handler = _; } ->
     create_apply_cont ~apply_cont_to_expr:(fun apply_cont ->
