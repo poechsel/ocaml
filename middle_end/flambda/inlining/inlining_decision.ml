@@ -82,8 +82,8 @@ module Function_declaration_decision = struct
 
 end
 
-let make_decision_for_function_declaration denv ?params_and_body function_decl
-      : Function_declaration_decision.t =
+let make_decision_for_function_declaration denv ?cost_metrics function_decl
+  : Function_declaration_decision.t =
   (* At present, we follow Closure, taking inlining decisions without
      first examining call sites. *)
   let code_id = Function_declaration.code_id function_decl in
@@ -94,36 +94,27 @@ let make_decision_for_function_declaration denv ?params_and_body function_decl
   | Default_inline | Unroll _ ->
     if Code.stub code then Stub
     else
-      let params_and_body =
-        match params_and_body with
-        | None ->
-          Code.params_and_body_must_be_present code
-            ~error_context:"Inlining decision"
-        | Some params_and_body -> params_and_body
+      let inlining_threshold : Inlining_cost.Threshold.t =
+        let round = DE.round denv in
+        let unscaled =
+          Clflags.Float_arg_helper.get ~key:round !Clflags.inline_threshold
+        in
+        (* CR-soon pchambart: Add a warning if this is too big
+           mshinwell: later *)
+        Can_inline_if_no_larger_than
+          (int_of_float
+             (unscaled *.
+              (float_of_int Inlining_cost.scale_inline_threshold_by)))
       in
-      Function_params_and_body.pattern_match params_and_body
-        ~f:(fun ~return_continuation:_ _exn_continuation _params ~body:_
-                ~my_closure:_ ~is_my_closure_used:_
-                : Function_declaration_decision.t ->
-          let inlining_threshold : Inlining_cost.Threshold.t =
-            let round = DE.round denv in
-            let unscaled =
-              Clflags.Float_arg_helper.get ~key:round !Clflags.inline_threshold
-            in
-            (* CR-soon pchambart: Add a warning if this is too big
-               mshinwell: later *)
-            Can_inline_if_no_larger_than
-              (int_of_float
-                (unscaled *.
-                  (float_of_int Inlining_cost.scale_inline_threshold_by)))
-          in
-          match Inlining_cost.can_inline
-                  ~metrics:(Code.cost_metrics code)
-                  inlining_threshold
-                  ~bonus:0
-          with
-          | Can_inline size -> Inline (Some (size, inlining_threshold))
-          | Cannot_inline -> Function_body_too_large inlining_threshold)
+      let metrics =
+        match cost_metrics  with
+        | Some metrics -> metrics
+        | None -> Code.cost_metrics code
+      in
+      match Inlining_cost.can_inline ~metrics inlining_threshold ~bonus:0
+      with
+      | Can_inline size -> Inline (Some (size, inlining_threshold))
+      | Cannot_inline -> Function_body_too_large inlining_threshold
 
 module Call_site_decision = struct
   type attribute_causing_inlining =
