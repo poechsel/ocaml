@@ -20,29 +20,10 @@ open! Flambda.Import
 
 (* Simple approximation of the space cost of an Flambda expression. *)
 
-let smaller' denv expr ~than:threshold =
-  let s =
-    Cost_metrics.expr_size
-      ~find_code:(Downwards_env.find_code denv)
-      expr
-    |> Cost_metrics.from_size
-  in
-  if Cost_metrics.smaller_than_threshold s ~threshold then
-    Some (Cost_metrics.size s |> Code_size.to_int)
+let smaller' ~metrics ~than:threshold =
+  if Cost_metrics.smaller_than_threshold metrics ~threshold then
+    Some (Cost_metrics.size metrics |> Code_size.to_int)
   else None
-
-let size denv expr =
-  match smaller' denv expr ~than:max_int with
-  | Some size -> size
-  | None ->
-    (* There is no way that an expression of size max_int could fit in
-       memory. *)
-    assert false  (* CR mshinwell: this should not be an assertion *)
-
-(*
-let sizes exprs =
-  List.fold_left (fun total expr -> total + size expr) 0 exprs
-*)
 
 module Threshold = struct
   type t =
@@ -83,12 +64,11 @@ type inline_res =
   | Can_inline of int
   (* size of the inlinable expression, used in inlining reports *)
 
-let can_inline denv lam inlining_threshold ~bonus : inline_res =
+let can_inline ~metrics inlining_threshold ~bonus : inline_res =
   match inlining_threshold with
   | Threshold.Never_inline -> Cannot_inline
   | Threshold.Can_inline_if_no_larger_than inlining_threshold ->
-    begin match smaller' denv lam
-                  ~than:(inlining_threshold + bonus) with
+    begin match smaller' ~metrics ~than:(inlining_threshold + bonus) with
     | None -> Cannot_inline
     | Some size -> Can_inline size
     end
@@ -138,10 +118,6 @@ module Benefit = struct
 
   let direct_call_of_indirect_unknown_arity t =
     { t with direct_call_of_indirect = t.direct_call_of_indirect + 1; }
-
-  let requested_inline denv t ~cost_metrics_of =
-    let size = size denv cost_metrics_of in
-    { t with requested_inline = t.requested_inline + size; }
 
   let print ppf b =
     Format.fprintf ppf "@[remove_call: %i@ remove_alloc: %i@ \

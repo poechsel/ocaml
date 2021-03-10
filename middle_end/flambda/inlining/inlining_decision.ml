@@ -102,7 +102,7 @@ let make_decision_for_function_declaration denv ?params_and_body function_decl
         | Some params_and_body -> params_and_body
       in
       Function_params_and_body.pattern_match params_and_body
-        ~f:(fun ~return_continuation:_ _exn_continuation _params ~body
+        ~f:(fun ~return_continuation:_ _exn_continuation _params ~body:_
                 ~my_closure:_ ~is_my_closure_used:_
                 : Function_declaration_decision.t ->
           let inlining_threshold : Inlining_cost.Threshold.t =
@@ -117,7 +117,11 @@ let make_decision_for_function_declaration denv ?params_and_body function_decl
                 (unscaled *.
                   (float_of_int Inlining_cost.scale_inline_threshold_by)))
           in
-          match Inlining_cost.can_inline denv body inlining_threshold ~bonus:0 with
+          match Inlining_cost.can_inline
+                  ~metrics:(Code.cost_metrics code)
+                  inlining_threshold
+                  ~bonus:0
+          with
           | Can_inline size -> Inline (Some (size, inlining_threshold))
           | Cannot_inline -> Function_body_too_large inlining_threshold)
 

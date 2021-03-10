@@ -52,8 +52,7 @@ type inline_res =
    cost so as to fit under the given [inlining_threshold].  The [bonus] is
    added to the threshold before evaluation. *)
 val can_inline
-   : Downwards_env.t
-  -> Expr.t
+  : metrics:Cost_metrics.t
   -> Threshold.t
   -> bonus:int
   -> inline_res
@@ -81,11 +80,6 @@ module Benefit : sig
   val remove_branch : t -> t
   val direct_call_of_indirect_unknown_arity : t -> t
   val direct_call_of_indirect_known_arity : t -> t
-  val requested_inline
-     : Downwards_env.t
-    -> t
-    -> cost_metrics_of:Expr.t
-    -> t
 
   val print : Format.formatter -> t -> unit
 end
