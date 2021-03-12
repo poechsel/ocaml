@@ -53,20 +53,14 @@ val print_list_of_simple_or_prim
   -> simple_or_prim list
   -> unit
 
-val expression_for_failure
-   : backend:(module Flambda_backend_intf.S)
-  -> Exn_continuation.t option
-  -> register_const_string:(string -> Symbol.t)
-  -> expr_primitive
-  -> Debuginfo.t
-  -> failure
-  -> Wrapper.Expr_with_size.t
+open Closure_conversion_aux
 
 val bind_rec
-   : backend:(module Flambda_backend_intf.S)
+   : Acc.t
+  -> backend:(module Flambda_backend_intf.S)
   -> Exn_continuation.t option
-  -> register_const_string:(string -> Symbol.t)
+  -> register_const_string:(Acc.t -> string -> Acc.t * Symbol.t)
   -> expr_primitive
   -> Debuginfo.t
-  -> (Wrapper.Named_with_size.t -> Wrapper.Expr_with_size.t)
-  -> Wrapper.Expr_with_size.t
+  -> name_to_expr
+  -> Acc.t * Wrapper.Expr_with_size.t

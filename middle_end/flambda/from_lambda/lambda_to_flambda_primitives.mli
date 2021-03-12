@@ -15,13 +15,15 @@
 (**************************************************************************)
 
 open Wrapper
+open Closure_conversion_aux
 
 val convert_and_bind
-   : backend:(module Flambda_backend_intf.S)
+  : Acc.t
+  -> backend:(module Flambda_backend_intf.S)
   -> Exn_continuation.t option
-  -> register_const_string:(string -> Symbol.t)
+  -> register_const_string:(Acc.t -> string -> Acc.t * Symbol.t)
   -> Lambda.primitive
   -> args:Simple.t list
   -> Debuginfo.t
-  -> (Named_with_size.t option -> Expr_with_size.t)
-  -> Expr_with_size.t
+  -> name_opt_to_expr
+  -> Acc.t * Expr_with_size.t

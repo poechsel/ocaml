@@ -1077,9 +1077,11 @@ let convert_lprim ~backend (prim : L.primitive) (args : Simple.t list)
       [Closure_conversion.close_primitive]"
       Printlambda.primitive prim
 
-let convert_and_bind ~backend exn_cont ~register_const_string
+open Closure_conversion_aux
+
+let convert_and_bind acc ~backend exn_cont ~register_const_string
       (prim : L.primitive) ~(args : Simple.t list) (dbg : Debuginfo.t)
-      (cont : Named_with_size.t option -> Expr_with_size.t) : Expr_with_size.t =
+      (cont : name_opt_to_expr) : Acc.t * Expr_with_size.t =
   let expr = convert_lprim ~backend prim args dbg in
-  H.bind_rec ~backend exn_cont ~register_const_string expr dbg
-    (fun named -> cont (Some named))
+  H.bind_rec acc ~backend exn_cont ~register_const_string expr dbg
+    (fun acc named -> cont acc (Some named))
