@@ -16,7 +16,6 @@
 
 [@@@ocaml.warning "+a-30-40-41-42"]
 
-open! Flambda.Import
 
 module C = Lambda_conversions
 module H = Lambda_to_flambda_primitives_helpers
@@ -25,6 +24,8 @@ module I_or_f = Flambda_kind.Standard_int_or_float
 module K = Flambda_kind
 module L = Lambda
 module P = Flambda_primitive
+
+open Wrapper
 
 let tag_int (arg : H.expr_primitive) : H.expr_primitive =
   Unary (Box_number Untagged_immediate, Prim arg)
@@ -1078,7 +1079,7 @@ let convert_lprim ~backend (prim : L.primitive) (args : Simple.t list)
 
 let convert_and_bind ~backend exn_cont ~register_const_string
       (prim : L.primitive) ~(args : Simple.t list) (dbg : Debuginfo.t)
-      (cont : Named.t option -> Expr.t) : Expr.t =
+      (cont : Named_with_size.t option -> Expr_with_size.t) : Expr_with_size.t =
   let expr = convert_lprim ~backend prim args dbg in
   H.bind_rec ~backend exn_cont ~register_const_string expr dbg
     (fun named -> cont (Some named))

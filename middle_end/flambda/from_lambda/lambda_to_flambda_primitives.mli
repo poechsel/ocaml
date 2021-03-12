@@ -14,6 +14,8 @@
 (*                                                                        *)
 (**************************************************************************)
 
+open Wrapper
+
 val convert_and_bind
    : backend:(module Flambda_backend_intf.S)
   -> Exn_continuation.t option
@@ -21,5 +23,5 @@ val convert_and_bind
   -> Lambda.primitive
   -> args:Simple.t list
   -> Debuginfo.t
-  -> (Flambda.Named.t option -> Flambda.Expr.t)
-  -> Flambda.Expr.t
+  -> (Named_with_size.t option -> Expr_with_size.t)
+  -> Expr_with_size.t

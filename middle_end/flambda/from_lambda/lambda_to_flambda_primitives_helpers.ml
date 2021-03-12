@@ -17,6 +17,7 @@
 [@@@ocaml.warning "+a-30-40-41-42"]
 
 open! Flambda.Import
+open Wrapper
 
 module P = Flambda_primitive
 module VB = Var_in_binding_pos
@@ -108,16 +109,16 @@ let raise_exn_for_failure ~dbg exn_cont exn_bucket extra_let_binding =
     [exn_bucket] @ extra_args
   in
   let apply_cont =
-    Expr.create_apply_cont
+    Expr_with_size.create_apply_cont
       (Apply_cont.create ~trap_action exn_handler ~args ~dbg)
   in
   match extra_let_binding with
   | None -> apply_cont
   | Some (bound_var, defining_expr) ->
-    Let.create (Bindable_let_bound.singleton bound_var)
+    Let_with_size.create (Bindable_let_bound.singleton bound_var)
       defining_expr ~body:apply_cont
       ~free_names_of_body:Unknown
-    |> Expr.create_let
+    |> Expr_with_size.create_let
 
 let expression_for_failure ~backend exn_cont ~register_const_string
       primitive dbg (failure : failure) =
@@ -152,7 +153,7 @@ let expression_for_failure ~backend exn_cont ~register_const_string
         Apply.create ~callee ~continuation exn_cont
           ~args ~call_kind dbg ~inline ~inlining_state
       in
-      Expr.create_apply call
+      Expr_with_size.create_apply call
     end else begin
       let exn_bucket = Variable.create "exn_bucket" in
       (* CR mshinwell: Share this text with elsewhere. *)
@@ -164,7 +165,7 @@ let expression_for_failure ~backend exn_cont ~register_const_string
       in
       let extra_let_binding =
         Var_in_binding_pos.create exn_bucket Name_mode.normal,
-        Named.create_prim (Variadic (Make_block (
+        Named_with_size.create_prim (Variadic (Make_block (
           Values (Tag.Scannable.zero, [Any_value; Any_value]),
           Immutable),
                                      contents_of_exn_bucket))
@@ -180,19 +181,19 @@ let rec bind_rec ~backend exn_cont
           ~register_const_string
           (prim : expr_primitive)
           (dbg : Debuginfo.t)
-          (cont : Named.t -> Expr.t)
-  : Expr.t =
+          (cont : Named_with_size.t -> Expr_with_size.t)
+  : Expr_with_size.t =
   match prim with
-  | Simple simple -> cont (Named.create_simple simple)
+  | Simple simple -> cont (Named_with_size.create_simple simple)
   | Unary (prim, arg) ->
     let cont (arg : Simple.t) =
-      cont (Named.create_prim (Unary (prim, arg)) dbg)
+      cont (Named_with_size.create_prim (Unary (prim, arg)) dbg)
     in
     bind_rec_primitive ~backend exn_cont ~register_const_string arg dbg cont
   | Binary (prim, arg1, arg2) ->
     let cont (arg2 : Simple.t) =
       let cont (arg1 : Simple.t) =
-        cont (Named.create_prim (Binary (prim, arg1, arg2)) dbg)
+        cont (Named_with_size.create_prim (Binary (prim, arg1, arg2)) dbg)
       in
       bind_rec_primitive ~backend exn_cont ~register_const_string arg1 dbg cont
     in
@@ -201,7 +202,7 @@ let rec bind_rec ~backend exn_cont
     let cont (arg3 : Simple.t) =
       let cont (arg2 : Simple.t) =
         let cont (arg1 : Simple.t) =
-          cont (Named.create_prim (Ternary (prim, arg1, arg2, arg3)) dbg)
+          cont (Named_with_size.create_prim (Ternary (prim, arg1, arg2, arg3)) dbg)
         in
         bind_rec_primitive ~backend exn_cont ~register_const_string arg1
           dbg cont
@@ -211,7 +212,7 @@ let rec bind_rec ~backend exn_cont
     bind_rec_primitive ~backend exn_cont ~register_const_string arg3 dbg cont
   | Variadic (prim, args) ->
     let cont args =
-      cont (Named.create_prim (Variadic (prim, args)) dbg)
+      cont (Named_with_size.create_prim (Variadic (prim, args)) dbg)
     in
     let rec build_cont args_to_convert converted_args =
       match args_to_convert with
@@ -231,7 +232,7 @@ let rec bind_rec ~backend exn_cont
         bind_rec ~backend exn_cont ~register_const_string
           primitive dbg cont
       in
-      Continuation_handler.create [] ~handler
+      Continuation_handler_with_size.create [] ~handler
         ~free_names_of_handler:Unknown
         ~is_exn_handler:false
     in
@@ -241,7 +242,7 @@ let rec bind_rec ~backend exn_cont
         expression_for_failure ~backend exn_cont
           ~register_const_string primitive dbg failure
       in
-      Continuation_handler.create [] ~handler
+      Continuation_handler_with_size.create [] ~handler
         ~free_names_of_handler:Unknown
         ~is_exn_handler:false
     in
@@ -249,7 +250,7 @@ let rec bind_rec ~backend exn_cont
       List.fold_left (fun rest expr_primitive ->
           let condition_passed_cont = Continuation.create () in
           let condition_passed_cont_handler =
-            Continuation_handler.create [] ~handler:rest
+            Continuation_handler_with_size.create [] ~handler:rest
               ~free_names_of_handler:Unknown
               ~is_exn_handler:false
           in
@@ -257,7 +258,7 @@ let rec bind_rec ~backend exn_cont
             bind_rec_primitive ~backend exn_cont ~register_const_string
               (Prim expr_primitive) dbg
               (fun prim_result ->
-                (Expr.create_switch
+                (Expr_with_size.create_switch
                    (Switch.create
                     ~scrutinee:prim_result
                     ~arms:(Target_imm.Map.of_list [
@@ -267,17 +268,17 @@ let rec bind_rec ~backend exn_cont
                         Apply_cont.goto failure_cont;
                   ]))))
           in
-          Let_cont.create_non_recursive condition_passed_cont
+          Let_cont_with_size.create_non_recursive condition_passed_cont
             condition_passed_cont_handler ~body
             ~free_names_of_body:Unknown)
-        (Expr.create_apply_cont
+        (Expr_with_size.create_apply_cont
            (Apply_cont.create primitive_cont ~args:[] ~dbg:Debuginfo.none))
         validity_conditions
     in
-    Let_cont.create_non_recursive primitive_cont
+    Let_cont_with_size.create_non_recursive primitive_cont
       primitive_cont_handler
       ~body:(
-        Let_cont.create_non_recursive failure_cont
+        Let_cont_with_size.create_non_recursive failure_cont
           failure_cont_handler
           ~body:check_validity_conditions
           ~free_names_of_body:Unknown)
@@ -286,7 +287,7 @@ let rec bind_rec ~backend exn_cont
 and bind_rec_primitive ~backend exn_cont ~register_const_string
       (prim : simple_or_prim)
       (dbg : Debuginfo.t)
-      (cont : Simple.t -> Expr.t) : Expr.t =
+      (cont : Simple.t -> Expr_with_size.t) : Expr_with_size.t =
   match prim with
   | Simple s ->
     cont s
@@ -294,9 +295,9 @@ and bind_rec_primitive ~backend exn_cont ~register_const_string
     let var = Variable.create "prim" in
     let var' = VB.create var Name_mode.normal in
     let cont named =
-      Let.create (Bindable_let_bound.singleton var') named
+      Let_with_size.create (Bindable_let_bound.singleton var') named
         ~body:(cont (Simple.var var))
         ~free_names_of_body:Unknown
-      |> Expr.create_let
+      |> Expr_with_size.create_let
     in
     bind_rec ~backend exn_cont ~register_const_string p dbg cont

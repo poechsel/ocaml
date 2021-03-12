@@ -125,11 +125,7 @@ let set_of_closures ~find_cost_metrics set_of_closures =
   let funs = Function_declarations.funs func_decls in
   Closure_id.Map.fold (fun _ func_decl metrics ->
       let code_id = Function_declaration.code_id func_decl in
-      match find_cost_metrics code_id with
-      | Or_unknown.Known s -> metrics + s
-      | Or_unknown.Unknown ->
-         Misc.fatal_errorf "Code size should have been computed for:@ %a"
-           Code_id.print code_id
+      metrics + find_cost_metrics code_id
     )
     funs (zero)
 

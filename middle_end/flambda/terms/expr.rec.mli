@@ -57,13 +57,6 @@ val create_apply_cont : Apply_cont.t -> t
 
 val create_switch : Switch_expr.t -> t
 
-(** Build a [Switch] corresponding to a traditional if-then-else. *)
-val create_if_then_else
-   : scrutinee:Simple.t
-  -> if_true:Apply_cont_expr.t
-  -> if_false:Apply_cont_expr.t
-  -> t
-
 (** Create an expression indicating type-incorrect or unreachable code. *)
 val create_invalid : ?semantics:Invalid_term_semantics.t -> unit -> t
 

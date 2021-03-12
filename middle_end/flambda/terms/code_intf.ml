@@ -51,7 +51,7 @@ module type S = sig
 
   val recursive : t -> Recursive.t
 
-  val cost_metrics : t -> cost_metrics Or_unknown.t
+  val cost_metrics : t -> cost_metrics
 
   val create
      : Code_id.t  (** needed for [compare], although useful otherwise too *)
@@ -64,14 +64,14 @@ module type S = sig
     -> inline:Inline_attribute.t
     -> is_a_functor:bool
     -> recursive:Recursive.t
-    -> cost_metrics:cost_metrics Or_unknown.t
+    -> cost_metrics:cost_metrics
     -> t
 
   val with_code_id : Code_id.t -> t -> t
 
   val with_params_and_body
     : (function_params_and_body * Name_occurrences.t) Or_deleted.t
-    -> cost_metrics:cost_metrics Or_unknown.t
+    -> cost_metrics:cost_metrics
     -> t
     -> t
 

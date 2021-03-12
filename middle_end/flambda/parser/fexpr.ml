@@ -306,7 +306,10 @@ and code = {
   recursive : is_recursive;
   inline : inline_attribute option;
   params_and_body : params_and_body or_deleted;
+  code_size : code_size;
 }
+
+and code_size = int
 
 and params_and_body = {
   params : kinded_parameter list;

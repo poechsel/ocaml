@@ -163,15 +163,6 @@ let create_invalid ?semantics () =
   in
   create (Invalid semantics)
 
-let create_if_then_else ~scrutinee ~if_true ~if_false =
-  let arms =
-    Target_imm.Map.of_list [
-      Target_imm.bool_true, if_true;
-      Target_imm.bool_false, if_false;
-    ]
-  in
-  create_switch (Switch_expr.create ~scrutinee ~arms)
-
 let bind_no_simplification ~bindings ~body ~cost_metrics_of_body ~free_names_of_body =
   ListLabels.fold_left (List.rev bindings)
     ~init:(body, cost_metrics_of_body, free_names_of_body)

@@ -172,12 +172,10 @@ let middle_end ~ppf_dump:ppf ~prefixname ~backend ~filename ~module_ident
     | exception Not_found -> ()
     | _ ->
       Exported_code.iter simplify_result.all_code (fun id code ->
-        match Flambda.Code.cost_metrics code with
-        | Known cost_metrics ->
-          Format.fprintf Format.std_formatter "%a %a\n"
-            Code_id.print id
-            Flambda.Cost_metrics.print cost_metrics
-        | _ -> assert false);
+        let size = Flambda.Code.cost_metrics code in
+        Format.fprintf Format.std_formatter "%a %a\n"
+          Code_id.print id Flambda.Cost_metrics.print size
+      )
     end;
     { cmx = simplify_result.cmx;
       unit = simplify_result.unit;

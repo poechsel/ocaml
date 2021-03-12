@@ -600,7 +600,7 @@ let rec expr env (e : Fexpr.expr) : Flambda.Expr.t =
         Set_of_closures set
       | Closure _ -> assert false (* should have been filtered out above *)
       | Code { id; newer_version_of; param_arity; ret_arity; recursive; inline;
-               params_and_body } ->
+               params_and_body; code_size } ->
         let code_id = find_code_id env id in
         let newer_version_of =
           Option.map (find_code_id env) newer_version_of
@@ -663,6 +663,9 @@ let rec expr env (e : Fexpr.expr) : Flambda.Expr.t =
         let inline =
           inline |> Option.value ~default:Inline_attribute.Default_inline
         in
+        let cost_metrics =
+          Flambda.Cost_metrics.from_size (Code_size.of_int code_size)
+        in
         let code =
           Flambda.Code.create
             code_id
@@ -674,7 +677,7 @@ let rec expr env (e : Fexpr.expr) : Flambda.Expr.t =
             ~inline
             ~is_a_functor:false
             ~recursive
-            ~cost_metrics:Unknown
+            ~cost_metrics
         in
         Code code
     in

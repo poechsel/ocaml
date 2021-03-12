@@ -16,8 +16,6 @@
 
 [@@@ocaml.warning "+a-30-40-41-42"]
 
-open! Flambda.Import
-
 type failure =
   | Division_by_zero
   | Index_out_of_bounds
@@ -62,7 +60,7 @@ val expression_for_failure
   -> expr_primitive
   -> Debuginfo.t
   -> failure
-  -> Expr.t
+  -> Wrapper.Expr_with_size.t
 
 val bind_rec
    : backend:(module Flambda_backend_intf.S)
@@ -70,5 +68,5 @@ val bind_rec
   -> register_const_string:(string -> Symbol.t)
   -> expr_primitive
   -> Debuginfo.t
-  -> (Named.t -> Expr.t)
-  -> Expr.t
+  -> (Wrapper.Named_with_size.t -> Wrapper.Expr_with_size.t)
+  -> Wrapper.Expr_with_size.t
