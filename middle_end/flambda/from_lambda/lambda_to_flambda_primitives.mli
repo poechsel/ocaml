@@ -25,5 +25,5 @@ val convert_and_bind
   -> Lambda.primitive
   -> args:Simple.t list
   -> Debuginfo.t
-  -> name_opt_to_expr
+  -> (Acc.t -> Named_with_size.t option -> Acc.t * Expr_with_size.t)
   -> Acc.t * Expr_with_size.t

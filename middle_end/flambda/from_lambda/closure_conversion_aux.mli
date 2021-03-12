@@ -61,16 +61,6 @@ module Acc : sig
   val empty : t
 end
 
-type name_opt_to_expr =
-  Acc.t
-  -> Wrapper.Named_with_size.t option
-  -> Acc.t * Wrapper.Expr_with_size.t
-
-type name_to_expr =
-  Acc.t
-  -> Wrapper.Named_with_size.t
-  -> Acc.t * Wrapper.Expr_with_size.t
-
 (** Used to represent information about a set of function declarations
     during closure conversion.  (The only case in which such a set may
     contain more than one declaration is when processing "let rec".) *)
