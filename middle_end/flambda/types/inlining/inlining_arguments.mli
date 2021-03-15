@@ -48,6 +48,8 @@ val branch_cost : t -> float
 
 val indirect_call_cost : t -> float
 
+val poly_compare_cost : t -> float
+
 val small_function_size : t -> int
 
 val large_function_size : t -> int

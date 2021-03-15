@@ -27,6 +27,7 @@ type t = {
     branch : int;
     (* CR-someday pchambart: branch : t list; *)
     direct_call_of_indirect : int;
+    specialized_poly_compare : int;
     requested_inline : int;
     (* Benefit to compensate the size of functions marked for inlining *)
   }
@@ -37,6 +38,7 @@ let zero = {
     prim = 0;
     branch = 0;
     direct_call_of_indirect = 0;
+    specialized_poly_compare = 0;
     requested_inline = 0;
   }
 
@@ -70,15 +72,20 @@ let branch = { zero with branch = 1; }
 let direct_call_of_indirect =
   { zero with direct_call_of_indirect = 1; }
 
+let specialized_poly_compare =
+  { zero with specialized_poly_compare = 1; }
+
 let print ppf b =
   Format.fprintf ppf "@[call: %i@ alloc: %i@ \
                       prim: %i@ branch: %i@ \
-                      direct: %i@ requested: %i@]"
+                      direct: %i@ compare: %i@ \
+                      requested: %i@]"
     b.call
     b.alloc
     b.prim
     b.branch
     b.direct_call_of_indirect
+    b.specialized_poly_compare
     b.requested_inline
 
 let (+) t1 t2 = {
@@ -88,6 +95,8 @@ let (+) t1 t2 = {
     branch = t1.branch + t2.branch;
     direct_call_of_indirect =
       t1.direct_call_of_indirect + t2.direct_call_of_indirect;
+    specialized_poly_compare =
+      t1.specialized_poly_compare + t2.specialized_poly_compare;
     requested_inline = t1.requested_inline + t2.requested_inline;
   }
 
@@ -97,4 +106,7 @@ let evaluate ~args (t : t) =
    +. (float_of_int t.prim *. Inlining_arguments.prim_cost args)
    +. (float_of_int t.branch *. Inlining_arguments.branch_cost args)
    +. (float_of_int t.direct_call_of_indirect
-       *. Inlining_arguments.indirect_call_cost args)
+      *. Inlining_arguments.indirect_call_cost args)
+   +. (float_of_int t.specialized_poly_compare
+       *. Inlining_arguments.poly_compare_cost args)
+

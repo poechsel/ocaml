@@ -2,11 +2,10 @@
 (*                                                                        *)
 (*                                 OCaml                                  *)
 (*                                                                        *)
-(*                       Pierre Chambart, OCamlPro                        *)
-(*           Mark Shinwell and Leo White, Jane Street Europe              *)
+(*                        Guillaume Bury, OCamlPro                        *)
 (*                                                                        *)
-(*   Copyright 2013--2019 OCamlPro SAS                                    *)
-(*   Copyright 2014--2019 Jane Street Group LLC                           *)
+(*   Copyright 2021--2021 OCamlPro SAS                                    *)
+(*   Copyright 2021--2021 Jane Street Group LLC                           *)
 (*                                                                        *)
 (*   All rights reserved.  This file is distributed under the terms of    *)
 (*   the GNU Lesser General Public License version 2.1, with the          *)
@@ -14,20 +13,20 @@
 (*                                                                        *)
 (**************************************************************************)
 
-[@@@ocaml.warning "+a-4-30-40-41-42"]
+[@@@ocaml.warning "+a-4-9-30-40-41-42"]
 
-type t
+(** Simplification of external calls *)
 
-val zero : t
+type t =
+  | Unchanged
+  | Poly_compare_specialized of Downwards_acc.t * Flambda.Expr.t
 
-val call: t
-val branch: t
-val prim: Flambda_primitive.t -> t
-val alloc: t
-val direct_call_of_indirect: t
-val specialized_poly_compare : t
+val simplify_extcall
+   : Downwards_acc.t
+  -> Flambda.Apply.t
+  -> callee_ty:Flambda_type.t
+  -> param_arity:Flambda_arity.t
+  -> return_arity:Flambda_arity.t
+  -> arg_types:Flambda_type.t list
+  -> t
 
-val (+) : t -> t -> t
-val print : Format.formatter -> t -> unit
-
-val evaluate : args:Inlining_arguments.t -> t -> float

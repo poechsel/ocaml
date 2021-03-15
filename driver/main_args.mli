@@ -180,6 +180,7 @@ module type Optcommon_options = sig
   val _inline_prim_cost : string -> unit
   val _inline_branch_cost : string -> unit
   val _inline_indirect_call_cost : string -> unit
+  val _inline_poly_compare_cost : string -> unit
   val _inline_lifting_benefit : string -> unit
   val _inline_small_function_size : string -> unit
   val _inline_large_function_size : string -> unit

@@ -238,6 +238,9 @@ let mk_inline_branch_cost =
 let mk_inline_indirect_call_cost =
   mk_inline_cost "indirect" "an indirect call"
     Clflags.default_inline_indirect_call_cost
+let mk_inline_poly_compare_cost =
+  mk_inline_cost "poly-compare" "a polymorphic comparison"
+    Clflags.default_inline_poly_compare_cost
 
 (* CR mshinwell: We need to have a check that the parameters provided by
    the user are sensible, e.g. small_function_size <= large_function_size. *)
@@ -1207,6 +1210,7 @@ module type Optcommon_options = sig
   val _inline_prim_cost : string -> unit
   val _inline_branch_cost : string -> unit
   val _inline_indirect_call_cost : string -> unit
+  val _inline_poly_compare_cost : string -> unit
   val _inline_lifting_benefit : string -> unit
   val _inline_small_function_size : string -> unit
   val _inline_large_function_size : string -> unit
@@ -1531,6 +1535,7 @@ struct
     mk_inline_call_cost F._inline_call_cost;
     mk_inline_prim_cost F._inline_prim_cost;
     mk_inline_indirect_call_cost F._inline_indirect_call_cost;
+    mk_inline_poly_compare_cost F._inline_poly_compare_cost;
     mk_inline_lifting_benefit F._inline_lifting_benefit;
     mk_inline_small_function_size F._inline_small_function_size;
     mk_inline_large_function_size F._inline_large_function_size;
@@ -1720,6 +1725,7 @@ module Make_opttop_options (F : Opttop_options) = struct
     mk_inline_prim_cost F._inline_prim_cost;
     mk_inline_branch_cost F._inline_branch_cost;
     mk_inline_indirect_call_cost F._inline_indirect_call_cost;
+    mk_inline_poly_compare_cost F._inline_poly_compare_cost;
     mk_inline_lifting_benefit F._inline_lifting_benefit;
     mk_inline_branch_factor F._inline_branch_factor;
     mk_inline_small_function_size F._inline_small_function_size;
@@ -2057,6 +2063,10 @@ module Default = struct
       Float_arg_helper.parse spec
         "Syntax: -inline-indirect-call-cost <n> | <round>=<n>[,...]"
         inline_indirect_call_cost
+    let _inline_poly_compare_cost spec =
+      Float_arg_helper.parse spec
+        "Syntax: -inline-poly-compare-cost <n> | <round>=<n>[,...]"
+        inline_poly_compare_cost
     let _inline_lifting_benefit spec =
       Int_arg_helper.parse spec
         "Syntax: -inline-lifting-benefit <n> | <round>=<n>[,...]"

@@ -22,6 +22,7 @@ module Args = struct
     prim_cost : float;
     branch_cost : float;
     indirect_call_cost : float;
+    poly_compare_cost : float;
     small_function_size : int;
     large_function_size : int;
     threshold : float;
@@ -29,7 +30,8 @@ module Args = struct
 
   let print ppf t =
     let { max_inlining_depth; call_cost; alloc_cost; prim_cost; branch_cost;
-          indirect_call_cost; small_function_size; large_function_size;
+          indirect_call_cost; poly_compare_cost;
+          small_function_size; large_function_size;
           threshold;
         } = t
     in
@@ -41,6 +43,7 @@ module Args = struct
        @[<hov 1]>(prim_cost@ %f)@]@ \
        @[<hov 1]>(branch_cost@ %f)@]@ \
        @[<hov 1]>(indirect_call_cost@ %f)@]@ \
+       @[<hov 1]>(poly_compare_cost@ %f)@]@ \
        @[<hov 1]>(small_function_size@ %d)@]@ \
        @[<hov 1]>(large_function_size@ %d)@]@ \
        @[<hov 1]>(threshold@ %f)@]\
@@ -63,6 +66,7 @@ module Args = struct
       prim_cost = t1_prim_cost;
       branch_cost = t1_branch_cost;
       indirect_call_cost = t1_indirect_call_cost;
+      poly_compare_cost = t1_poly_compare_cost;
       small_function_size = t1_small_function_size;
       large_function_size = t1_large_function_size;
       threshold = t1_threshold;
@@ -75,6 +79,7 @@ module Args = struct
       prim_cost = t2_prim_cost;
       branch_cost = t2_branch_cost;
       indirect_call_cost = t2_indirect_call_cost;
+      poly_compare_cost = t2_poly_compare_cost;
       small_function_size = t2_small_function_size;
       large_function_size = t2_large_function_size;
       threshold = t2_threshold;
@@ -86,6 +91,7 @@ module Args = struct
     && Float.compare t1_prim_cost t2_prim_cost = 0
     && Float.compare t1_branch_cost t2_branch_cost = 0
     && Float.compare t1_indirect_call_cost t2_indirect_call_cost = 0
+    && Float.compare t1_poly_compare_cost t2_poly_compare_cost = 0
     && t1_small_function_size = t2_small_function_size
     && t1_large_function_size = t2_large_function_size
     && Float.compare t1_threshold t2_threshold = 0
@@ -106,6 +112,7 @@ module Args = struct
       prim_cost = t1_prim_cost;
       branch_cost = t1_branch_cost;
       indirect_call_cost = t1_indirect_call_cost;
+      poly_compare_cost = t1_poly_copare_cost;
       small_function_size = t1_small_function_size;
       large_function_size = t1_large_function_size;
       threshold = t1_threshold;
@@ -118,6 +125,7 @@ module Args = struct
       prim_cost = t2_prim_cost;
       branch_cost = t2_branch_cost;
       indirect_call_cost = t2_indirect_call_cost;
+      poly_compare_cost = t2_poly_compare_cost;
       small_function_size = t2_small_function_size;
       large_function_size = t2_large_function_size;
       threshold = t2_threshold;
@@ -129,6 +137,7 @@ module Args = struct
     && Float.compare t1_prim_cost t2_prim_cost <= 0
     && Float.compare t1_branch_cost t2_branch_cost <= 0
     && Float.compare t1_indirect_call_cost t2_indirect_call_cost <= 0
+    && Float.compare t1_poly_compare_cost t2_poly_compare_cost <= 0
     && t1_small_function_size <= t2_small_function_size
     && t1_large_function_size <= t2_large_function_size
     && Float.compare t1_threshold t2_threshold <= 0
@@ -141,6 +150,7 @@ module Args = struct
       prim_cost = t1_prim_cost;
       branch_cost = t1_branch_cost;
       indirect_call_cost = t1_indirect_call_cost;
+      poly_compare_cost = t1_poly_compare_cost;
       small_function_size = t1_small_function_size;
       large_function_size = t1_large_function_size;
       threshold = t1_threshold;
@@ -153,6 +163,7 @@ module Args = struct
       prim_cost = t2_prim_cost;
       branch_cost = t2_branch_cost;
       indirect_call_cost = t2_indirect_call_cost;
+      poly_compare_cost = t2_poly_compare_cost;
       small_function_size = t2_small_function_size;
       large_function_size = t2_large_function_size;
       threshold = t2_threshold;
@@ -165,6 +176,7 @@ module Args = struct
       prim_cost = Float.min t1_prim_cost t2_prim_cost;
       branch_cost = Float.min t1_branch_cost t2_branch_cost;
       indirect_call_cost = Float.min t1_indirect_call_cost t2_indirect_call_cost;
+      poly_compare_cost = Float.min t1_poly_compare_cost t2_poly_compare_cost;
       small_function_size = min t1_small_function_size t2_small_function_size;
       large_function_size = min t1_large_function_size t2_large_function_size;
       threshold = Float.min t1_threshold t2_threshold
@@ -184,6 +196,7 @@ module Args = struct
     prim_cost = cost_f !Clflags.inline_prim_cost ~round;
     branch_cost = cost_f !Clflags.inline_branch_cost ~round;
     indirect_call_cost = cost_f !Clflags.inline_indirect_call_cost ~round;
+    poly_compare_cost = cost_f !Clflags.inline_poly_compare_cost ~round;
     small_function_size = cost_i !Clflags.inline_small_function_size ~round;
     large_function_size = cost_i !Clflags.inline_large_function_size ~round;
     threshold = cost_f !Clflags.inline_threshold ~round;
@@ -211,6 +224,7 @@ let alloc_cost t = (get_or_fail t).alloc_cost
 let prim_cost t = (get_or_fail t).prim_cost
 let branch_cost t = (get_or_fail t).branch_cost
 let indirect_call_cost t = (get_or_fail t).indirect_call_cost
+let poly_compare_cost t = (get_or_fail t).poly_compare_cost
 let small_function_size t = (get_or_fail t).small_function_size
 let large_function_size t = (get_or_fail t).large_function_size
 let threshold t = (get_or_fail t).threshold

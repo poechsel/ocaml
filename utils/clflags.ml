@@ -207,6 +207,7 @@ let default_inline_alloc_cost = 7. /. 8.
 let default_inline_prim_cost = 3. /. 8.
 let default_inline_branch_cost = 5. /. 8.
 let default_inline_indirect_call_cost = 4. /. 8.
+let default_inline_poly_compare_cost = 10. /. 8.
 let default_inline_branch_factor = 0.1
 let default_inline_lifting_benefit = 1300
 let default_inline_max_unroll = 0
@@ -224,6 +225,8 @@ let inline_branch_cost =
   ref (Float_arg_helper.default default_inline_branch_cost)
 let inline_indirect_call_cost =
   ref (Float_arg_helper.default default_inline_indirect_call_cost)
+let inline_poly_compare_cost =
+  ref (Float_arg_helper.default default_inline_poly_compare_cost)
 let inline_branch_factor =
   ref (Float_arg_helper.default default_inline_branch_factor)
 let inline_lifting_benefit =
@@ -252,6 +255,7 @@ type inlining_arguments = {
   inline_prim_cost : float option;
   inline_branch_cost : float option;
   inline_indirect_call_cost : float option;
+  inline_poly_compare_cost : float option;
   inline_lifting_benefit : int option;
   inline_branch_factor : float option;
   inline_max_depth : int option;
@@ -298,6 +302,8 @@ let use_inlining_arguments_set ?round (arg:inlining_arguments) =
     default_inline_branch_cost arg.inline_branch_cost;
   set_float inline_indirect_call_cost
     default_inline_indirect_call_cost arg.inline_indirect_call_cost;
+  set_float inline_poly_compare_cost
+    default_inline_poly_compare_cost arg.inline_poly_compare_cost;
   set_int inline_lifting_benefit
     default_inline_lifting_benefit arg.inline_lifting_benefit;
   set_float inline_branch_factor
@@ -322,6 +328,7 @@ let o1_arguments = {
   inline_prim_cost = None;
   inline_branch_cost = None;
   inline_indirect_call_cost = None;
+  inline_poly_compare_cost = None;
   inline_lifting_benefit = None;
   inline_branch_factor = None;
   inline_max_depth = None;
@@ -338,6 +345,7 @@ let classic_arguments = {
   inline_prim_cost = None;
   inline_branch_cost = None;
   inline_indirect_call_cost = None;
+  inline_poly_compare_cost = None;
   inline_lifting_benefit = None;
   inline_branch_factor = None;
   inline_max_depth = None;
@@ -360,6 +368,7 @@ let o2_arguments = {
   inline_prim_cost = Some (2.0 *. default_inline_prim_cost);
   inline_branch_cost = Some (2.0 *. default_inline_branch_cost);
   inline_indirect_call_cost = Some (2.0 *. default_inline_indirect_call_cost);
+  inline_poly_compare_cost = Some (2.0 *. default_inline_poly_compare_cost);
   (* CR mshinwell: We should review these other parameters to determine
      which ones are still needed for Flambda 2. *)
   inline_lifting_benefit = None;
@@ -380,6 +389,7 @@ let o3_arguments = {
   inline_prim_cost = Some (3.0 *. default_inline_prim_cost);
   inline_branch_cost = Some (3.0 *. default_inline_branch_cost);
   inline_indirect_call_cost = Some (3.0 *. default_inline_indirect_call_cost);
+  inline_poly_compare_cost = Some (3.0 *. default_inline_poly_compare_cost);
   inline_lifting_benefit = None;
   inline_branch_factor = Some 0.;
   inline_max_depth = Some 3;

@@ -800,8 +800,8 @@ let rebuild_c_call apply ~use_id ~exn_cont_use_id ~return_arity uacc
   in
   after_rebuild expr uacc
 
-let simplify_c_call dacc apply ~callee_ty ~param_arity ~return_arity
-      ~arg_types ~down_to_up =
+let simplify_c_call ~simplify_expr dacc apply ~callee_ty ~param_arity
+      ~return_arity ~arg_types ~down_to_up =
   let callee_kind = T.kind callee_ty in
   if not (K.is_value callee_kind) then begin
     Misc.fatal_errorf "C callees must be of kind [value], not %a: %a"
@@ -828,29 +828,44 @@ let simplify_c_call dacc apply ~callee_ty ~param_arity ~return_arity
       Apply.print apply
   end;
 *)
-  let dacc, use_id =
-    match Apply.continuation apply with
-    | Return apply_continuation ->
-      let dacc, use_id =
-        DA.record_continuation_use dacc apply_continuation Non_inlinable
-          ~env_at_use:(DA.denv dacc)
-          ~arg_types:(T.unknown_types_from_arity return_arity)
-      in
-      dacc, Some use_id
-    | Never_returns ->
-      dacc, None
+  let simplified =
+    Simplify_extcall.simplify_extcall dacc apply
+      ~callee_ty ~param_arity ~return_arity ~arg_types
   in
-  let dacc, exn_cont_use_id =
-    (* CR mshinwell: Try to factor out these stanzas, here and above. *)
-    DA.record_continuation_use dacc
-      (Exn_continuation.exn_handler (Apply.exn_continuation apply))
-      Non_inlinable
-      ~env_at_use:(DA.denv dacc)
-      ~arg_types:(T.unknown_types_from_arity_with_subkinds (
-        Exn_continuation.arity (Apply.exn_continuation apply)))
-  in
-  down_to_up dacc
-    ~rebuild:(rebuild_c_call apply ~use_id ~exn_cont_use_id ~return_arity)
+  match simplified with
+  | Poly_compare_specialized (dacc, expr) ->
+    simplify_expr dacc expr ~down_to_up:(fun dacc ~rebuild ->
+      down_to_up dacc ~rebuild:(fun uacc ~after_rebuild ->
+        let uacc =
+          UA.notify_removed
+            ~operation:Removed_operations.specialized_poly_compare
+            uacc
+        in
+        rebuild uacc ~after_rebuild))
+  | Unchanged ->
+    let dacc, use_id =
+      match Apply.continuation apply with
+      | Return apply_continuation ->
+        let dacc, use_id =
+          DA.record_continuation_use dacc apply_continuation Non_inlinable
+            ~env_at_use:(DA.denv dacc)
+            ~arg_types:(T.unknown_types_from_arity return_arity)
+        in
+        dacc, Some use_id
+      | Never_returns ->
+        dacc, None
+    in
+    let dacc, exn_cont_use_id =
+      (* CR mshinwell: Try to factor out these stanzas, here and above. *)
+      DA.record_continuation_use dacc
+        (Exn_continuation.exn_handler (Apply.exn_continuation apply))
+        Non_inlinable
+        ~env_at_use:(DA.denv dacc)
+        ~arg_types:(T.unknown_types_from_arity_with_subkinds (
+          Exn_continuation.arity (Apply.exn_continuation apply)))
+    in
+    down_to_up dacc
+      ~rebuild:(rebuild_c_call apply ~use_id ~exn_cont_use_id ~return_arity)
 
 let simplify_apply ~simplify_expr dacc apply ~down_to_up =
   match simplify_apply_shared dacc apply with
@@ -870,5 +885,5 @@ let simplify_apply ~simplify_expr dacc apply ~down_to_up =
       simplify_method_call dacc apply ~callee_ty ~kind ~obj ~arg_types
         ~down_to_up
     | C_call { alloc = _; param_arity; return_arity; } ->
-      simplify_c_call dacc apply ~callee_ty ~param_arity ~return_arity
-        ~arg_types ~down_to_up
+      simplify_c_call ~simplify_expr dacc apply ~callee_ty ~param_arity
+        ~return_arity ~arg_types ~down_to_up

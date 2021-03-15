@@ -49,6 +49,7 @@ type inlining_arguments = {
   inline_prim_cost : float option;
   inline_branch_cost : float option;
   inline_indirect_call_cost : float option;
+  inline_poly_compare_cost : float option;
   inline_lifting_benefit : int option;
   inline_branch_factor : float option;
   inline_max_depth : int option;
@@ -179,6 +180,7 @@ val default_inline_alloc_cost : float
 val default_inline_prim_cost : float
 val default_inline_branch_cost : float
 val default_inline_indirect_call_cost : float
+val default_inline_poly_compare_cost : float
 val default_inline_lifting_benefit : int
 val default_inline_small_function_size : int
 val default_inline_large_function_size : int
@@ -187,6 +189,7 @@ val inline_alloc_cost : Float_arg_helper.parsed ref
 val inline_prim_cost : Float_arg_helper.parsed ref
 val inline_branch_cost : Float_arg_helper.parsed ref
 val inline_indirect_call_cost : Float_arg_helper.parsed ref
+val inline_poly_compare_cost : Float_arg_helper.parsed ref
 val inline_lifting_benefit : Int_arg_helper.parsed ref
 val inline_small_function_size : Int_arg_helper.parsed ref
 val inline_large_function_size : Int_arg_helper.parsed ref
