@@ -139,7 +139,7 @@ let close_const0 acc (const : Lambda.structured_constant) =
 
 let close_const acc const =
   let acc, simple, name = close_const0 acc const in
-  let acc, named = Named_with_size.create_simple acc simple in
+  let named = Named.create_simple simple in
   acc, named, name
 
 let find_simple_from_id env id =
@@ -169,7 +169,7 @@ let find_simples acc env ids =
 
 let close_c_call acc ~let_bound_var (prim : Primitive.description)
       ~(args : Simple.t list) exn_continuation dbg
-      (k : Acc.t -> Named_with_size.t option -> Acc.t * Expr_with_size.t)
+      (k : Acc.t -> Named.t option -> Acc.t * Expr_with_size.t)
   : Acc.t * Expr_with_size.t =
   (* XCR pchambart: there should be a special case if body is a
      apply_cont
@@ -179,7 +179,7 @@ let close_c_call acc ~let_bound_var (prim : Primitive.description)
      body of that [Let]. *)
   let acc, body = k acc None in
   let return_continuation, needs_wrapper =
-    match Expr.descr (With_size.get body) with
+    match Expr.descr body with
     | Apply_cont apply_cont
       when
         Simple.List.equal (Apply_cont_expr.args apply_cont)
@@ -241,7 +241,7 @@ let close_c_call acc ~let_bound_var (prim : Primitive.description)
             let acc, return_result_expr =
               Expr_with_size.create_apply_cont acc return_result
             in
-            let acc, named = Named_with_size.create_prim acc prim dbg in
+            let named = Named.create_prim prim dbg in
             Let_with_size.create acc bindable named
               ~body:return_result_expr
               ~free_names_of_body:(Known (Apply_cont.free_names return_result))
@@ -288,8 +288,8 @@ let close_c_call acc ~let_bound_var (prim : Primitive.description)
                VB.create unboxed_arg Name_mode.normal
              in
              let acc, body = call ((Simple.var unboxed_arg) :: args) in
-             let acc, named =
-               Named_with_size.create_prim acc (Unary (named, arg)) dbg
+             let named =
+               Named.create_prim (Unary (named, arg)) dbg
              in
              Let_with_size.create acc
                (Bindable_let_bound.singleton unboxed_arg')
@@ -317,8 +317,8 @@ let close_c_call acc ~let_bound_var (prim : Primitive.description)
     | Some box_return_value ->
       let let_bound_var' = VB.create let_bound_var Name_mode.normal in
       let handler_param = Variable.rename let_bound_var in
-      let acc, named =
-        Named_with_size.create_prim acc
+      let named =
+        Named.create_prim
           (Unary (box_return_value, Simple.var handler_param))
           dbg
       in
@@ -333,23 +333,26 @@ let close_c_call acc ~let_bound_var (prim : Primitive.description)
   in
   if not needs_wrapper then acc, call
   else
-    let acc, after_call =
-      let return_kind =
-        Flambda_kind.With_subkind.create return_kind Anything
-      in
-      let params = [Kinded_parameter.create handler_param return_kind] in
-      Continuation_handler_with_size.create acc params
-        ~handler:code_after_call
-        (* Here and elsewhere in this pass, we specify [Unknown] for
-           free name sets like this, since the information isn't needed
-           until the translation to Cmm -- by which point Simplify will
-           have rebuilt the term and provided the free names. *)
-        ~free_names_of_handler:Unknown
-        ~is_exn_handler:false
+    let cost_metrics_of_handler, acc, after_call =
+      Acc.with_blank_cost_metrics acc ~f:(fun acc ->
+        let return_kind =
+          Flambda_kind.With_subkind.create return_kind Anything
+        in
+        let params = [Kinded_parameter.create handler_param return_kind] in
+        Continuation_handler_with_size.create acc params
+          ~handler:code_after_call
+          (* Here and elsewhere in this pass, we specify [Unknown] for
+             free name sets like this, since the information isn't needed
+             until the translation to Cmm -- by which point Simplify will
+             have rebuilt the term and provided the free names. *)
+          ~free_names_of_handler:Unknown
+          ~is_exn_handler:false
+      )
     in
     Let_cont_with_size.create_non_recursive acc return_continuation after_call
       ~body:call
       ~free_names_of_body:Unknown
+      ~cost_metrics_of_handler
 
 let close_exn_continuation acc env (exn_continuation : Ilambda.exn_continuation) =
   let acc, extra_args =
@@ -364,7 +367,7 @@ let close_exn_continuation acc env (exn_continuation : Ilambda.exn_continuation)
 
 let close_primitive acc env ~let_bound_var named (prim : Lambda.primitive) ~args
       loc (exn_continuation : Ilambda.exn_continuation option)
-      (k : Acc.t -> Named_with_size.t option -> Acc.t * Expr_with_size.t)
+      (k : Acc.t -> Named.t option -> Acc.t * Expr_with_size.t)
   : Acc.t * Expr_with_size.t =
   let acc, exn_continuation =
     match exn_continuation with
@@ -393,7 +396,7 @@ let close_primitive acc env ~let_bound_var named (prim : Lambda.primitive) ~args
         Ident.print id
     end;
     let acc, simple = symbol_for_ident acc env id in
-    let acc, named = Named_with_size.create_simple acc simple in
+    let named = Named.create_simple simple in
     k acc (Some named)
   | Praise raise_kind, [_] ->
     let exn_continuation =
@@ -438,11 +441,11 @@ let rec close acc env (ilam : Ilambda.t) : Acc.t * Expr_with_size.t =
   | Let (id, user_visible, _kind, defining_expr, body) ->
     (* CR mshinwell: Remove [kind] on the Ilambda terms? *)
     let body_env, var = Env.add_var_like env id user_visible in
-    let cont acc (defining_expr : Named_with_size.t option) =
+    let cont acc (defining_expr : Named.t option) =
       let body_env =
         match defining_expr with
         | Some n -> begin
-            match With_size.get n with
+            match n with
             | Simple simple ->
               Env.add_simple_to_substitute body_env id simple
             | _ -> body_env
@@ -486,7 +489,10 @@ let rec close acc env (ilam : Ilambda.t) : Acc.t * Expr_with_size.t =
         params
         params_with_kinds
     in
-    let acc, handler = close acc handler_env handler in
+    let cost_metrics_of_handler, acc, handler =
+      Acc.with_blank_cost_metrics acc ~f:(fun acc ->
+        close acc handler_env handler)
+    in
     let acc, handler =
       Continuation_handler_with_size.create acc params ~handler
         ~free_names_of_handler:Unknown
@@ -496,10 +502,11 @@ let rec close acc env (ilam : Ilambda.t) : Acc.t * Expr_with_size.t =
     begin match recursive with
     | Nonrecursive ->
       Let_cont_with_size.create_non_recursive acc name handler ~body
-        ~free_names_of_body:Unknown
+        ~free_names_of_body:Unknown ~cost_metrics_of_handler
     | Recursive ->
       let handlers = Continuation.Map.singleton name handler in
       Let_cont_with_size.create_recursive acc handlers ~body
+        ~cost_metrics_of_handlers:cost_metrics_of_handler
     end
   | Apply { kind; func; args; continuation; exn_continuation;
       loc; should_be_tailcall = _; inlined; specialised = _; } ->
@@ -538,8 +545,8 @@ let rec close acc env (ilam : Ilambda.t) : Acc.t * Expr_with_size.t =
     let untagged_scrutinee' =
       VB.create untagged_scrutinee Name_mode.normal
     in
-    let acc, untag =
-      Named_with_size.create_prim acc
+    let untag =
+      Named.create_prim
         (Unary (Unbox_number Untagged_immediate, scrutinee))
         Debuginfo.none
     in
@@ -561,8 +568,8 @@ let rec close acc env (ilam : Ilambda.t) : Acc.t * Expr_with_size.t =
          except one, that arise from single-arm [Lambda] switches with a
          default case.  (Seen in code generated by ppx_compare for variants,
          which exhibited quadratic size blowup.) *)
-      let acc, compare =
-        Named_with_size.create_prim acc
+      let compare =
+        Named.create_prim
           (Binary (Phys_equal (Flambda_kind.naked_immediate, Eq),
             Simple.var untagged_scrutinee,
             Simple.const (Reg_width_const.naked_immediate case)))
@@ -628,7 +635,7 @@ let rec close acc env (ilam : Ilambda.t) : Acc.t * Expr_with_size.t =
         |> Expr_with_size.create_let
 
 and close_named acc env ~let_bound_var (named : Ilambda.named)
-      (k : Acc.t -> Named_with_size.t option -> Acc.t * Expr_with_size.t)
+      (k : Acc.t -> Named.t option -> Acc.t * Expr_with_size.t)
   : Acc.t * Expr_with_size.t =
   match named with
   | Simple (Var id) ->
@@ -636,7 +643,7 @@ and close_named acc env ~let_bound_var (named : Ilambda.named)
       if not (Ident.is_predef id) then acc, Simple.var (Env.find_var env id)
       else symbol_for_ident acc env id
     in
-    let acc, named = Named_with_size.create_simple acc simple in
+    let named = Named.create_simple simple in
     k acc (Some named)
   | Simple (Const cst) ->
     let acc, named, _name = close_const acc cst in
@@ -720,14 +727,7 @@ and close_let_rec acc env ~defs ~body =
         |> Closure_id.Lmap.bindings)
   in
   let acc, body = close acc env body in
-  let acc, named =
-    let code_mapping = Acc.code acc in
-    Named_with_size.create_set_of_closures acc
-       ~find_cost_metrics:(fun code_id ->
-         Code_id.Map.find code_id code_mapping
-         |> Code.cost_metrics)
-       set_of_closures
-  in
+  let named = Named.create_set_of_closures set_of_closures in
   Let_with_size.create acc
     (Bindable_let_bound.set_of_closures ~closure_vars)
     named
@@ -784,6 +784,7 @@ and close_one_function acc ~external_env ~by_closure_id decl
       ~var_within_closures_from_idents ~closure_ids_from_idents
       function_declarations =
   let acc = Acc.with_free_names Name_occurrences.empty acc in
+  let acc = Acc.with_cost_metrics Cost_metrics.zero acc in
   let body = Function_decl.body decl in
   let loc = Function_decl.loc decl in
   let dbg = Debuginfo.from_location loc in
@@ -902,8 +903,8 @@ and close_one_function acc ~external_env ~by_closure_id decl
           }
         in
         let var = VB.create var Name_mode.normal in
-        let acc, named =
-          Named_with_size.create_prim acc
+        let named =
+          Named.create_prim
             (Unary (move, my_closure'))
             Debuginfo.none
         in
@@ -923,8 +924,8 @@ and close_one_function acc ~external_env ~by_closure_id decl
   let acc, body =
     Variable.Map.fold (fun var var_within_closure (acc, body) ->
         let var = VB.create var Name_mode.normal in
-        let acc, named = 
-          Named_with_size.create_prim acc
+        let named = 
+          Named.create_prim
              (Unary (Project_var {
                 project_from = my_closure_id;
                 var = var_within_closure;
@@ -957,8 +958,7 @@ and close_one_function acc ~external_env ~by_closure_id decl
   let params_and_body =
     Function_params_and_body.create
       ~return_continuation:(Function_decl.return_continuation decl)
-      exn_continuation params ~dbg ~body:(With_size.get body) ~my_closure
-      ~free_names_of_body:Unknown
+      exn_continuation params ~dbg ~body ~my_closure ~free_names_of_body:Unknown
   in
   let params_arity = Kinded_parameter.List.arity_with_subkinds params in
   let is_tupled =
@@ -983,7 +983,7 @@ and close_one_function acc ~external_env ~by_closure_id decl
       ~is_a_functor:(Function_decl.is_a_functor decl)
       ~recursive
       ~newer_version_of:None
-      ~cost_metrics:(With_size.size body)
+      ~cost_metrics:(Acc.cost_metrics acc)
   in
   Acc.add_code ~code_id ~code acc,
   Closure_id.Map.add my_closure_id fun_decl by_closure_id
@@ -1030,8 +1030,8 @@ let ilambda_to_flambda ~backend ~module_ident ~module_block_size_in_words
         Bound_symbols.singleton
           (Bound_symbols.Pattern.block_like module_symbol)
       in
-      let acc, named =
-        Named_with_size.create_static_consts acc
+      let named =
+        Named.create_static_consts
           (Static_const.Group.create [static_const])
       in
       Let_with_size.create acc
@@ -1051,8 +1051,8 @@ let ilambda_to_flambda ~backend ~module_ident ~module_block_size_in_words
     List.fold_left (fun (acc, body) (pos, var) ->
         let var = VB.create var Name_mode.normal in
         let pos = Target_imm.int (Targetint.OCaml.of_int pos) in
-        let acc, named =
-          Named_with_size.create_prim acc
+        let named =
+          Named.create_prim
              (Binary (
                 Block_load (block_access, Immutable),
                 Simple.var module_block_var,
@@ -1067,13 +1067,15 @@ let ilambda_to_flambda ~backend ~module_ident ~module_block_size_in_words
         |> Expr_with_size.create_let)
       (acc, body) (List.rev field_vars)
   in
-  let acc, load_fields_cont_handler =
-    let param =
-      Kinded_parameter.create module_block_var K.With_subkind.any_value
-    in
-    Continuation_handler_with_size.create acc [param] ~handler:load_fields_body
-      ~free_names_of_handler:Unknown
-      ~is_exn_handler:false
+  let cost_metrics_of_handler, acc, load_fields_cont_handler =
+    Acc.with_blank_cost_metrics acc ~f:(fun acc ->
+      let param =
+        Kinded_parameter.create module_block_var K.With_subkind.any_value
+      in
+      Continuation_handler_with_size.create acc [param] ~handler:load_fields_body
+        ~free_names_of_handler:Unknown
+        ~is_exn_handler:false
+    )
   in
   let acc, body =
     (* This binds the return continuation that is free (or, at least, not bound)
@@ -1086,6 +1088,7 @@ let ilambda_to_flambda ~backend ~module_ident ~module_block_size_in_words
       load_fields_cont_handler
       ~body
       ~free_names_of_body:Unknown
+      ~cost_metrics_of_handler
   in
   begin match ilam.exn_continuation.extra_args with
   | [] -> ()
@@ -1102,9 +1105,9 @@ let ilambda_to_flambda ~backend ~module_ident ~module_block_size_in_words
         let static_const : Static_const.t =
           Code code
         in
-        let acc, defining_expr =
+        let defining_expr =
           Static_const.Group.create [static_const]
-          |> Named_with_size.create_static_consts acc
+          |> Named.create_static_consts
         in
         Let_with_size.create acc
           (Bindable_let_bound.symbols bound_symbols Syntactic)
@@ -1133,9 +1136,9 @@ let ilambda_to_flambda ~backend ~module_ident ~module_block_size_in_words
       let bound_symbols =
         Bound_symbols.singleton (Bound_symbols.Pattern.block_like symbol)
       in
-      let acc, defining_expr =
+      let defining_expr =
         Static_const.Group.create [static_const]
-        |> Named_with_size.create_static_consts acc
+        |> Named.create_static_consts
       in
       Let_with_size.create acc
         (Bindable_let_bound.symbols bound_symbols Syntactic)
@@ -1146,5 +1149,4 @@ let ilambda_to_flambda ~backend ~module_ident ~module_block_size_in_words
   in
   ignore acc;
   Flambda_unit.create ~return_continuation:return_cont ~exn_continuation
-    ~body:(With_size.get body)
-    ~module_symbol ~used_closure_vars:Unknown
+    ~body ~module_symbol ~used_closure_vars:Unknown

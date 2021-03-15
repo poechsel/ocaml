@@ -164,8 +164,8 @@ let expression_for_failure acc ~backend exn_cont ~register_const_string
         Simple.symbol error_text;
       ]
       in
-      let acc, named = 
-        Named_with_size.create_prim acc
+      let named = 
+        Named.create_prim
           (Variadic (Make_block
                        (Values (Tag.Scannable.zero, [Any_value; Any_value]),
                         Immutable),
@@ -186,24 +186,22 @@ let rec bind_rec acc ~backend exn_cont
           ~register_const_string
           (prim : expr_primitive)
           (dbg : Debuginfo.t)
-          (cont : Acc.t -> Named_with_size.t -> Acc.t * Expr_with_size.t)
+          (cont : Acc.t -> Named.t -> Acc.t * Expr_with_size.t)
   : Acc.t * Expr_with_size.t =
   match prim with
   | Simple simple ->
-    let acc, named = Named_with_size.create_simple acc simple in
+    let named = Named.create_simple simple in
     cont acc named
   | Unary (prim, arg) ->
     let cont acc (arg : Simple.t) =
-      let acc, named = Named_with_size.create_prim acc (Unary (prim, arg)) dbg in
+      let named = Named.create_prim (Unary (prim, arg)) dbg in
       cont acc named
     in
     bind_rec_primitive acc ~backend exn_cont ~register_const_string arg dbg cont
   | Binary (prim, arg1, arg2) ->
     let cont acc (arg2 : Simple.t) =
       let cont acc (arg1 : Simple.t) =
-        let acc, named =
-          Named_with_size.create_prim acc (Binary (prim, arg1, arg2)) dbg
-        in
+        let named = Named.create_prim (Binary (prim, arg1, arg2)) dbg in
         cont acc named
       in
       bind_rec_primitive acc ~backend exn_cont ~register_const_string arg1 dbg cont
@@ -213,9 +211,8 @@ let rec bind_rec acc ~backend exn_cont
     let cont acc (arg3 : Simple.t) =
       let cont acc (arg2 : Simple.t) =
         let cont acc (arg1 : Simple.t) =
-          let acc, named =
-            Named_with_size.create_prim acc
-              (Ternary (prim, arg1, arg2, arg3)) dbg
+          let named =
+            Named.create_prim (Ternary (prim, arg1, arg2, arg3)) dbg
           in
           cont acc named
         in
@@ -227,8 +224,8 @@ let rec bind_rec acc ~backend exn_cont
     bind_rec_primitive acc ~backend exn_cont ~register_const_string arg3 dbg cont
   | Variadic (prim, args) ->
     let cont acc args =
-      let acc, named = 
-        Named_with_size.create_prim acc (Variadic (prim, args)) dbg
+      let named = 
+        Named.create_prim (Variadic (prim, args)) dbg
       in
       cont acc named
     in
@@ -245,32 +242,38 @@ let rec bind_rec acc ~backend exn_cont
     build_cont acc (List.rev args) []
   | Checked { validity_conditions; primitive; failure; dbg; } ->
     let primitive_cont = Continuation.create () in
-    let acc, primitive_cont_handler =
-      let acc, handler =
-        bind_rec acc ~backend exn_cont ~register_const_string
-          primitive dbg cont
-      in
-      Continuation_handler_with_size.create acc [] ~handler
-        ~free_names_of_handler:Unknown
-        ~is_exn_handler:false
+    let cost_metrics_of_primitive_handler, acc, primitive_cont_handler =
+      Acc.with_blank_cost_metrics acc ~f:(fun acc ->
+        let acc, handler =
+          bind_rec acc ~backend exn_cont ~register_const_string
+            primitive dbg cont
+        in
+        Continuation_handler_with_size.create acc [] ~handler
+          ~free_names_of_handler:Unknown
+          ~is_exn_handler:false
+      )
     in
     let failure_cont = Continuation.create () in
-    let acc, failure_cont_handler =
-      let acc, handler =
-        expression_for_failure acc ~backend exn_cont
-          ~register_const_string primitive dbg failure
-      in
-      Continuation_handler_with_size.create acc [] ~handler
-        ~free_names_of_handler:Unknown
-        ~is_exn_handler:false
+    let cost_metrics_of_failure_handler, acc, failure_cont_handler =
+      Acc.with_blank_cost_metrics acc ~f:(fun acc ->
+        let acc, handler =
+          expression_for_failure acc ~backend exn_cont
+            ~register_const_string primitive dbg failure
+        in
+        Continuation_handler_with_size.create acc [] ~handler
+          ~free_names_of_handler:Unknown
+          ~is_exn_handler:false
+      )
     in
     let acc, check_validity_conditions =
       List.fold_left (fun (acc, rest) expr_primitive ->
           let condition_passed_cont = Continuation.create () in
-          let acc, condition_passed_cont_handler =
-            Continuation_handler_with_size.create acc [] ~handler:rest
-              ~free_names_of_handler:Unknown
-              ~is_exn_handler:false
+          let cost_metrics_of_handler, acc, condition_passed_cont_handler =
+            Acc.with_blank_cost_metrics acc ~f:(fun acc ->
+              Continuation_handler_with_size.create acc [] ~handler:rest
+                ~free_names_of_handler:Unknown
+                ~is_exn_handler:false
+            )
           in
           let acc, body =
             bind_rec_primitive acc ~backend exn_cont ~register_const_string
@@ -289,7 +292,8 @@ let rec bind_rec acc ~backend exn_cont
           in
           Let_cont_with_size.create_non_recursive acc condition_passed_cont
             condition_passed_cont_handler ~body
-            ~free_names_of_body:Unknown)
+            ~free_names_of_body:Unknown
+            ~cost_metrics_of_handler)
         (Expr_with_size.create_apply_cont acc
            (Apply_cont.create primitive_cont ~args:[] ~dbg:Debuginfo.none))
         validity_conditions
@@ -299,11 +303,13 @@ let rec bind_rec acc ~backend exn_cont
         failure_cont_handler
         ~body:check_validity_conditions
         ~free_names_of_body:Unknown
+        ~cost_metrics_of_handler:cost_metrics_of_failure_handler
     in
     Let_cont_with_size.create_non_recursive acc primitive_cont
       primitive_cont_handler
       ~body
       ~free_names_of_body:Unknown
+      ~cost_metrics_of_handler:cost_metrics_of_primitive_handler
 
 and bind_rec_primitive acc ~backend exn_cont ~register_const_string
       (prim : simple_or_prim)

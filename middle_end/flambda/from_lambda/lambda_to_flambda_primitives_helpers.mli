@@ -62,5 +62,5 @@ val bind_rec
   -> register_const_string:(Acc.t -> string -> Acc.t * Symbol.t)
   -> expr_primitive
   -> Debuginfo.t
-  -> (Acc.t -> Wrapper.Named_with_size.t -> Acc.t * Wrapper.Expr_with_size.t)
+  -> (Acc.t -> Flambda.Named.t -> Acc.t * Wrapper.Expr_with_size.t)
   -> Acc.t * Wrapper.Expr_with_size.t

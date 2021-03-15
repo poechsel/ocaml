@@ -25,5 +25,5 @@ val convert_and_bind
   -> Lambda.primitive
   -> args:Simple.t list
   -> Debuginfo.t
-  -> (Acc.t -> Named_with_size.t option -> Acc.t * Expr_with_size.t)
+  -> (Acc.t -> Flambda.Named.t option -> Acc.t * Expr_with_size.t)
   -> Acc.t * Expr_with_size.t
