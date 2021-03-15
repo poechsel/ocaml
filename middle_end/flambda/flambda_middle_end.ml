@@ -139,7 +139,7 @@ let middle_end0 ppf ~prefixname ~backend ~filename ~module_ident
     let flambda =
       Profile.record_call "closure_conversion" (fun () ->
         Closure_conversion.ilambda_to_flambda ~backend ~module_ident
-          ~module_block_size_in_words ~filename ilambda)
+          ~module_block_size_in_words ilambda)
     in
     print_rawflambda ppf flambda;
     check_invariants flambda;

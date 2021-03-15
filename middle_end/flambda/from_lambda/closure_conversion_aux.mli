@@ -24,7 +24,7 @@
 module Env : sig
   type t
 
-  val empty : t
+  val empty : backend:(module Flambda_backend_intf.S) -> t
 
   val clear_local_bindings : t -> t
 
@@ -53,12 +53,40 @@ module Env : sig
   val add_simple_to_substitute : t -> Ident.t -> Simple.t -> t
 
   val find_simple_to_substitute_exn : t -> Ident.t -> Simple.t
+
+  val backend : t -> (module Flambda_backend_intf.S)
+  val current_unit_id : t -> Ident.t
+  val symbol_for_global' : t-> (Ident.t -> Symbol.t)
 end
 
 (** Used to pipe some data through closure conversion *)
 module Acc : sig
   type t
   val empty : t
+
+  val declared_symbols : t -> (Symbol.t * Flambda.Static_const.t) list 
+  val shareable_constants : t -> Symbol.t Flambda.Static_const.Map.t
+  val code : t -> Flambda.Code.t Code_id.Map.t
+  val free_names_of_current_function : t -> Name_occurrences.t
+
+  val add_declared_symbol
+     : symbol:Symbol.t
+    -> constant:Flambda.Static_const.t
+    -> t
+    -> t
+
+  val add_shareable_constant
+     : symbol:Symbol.t
+     -> constant:Flambda.Static_const.t
+     -> t
+     -> t
+
+  val add_code : code_id:Code_id.t -> code:Flambda.Code.t -> t -> t
+
+  val add_symbol_to_free_names : symbol:Symbol.t -> t -> t
+  val add_closure_var_to_free_names : closure_var:Var_within_closure.t -> t -> t
+
+  val with_free_names : Name_occurrences.t -> t -> t
 end
 
 (** Used to represent information about a set of function declarations

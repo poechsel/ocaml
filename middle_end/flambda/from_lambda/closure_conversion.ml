@@ -30,30 +30,18 @@ module LC = Lambda_conversions
 module P = Flambda_primitive
 module VB = Var_in_binding_pos
 
-type t = {
-  backend : (module Flambda_backend_intf.S);
-  current_unit_id : Ident.t;
-  symbol_for_global' : (Ident.t -> Symbol.t);
-  mutable declared_symbols : (Symbol.t * Static_const.t) list;
-  mutable shareable_constants : Symbol.t Static_const.Map.t;
-  mutable code : Code.t Code_id.Map.t;
-  mutable free_names_of_current_function : Name_occurrences.t;
-}
-
 (* Do not use [Simple.symbol], use this function instead, to ensure that
    we correctly compute the free names of [Code]. *)
-let use_of_symbol_as_simple acc t symbol =
-  t.free_names_of_current_function
-    <- Name_occurrences.add_symbol t.free_names_of_current_function
-         symbol Name_mode.normal;
+let use_of_symbol_as_simple acc symbol =
+  let acc = Acc.add_symbol_to_free_names ~symbol acc in
   acc, Simple.symbol symbol
 
-let symbol_for_ident acc t id =
-  let symbol = t.symbol_for_global' id in
-  use_of_symbol_as_simple acc t symbol
+let symbol_for_ident acc env id =
+  let symbol = Env.symbol_for_global' env id in
+  use_of_symbol_as_simple acc symbol
 
-let register_const0 acc t constant name =
-  match Static_const.Map.find constant t.shareable_constants with
+let register_const0 acc constant name =
+  match Static_const.Map.find constant (Acc.shareable_constants acc) with
   | exception Not_found ->
     (* Create a variable to ensure uniqueness of the symbol. *)
     let var = Variable.create name in
@@ -62,23 +50,24 @@ let register_const0 acc t constant name =
         (Linkage_name.create
            (Variable.unique_name (Variable.rename var)))
     in
-    t.declared_symbols <- (symbol, constant) :: t.declared_symbols;
-    if Static_const.can_share constant then begin
-      t.shareable_constants
-        <- Static_const.Map.add constant symbol t.shareable_constants
-    end;
+    let acc = Acc.add_declared_symbol ~symbol ~constant acc in
+    let acc =
+      if Static_const.can_share constant then
+        Acc.add_shareable_constant ~symbol ~constant acc
+      else acc
+    in
     acc, symbol
   | symbol -> acc, symbol
 
-let register_const acc t constant name
+let register_const acc constant name
   : Acc.t * Static_const.Field_of_block.t * string =
-  let acc, symbol = register_const0 acc t constant name in
+  let acc, symbol = register_const0 acc constant name in
   acc, Symbol symbol, name
 
-let register_const_string acc t str =
-  register_const0 acc t (Static_const.Immutable_string str) "string"
+let register_const_string acc str =
+  register_const0 acc (Static_const.Immutable_string str) "string"
 
-let rec declare_const acc t (const : Lambda.structured_constant)
+let rec declare_const acc (const : Lambda.structured_constant)
       : Acc.t * Static_const.Field_of_block.t * string =
   match const with
   | Const_base (Const_int c) ->
@@ -95,29 +84,29 @@ let rec declare_const acc t (const : Lambda.structured_constant)
       else
         Static_const.Mutable_string { initial_value = s; }, "string"
     in
-    register_const acc t const name
+    register_const acc const name
   | Const_base (Const_float c) ->
     let c = Numbers.Float_by_bit_pattern.create (float_of_string c) in
-    register_const acc t (Boxed_float (Const c)) "float"
+    register_const acc (Boxed_float (Const c)) "float"
   | Const_base (Const_int32 c) ->
-    register_const acc t (Boxed_int32 (Const c)) "int32"
+    register_const acc (Boxed_int32 (Const c)) "int32"
   | Const_base (Const_int64 c) ->
-    register_const acc t (Boxed_int64 (Const c)) "int64"
+    register_const acc (Boxed_int64 (Const c)) "int64"
   | Const_base (Const_nativeint c) ->
     (* CR pchambart: this should be pushed further to lambda *)
     let c = Targetint.of_int64 (Int64.of_nativeint c) in
-    register_const acc t (Boxed_nativeint (Const c)) "nativeint"
+    register_const acc (Boxed_nativeint (Const c)) "nativeint"
   | Const_immstring c ->
-    register_const acc t (Immutable_string c) "immstring"
+    register_const acc (Immutable_string c) "immstring"
   | Const_float_block c ->
-    register_const acc t
+    register_const acc
       (Immutable_float_block
          (List.map (fun s ->
            let f = Numbers.Float_by_bit_pattern.create (float_of_string s) in
            Or_variable.Const f) c))
       "float_block"
   | Const_float_array c ->
-    register_const acc t
+    register_const acc
       (Immutable_float_array
          (List.map (fun s ->
            let f = Numbers.Float_by_bit_pattern.create (float_of_string s) in
@@ -127,7 +116,7 @@ let rec declare_const acc t (const : Lambda.structured_constant)
     let acc, field_of_blocks =
       List.fold_left_map
         (fun acc c ->
-           let acc, f, _ = declare_const acc t c in
+           let acc, f, _ = declare_const acc c in
            acc, f)
         acc
         consts
@@ -135,25 +124,25 @@ let rec declare_const acc t (const : Lambda.structured_constant)
     let const : Static_const.t  =
       Block (Tag.Scannable.create_exn tag, Immutable, field_of_blocks)
     in
-    register_const acc t const "const_block"
+    register_const acc const "const_block"
 
-let close_const0 acc t (const : Lambda.structured_constant) =
-  let acc, const, name = declare_const acc t const in
+let close_const0 acc (const : Lambda.structured_constant) =
+  let acc, const, name = declare_const acc const in
   match  const with
   | Tagged_immediate c ->
     acc, Simple.const (Reg_width_const.tagged_immediate c), name
   | Symbol s ->
-    let acc, simple = use_of_symbol_as_simple acc t s in
+    let acc, simple = use_of_symbol_as_simple acc s in
     acc, simple, name
   | Dynamically_computed _ ->
     Misc.fatal_errorf "Declaring a computed constant %s" name
 
-let close_const acc t const =
-  let acc, simple, name = close_const0 acc t const in
+let close_const acc const =
+  let acc, simple, name = close_const0 acc const in
   let acc, named = Named_with_size.create_simple acc simple in
   acc, named, name
 
-let find_simple_from_id _t env id =
+let find_simple_from_id env id =
   match Env.find_var_exn env id with
   | exception Not_found ->
     Misc.fatal_errorf
@@ -165,20 +154,20 @@ let find_simple_from_id _t env id =
     | simple -> simple
 
 (* CR mshinwell: Avoid the double lookup *)
-let find_simple acc t env (simple : Ilambda.simple) =
+let find_simple acc env (simple : Ilambda.simple) =
   match simple with
   | Const const ->
-    let acc, simple, _ = close_const0 acc t const in
+    let acc, simple, _ = close_const0 acc const in
     acc, simple
-  | Var id -> acc, find_simple_from_id t env id
+  | Var id -> acc, find_simple_from_id env id
 
-let find_simples acc t env ids =
+let find_simples acc env ids =
   List.fold_left_map
-    (fun acc id -> find_simple acc t env id)
+    (fun acc id -> find_simple acc env id)
     acc
     ids
 
-let close_c_call acc t ~let_bound_var (prim : Primitive.description)
+let close_c_call acc ~let_bound_var (prim : Primitive.description)
       ~(args : Simple.t list) exn_continuation dbg
       (k : Acc.t -> Named_with_size.t option -> Acc.t * Expr_with_size.t)
   : Acc.t * Expr_with_size.t =
@@ -265,7 +254,7 @@ let close_c_call acc t ~let_bound_var (prim : Primitive.description)
             prim.prim_native_name
         end
     | _ ->
-      let acc, callee = use_of_symbol_as_simple acc t call_symbol in
+      let acc, callee = use_of_symbol_as_simple acc call_symbol in
       let apply =
         Apply.create ~callee
           ~continuation:(Return return_continuation)
@@ -362,10 +351,10 @@ let close_c_call acc t ~let_bound_var (prim : Primitive.description)
       ~body:call
       ~free_names_of_body:Unknown
 
-let close_exn_continuation acc t env (exn_continuation : Ilambda.exn_continuation) =
+let close_exn_continuation acc env (exn_continuation : Ilambda.exn_continuation) =
   let acc, extra_args =
     List.fold_left_map (fun acc (simple, kind) ->
-        let acc, simple = find_simple acc t env simple in
+        let acc, simple = find_simple acc env simple in
         acc, (simple, LC.value_kind kind))
       acc
       exn_continuation.extra_args
@@ -373,7 +362,7 @@ let close_exn_continuation acc t env (exn_continuation : Ilambda.exn_continuatio
   acc,
   Exn_continuation.create ~exn_handler:exn_continuation.exn_handler ~extra_args
 
-let close_primitive acc t env ~let_bound_var named (prim : Lambda.primitive) ~args
+let close_primitive acc env ~let_bound_var named (prim : Lambda.primitive) ~args
       loc (exn_continuation : Ilambda.exn_continuation option)
       (k : Acc.t -> Named_with_size.t option -> Acc.t * Expr_with_size.t)
   : Acc.t * Expr_with_size.t =
@@ -381,10 +370,10 @@ let close_primitive acc t env ~let_bound_var named (prim : Lambda.primitive) ~ar
     match exn_continuation with
     | None -> acc, None
     | Some exn_continuation ->
-      let acc, cont = close_exn_continuation acc t env exn_continuation in
+      let acc, cont = close_exn_continuation acc env exn_continuation in
       acc, Some (cont)
   in
-  let acc, args = find_simples acc t env args in
+  let acc, args = find_simples acc env args in
   let dbg = Debuginfo.from_location loc in
   match prim, args with
   | Pccall prim, args ->
@@ -395,15 +384,15 @@ let close_primitive acc t env ~let_bound_var named (prim : Lambda.primitive) ~ar
           Ilambda.print_named named
       | Some exn_continuation -> exn_continuation
     in
-    close_c_call acc t ~let_bound_var prim ~args exn_continuation dbg k
+    close_c_call acc ~let_bound_var prim ~args exn_continuation dbg k
   | Pgetglobal id, [] ->
     let is_predef_exn = Ident.is_predef id in
-    if not (is_predef_exn || not (Ident.same id t.current_unit_id))
+    if not (is_predef_exn || not (Ident.same id (Env.current_unit_id env)))
     then begin
       Misc.fatal_errorf "Non-predef Pgetglobal %a in the same unit"
         Ident.print id
     end;
-    let acc, simple = symbol_for_ident acc t id in
+    let acc, simple = symbol_for_ident acc env id in
     let acc, named = Named_with_size.create_simple acc simple in
     k acc (Some named)
   | Praise raise_kind, [_] ->
@@ -432,8 +421,8 @@ let close_primitive acc t env ~let_bound_var named (prim : Lambda.primitive) ~ar
     Expr_with_size.create_apply_cont acc apply_cont
   | prim, args ->
     Lambda_to_flambda_primitives.convert_and_bind acc exn_continuation
-      ~backend:t.backend
-      ~register_const_string:(fun acc -> register_const_string acc t)
+      ~backend:(Env.backend env)
+      ~register_const_string:(fun acc -> register_const_string acc)
       prim ~args dbg k
 
 let close_trap_action_opt trap_action =
@@ -444,7 +433,7 @@ let close_trap_action_opt trap_action =
         Pop { exn_handler; raise_kind = None; })
     trap_action
 
-let rec close acc t env (ilam : Ilambda.t) : Acc.t * Expr_with_size.t =
+let rec close acc env (ilam : Ilambda.t) : Acc.t * Expr_with_size.t =
   match ilam with
   | Let (id, user_visible, _kind, defining_expr, body) ->
     (* CR mshinwell: Remove [kind] on the Ilambda terms? *)
@@ -461,7 +450,7 @@ let rec close acc t env (ilam : Ilambda.t) : Acc.t * Expr_with_size.t =
         | None -> body_env
       in
       (* CR pchambart: Not tail ! *)
-      let acc, body = close acc t body_env body in
+      let acc, body = close acc body_env body in
       match defining_expr with
       | None -> acc, body
       | Some defining_expr ->
@@ -470,11 +459,11 @@ let rec close acc t env (ilam : Ilambda.t) : Acc.t * Expr_with_size.t =
           ~body ~free_names_of_body:Unknown
         |> Expr_with_size.create_let
     in
-    close_named acc t env ~let_bound_var:var defining_expr cont
+    close_named acc env ~let_bound_var:var defining_expr cont
   | Let_mutable _ ->
     Misc.fatal_error "[Let_mutable] should have been removed by \
       [Eliminate_mutable_vars]"
-  | Let_rec (defs, body) -> close_let_rec acc t env ~defs ~body
+  | Let_rec (defs, body) -> close_let_rec acc env ~defs ~body
   | Let_cont { name; is_exn_handler; params; recursive; body;
       handler; } ->
     if is_exn_handler then begin
@@ -497,13 +486,13 @@ let rec close acc t env (ilam : Ilambda.t) : Acc.t * Expr_with_size.t =
         params
         params_with_kinds
     in
-    let acc, handler = close acc t handler_env handler in
+    let acc, handler = close acc handler_env handler in
     let acc, handler =
       Continuation_handler_with_size.create acc params ~handler
         ~free_names_of_handler:Unknown
         ~is_exn_handler
     in
-    let acc, body = close acc t env body in
+    let acc, body = close acc env body in
     begin match recursive with
     | Nonrecursive ->
       Let_cont_with_size.create_non_recursive acc name handler ~body
@@ -518,13 +507,13 @@ let rec close acc t env (ilam : Ilambda.t) : Acc.t * Expr_with_size.t =
       match kind with
       | Function -> acc, Call_kind.indirect_function_call_unknown_arity ()
       | Method { kind; obj; } ->
-        let acc, obj = find_simple acc t env obj in
+        let acc, obj = find_simple acc env obj in
         acc,
         Call_kind.method_call (LC.method_kind kind) ~obj
     in
-    let acc, exn_continuation = close_exn_continuation acc t env exn_continuation in
-    let callee = find_simple_from_id t env func in
-    let acc, args = find_simples acc t env args in
+    let acc, exn_continuation = close_exn_continuation acc env exn_continuation in
+    let callee = find_simple_from_id env func in
+    let acc, args = find_simples acc env args in
     let apply =
       Apply.create ~callee
         ~continuation:(Return continuation)
@@ -537,7 +526,7 @@ let rec close acc t env (ilam : Ilambda.t) : Acc.t * Expr_with_size.t =
     in
     Expr_with_size.create_apply acc apply
   | Apply_cont (cont, trap_action, args) ->
-    let acc,args = find_simples acc t env args in
+    let acc,args = find_simples acc env args in
     let trap_action = close_trap_action_opt trap_action in
     let apply_cont =
       Apply_cont.create ?trap_action cont ~args ~dbg:Debuginfo.none
@@ -557,7 +546,7 @@ let rec close acc t env (ilam : Ilambda.t) : Acc.t * Expr_with_size.t =
     let acc, arms =
       List.fold_left_map (fun acc (case, cont, trap_action, args) ->
           let trap_action = close_trap_action_opt trap_action in
-          let acc, args = find_simples acc t env args in
+          let acc, args = find_simples acc env args in
           acc,
           (Target_imm.int (Targetint.OCaml.of_int case),
             Apply_cont.create ?trap_action cont ~args
@@ -582,7 +571,7 @@ let rec close acc t env (ilam : Ilambda.t) : Acc.t * Expr_with_size.t =
       let comparison_result = Variable.create "eq" in
       let comparison_result' = VB.create comparison_result Name_mode.normal in
       let acc, default_action =
-        let acc, args = find_simples acc t env default_args in
+        let acc, args = find_simples acc env default_args in
         let trap_action = close_trap_action_opt default_trap_action in
         acc,
         Apply_cont.create ?trap_action default_action ~args
@@ -612,7 +601,7 @@ let rec close acc t env (ilam : Ilambda.t) : Acc.t * Expr_with_size.t =
               let case = Target_imm.int (Targetint.OCaml.of_int case) in
               if Target_imm.Map.mem case cases then acc, cases
               else
-                let acc, args = find_simples acc t env args in
+                let acc, args = find_simples acc env args in
                 let trap_action = close_trap_action_opt trap_action in
                 let default =
                   Apply_cont.create ?trap_action default ~args
@@ -638,28 +627,28 @@ let rec close acc t env (ilam : Ilambda.t) : Acc.t * Expr_with_size.t =
           untag ~body ~free_names_of_body:Unknown
         |> Expr_with_size.create_let
 
-and close_named acc t env ~let_bound_var (named : Ilambda.named)
+and close_named acc env ~let_bound_var (named : Ilambda.named)
       (k : Acc.t -> Named_with_size.t option -> Acc.t * Expr_with_size.t)
   : Acc.t * Expr_with_size.t =
   match named with
   | Simple (Var id) ->
     let acc, simple =
       if not (Ident.is_predef id) then acc, Simple.var (Env.find_var env id)
-      else symbol_for_ident acc t id
+      else symbol_for_ident acc env id
     in
     let acc, named = Named_with_size.create_simple acc simple in
     k acc (Some named)
   | Simple (Const cst) ->
-    let acc, named, _name = close_const acc t cst in
+    let acc, named, _name = close_const acc cst in
     k acc (Some named)
   | Prim { prim; args; loc; exn_continuation; } ->
-    close_primitive acc t env ~let_bound_var named prim ~args loc
+    close_primitive acc env ~let_bound_var named prim ~args loc
       exn_continuation k
   | Assign _ | Mutable_read _ ->
     Misc.fatal_error "[Assign] and [Mutable_read] should have been removed \
       by [Eliminate_mutable_vars]"
 
-and close_let_rec acc t env ~defs ~body =
+and close_let_rec acc env ~defs ~body =
   let env =
     List.fold_right (fun (id, _) env ->
         let env, _var = Env.add_var_like env id User_visible in
@@ -705,7 +694,7 @@ and close_let_rec acc t env ~defs ~body =
       function_declarations
   in
   let acc, set_of_closures =
-    close_functions acc t env (Function_decls.create function_declarations)
+    close_functions acc env (Function_decls.create function_declarations)
   in
   (* CR mshinwell: We should maybe have something more elegant here *)
   let generated_closures =
@@ -730,11 +719,12 @@ and close_let_rec acc t env ~defs ~body =
           Set_of_closures.function_decls set_of_closures)
         |> Closure_id.Lmap.bindings)
   in
-  let acc, body = close acc t env body in
-  let acc, named = 
+  let acc, body = close acc env body in
+  let acc, named =
+    let code_mapping = Acc.code acc in
     Named_with_size.create_set_of_closures acc
        ~find_cost_metrics:(fun code_id ->
-         Code_id.Map.find code_id t.code
+         Code_id.Map.find code_id code_mapping
          |> Code.cost_metrics)
        set_of_closures
   in
@@ -744,7 +734,7 @@ and close_let_rec acc t env ~defs ~body =
     ~body ~free_names_of_body:Unknown
   |> Expr_with_size.create_let
 
-and close_functions acc t external_env function_declarations =
+and close_functions acc external_env function_declarations =
   let compilation_unit = Compilation_unit.get_current_exn () in
   let var_within_closures_from_idents =
     Ident.Set.fold (fun id map ->
@@ -768,7 +758,7 @@ and close_functions acc t external_env function_declarations =
   in
   let acc, funs =
     List.fold_left (fun (acc, by_closure_id) function_decl ->
-        close_one_function acc t ~external_env ~by_closure_id function_decl
+        close_one_function acc ~external_env ~by_closure_id function_decl
           ~var_within_closures_from_idents ~closure_ids_from_idents
           function_declarations)
       (acc, Closure_id.Map.empty)
@@ -790,10 +780,10 @@ and close_functions acc t external_env function_declarations =
   acc,
   Set_of_closures.create function_decls ~closure_elements
 
-and close_one_function acc t ~external_env ~by_closure_id decl
+and close_one_function acc ~external_env ~by_closure_id decl
       ~var_within_closures_from_idents ~closure_ids_from_idents
       function_declarations =
-  t.free_names_of_current_function <- Name_occurrences.empty;
+  let acc = Acc.with_free_names Name_occurrences.empty acc in
   let body = Function_decl.body decl in
   let loc = Function_decl.loc decl in
   let dbg = Debuginfo.from_location loc in
@@ -883,7 +873,7 @@ and close_one_function acc t ~external_env ~by_closure_id decl
       param_vars
   in
   let acc, body =
-    try close acc t closure_env body
+    try close acc closure_env body
     with Misc.Fatal_error -> begin
       if !Clflags.flambda_context_on_error then begin
         Format.eprintf "\n%sContext is:%s closure converting \
@@ -924,12 +914,12 @@ and close_one_function acc t ~external_env ~by_closure_id decl
       project_closure_to_bind
       (acc, body)
   in
-  t.free_names_of_current_function
-    <- Variable.Map.fold (fun _var closure_var free_names ->
-           Name_occurrences.add_closure_var free_names
-             closure_var Name_mode.normal)
-         var_within_closures_to_bind
-         t.free_names_of_current_function;
+  let acc =
+    Variable.Map.fold
+      (fun _var closure_var acc -> Acc.add_closure_var_to_free_names ~closure_var acc)
+      var_within_closures_to_bind
+      acc
+  in
   let acc, body =
     Variable.Map.fold (fun var var_within_closure (acc, body) ->
         let var = VB.create var Name_mode.normal in
@@ -950,7 +940,7 @@ and close_one_function acc t ~external_env ~by_closure_id decl
       (acc, body)
   in
   let acc, exn_continuation =
-    close_exn_continuation acc t external_env (Function_decl.exn_continuation decl)
+    close_exn_continuation acc external_env (Function_decl.exn_continuation decl)
   in
   let inline : Inline_attribute.t =
     (* We make a decision based on [fallback_inlining_heuristic] here to try
@@ -985,7 +975,7 @@ and close_one_function acc t ~external_env ~by_closure_id decl
     Code.create
       code_id
       ~params_and_body:
-        (Present (params_and_body, t.free_names_of_current_function))
+        (Present (params_and_body, Acc.free_names_of_current_function acc))
       ~params_arity
       ~result_arity:[LC.value_kind return]
       ~stub
@@ -995,26 +985,13 @@ and close_one_function acc t ~external_env ~by_closure_id decl
       ~newer_version_of:None
       ~cost_metrics:(With_size.size body)
   in
-  t.code <- Code_id.Map.add code_id code t.code;
-  acc,
+  Acc.add_code ~code_id ~code acc,
   Closure_id.Map.add my_closure_id fun_decl by_closure_id
 
 let ilambda_to_flambda ~backend ~module_ident ~module_block_size_in_words
-      ~filename:_ (ilam : Ilambda.program) =
+      (ilam : Ilambda.program) =
   let module Backend = (val backend : Flambda_backend_intf.S) in
-  let compilation_unit = Compilation_unit.get_current_exn () in
-  let t =
-    { backend;
-      current_unit_id = Compilation_unit.get_persistent_ident compilation_unit;
-      symbol_for_global' = Backend.symbol_for_global';
-      (* CR: externals such as bound_error_symbol should ideally not be par of
-         the imported symbols, and not be required to be in the typing env. *)
-      declared_symbols = [];
-      shareable_constants = Static_const.Map.empty;
-      code = Code_id.Map.empty;
-      free_names_of_current_function = Name_occurrences.empty;
-    }
-  in
+  let env = Env.empty ~backend in
   let module_symbol =
     Backend.symbol_for_global' (
       Ident.create_persistent (Ident.name module_ident))
@@ -1038,7 +1015,7 @@ let ilambda_to_flambda ~backend ~module_ident ~module_block_size_in_words
         in
         Block (module_block_tag, Immutable, field_vars)
       in
-      let acc, arg = use_of_symbol_as_simple acc t module_symbol in
+      let acc, arg = use_of_symbol_as_simple acc module_symbol in
       let acc, return =
         (* Module initialisers return unit, but since that is taken care of
            during Cmm generation, we can instead "return" [module_symbol]
@@ -1104,7 +1081,7 @@ let ilambda_to_flambda ~backend ~module_ident ~module_block_size_in_words
        tuple with fields indexed from zero to [module_block_size_in_words]. The
        handler extracts the fields; the variables bound to such fields are then
        used to define the module block symbol. *)
-    let acc, body = close acc t Env.empty ilam.expr in
+    let acc, body = close acc env ilam.expr in
     Let_cont_with_size.create_non_recursive acc ilam.return_continuation
       load_fields_cont_handler
       ~body
@@ -1133,7 +1110,7 @@ let ilambda_to_flambda ~backend ~module_ident ~module_block_size_in_words
           (Bindable_let_bound.symbols bound_symbols Syntactic)
           defining_expr ~body ~free_names_of_body:Unknown
         |> Expr_with_size.create_let)
-      t.code
+      (Acc.code acc)
       (acc, body)
   in
   (* We must make sure there is always an outer [Let_symbol] binding so that
@@ -1141,11 +1118,11 @@ let ilambda_to_flambda ~backend ~module_ident ~module_block_size_in_words
      put into the term and not dropped.  Adding this extra binding, which
      will actually be removed by the simplifier, avoids a special case. *)
   let acc =
-    match t.declared_symbols with
+    match Acc.declared_symbols acc with
     | _::_ -> acc
     | [] ->
       let acc, (_sym : Symbol.t) =
-        register_const0 acc t
+        register_const0 acc
           (Static_const.Block (Tag.Scannable.zero, Immutable, []))
           "first_const"
       in
@@ -1165,7 +1142,7 @@ let ilambda_to_flambda ~backend ~module_ident ~module_block_size_in_words
         defining_expr ~body ~free_names_of_body:Unknown
       |> Expr_with_size.create_let)
       (acc, body)
-      t.declared_symbols
+      (Acc.declared_symbols acc)
   in
   ignore acc;
   Flambda_unit.create ~return_continuation:return_cont ~exn_continuation

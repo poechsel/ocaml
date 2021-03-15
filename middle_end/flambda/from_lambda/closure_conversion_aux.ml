@@ -21,17 +21,34 @@ module Env = struct
     variables : Variable.t Ident.Map.t;
     globals : Symbol.t Numbers.Int.Map.t;
     simples_to_substitute : Simple.t Ident.Map.t;
+
+    backend : (module Flambda_backend_intf.S);
+    current_unit_id : Ident.t;
+    symbol_for_global' : (Ident.t -> Symbol.t);
   }
 
-  let empty = {
+  let backend t = t.backend
+  let current_unit_id t = t.current_unit_id
+  let symbol_for_global' t = t.symbol_for_global'
+
+
+  let empty ~backend =
+    let module Backend = (val backend : Flambda_backend_intf.S) in
+    let compilation_unit = Compilation_unit.get_current_exn () in
+    {
     variables = Ident.Map.empty;
     globals = Numbers.Int.Map.empty;
     simples_to_substitute = Ident.Map.empty;
+
+    backend;
+    current_unit_id = Compilation_unit.get_persistent_ident compilation_unit;
+    symbol_for_global' = Backend.symbol_for_global';
   }
 
   let clear_local_bindings env =
-    { empty with
-      globals = env.globals;
+    { env with
+      variables = Ident.Map.empty;
+      simples_to_substitute = Ident.Map.empty
     }
 
   let add_var t id var = { t with variables = Ident.Map.add id var t.variables }
@@ -102,10 +119,53 @@ module Env = struct
 end
 
 module Acc = struct
-  type t = unit
+  type t = {
+    declared_symbols : (Symbol.t * Flambda.Static_const.t) list;
+    shareable_constants : Symbol.t Flambda.Static_const.Map.t;
+    code : Flambda.Code.t Code_id.Map.t;
+    free_names_of_current_function : Name_occurrences.t;
+  }
 
-  let empty = ()
+  let empty = {
+    declared_symbols = [];
+    shareable_constants = Flambda.Static_const.Map.empty;
+    code = Code_id.Map.empty;
+    free_names_of_current_function = Name_occurrences.empty;
+  }
 
+  let declared_symbols t = t.declared_symbols
+  let shareable_constants t = t.shareable_constants
+  let code t = t.code
+  let free_names_of_current_function t = t.free_names_of_current_function
+
+  let add_declared_symbol ~symbol ~constant t =
+    let declared_symbols = (symbol, constant) :: t.declared_symbols in
+    { t with declared_symbols }
+
+  let add_shareable_constant ~symbol ~constant t =
+    let shareable_constants =
+      Flambda.Static_const.Map.add constant symbol t.shareable_constants
+    in
+    {t with shareable_constants }
+
+  let add_code ~code_id ~code t =
+    { t with code = Code_id.Map.add code_id code t.code }
+
+  let add_symbol_to_free_names ~symbol t =
+    { t with free_names_of_current_function =
+               Name_occurrences.add_symbol t.free_names_of_current_function
+                 symbol
+                 Name_mode.normal
+    }
+  let add_closure_var_to_free_names ~closure_var t =
+    { t with free_names_of_current_function =
+               Name_occurrences.add_closure_var t.free_names_of_current_function
+                 closure_var
+                 Name_mode.normal
+    }
+
+  let with_free_names free_names t =
+    { t with free_names_of_current_function = free_names }
 end
 
 module Function_decls = struct
