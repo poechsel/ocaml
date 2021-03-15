@@ -34,10 +34,6 @@ type t = {
   backend : (module Flambda_backend_intf.S);
   current_unit_id : Ident.t;
   symbol_for_global' : (Ident.t -> Symbol.t);
-  filename : string;
-  ilambda_exn_continuation : Continuation.t;
-  mutable imported_symbols : Symbol.Set.t;
-  (* All symbols in [imported_symbols] are to be of kind [Value]. *)
   mutable declared_symbols : (Symbol.t * Static_const.t) list;
   mutable shareable_constants : Symbol.t Static_const.Map.t;
   mutable code : Code.t Code_id.Map.t;
@@ -54,7 +50,6 @@ let use_of_symbol_as_simple acc t symbol =
 
 let symbol_for_ident acc t id =
   let symbol = t.symbol_for_global' id in
-  t.imported_symbols <- Symbol.Set.add symbol t.imported_symbols;
   use_of_symbol_as_simple acc t symbol
 
 let register_const0 acc t constant name =
@@ -223,7 +218,6 @@ let close_c_call acc t ~let_bound_var (prim : Primitive.description)
     Symbol.create (Compilation_unit.external_symbols ())
       (Linkage_name.create prim_name)
   in
-  t.imported_symbols <- Symbol.Set.add call_symbol t.imported_symbols;
   let call args =
     (* Some C primitives have implementations within Flambda itself. *)
     match prim.prim_native_name with
@@ -1006,24 +1000,18 @@ and close_one_function acc t ~external_env ~by_closure_id decl
   Closure_id.Map.add my_closure_id fun_decl by_closure_id
 
 let ilambda_to_flambda ~backend ~module_ident ~module_block_size_in_words
-      ~filename (ilam : Ilambda.program) =
+      ~filename:_ (ilam : Ilambda.program) =
   let module Backend = (val backend : Flambda_backend_intf.S) in
   let compilation_unit = Compilation_unit.get_current_exn () in
-  let bound_error_symbol =
-    Lambda_to_flambda_primitives_helpers.caml_ml_array_bound_error
-  in
   let t =
     { backend;
       current_unit_id = Compilation_unit.get_persistent_ident compilation_unit;
       symbol_for_global' = Backend.symbol_for_global';
-      filename;
       (* CR: externals such as bound_error_symbol should ideally not be par of
          the imported symbols, and not be required to be in the typing env. *)
-      imported_symbols = Symbol.Set.singleton bound_error_symbol;
       declared_symbols = [];
       shareable_constants = Static_const.Map.empty;
       code = Code_id.Map.empty;
-      ilambda_exn_continuation = ilam.exn_continuation.exn_handler;
       free_names_of_current_function = Name_occurrences.empty;
     }
   in
@@ -1180,7 +1168,6 @@ let ilambda_to_flambda ~backend ~module_ident ~module_block_size_in_words
       t.declared_symbols
   in
   ignore acc;
-  (* CR mshinwell: Delete [t.imported_symbols] if unused *)
   Flambda_unit.create ~return_continuation:return_cont ~exn_continuation
     ~body:(With_size.get body)
     ~module_symbol ~used_closure_vars:Unknown
