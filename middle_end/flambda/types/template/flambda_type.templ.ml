@@ -293,7 +293,15 @@ let prove_is_int env t : bool proof =
   | Const _ -> wrong_kind ()
   | Value (Ok (Variant blocks_imms)) ->
     begin match blocks_imms.blocks, blocks_imms.immediates with
-    | Unknown, Unknown | Unknown, Known _ | Known _, Unknown -> Unknown
+    | Unknown, Unknown -> Unknown
+    | Unknown, Known imms ->
+      if is_bottom env imms
+      then Proved false
+      else Unknown
+    | Known blocks, Unknown ->
+      if Row_like.For_blocks.is_bottom blocks
+      then Proved true
+      else Unknown
     | Known blocks, Known imms ->
       (* CR mshinwell: Should we tighten things up by causing fatal errors
          in cases such as [blocks] and [imms] both being bottom? *)
@@ -567,11 +575,22 @@ let prove_is_a_tagged_immediate env t : _ proof_allowing_kind_mismatch =
   | Value Unknown -> Unknown
   | Value (Ok (Variant { blocks; immediates; is_unique = _; })) ->
     begin match blocks, immediates with
-    | Unknown, Unknown | Unknown, Known _ | Known _, Unknown -> Unknown
-    | Known blocks, Known imms ->
-      if Row_like.For_blocks.is_bottom blocks && not (is_bottom env imms)
+    | Unknown, Unknown -> Unknown
+    | Unknown, Known imms ->
+      if is_bottom env imms
+      then Invalid
+      else Unknown
+    | Known blocks, Unknown ->
+      if Row_like.For_blocks.is_bottom blocks
       then Proved ()
-      else Invalid
+      else Unknown
+    | Known blocks, Known imms ->
+      if is_bottom env imms then
+        Invalid
+      else if Row_like.For_blocks.is_bottom blocks then
+        Proved ()
+      else
+        Unknown
     end
   | Value _ -> Invalid
   | _ -> Wrong_kind
