@@ -2,17 +2,7 @@ include Flambda.Import
 
 open Closure_conversion_aux
 
-module With_size = struct
-  type 'a t = 'a * Cost_metrics.t
-
-  let create ~size x = x, size
-
-  let size (_, s) = s
-
-  let get (d, _) = d
-end
-
-module Expr_with_size = struct
+module Expr_wrapper = struct
   type t = Expr.t
 
   let create_apply_cont acc apply_cont =
@@ -32,6 +22,10 @@ module Expr_with_size = struct
     acc, Expr.create_apply apply
 
   let create_let (acc, let_expr) =
+    (* The signature for create_let is a bit different. It is mainly used to
+       materialize and expression coming from Let_cont_wrapper where the cost metrics
+       was already computed. The signature is made so that the result from
+       Let_cont_wrapper can be directly piped through [create_let].*)
     acc, Expr.create_let let_expr
 
   let create_switch acc switch =
@@ -51,7 +45,7 @@ module Expr_with_size = struct
     acc, Expr.create_invalid ?semantics ()
 end
 
-module Let_with_size = struct
+module Let_wrapper = struct
   let create acc let_bound named ~body ~free_names_of_body =
     let cost_metrics_of_defining_expr =
       match named with
@@ -78,14 +72,14 @@ module Let_with_size = struct
     acc, Let.create let_bound named ~body ~free_names_of_body
 end
 
-module Continuation_handler_with_size = struct
+module Continuation_handler_wrapper = struct
   let create acc parameters ~handler ~free_names_of_handler ~is_exn_handler =
     acc,
     Continuation_handler.create parameters ~handler
       ~free_names_of_handler ~is_exn_handler
 end
 
-module Let_cont_with_size = struct
+module Let_cont_wrapper = struct
   let create_non_recursive acc cont handler
         ~body ~free_names_of_body ~cost_metrics_of_handler =
     let acc =
