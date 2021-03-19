@@ -18,6 +18,9 @@
 
 open! Flambda.Import
 
+module DE = Downwards_env
+module T = Flambda_type
+
 module Definition = struct
   type descr =
     | Code of Code_id.t
@@ -294,70 +297,39 @@ let apply_projection t proj =
         None)
   in
   match matching_defining_exprs with
-  | [defining_expr] ->
-    let simple =
-      match
-        Symbol_projection.projection proj,
-        Rebuilt_static_const.const defining_expr
-      with
-      | Block_load { index; }, Block (tag, mut, fields) ->
-        if not (Tag.Scannable.equal tag Tag.Scannable.zero) then begin
-          Misc.fatal_errorf "Symbol projection@ %a@ on block which doesn't \
-              have tag zero:@ %a"
-            Symbol_projection.print proj
-            Rebuilt_static_const.print defining_expr
-        end;
-        if Mutability.is_mutable mut then begin
-          Misc.fatal_errorf "Symbol projection@ %a@ on mutable block:@ %a"
-            Symbol_projection.print proj
-            Rebuilt_static_const.print defining_expr
-        end;
-        let index = Targetint.OCaml.to_int_exn index in
-        begin match List.nth_opt fields index with
-        | Some field ->
-          begin match field with
-          | Symbol symbol -> Simple.symbol symbol
-          | Tagged_immediate imm ->
-            Simple.const_int (Target_imm.to_targetint imm)
-          | Dynamically_computed var -> Simple.var var
-          end
-        | None ->
-          Misc.fatal_errorf "Symbol projection@ %a@ has out-of-range \
-              index:@ %a"
-            Symbol_projection.print proj
-            Rebuilt_static_const.print defining_expr
-        end;
-      | Project_var { project_from; var; }, Set_of_closures set ->
-        let decls = Set_of_closures.function_decls set in
-        if not (Function_declarations.binds_closure_id decls project_from)
-        then begin
-          Misc.fatal_errorf "Symbol projection@ %a@ has closure ID not \
-              bound by this set of closures:@ %a"
-            Symbol_projection.print proj
-            Rebuilt_static_const.print defining_expr
-        end;
-        let closure_env = Set_of_closures.closure_elements set in
-        begin match Var_within_closure.Map.find var closure_env with
-        | exception Not_found ->
-          Misc.fatal_errorf "Symbol projection@ %a@ has closure var not \
-              defined in the environment of this set of closures:@ %a"
-            Symbol_projection.print proj
-            Rebuilt_static_const.print defining_expr
-        | closure_entry -> closure_entry
-        end
-      | Block_load _,
-        (Code _ | Set_of_closures _ | Boxed_float _ | Boxed_int32 _
-        | Boxed_int64 _ | Boxed_nativeint _ | Immutable_float_block _
-        | Immutable_float_array _ | Mutable_string _ | Immutable_string _)
-      | Project_var _,
-        (Code _ | Block _ | Boxed_float _ | Boxed_int32 _
-        | Boxed_int64 _ | Boxed_nativeint _ | Immutable_float_block _
-        | Immutable_float_array _ | Mutable_string _ | Immutable_string _) ->
-        Misc.fatal_errorf "Symbol projection@ %a@ cannot be applied to:@ %a"
-          Symbol_projection.print proj
-          Rebuilt_static_const.print defining_expr
+  | [_] ->
+    let denv, ty = Symbol.Map.find symbol (types_of_symbols t) in
+    let typing_env = DE.typing_env denv in
+    let proof =
+      match Symbol_projection.projection proj with
+      | Block_load { index; } ->
+        T.prove_block_field_simple typing_env
+          ~min_name_mode:Name_mode.normal ty
+          (Target_imm.int index)
+      | Project_var { project_from = _; var; } ->
+        T.prove_project_var_simple typing_env
+          ~min_name_mode:Name_mode.normal ty var
     in
-    Some simple
+    begin match proof with
+    | Proved simple -> Some simple
+    | Unknown ->
+      (* [Simplify_named], which calls this function, requires [Some] to be
+         returned iff the projection is from a symbol defined in the same
+         recursive group (see the comment in that module).  As such, if the
+         projection via the types fails, we currently stop.  It seems very
+         unlikely that this will happen; we can reconsider in the future if
+         necessary. *)
+      Misc.fatal_errorf "Symbol projection@ %a@ produced [Unknown]:@ \
+          type is@ %a@ in env:@ %a"
+        Symbol_projection.print proj
+        T.print ty
+        T.Typing_env.print typing_env
+    | Invalid ->
+      Misc.fatal_errorf "Symbol projection@ %a@ produced [Invalid],@ \
+          environment is:@ %a"
+        Symbol_projection.print proj
+        T.Typing_env.print typing_env
+    end
   | [] -> None
   | _::_::_ ->
     Misc.fatal_errorf "Symbol projection@ %a@ matches more than one \
