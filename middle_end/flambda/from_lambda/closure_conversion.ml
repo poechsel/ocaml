@@ -236,11 +236,10 @@ let close_c_call t ~let_bound_var (prim : Primitive.description)
               Apply_cont.create return_continuation
                 ~args:[Simple.var result]
                 ~dbg
-              |> Expr.create_apply_cont
             in
             Let_expr.create bindable (Named.create_prim prim dbg)
-              ~body:return_result
-              ~free_names_of_body:(Known (Expr.free_names return_result))
+              ~body:(Expr.create_apply_cont return_result)
+              ~free_names_of_body:(Known (Apply_cont.free_names return_result))
             |> Expr.create_let
           | [] | _::_ ->
             Misc.fatal_errorf "Expected one arg for %s" prim.prim_native_name
@@ -845,6 +844,10 @@ and close_one_function t ~external_env ~by_closure_id decl
   in
   let my_closure' = Simple.var my_closure in
   let body =
+    (* CR mshinwell: These Select_closure operations should maybe be inserted
+       at the point of use rather than at the top of the function.  We should
+       also check the behaviour of the backend w.r.t. CSE of projections from
+       closures. *)
     Variable.Map.fold (fun var closure_id body ->
         let move : Flambda_primitive.unary_primitive =
           Select_closure {

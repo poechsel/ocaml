@@ -5,8 +5,8 @@
 (*                       Pierre Chambart, OCamlPro                        *)
 (*           Mark Shinwell and Leo White, Jane Street Europe              *)
 (*                                                                        *)
-(*   Copyright 2013--2019 OCamlPro SAS                                    *)
-(*   Copyright 2014--2019 Jane Street Group LLC                           *)
+(*   Copyright 2013--2021 OCamlPro SAS                                    *)
+(*   Copyright 2014--2021 Jane Street Group LLC                           *)
 (*                                                                        *)
 (*   All rights reserved.  This file is distributed under the terms of    *)
 (*   the GNU Lesser General Public License version 2.1, with the          *)
@@ -16,4 +16,9 @@
 
 [@@@ocaml.warning "+a-30-40-41-42"]
 
-val simplify_switch : Flambda.Switch.t Simplify_common.expr_simplifier
+include Code0.Make (struct
+    include Unit
+    let all_ids_for_export _ = Ids_for_export.empty
+    let print_with_cache ~cache:_ ppf t = print ppf t
+  end)
+  (Flambda.Cost_metrics)

@@ -75,3 +75,42 @@ val create_switch
       -> scrutinee:Simple.t
       -> arms:Apply_cont_expr.t Target_imm.Map.t
       -> Expr.t * Upwards_acc.t
+
+type add_wrapper_for_switch_arm_result = private
+  | Apply_cont of Apply_cont.t
+  | New_wrapper of Continuation.t * Continuation_handler.t * Cost_metrics.t
+
+val add_wrapper_for_switch_arm
+   : Upwards_acc.t
+  -> Apply_cont.t
+  -> use_id:Apply_cont_rewrite_id.t
+  -> Flambda_arity.With_subkinds.t
+  -> add_wrapper_for_switch_arm_result
+
+val add_wrapper_for_fixed_arity_apply
+   : Upwards_acc.t
+  -> use_id:Apply_cont_rewrite_id.t
+  -> Flambda_arity.With_subkinds.t
+  -> Apply_expr.t
+  -> Expr.t * Upwards_acc.t
+
+type rewrite_use_result = private
+  | Apply_cont of Apply_cont.t
+  | Expr of (
+       apply_cont_to_expr:(Apply_cont.t
+         -> (Expr.t * Cost_metrics.t * Name_occurrences.t))
+    -> Expr.t * Cost_metrics.t * Name_occurrences.t)
+
+val no_rewrite : Apply_cont.t -> rewrite_use_result
+
+val rewrite_use
+   : Apply_cont_rewrite.t
+  -> Apply_cont_rewrite_id.t
+  -> Apply_cont.t
+  -> rewrite_use_result
+
+val rewrite_exn_continuation
+   : Apply_cont_rewrite.t
+  -> Apply_cont_rewrite_id.t
+  -> Exn_continuation.t
+  -> Exn_continuation.t

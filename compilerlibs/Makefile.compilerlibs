@@ -206,13 +206,13 @@ MIDDLE_END_FLAMBDA_BASIC=\
   middle_end/flambda/basic/mutability.cmo \
   middle_end/flambda/naming/name_mode.cmo \
   middle_end/flambda/naming/permutation.cmo \
-  middle_end/flambda/naming/name_permutation.cmo \
+  middle_end/flambda/cmx/ids_for_export.cmo \
+  middle_end/flambda/naming/renaming.cmo \
   middle_end/flambda/naming/num_occurrences.cmo \
   middle_end/flambda/naming/name_occurrences.cmo \
   middle_end/flambda/basic/or_variable.cmo \
   middle_end/flambda/basic/simple.cmo \
   middle_end/flambda/basic/closure_id.cmo \
-  middle_end/flambda/cmx/ids_for_export.cmo \
   middle_end/flambda/cmx/contains_ids.cmo \
   middle_end/flambda/basic/kinded_parameter.cmo \
   middle_end/flambda/basic/invariant_env.cmo \
@@ -283,6 +283,8 @@ MIDDLE_END_FLAMBDA_TERMS=\
   middle_end/flambda/terms/call_kind.cmo \
   middle_end/flambda/terms/apply_expr.cmo \
   middle_end/flambda/terms/switch_expr.cmo \
+  middle_end/flambda/terms/code0.cmo \
+  middle_end/flambda/terms/code_intf.cmo \
   middle_end/flambda/terms/function_declaration.cmo \
   middle_end/flambda/terms/function_declarations.cmo \
   middle_end/flambda/terms/set_of_closures.cmo \
@@ -302,7 +304,8 @@ MIDDLE_END_FLAMBDA_SIMPLIFY=\
   middle_end/flambda/simplify/env/continuation_env_and_param_types.cmo \
   middle_end/flambda/simplify/basic/continuation_in_env.cmo \
   middle_end/flambda/simplify/basic/simplified_named.cmo \
-  middle_end/flambda/simplify/static_const_with_free_names.cmo \
+  middle_end/flambda/simplify/non_constructed_code.cmo \
+  middle_end/flambda/simplify/rebuilt_static_const.cmo \
   middle_end/flambda/simplify/common_subexpression_elimination.cmo \
   middle_end/flambda/simplify/env/downwards_env.cmo \
   middle_end/flambda/simplify/env/upwards_env.cmo \
@@ -327,6 +330,10 @@ MIDDLE_END_FLAMBDA_SIMPLIFY=\
   middle_end/flambda/lifting/sort_lifted_constants.cmo \
   middle_end/flambda/lifting/reification.cmo \
   middle_end/flambda/simplify/simplify_common.cmo \
+  middle_end/flambda/simplify/simplify_apply_expr.cmo \
+  middle_end/flambda/simplify/simplify_apply_cont_expr.cmo \
+  middle_end/flambda/simplify/simplify_set_of_closures.cmo \
+  middle_end/flambda/simplify/simplify_static_const.cmo \
   middle_end/flambda/simplify/simplify_variadic_primitive.cmo \
   middle_end/flambda/simplify/typing_helpers/number_adjuncts.cmo \
   middle_end/flambda/simplify/simplify_nullary_primitive.cmo \
@@ -335,6 +342,11 @@ MIDDLE_END_FLAMBDA_SIMPLIFY=\
   middle_end/flambda/simplify/simplify_binary_primitive.cmo \
   middle_end/flambda/simplify/simplify_primitive.cmo \
   middle_end/flambda/simplify/typing_helpers/continuation_handler_like_intf.cmo \
+  middle_end/flambda/simplify/simplify_named.cmo \
+  middle_end/flambda/simplify/simplify_let_expr.cmo \
+  middle_end/flambda/simplify/simplify_let_cont_expr.cmo \
+  middle_end/flambda/simplify/simplify_switch_expr.cmo \
+  middle_end/flambda/simplify/simplify_expr.cmo \
   middle_end/flambda/simplify/simplify.cmo
 
 MIDDLE_END_FLAMBDA_FROM_LAMBDA=\

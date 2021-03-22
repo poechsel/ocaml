@@ -520,6 +520,8 @@ end and Static_const : sig
 
     (** Printing, total ordering, etc. *)
     include Identifiable.S with type t := t
+
+    include Contains_names.S with type t := t
   end
 
   (* CR mshinwell: Somewhere there should be an invariant check that
@@ -667,11 +669,9 @@ end and Code : sig
 
   val print : Format.formatter -> t -> unit
 
-  val free_names : t -> Name_occurrences.t
+  include Contains_names.S with type t := t
 
   val all_ids_for_export : t -> Ids_for_export.t
-
-  val import : Ids_for_export.Import_map.t -> t -> t
 
   val make_deleted : t -> t
 

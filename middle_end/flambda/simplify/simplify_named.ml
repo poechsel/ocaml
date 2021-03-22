@@ -144,7 +144,7 @@ let record_any_symbol_projection dacc (defining_expr : Simplified_named.t)
    [rebuild_let]. *)
 
 let simplify_named0 dacc (bindable_let_bound : Bindable_let_bound.t)
-      (named : Named.t) =
+      (named : Named.t) ~simplify_toplevel =
   match named with
   | Simple simple ->
     let bound_var = Bindable_let_bound.must_be_singleton bindable_let_bound in
@@ -179,8 +179,9 @@ let simplify_named0 dacc (bindable_let_bound : Bindable_let_bound.t)
       (* CR mshinwell: It's a bit weird that the env_extension is added to
          the typing env here; couldn't it just have been returned already
          added to [dacc]? *)
-      let dacc = DA.add_variable dacc bound_var (T.unknown kind) in
-      DA.extend_typing_environment dacc env_extension
+      DA.map_denv dacc ~f:(fun denv ->
+        DE.add_variable_and_extend_typing_environment denv
+          bound_var (T.unknown kind) env_extension)
     in
     (* CR mshinwell: Add check along the lines of: types are unknown
        whenever [not (P.With_fixed_value.eligible prim)] holds. *)
@@ -212,7 +213,7 @@ let simplify_named0 dacc (bindable_let_bound : Bindable_let_bound.t)
       bindable_let_bound defining_expr ~original_defining_expr:named
   | Set_of_closures set_of_closures ->
     Simplify_set_of_closures.simplify_non_lifted_set_of_closures dacc
-      bindable_let_bound set_of_closures
+      bindable_let_bound set_of_closures ~simplify_toplevel
   | Static_consts static_consts ->
     let { Bindable_let_bound. bound_symbols; scoping_rule = _; } =
       Bindable_let_bound.must_be_symbols bindable_let_bound
@@ -237,7 +238,7 @@ let simplify_named0 dacc (bindable_let_bound : Bindable_let_bound.t)
     let bound_symbols, static_consts, dacc =
       try
         Simplify_static_const.simplify_static_consts dacc bound_symbols
-          static_consts
+          static_consts ~simplify_toplevel
       with Misc.Fatal_error -> begin
         if !Clflags.flambda_context_on_error then begin
           Format.eprintf "\n%sContext is:%s simplifying [Let_symbol] binding \
@@ -267,7 +268,7 @@ let simplify_named0 dacc (bindable_let_bound : Bindable_let_bound.t)
           denv)
     in
     let dacc =
-      Static_const_with_free_names.Group.match_against_bound_symbols
+      Rebuilt_static_const.Group.match_against_bound_symbols
         static_consts bound_symbols
         ~init:dacc
         ~code:(fun dacc _ _ -> dacc)
@@ -278,7 +279,7 @@ let simplify_named0 dacc (bindable_let_bound : Bindable_let_bound.t)
     let lifted_constants =
       ListLabels.map2
         (Bound_symbols.to_list bound_symbols)
-        (Static_const_with_free_names.Group.to_list static_consts)
+        (Rebuilt_static_const.Group.to_list static_consts)
         ~f:(fun (pat : Bound_symbols.Pattern.t) static_const ->
           match pat with
           | Block_like symbol ->
@@ -373,9 +374,11 @@ let removed_operations (named : Named.t) result =
       | Zero_terms | Multiple_bindings_to_symbols _ -> assert false
     end
 
-let simplify_named dacc bindable_let_bound named =
+let simplify_named dacc bindable_let_bound named ~simplify_toplevel =
   try
-    let simplified_named = simplify_named0 dacc bindable_let_bound named in
+    let simplified_named =
+      simplify_named0 ~simplify_toplevel dacc bindable_let_bound named
+    in
     simplified_named, removed_operations named simplified_named
   with Misc.Fatal_error -> begin
     if !Clflags.flambda_context_on_error then begin

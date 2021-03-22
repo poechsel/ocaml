@@ -5,8 +5,8 @@
 (*                       Pierre Chambart, OCamlPro                        *)
 (*           Mark Shinwell and Leo White, Jane Street Europe              *)
 (*                                                                        *)
-(*   Copyright 2013--2020 OCamlPro SAS                                    *)
-(*   Copyright 2014--2020 Jane Street Group LLC                           *)
+(*   Copyright 2013--2019 OCamlPro SAS                                    *)
+(*   Copyright 2014--2019 Jane Street Group LLC                           *)
 (*                                                                        *)
 (*   All rights reserved.  This file is distributed under the terms of    *)
 (*   the GNU Lesser General Public License version 2.1, with the          *)
@@ -14,20 +14,13 @@
 (*                                                                        *)
 (**************************************************************************)
 
-[@@@ocaml.warning "+a-30-40-41-42"]
+(** Simplification of the right-hand sides of [Let] bindings. *)
 
-(** Values of type ['a] must not contain names! *)
+[@@@ocaml.warning "+a-4-30-40-41-42"]
 
-type 'a t =
-  | Const of 'a
-  | Var of Variable.t
-
-val print : (Format.formatter -> 'a -> unit) -> Format.formatter -> 'a t -> unit
-
-val compare : ('a -> 'a -> int) -> 'a t -> 'a t -> int
-
-val value_map : 'a t -> default:'b -> f:('a -> 'b) -> 'b
-
-val free_names : _ t -> Name_occurrences.t
-
-val apply_renaming : 'a t -> Renaming.t -> 'a t
+val simplify_named
+   : Downwards_acc.t
+  -> Bindable_let_bound.t
+  -> Flambda.Named.t
+  -> simplify_toplevel:Simplify_common.simplify_toplevel
+  -> Simplify_named_result.t * Removed_operations.t

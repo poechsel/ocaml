@@ -18,6 +18,9 @@
 
 open! Flambda.Import
 
+module DE = Downwards_env
+module T = Flambda_type
+
 module Definition = struct
   type descr =
     | Code of Code_id.t
@@ -36,7 +39,7 @@ module Definition = struct
 
   type t = {
     descr : descr;
-    defining_expr : Static_const_with_free_names.t;
+    defining_expr : Rebuilt_static_const.t;
   }
 
   let binds_symbol t sym =
@@ -49,7 +52,7 @@ module Definition = struct
 
   let free_names t =
     match t.descr with
-    | Code _ -> Static_const_with_free_names.free_names t.defining_expr
+    | Code _ -> Rebuilt_static_const.free_names t.defining_expr
     | Set_of_closures { symbol_projections; _ }
     | Block_like { symbol_projections; _ } ->
       (* The symbols mentioned in any symbol projections must be counted
@@ -59,7 +62,7 @@ module Definition = struct
           Name_occurrences.add_symbol free_names
             (Symbol_projection.symbol proj) Name_mode.normal)
         symbol_projections
-        (Static_const_with_free_names.free_names t.defining_expr)
+        (Rebuilt_static_const.free_names t.defining_expr)
 
   let print_descr ppf descr =
     match descr with
@@ -80,7 +83,7 @@ module Definition = struct
         @[<hov 1>(defining_expr@ %a)@]\
         @]"
       print_descr descr
-      Static_const_with_free_names.print defining_expr
+      Rebuilt_static_const.print defining_expr
 
   let descr t = t.descr
   let defining_expr t = t.defining_expr
@@ -92,7 +95,7 @@ module Definition = struct
     | Block_like { symbol_projections; _ } -> symbol_projections
 
   let code code_id defining_expr =
-    match Static_const_with_free_names.const defining_expr with
+    match Rebuilt_static_const.const defining_expr with
     | Code code ->
       if Code_id.equal code_id (Code.code_id code) then
         { descr = Code code_id;
@@ -104,7 +107,7 @@ module Definition = struct
           Code_id.print (Code.code_id code)
     | _ ->
       Misc.fatal_errorf "Not a code definition: %a"
-        Static_const_with_free_names.print defining_expr
+        Rebuilt_static_const.print defining_expr
 
   let set_of_closures denv ~closure_symbols_with_types
         ~symbol_projections defining_expr =
@@ -157,7 +160,7 @@ end
 type t = {
   definitions : Definition.t list;
   bound_symbols : Bound_symbols.t;
-  defining_exprs : Static_const_with_free_names.Group.t;
+  defining_exprs : Rebuilt_static_const.Group.t;
   symbol_projections : Symbol_projection.t Variable.Map.t;
   is_fully_static : bool;
 }
@@ -166,7 +169,7 @@ let definitions t = t.definitions
 let symbol_projections t = t.symbol_projections
 
 let free_names_of_defining_exprs t =
-  Static_const_with_free_names.Group.free_names t.defining_exprs
+  Rebuilt_static_const.Group.free_names t.defining_exprs
 
 let is_fully_static t = t.is_fully_static
 
@@ -183,7 +186,7 @@ let compute_bound_symbols definitions =
 
 let compute_defining_exprs definitions =
   ListLabels.map definitions ~f:Definition.defining_expr
-  |> Static_const_with_free_names.Group.create
+  |> Rebuilt_static_const.Group.create
 
 let create_block_like symbol ~symbol_projections defining_expr denv ty =
   (* CR mshinwell: check that [defining_expr] is not a set of closures
@@ -196,7 +199,7 @@ let create_block_like symbol ~symbol_projections defining_expr denv ty =
     bound_symbols = compute_bound_symbols definitions;
     defining_exprs = compute_defining_exprs definitions;
     is_fully_static =
-      Static_const_with_free_names.is_fully_static defining_expr;
+      Rebuilt_static_const.is_fully_static defining_expr;
     symbol_projections = Definition.symbol_projections definition;
   }
 
@@ -211,7 +214,7 @@ let create_set_of_closures denv ~closure_symbols_with_types
     bound_symbols = compute_bound_symbols definitions;
     defining_exprs = compute_defining_exprs definitions;
     is_fully_static =
-      Static_const_with_free_names.is_fully_static defining_expr;
+      Rebuilt_static_const.is_fully_static defining_expr;
     symbol_projections = Definition.symbol_projections definition;
   }
 
@@ -222,7 +225,7 @@ let create_code code_id defining_expr =
     bound_symbols = compute_bound_symbols definitions;
     defining_exprs = compute_defining_exprs definitions;
     is_fully_static =
-      Static_const_with_free_names.is_fully_static defining_expr;
+      Rebuilt_static_const.is_fully_static defining_expr;
     symbol_projections = Definition.symbol_projections definition;
   }
 
@@ -241,9 +244,9 @@ let concat ts =
   in
   let defining_exprs =
     List.fold_left (fun defining_exprs t ->
-        Static_const_with_free_names.Group.concat t.defining_exprs
+        Rebuilt_static_const.Group.concat t.defining_exprs
           defining_exprs)
-      Static_const_with_free_names.Group.empty
+      Rebuilt_static_const.Group.empty
       ts
   in
   let is_fully_static =
@@ -267,7 +270,7 @@ let concat ts =
   }
 
 let defining_exprs t =
-  Static_const_with_free_names.Group.create
+  Rebuilt_static_const.Group.create
     (List.map Definition.defining_expr t.definitions)
 
 let bound_symbols t =
@@ -294,70 +297,39 @@ let apply_projection t proj =
         None)
   in
   match matching_defining_exprs with
-  | [defining_expr] ->
-    let simple =
-      match
-        Symbol_projection.projection proj,
-        Static_const_with_free_names.const defining_expr
-      with
-      | Block_load { index; }, Block (tag, mut, fields) ->
-        if not (Tag.Scannable.equal tag Tag.Scannable.zero) then begin
-          Misc.fatal_errorf "Symbol projection@ %a@ on block which doesn't \
-              have tag zero:@ %a"
-            Symbol_projection.print proj
-            Static_const_with_free_names.print defining_expr
-        end;
-        if Mutability.is_mutable mut then begin
-          Misc.fatal_errorf "Symbol projection@ %a@ on mutable block:@ %a"
-            Symbol_projection.print proj
-            Static_const_with_free_names.print defining_expr
-        end;
-        let index = Targetint.OCaml.to_int_exn index in
-        begin match List.nth_opt fields index with
-        | Some field ->
-          begin match field with
-          | Symbol symbol -> Simple.symbol symbol
-          | Tagged_immediate imm ->
-            Simple.const_int (Target_imm.to_targetint imm)
-          | Dynamically_computed var -> Simple.var var
-          end
-        | None ->
-          Misc.fatal_errorf "Symbol projection@ %a@ has out-of-range \
-              index:@ %a"
-            Symbol_projection.print proj
-            Static_const_with_free_names.print defining_expr
-        end;
-      | Project_var { project_from; var; }, Set_of_closures set ->
-        let decls = Set_of_closures.function_decls set in
-        if not (Function_declarations.binds_closure_id decls project_from)
-        then begin
-          Misc.fatal_errorf "Symbol projection@ %a@ has closure ID not \
-              bound by this set of closures:@ %a"
-            Symbol_projection.print proj
-            Static_const_with_free_names.print defining_expr
-        end;
-        let closure_env = Set_of_closures.closure_elements set in
-        begin match Var_within_closure.Map.find var closure_env with
-        | exception Not_found ->
-          Misc.fatal_errorf "Symbol projection@ %a@ has closure var not \
-              defined in the environment of this set of closures:@ %a"
-            Symbol_projection.print proj
-            Static_const_with_free_names.print defining_expr
-        | closure_entry -> closure_entry
-        end
-      | Block_load _,
-        (Code _ | Set_of_closures _ | Boxed_float _ | Boxed_int32 _
-        | Boxed_int64 _ | Boxed_nativeint _ | Immutable_float_block _
-        | Immutable_float_array _ | Mutable_string _ | Immutable_string _)
-      | Project_var _,
-        (Code _ | Block _ | Boxed_float _ | Boxed_int32 _
-        | Boxed_int64 _ | Boxed_nativeint _ | Immutable_float_block _
-        | Immutable_float_array _ | Mutable_string _ | Immutable_string _) ->
-        Misc.fatal_errorf "Symbol projection@ %a@ cannot be applied to:@ %a"
-          Symbol_projection.print proj
-          Static_const_with_free_names.print defining_expr
+  | [_] ->
+    let denv, ty = Symbol.Map.find symbol (types_of_symbols t) in
+    let typing_env = DE.typing_env denv in
+    let proof =
+      match Symbol_projection.projection proj with
+      | Block_load { index; } ->
+        T.prove_block_field_simple typing_env
+          ~min_name_mode:Name_mode.normal ty
+          (Target_imm.int index)
+      | Project_var { project_from = _; var; } ->
+        T.prove_project_var_simple typing_env
+          ~min_name_mode:Name_mode.normal ty var
     in
-    Some simple
+    begin match proof with
+    | Proved simple -> Some simple
+    | Unknown ->
+      (* [Simplify_named], which calls this function, requires [Some] to be
+         returned iff the projection is from a symbol defined in the same
+         recursive group (see the comment in that module).  As such, if the
+         projection via the types fails, we currently stop.  It seems very
+         unlikely that this will happen; we can reconsider in the future if
+         necessary. *)
+      Misc.fatal_errorf "Symbol projection@ %a@ produced [Unknown]:@ \
+          type is@ %a@ in env:@ %a"
+        Symbol_projection.print proj
+        T.print ty
+        T.Typing_env.print typing_env
+    | Invalid ->
+      Misc.fatal_errorf "Symbol projection@ %a@ produced [Invalid],@ \
+          environment is:@ %a"
+        Symbol_projection.print proj
+        T.Typing_env.print typing_env
+    end
   | [] -> None
   | _::_::_ ->
     Misc.fatal_errorf "Symbol projection@ %a@ matches more than one \

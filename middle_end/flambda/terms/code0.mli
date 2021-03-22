@@ -14,12 +14,27 @@
 (*                                                                        *)
 (**************************************************************************)
 
-(** Simplification of statically-allocated constants bound to symbols. *)
+[@@@ocaml.warning "+a-30-40-41-42"]
 
-[@@@ocaml.warning "+a-4-30-40-41-42"]
+module Make (Function_params_and_body : sig
+  type t
 
-val simplify_static_consts
-   : Downwards_acc.t
-  -> Bound_symbols.t
-  -> Static_const.Group.t
-  -> Bound_symbols.t * Static_const_with_free_names.Group.t * Downwards_acc.t
+  include Contains_ids.S with type t := t
+
+  val apply_renaming : t -> Renaming.t -> t
+
+  val print : Format.formatter -> t -> unit
+
+  val print_with_cache
+     : cache:Printing_cache.t
+    -> Format.formatter
+    -> t
+    -> unit
+end) (Cost_metrics : sig
+  type t
+
+  val print : Format.formatter -> t -> unit
+end)
+  : Code_intf.S
+    with type function_params_and_body := Function_params_and_body.t
+    with type cost_metrics := Cost_metrics.t
