@@ -18,10 +18,14 @@
 
 open! Int_replace_polymorphic_compare
 open! Flambda
-open Wrapper
 
 module Acc = Closure_conversion_aux.Acc
 module Env = Closure_conversion_aux.Env
+module Expr_wrapper = Closure_conversion_aux.Expr_wrapper
+module Let_cont_wrapper = Closure_conversion_aux.Let_cont_wrapper
+module Let_wrapper = Closure_conversion_aux.Let_wrapper
+module Continuation_handler_wrapper = Closure_conversion_aux.Continuation_handler_wrapper
+
 module Function_decls = Closure_conversion_aux.Function_decls
 module Function_decl = Function_decls.Function_decl
 
@@ -29,6 +33,29 @@ module K = Flambda_kind
 module LC = Lambda_conversions
 module P = Flambda_primitive
 module VB = Var_in_binding_pos
+
+let invariant ~cost_metrics acc body =
+  (* Check that the cost metrics computed incrementally are the same
+     as the one computed from scratch. *)
+  match Sys.getenv "FREE_NAMES" with
+  | exception Not_found -> ()
+  | _ ->
+    let size_closure = Cost_metrics.size cost_metrics in
+    let size =
+      Cost_metrics.expr_size body
+        ~find_code:(fun i -> Code_id.Map.find i (Acc.code acc))
+    in 
+    if not (Code_size.equal size_closure size)
+    then begin
+      Misc.fatal_errorf
+        "Mismatch on code size from closure conversion:@ \n\
+         From closure conversion:@ %a@ \n\
+         From expr:@ %a@ \n\
+         Expression:@ %a@"
+        Code_size.print size_closure
+        Code_size.print size
+        Expr.print body
+    end
 
 (* Do not use [Simple.symbol], use this function instead, to ensure that
    we correctly compute the free names of [Code]. *)
@@ -179,7 +206,9 @@ let close_c_call acc ~let_bound_var (prim : Primitive.description)
   (* We always replace the original Ilambda [Let] with an Flambda
      expression, so we call [k] with [None], to get just the closure-converted
      body of that [Let]. *)
-  let acc, body = k acc None in
+  let cost_metrics_of_body, acc, body =
+    Acc.with_blank_cost_metrics acc ~f:(fun acc -> k acc None)
+  in
   let return_continuation, needs_wrapper =
     match Expr.descr body with
     | Apply_cont apply_cont
@@ -269,8 +298,9 @@ let close_c_call acc ~let_bound_var (prim : Primitive.description)
       Expr_wrapper.create_apply acc apply
   in
   let (acc, call) : Acc.t * Expr_wrapper.t =
-    List.fold_left2 (fun (call : Simple.t list -> Acc.t * Expr_wrapper.t)
-            arg (arg_repr : Primitive.native_repr) ->
+    List.fold_left2
+      (fun (call : Simple.t list -> Acc.t * Expr_wrapper.t)
+        arg (arg_repr : Primitive.native_repr) ->
         let unbox_arg : P.unary_primitive option =
           match arg_repr with
           | Same_as_ocaml_repr -> None
@@ -303,37 +333,24 @@ let close_c_call acc ~let_bound_var (prim : Primitive.description)
       prim.prim_native_repr_args
       []
   in
-  let acc, code_after_call, handler_param, needs_wrapper =
-    let box_return_value =
-      match prim.prim_native_repr_res with
-      | Same_as_ocaml_repr -> None
-      | Unboxed_float -> Some (P.Box_number Naked_float)
-      | Unboxed_integer Pnativeint -> Some (P.Box_number Naked_nativeint)
-      | Unboxed_integer Pint32 -> Some (P.Box_number Naked_int32)
-      | Unboxed_integer Pint64 -> Some (P.Box_number Naked_int64)
-      | Untagged_int -> Some (P.Box_number Untagged_immediate)
+  let box_unboxed_returns acc ~let_bound_var ~box_return_value body =
+    let let_bound_var' = VB.create let_bound_var Name_mode.normal in
+    let handler_param = Variable.rename let_bound_var in
+    let named =
+      Named.create_prim
+        (Unary (box_return_value, Simple.var handler_param))
+        dbg
     in
-    match box_return_value with
-    | None -> acc, body, let_bound_var, needs_wrapper
-    | Some box_return_value ->
-      let let_bound_var' = VB.create let_bound_var Name_mode.normal in
-      let handler_param = Variable.rename let_bound_var in
-      let named =
-        Named.create_prim
-          (Unary (box_return_value, Simple.var handler_param))
-          dbg
-      in
-      let acc, body =
-        Let_wrapper.create acc (Bindable_let_bound.singleton let_bound_var')
-          named
-          ~body
-          ~free_names_of_body:Unknown
-        |> Expr_wrapper.create_let
-      in
-      acc, body, handler_param, true
+    let acc, expr =
+      Let_wrapper.create acc (Bindable_let_bound.singleton let_bound_var')
+        named
+        ~body
+        ~free_names_of_body:Unknown
+      |> Expr_wrapper.create_let
+    in
+    acc, expr, handler_param
   in
-  if not needs_wrapper then acc, call
-  else
+  let wrap_c_call acc ~handler_param ~code_after_call c_call =
     let cost_metrics_of_handler, acc, after_call =
       Acc.with_blank_cost_metrics acc ~f:(fun acc ->
         let return_kind =
@@ -351,9 +368,43 @@ let close_c_call acc ~let_bound_var (prim : Primitive.description)
       )
     in
     Let_cont_wrapper.create_non_recursive acc return_continuation after_call
-      ~body:call
+      ~body:c_call
       ~free_names_of_body:Unknown
       ~cost_metrics_of_handler
+  in
+  let keep_body ~cost_metrics_of_body acc =
+    Acc.with_cost_metrics
+      (Cost_metrics.(+) (Acc.cost_metrics acc) cost_metrics_of_body)
+      acc
+  in
+  let box_return_value =
+    match prim.prim_native_repr_res with
+    | Same_as_ocaml_repr -> None
+    | Unboxed_float -> Some (P.Box_number Naked_float)
+    | Unboxed_integer Pnativeint -> Some (P.Box_number Naked_nativeint)
+    | Unboxed_integer Pint32 -> Some (P.Box_number Naked_int32)
+    | Unboxed_integer Pint64 -> Some (P.Box_number Naked_int64)
+    | Untagged_int -> Some (P.Box_number Untagged_immediate)
+  in
+  match box_return_value with
+  | None ->
+    if needs_wrapper then
+      let acc = keep_body ~cost_metrics_of_body acc in
+      wrap_c_call acc ~handler_param:let_bound_var ~code_after_call:body call
+    else
+      (* Here the body is discarded. It might be useful to explicitly remove
+         anything that has been added to the acc while converting the body.
+         However, as we are hitting this code only when body is a goto
+         continuation where the only parameter is [let_bound_var] this
+         operation would be a noop and we can skip it.
+      *)
+      acc, call
+  | Some box_return_value ->
+    let acc = keep_body ~cost_metrics_of_body acc in
+    let acc, code_after_call, handler_param =
+      box_unboxed_returns acc ~let_bound_var ~box_return_value body
+    in
+    wrap_c_call acc ~handler_param ~code_after_call call
 
 let close_exn_continuation acc env
       (exn_continuation : Ilambda.exn_continuation) =
@@ -537,7 +588,7 @@ let rec close acc env (ilam : Ilambda.t) : Acc.t * Expr_wrapper.t =
     in
     Expr_wrapper.create_apply acc apply
   | Apply_cont (cont, trap_action, args) ->
-    let acc,args = find_simples acc env args in
+    let acc, args = find_simples acc env args in
     let trap_action = close_trap_action_opt trap_action in
     let apply_cont =
       Apply_cont.create ?trap_action cont ~args ~dbg:Debuginfo.none
@@ -763,9 +814,12 @@ and close_functions acc external_env function_declarations =
   in
   let acc, funs =
     List.fold_left (fun (acc, by_closure_id) function_decl ->
+      let _, acc, expr =
+        Acc.with_blank_cost_metrics acc ~f:(fun acc ->
         close_one_function acc ~external_env ~by_closure_id function_decl
           ~var_within_closures_from_idents ~closure_ids_from_idents
           function_declarations)
+      in acc, expr)
       (acc, Closure_id.Map.empty)
       func_decl_list
   in
@@ -789,7 +843,6 @@ and close_one_function acc ~external_env ~by_closure_id decl
       ~var_within_closures_from_idents ~closure_ids_from_idents
       function_declarations =
   let acc = Acc.with_free_names Name_occurrences.empty acc in
-  let acc = Acc.with_cost_metrics Cost_metrics.zero acc in
   let body = Function_decl.body decl in
   let loc = Function_decl.loc decl in
   let dbg = Debuginfo.from_location loc in
@@ -946,6 +999,7 @@ and close_one_function acc ~external_env ~by_closure_id decl
       var_within_closures_to_bind
       (acc, body)
   in
+  let cost_metrics = Acc.cost_metrics acc in
   let acc, exn_continuation =
     close_exn_continuation acc external_env
       (Function_decl.exn_continuation decl)
@@ -978,6 +1032,7 @@ and close_one_function acc ~external_env ~by_closure_id decl
       ~dbg
       ~is_tupled
   in
+  invariant ~cost_metrics acc body;
   let code =
     Code.create
       code_id
@@ -990,7 +1045,7 @@ and close_one_function acc ~external_env ~by_closure_id decl
       ~is_a_functor:(Function_decl.is_a_functor decl)
       ~recursive
       ~newer_version_of:None
-      ~cost_metrics:(Acc.cost_metrics acc)
+      ~cost_metrics
   in
   Acc.add_code ~code_id ~code acc,
   Closure_id.Map.add my_closure_id fun_decl by_closure_id

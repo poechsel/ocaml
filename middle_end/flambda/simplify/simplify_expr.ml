@@ -25,7 +25,7 @@ open! Simplify_import
    more transparent (e.g. through [find_continuation]).  Tricky potentially in
    conjunction with the rewrites. *)
 
-let rec simplify_expr dacc expr ~down_to_up =
+let rec simplify_expr_aux dacc expr ~down_to_up =
   match Expr.descr expr with
   | Let let_expr -> simplify_let dacc let_expr ~down_to_up
   | Let_cont let_cont ->
@@ -42,6 +42,34 @@ let rec simplify_expr dacc expr ~down_to_up =
        [Invalid].  [Un_cps] should translate any [Invalid] that it sees as if
        it were [Halt_and_catch_fire]. *)
     down_to_up dacc ~rebuild:EB.rebuild_invalid
+
+and simplify_expr dacc expr ~down_to_up =
+  (* XXX Temporary debugging code, to be removed *)
+  match Sys.getenv "FREE_NAMES" with
+  | exception Not_found -> simplify_expr_aux dacc expr ~down_to_up
+  | _ ->
+    simplify_expr_aux dacc expr
+      ~down_to_up:(fun dacc ~rebuild ->
+        down_to_up dacc ~rebuild:(fun uacc ~after_rebuild ->
+          rebuild uacc ~after_rebuild:(fun expr uacc ->
+            let code_size_uacc =
+              UA.cost_metrics uacc |> Cost_metrics.size
+            in
+            let denv = UA.creation_dacc uacc |> DA.denv in
+            let code_size =
+              Cost_metrics.expr_size expr ~find_code:(DE.find_code denv)
+            in
+            if not (Code_size.equal code_size_uacc code_size)
+            then begin
+              Misc.fatal_errorf "Mismatch on code size:@ \n\
+                  From UA:@ %a@ \n\
+                  From expr:@ %a@ \n\
+                  Expression:@ %a@"
+                Code_size.print code_size_uacc
+                Code_size.print code_size
+                Expr.print expr
+            end;
+            after_rebuild expr uacc)))
 
 and simplify_toplevel dacc expr ~return_continuation ~return_arity
       exn_continuation ~return_cont_scope ~exn_cont_scope =

@@ -25,8 +25,6 @@ module K = Flambda_kind
 module L = Lambda
 module P = Flambda_primitive
 
-open Wrapper
-
 let tag_int (arg : H.expr_primitive) : H.expr_primitive =
   Unary (Box_number Untagged_immediate, Prim arg)
 let untag_int (arg : H.simple_or_prim) : H.simple_or_prim =

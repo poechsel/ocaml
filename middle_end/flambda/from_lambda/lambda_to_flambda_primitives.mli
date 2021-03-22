@@ -14,7 +14,6 @@
 (*                                                                        *)
 (**************************************************************************)
 
-open Wrapper
 open Closure_conversion_aux
 
 val convert_and_bind
