@@ -37,7 +37,7 @@ module VB = Var_in_binding_pos
 let invariant ~cost_metrics acc body =
   (* Check that the cost metrics computed incrementally are the same
      as the one computed from scratch. *)
-  match Sys.getenv "FREE_NAMES" with
+  match Sys.getenv "COST_METRICS" with
   | exception Not_found -> ()
   | _ ->
     let size_closure = Cost_metrics.size cost_metrics in

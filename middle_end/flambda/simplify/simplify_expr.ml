@@ -45,7 +45,7 @@ let rec simplify_expr_aux dacc expr ~down_to_up =
 
 and simplify_expr dacc expr ~down_to_up =
   (* XXX Temporary debugging code, to be removed *)
-  match Sys.getenv "FREE_NAMES" with
+  match Sys.getenv "COST_METRICS" with
   | exception Not_found -> simplify_expr_aux dacc expr ~down_to_up
   | _ ->
     simplify_expr_aux dacc expr
