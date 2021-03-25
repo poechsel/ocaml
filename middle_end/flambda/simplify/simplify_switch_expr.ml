@@ -139,7 +139,7 @@ let rebuild_switch ~simplify_let dacc ~arms ~scrutinee ~scrutinee_ty uacc
       |> Continuation.Set.of_list
       |> Continuation.Set.get_singleton
   in
-  let create_tagged_scrutinee dest ~make_body =
+  let create_tagged_scrutinee uacc dest ~make_body =
     (* A problem with using [simplify_let] below is that the continuation
        [dest] might have [Apply_cont_rewrite]s in the environment, left over
        from the simplification of the existing uses.  We must clear these to
@@ -182,12 +182,18 @@ let rebuild_switch ~simplify_let dacc ~arms ~scrutinee ~scrutinee_ty uacc
   let free_names_after = UA.name_occurrences uacc in
   let body, uacc =
     if Target_imm.Map.cardinal arms < 1 then
+      let uacc =
+        UA.notify_removed ~operation:Removed_operations.branch uacc
+      in
       Expr.create_invalid (), uacc
     else
       let dbg = Debuginfo.none in
       match switch_is_identity with
       | Some dest ->
-        create_tagged_scrutinee dest ~make_body:(fun ~tagged_scrutinee ->
+        let uacc =
+          UA.notify_removed ~operation:Removed_operations.branch uacc
+        in
+        create_tagged_scrutinee uacc dest ~make_body:(fun ~tagged_scrutinee ->
           (* No need to increment the cost_metrics inside [create_tagged_scrutinee] as it
              will call simplify over the result of [make_body]. *)
           Apply_cont.create dest ~args:[tagged_scrutinee] ~dbg
@@ -195,7 +201,10 @@ let rebuild_switch ~simplify_let dacc ~arms ~scrutinee ~scrutinee_ty uacc
       | None ->
         match switch_is_boolean_not with
         | Some dest ->
-          create_tagged_scrutinee dest ~make_body:(fun ~tagged_scrutinee ->
+          let uacc =
+            UA.notify_removed ~operation:Removed_operations.branch uacc
+          in
+          create_tagged_scrutinee uacc dest ~make_body:(fun ~tagged_scrutinee ->
             let not_scrutinee = Variable.create "not_scrutinee" in
             let not_scrutinee' = Simple.var not_scrutinee in
             let do_tagging =
@@ -214,7 +223,11 @@ let rebuild_switch ~simplify_let dacc ~arms ~scrutinee ~scrutinee_ty uacc
               ~free_names_of_body:(Known (Expr.free_names body))
             |> Expr.create_let)
         | None ->
-          let expr, uacc = EB.create_switch uacc ~scrutinee ~arms in
+          (* In that case, even though some branches were removed by simplify we
+             should not count them in the number of removed operations: these
+             branches wouldn't have been taken during execution anyway.
+          *)
+           let expr, uacc = EB.create_switch uacc ~scrutinee ~arms in
           if !Clflags.flambda_invariant_checks
             && Simple.is_const scrutinee
             && Target_imm.Map.cardinal arms > 1
@@ -231,9 +244,9 @@ let rebuild_switch ~simplify_let dacc ~arms ~scrutinee ~scrutinee_ty uacc
   let uacc, expr =
     List.fold_left (fun (uacc, body) (new_cont, new_handler, cost_metrics_of_handler) ->
         let uacc =
-          UA.cost_metrics_add
-            ~added:(Cost_metrics.increase_due_to_let_cont_non_recursive
-                      ~cost_metrics_of_handler)
+          UA.add_cost_metrics
+            (Cost_metrics.increase_due_to_let_cont_non_recursive
+               ~cost_metrics_of_handler)
             uacc
         in
         uacc,
@@ -255,7 +268,12 @@ let simplify_switch ~simplify_let dacc switch ~down_to_up =
   let scrutinee = Switch.scrutinee switch in
   match S.simplify_simple dacc scrutinee ~min_name_mode with
   | Bottom, _ty ->
-    down_to_up dacc ~rebuild:Simplify_common.rebuild_invalid
+    down_to_up dacc ~rebuild:(fun uacc ~after_rebuild ->
+      let uacc =
+        UA.notify_removed ~operation:Removed_operations.branch uacc
+      in
+      Simplify_common.rebuild_invalid uacc ~after_rebuild
+    )
   | Ok scrutinee, scrutinee_ty ->
     let arms, dacc =
       let typing_env_at_use = DA.typing_env dacc in

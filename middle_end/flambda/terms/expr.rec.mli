@@ -68,7 +68,7 @@ val create_if_then_else
 val create_invalid : ?semantics:Invalid_term_semantics.t -> unit -> t
 
 val bind_no_simplification
-   : bindings:(Var_in_binding_pos.t * Cost_metrics.t * Named.t) list
+   : bindings:(Var_in_binding_pos.t * Code_size.t * Named.t) list
   -> body:Expr.t
   -> cost_metrics_of_body:Cost_metrics.t
   -> free_names_of_body:Name_occurrences.t

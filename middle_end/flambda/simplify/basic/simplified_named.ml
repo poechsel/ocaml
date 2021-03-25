@@ -39,8 +39,12 @@ type t =
 let reachable (named : Named.t) =
   let (simplified_named : simplified_named), cost_metrics =
     match named with
-    | Simple simple -> Simple simple, Cost_metrics.simple simple
-    | Prim (prim, dbg) -> Prim (prim, dbg), Cost_metrics.prim prim
+    | Simple simple ->
+       Simple simple,
+       Cost_metrics.from_size (Code_size.simple simple)
+    | Prim (prim, dbg) ->
+       Prim (prim, dbg),
+       Cost_metrics.from_size (Code_size.prim prim)
     | Set_of_closures _ ->
       Misc.fatal_errorf "Cannot use [Simplified_named.reachable] on \
           [Set_of_closures];@ use [reachable_with_known_free_names] \
@@ -60,10 +64,15 @@ let reachable (named : Named.t) =
 let reachable_with_known_free_names ~find_cost_metrics (named : Named.t) ~free_names =
   let (simplified_named : simplified_named), cost_metrics =
     match named with
-    | Simple simple -> Simple simple, Cost_metrics.simple simple
-    | Prim (prim, dbg) -> Prim (prim, dbg), Cost_metrics.prim prim
+    | Simple simple ->
+       Simple simple,
+       Cost_metrics.from_size (Code_size.simple simple)
+    | Prim (prim, dbg) ->
+       Prim (prim, dbg),
+       Cost_metrics.from_size (Code_size.prim prim)
     | Set_of_closures set ->
-      Set_of_closures set, Cost_metrics.set_of_closures ~find_cost_metrics set
+       Set_of_closures set,
+       Cost_metrics.set_of_closures ~find_cost_metrics set
     | Static_consts _ ->
       Misc.fatal_errorf "Cannot create [Simplified_named] from \
           [Static_consts];@ use the lifted constant infrastructure instead:@ %a"
@@ -85,9 +94,19 @@ let print ppf t =
   match t with
   | Reachable { named; _ } ->
     Named.print ppf (to_named named)
-  | Invalid sem -> Invalid_term_semantics.print ppf sem
+  | Invalid semantics -> Invalid_term_semantics.print ppf semantics
 
 let is_invalid t =
   match t with
   | Reachable _ -> false
   | Invalid _ -> true
+
+let cost_metrics t =
+  match t with
+  | Reachable r -> r.cost_metrics
+  | Invalid _ -> Cost_metrics.zero
+
+let update_cost_metrics cost_metrics t =
+  match t with
+  | Reachable r -> Reachable { r with cost_metrics }
+  | Invalid _ -> assert false

@@ -44,16 +44,19 @@ let inline_linearly_used_continuation uacc ~create_apply_cont ~params ~handler
     let bindings_outermost_first =
       ListLabels.map2 params args
         ~f:(fun param arg ->
-          let bound =
+          let let_bound =
             Var_in_binding_pos.create (KP.var param) Name_mode.normal
             |> Bindable_let_bound.singleton
           in
-          bound, Simplified_named.reachable (Named.create_simple arg))
+          let named = Named.create_simple arg in
+          { Simplify_named_result.let_bound;
+            simplified_defining_expr = Simplified_named.reachable named;
+            original_defining_expr = Some named })
     in
     let expr, uacc =
       let uacc =
         UA.with_name_occurrences uacc ~name_occurrences:free_names_of_handler
-        |> UA.cost_metrics_add ~added:cost_metrics_of_handler
+        |> UA.add_cost_metrics cost_metrics_of_handler
       in
       Expr_builder.make_new_let_bindings uacc ~bindings_outermost_first
         ~body:handler
@@ -90,14 +93,14 @@ let rebuild_apply_cont apply_cont ~args ~rewrite_id uacc ~after_rebuild =
       let expr, cost_metrics, free_names = apply_cont_to_expr apply_cont in
       let uacc =
         UA.add_free_names uacc free_names
-        |> UA.cost_metrics_add ~added:cost_metrics
+        |> UA.add_cost_metrics cost_metrics
       in
       after_rebuild expr uacc
     | Expr build_expr ->
       let expr, cost_metrics, free_names = build_expr ~apply_cont_to_expr in
       let uacc =
         UA.add_free_names uacc free_names
-        |> UA.cost_metrics_add ~added:cost_metrics
+        |> UA.add_cost_metrics cost_metrics
       in
       after_rebuild expr uacc
   in
@@ -106,6 +109,22 @@ let rebuild_apply_cont apply_cont ~args ~rewrite_id uacc ~after_rebuild =
       free_names_of_handler; cost_metrics_of_handler } ->
     (* We must not fail to inline here, since we've already decided that the
        relevant [Let_cont] is no longer needed. *)
+
+    (* When removing continuations don't increment the removed branch counter.
+       We can't be sure that removing a continuation maps to removing a branch
+       as the decision will be taken later on by the backend. If we were able
+       to track the number of times each continuation is used then we would be
+       able to track this a bit better (or to create a new counter to count the
+       number of continuations) that became linearly used.
+       In any case the impact of branches is harder to quantify than the impact
+       of allocating (branches can be moved by the backend, their runtime
+       depends on the branch predictor...). Underestimating the number of
+       removed branch is fine.
+
+       let uacc =
+        UA.notify_removed ~operation:Removed_operations.branch uacc
+      in
+    *)
     inline_linearly_used_continuation uacc ~create_apply_cont ~params ~handler
       ~free_names_of_handler ~cost_metrics_of_handler
   | Unreachable { arity = _; } ->
@@ -117,14 +136,19 @@ let rebuild_apply_cont apply_cont ~args ~rewrite_id uacc ~after_rebuild =
   | Toplevel_or_function_return_or_exn_continuation _ ->
     create_apply_cont ~apply_cont_to_expr:(fun apply_cont ->
       Expr.create_apply_cont apply_cont,
-      Cost_metrics.apply_cont apply_cont,
+      Cost_metrics.from_size (Code_size.apply_cont apply_cont),
       Apply_cont.free_names apply_cont)
 
 let simplify_apply_cont dacc apply_cont ~down_to_up =
   let min_name_mode = Name_mode.normal in
   match S.simplify_simples dacc (AC.args apply_cont) ~min_name_mode with
   | _, Bottom ->
-    down_to_up dacc ~rebuild:Simplify_common.rebuild_invalid
+    down_to_up dacc ~rebuild:(fun uacc ~after_rebuild ->
+      let uacc =
+        UA.notify_removed ~operation:Removed_operations.branch uacc
+      in
+      Simplify_common.rebuild_invalid uacc ~after_rebuild
+    )
   | _changed, Ok args_with_types ->
     let args, arg_types = List.split args_with_types in
     let use_kind : Continuation_use_kind.t =

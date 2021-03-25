@@ -27,11 +27,8 @@ module UA = Upwards_acc
 module UE = Upwards_env
 module VB = Var_in_binding_pos
 
-(* The constructed values of this type aren't currently used, but will be
-   needed when we import the Flambda 1 inliner. *)
-(* CR mshinwell: This should turn into a full "benefit" type *)
 type let_creation_result =
-  | Have_deleted of Named.t
+  | Have_deleted
   | Nothing_deleted
 
 let create_let uacc (bound_vars : BLB.t) defining_expr
@@ -107,7 +104,7 @@ let create_let uacc (bound_vars : BLB.t) defining_expr
         not (has_uses || (generate_phantom_lets && user_visible))
       in
       if will_delete_binding then begin
-        bound_vars, None, Have_deleted defining_expr
+        bound_vars, None, Have_deleted
       end else
         let name_mode =
           match greatest_name_mode with
@@ -119,7 +116,7 @@ let create_let uacc (bound_vars : BLB.t) defining_expr
         if Name_mode.is_normal name_mode then
           bound_vars, Some name_mode, Nothing_deleted
         else
-          bound_vars, Some name_mode, Have_deleted defining_expr
+          bound_vars, Some name_mode, Have_deleted
     end
   in
   (* CR mshinwell: When leaving behind phantom lets, maybe we should turn
@@ -151,8 +148,8 @@ let create_let uacc (bound_vars : BLB.t) defining_expr
     let uacc =
       (* CR mshinwell: This is reallocating UA twice on every [Let] *)
       UA.with_name_occurrences uacc ~name_occurrences:free_names_of_let
-      |> UA.cost_metrics_add
-           ~added:(Cost_metrics.increase_due_to_let_expr
+      |> UA.add_cost_metrics
+           (Cost_metrics.increase_due_to_let_expr
               ~is_phantom ~cost_metrics_of_defining_expr)
     in
     let let_expr =
@@ -161,16 +158,20 @@ let create_let uacc (bound_vars : BLB.t) defining_expr
     in
     Expr.create_let let_expr, uacc, Nothing_deleted
 
-let make_new_let_bindings uacc ~bindings_outermost_first ~body =
+let make_new_let_bindings uacc
+      ~(bindings_outermost_first : Simplify_named_result.binding_to_place list)
+      ~body =
   (* The name occurrences component of [uacc] is expected to be in the state
      described in the comment at the top of [Simplify_let.rebuild_let]. *)
   ListLabels.fold_left (List.rev bindings_outermost_first) ~init:(body, uacc)
-    ~f:(fun (expr, uacc) (bound, defining_expr) ->
-      match (defining_expr : Simplified_named.t) with
+    ~f:(fun (expr, uacc)
+         ({ let_bound; simplified_defining_expr; original_defining_expr }
+          : Simplify_named_result.binding_to_place) ->
+      match (simplified_defining_expr : Simplified_named.t) with
       | Invalid _ ->
         let uacc =
           UA.with_name_occurrences uacc ~name_occurrences:Name_occurrences.empty
-          |> UA.cost_metrics_add ~added:(Cost_metrics.invalid ())
+          |> UA.notify_added ~code_size:Code_size.invalid
         in
         Expr.create_invalid (), uacc
       | Reachable {
@@ -179,21 +180,41 @@ let make_new_let_bindings uacc ~bindings_outermost_first ~body =
           cost_metrics = cost_metrics_of_defining_expr;
         } ->
         let defining_expr = Simplified_named.to_named defining_expr in
-        match (bound : Bindable_let_bound.t) with
-        | Singleton _ | Set_of_closures _ ->
-          let expr, uacc, _ =
-            create_let uacc bound defining_expr
+        let expr, uacc, creation_result =
+          match (let_bound : Bindable_let_bound.t) with
+          | Singleton _ | Set_of_closures _ ->
+            create_let uacc let_bound defining_expr
               ~free_names_of_defining_expr ~body:expr
               ~cost_metrics_of_defining_expr
-          in
-          expr, uacc
-        | Symbols _ ->
-          (* Since [Simplified_named] doesn't permit the [Static_consts] case,
-             this must be a malformed binding. *)
-          Misc.fatal_errorf "Mismatch between bound name(s) and defining \
-              expression:@ %a@ =@ %a"
-            Bindable_let_bound.print bound
-            Named.print defining_expr)
+          | Symbols _ ->
+            (* Since [Simplified_named] doesn't permit the [Static_consts] case,
+               this must be a malformed binding. *)
+            Misc.fatal_errorf "Mismatch between bound name(s) and defining \
+                               expression:@ %a@ =@ %a"
+              Bindable_let_bound.print let_bound
+              Named.print defining_expr
+        in
+        let uacc =
+          match creation_result with
+          | Nothing_deleted -> uacc
+          | Have_deleted ->
+            begin
+              match (original_defining_expr : Named.t option) with
+              | Some (Prim (prim, _dbg)) ->
+                UA.notify_removed
+                  ~operation:(Removed_operations.prim prim)
+                  uacc
+              | Some (Set_of_closures _) ->
+                UA.notify_removed
+                  ~operation:Removed_operations.alloc
+                  uacc
+              | Some (Simple _)
+              | Some (Static_consts _)
+              | None -> uacc
+            end
+        in
+        expr, uacc
+       )
 
 let create_raw_let_symbol uacc bound_symbols scoping_rule static_consts ~body =
   (* Upon entry to this function, [UA.name_occurrences uacc] must precisely
@@ -219,8 +240,8 @@ let create_raw_let_symbol uacc bound_symbols scoping_rule static_consts ~body =
   in
   let uacc =
     UA.with_name_occurrences uacc ~name_occurrences:free_names_of_let
-    |> UA.cost_metrics_add
-         ~added:(Cost_metrics.increase_due_to_let_expr
+    |> UA.add_cost_metrics
+         (Cost_metrics.increase_due_to_let_expr
             ~is_phantom:false
             ~cost_metrics_of_defining_expr)
   in
@@ -398,13 +419,13 @@ let create_let_symbols uacc (scoping_rule : Symbol_scoping_rule.t)
              expand transitively. *)
           Simple.pattern_match' simple
             ~const:(fun _ ->
-              Named.create_simple simple, Cost_metrics.simple simple)
+              Named.create_simple simple, Code_size.simple simple)
             ~symbol:(fun _ ->
-              Named.create_simple simple, Cost_metrics.simple simple)
+              Named.create_simple simple, Code_size.simple simple)
             ~var:(fun var ->
               match Variable.Map.find var symbol_projections with
               | exception Not_found ->
-                Named.create_simple simple, Cost_metrics.simple simple
+                Named.create_simple simple, Code_size.simple simple
               | proj -> apply_projection proj)
         | None ->
           let prim : P.t =
@@ -424,19 +445,24 @@ let create_let_symbols uacc (scoping_rule : Symbol_scoping_rule.t)
             | Project_var { project_from; var; } ->
               Unary (Project_var { project_from; var; }, symbol)
           in
-          Named.create_prim prim Debuginfo.none, Cost_metrics.prim prim
+          Named.create_prim prim Debuginfo.none, Code_size.prim prim
       in
       (* It's possible that this might create duplicates of the same
          projection operation, but it's unlikely there will be a
          significant number, and since we're at toplevel we tolerate
          them. *)
-      let defining_expr, cost_metrics_of_defining_expr = apply_projection proj in
+      let defining_expr, code_size_of_defining_expr = apply_projection proj in
+      let cost_metrics_of_defining_expr =
+        Cost_metrics.from_size code_size_of_defining_expr
+      in
       let free_names_of_defining_expr = Named.free_names defining_expr in
       let expr, uacc, _ =
         create_let uacc (BLB.singleton (VB.create var Name_mode.normal))
           defining_expr ~free_names_of_defining_expr ~body:expr
           ~cost_metrics_of_defining_expr
       in
+      (* Not removing any operation here as the let bindings would have
+         been created for the first time here.*)
       expr, uacc)
     symbol_projections
     (expr, uacc)
@@ -518,11 +544,11 @@ let place_lifted_constants uacc (scoping_rule : Symbol_scoping_rule.t)
 let create_switch uacc ~scrutinee ~arms =
   if Target_imm.Map.cardinal arms < 1 then
     Expr.create_invalid (),
-    UA.cost_metrics_add ~added:(Cost_metrics.invalid ()) uacc
+    UA.notify_added ~code_size:Code_size.invalid uacc
   else
     let change_to_apply_cont action =
       Expr.create_apply_cont action,
-      UA.cost_metrics_add ~added:(Cost_metrics.apply_cont action) uacc
+      UA.notify_added ~code_size:(Code_size.apply_cont action) uacc
     in
     match Target_imm.Map.get_singleton arms with
     | Some (_discriminant, action) -> change_to_apply_cont action
@@ -537,7 +563,7 @@ let create_switch uacc ~scrutinee ~arms =
       | None ->
         let switch = Switch.create ~scrutinee ~arms in
         Expr.create_switch switch,
-        UA.cost_metrics_add ~added:(Cost_metrics.switch switch) uacc
+        UA.notify_added ~code_size:(Code_size.switch switch) uacc
 
 type rewrite_use_result =
   | Apply_cont of Apply_cont.t
@@ -577,7 +603,7 @@ let rewrite_use rewrite id apply_cont : rewrite_use_result =
           let extra_args_rev = Simple.var temp :: extra_args_rev in
           let extra_lets =
             (Var_in_binding_pos.create temp Name_mode.normal,
-             Cost_metrics.prim prim,
+             Code_size.prim prim,
              Named.create_prim prim Debuginfo.none)
               :: extra_lets
           in
@@ -704,14 +730,17 @@ let add_wrapper_for_fixed_arity_continuation0 uacc cont_or_apply_cont
       let apply_cont = Apply_cont.create cont ~args ~dbg:Debuginfo.none in
       begin match rewrite_use rewrite use_id apply_cont with
       | Apply_cont apply_cont ->
+        let cost_metrics =
+          Cost_metrics.from_size (Code_size.apply_cont apply_cont)
+        in
         new_wrapper (Expr.create_apply_cont apply_cont)
           ~free_names:(Known (Apply_cont.free_names apply_cont))
-          ~cost_metrics:(Cost_metrics.apply_cont apply_cont)
+          ~cost_metrics
       | Expr build_expr ->
         let expr, cost_metrics, free_names =
           build_expr ~apply_cont_to_expr:(fun apply_cont ->
             Expr.create_apply_cont apply_cont,
-            Cost_metrics.apply_cont apply_cont,
+            Cost_metrics.from_size (Code_size.apply_cont apply_cont),
             Apply_cont.free_names apply_cont)
         in
         new_wrapper expr ~free_names:(Known free_names) ~cost_metrics
@@ -724,7 +753,7 @@ let add_wrapper_for_fixed_arity_continuation0 uacc cont_or_apply_cont
         let expr, cost_metrics, free_names =
           build_expr ~apply_cont_to_expr:(fun apply_cont ->
             Expr.create_apply_cont apply_cont,
-            Cost_metrics.apply_cont apply_cont,
+            Cost_metrics.from_size (Code_size.apply_cont apply_cont),
             Apply_cont.free_names apply_cont)
         in
         new_wrapper expr ~free_names:(Known free_names) ~cost_metrics
@@ -758,13 +787,13 @@ let add_wrapper_for_fixed_arity_continuation uacc cont ~use_id arity ~around =
     in
     Let_cont.create_non_recursive new_cont new_handler ~body
       ~free_names_of_body:(Known (Expr.free_names body)),
-    UA.cost_metrics_add ~added uacc
+    UA.add_cost_metrics added uacc
 
 let add_wrapper_for_fixed_arity_apply uacc ~use_id arity apply =
   match Apply.continuation apply with
   | Never_returns ->
      Expr.create_apply apply,
-     UA.cost_metrics_add ~added:(Cost_metrics.apply apply) uacc
+     UA.notify_added ~code_size:(Code_size.apply apply) uacc
   | Return cont ->
     add_wrapper_for_fixed_arity_continuation uacc cont
       ~use_id arity
@@ -777,4 +806,4 @@ let add_wrapper_for_fixed_arity_apply uacc ~use_id arity apply =
           Apply.with_continuations apply (Return return_cont) exn_cont
         in
         Expr.create_apply apply,
-        UA.cost_metrics_add ~added:(Cost_metrics.apply apply) uacc)
+        UA.notify_added ~code_size:(Code_size.apply apply) uacc)

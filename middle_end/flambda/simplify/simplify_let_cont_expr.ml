@@ -86,11 +86,13 @@ let rebuild_one_continuation_handler cont ~at_unit_toplevel
         let v = KP.var param in
         let k = K.With_subkind.kind (KP.kind param) in
         let var = Var_in_binding_pos.create v Name_mode.phantom in
-        let bound = Bindable_let_bound.singleton var in
+        let let_bound = Bindable_let_bound.singleton var in
         let prim = Flambda_primitive.(Nullary (Optimised_out k)) in
         let named = Named.create_prim prim Debuginfo.none in
-        let simplified = Simplified_named.reachable named in
-        bound, simplified
+        let simplified_defining_expr = Simplified_named.reachable named in
+        { Simplify_named_result.let_bound;
+          simplified_defining_expr;
+          original_defining_expr = Some named }
       ) new_phantom_params)
   in
   let used_extra_params =
@@ -250,6 +252,9 @@ let simplify_non_recursive_let_cont_handler ~simplify_expr
     down_to_up dacc
       ~continuation_has_zero_uses:true
       ~rebuild:(fun uacc ~after_rebuild ->
+        (* Even though the handler is discarded we removing an operation
+           is unnecessary: the handler would have been left untouched during
+           execution.*)
         rebuild_non_recursive_let_cont_handler cont uses ~params
           ~handler ~free_names_of_handler:Name_occurrences.empty
           ~is_single_inlinable_use:false scope ~is_exn_handler
@@ -464,7 +469,11 @@ let simplify_non_recursive_let_cont ~simplify_expr dacc non_rec ~down_to_up =
                             Name_occurrences.union name_occurrences_body
                               name_occurrences_subsequent_exprs
                           in
-                          UA.with_name_occurrences uacc ~name_occurrences
+                          uacc
+                          |> UA.with_name_occurrences ~name_occurrences
+                            (* At this point one let cont has been removed *)
+                          |> UA.notify_removed
+                               ~operation:Removed_operations.alloc
                         in
                         (* The cost_metrics stored in uacc is the cost_metrics of the body at
                            this point *)
@@ -517,19 +526,20 @@ let simplify_non_recursive_let_cont ~simplify_expr dacc non_rec ~down_to_up =
                                 (Known num_free_occurrences_of_cont_in_body)
                               ~is_applied_with_traps
                           in
-                          let added =
-                            Cost_metrics.increase_due_to_let_cont_non_recursive
-                              ~cost_metrics_of_handler
+                          let uacc =
+                            UA.add_cost_metrics 
+                              (Cost_metrics.increase_due_to_let_cont_non_recursive
+                                 ~cost_metrics_of_handler)
+                              uacc
                           in
-                          let uacc = UA.cost_metrics_add ~added uacc in
                           expr, uacc
                     in
                     (* Add the cost_metrics of subsequent expressions back on
                        the accumulator as the accumulated cost_metrics was
                        cleared before rebuilding the let cont.*)
                     let uacc =
-                      UA.cost_metrics_add
-                        ~added:cost_metrics_of_subsequent_exprs
+                      UA.add_cost_metrics
+                        cost_metrics_of_subsequent_exprs
                         uacc
                     in
                     after_rebuild expr uacc)))))))
@@ -613,9 +623,9 @@ let rebuild_recursive_let_cont ~body handlers ~cost_metrics_of_handlers
   let uacc = UA.with_uenv uacc uenv_without_cont in
   let expr = Flambda.Let_cont.create_recursive handlers ~body in
   let uacc =
-    UA.cost_metrics_add
-      ~added:(Cost_metrics.increase_due_to_let_cont_recursive
-                ~cost_metrics_of_handlers)
+    UA.add_cost_metrics
+      (Cost_metrics.increase_due_to_let_cont_recursive
+         ~cost_metrics_of_handlers)
       uacc
   in
   after_rebuild expr uacc

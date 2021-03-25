@@ -38,7 +38,7 @@ type t = {
 let print ppf
       { uenv; creation_dacc = _; code_age_relation; lifted_constants;
         name_occurrences; used_closure_vars; all_code = _;
-        shareable_constants; cost_metrics } =
+        shareable_constants; cost_metrics; } =
   Format.fprintf ppf "@[<hov 1>(\
       @[<hov 1>(uenv@ %a)@]@ \
       @[<hov 1>(code_age_relation@ %a)@]@ \
@@ -137,5 +137,11 @@ let clear_cost_metrics t = { t with cost_metrics = Flambda.Cost_metrics.zero }
 
 let with_cost_metrics cost_metrics t = { t with cost_metrics }
 
-let cost_metrics_add ~added t =
-  { t with cost_metrics = Flambda.Cost_metrics.(+) added t.cost_metrics }
+let notify_added ~code_size t =
+  { t with cost_metrics = Flambda.Cost_metrics.notify_added ~code_size t.cost_metrics }
+
+let notify_removed ~operation t =
+  { t with cost_metrics = Flambda.Cost_metrics.notify_removed ~operation t.cost_metrics }
+
+let add_cost_metrics cost_metrics t =
+  { t with cost_metrics = Flambda.Cost_metrics.(+) t.cost_metrics cost_metrics }

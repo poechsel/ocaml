@@ -16,44 +16,27 @@
 
 [@@@ocaml.warning "+a-4-30-40-41-42"]
 
-open! Flambda.Import
+(* Computes an approximation for the code size corresponding to flambda terms.
+   The code size of a given term should be a rough estimate of the size of
+   the generated machine code.
+*)
 
-(** Unlike [Named.t], this type does not include [Static_consts] because
-    such constants are propagated separately after simplification. *)
-type simplified_named = private
-  | Simple of Simple.t
-  | Prim of Flambda_primitive.t * Debuginfo.t
-  | Set_of_closures of Set_of_closures.t
+type t
 
-val to_named : simplified_named -> Named.t
+(* Both are only there temporarly *)
+val of_int : int -> t
+val to_int : t -> int
 
-type t = private
-  | Reachable of {
-      named : simplified_named;
-      cost_metrics: Cost_metrics.t;
-      free_names : Name_occurrences.t;
-    }
-  | Invalid of Invalid_term_semantics.t
-
-(** It is an error to pass [Set_of_closures] or [Static_consts] to this
-    function.  (Sets of closures are disallowed because computation of their
-    free names might be expensive; use [reachable_with_known_free_names]
-    instead.) *)
-val reachable : Named.t -> t
-
-(** It is an error to pass [Static_consts] to this function. *)
-val reachable_with_known_free_names
-  : find_cost_metrics:(Code_id.t -> Cost_metrics.t Or_unknown.t)
-  -> Named.t
-  -> free_names:Name_occurrences.t
-  -> t
-
-val invalid : unit -> t
-
-val is_invalid : t -> bool
-
+val zero : t
+val (+) : t -> t -> t
+val smaller_than_threshold : t -> threshold:int -> bool
+val equal : t -> t -> bool
 val print : Format.formatter -> t -> unit
 
-val cost_metrics : t -> Cost_metrics.t
-
-val update_cost_metrics : Cost_metrics.t -> t -> t
+val prim : Flambda_primitive.t -> t
+val simple : Simple.t -> t
+val static_consts : unit -> t
+val apply : Apply_expr.t -> t
+val apply_cont : Apply_cont_expr.t -> t
+val switch : Switch_expr.t -> t
+val invalid : t
