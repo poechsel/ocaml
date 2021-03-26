@@ -1079,8 +1079,8 @@ open Closure_conversion_aux
 
 let convert_and_bind acc ~backend exn_cont ~register_const_string
       (prim : L.primitive) ~(args : Simple.t list) (dbg : Debuginfo.t)
-      (cont : Acc.t -> Flambda.Named.t option -> Acc.t * Expr_wrapper.t)
-  : Acc.t * Expr_wrapper.t =
+      (cont : Acc.t -> Flambda.Named.t option -> Acc.t * Expr_with_acc.t)
+  : Acc.t * Expr_with_acc.t =
   let expr = convert_lprim ~backend prim args dbg in
   H.bind_rec acc ~backend exn_cont ~register_const_string expr dbg
     (fun acc named -> cont acc (Some named))
