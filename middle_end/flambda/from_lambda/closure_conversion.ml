@@ -34,29 +34,6 @@ module LC = Lambda_conversions
 module P = Flambda_primitive
 module VB = Var_in_binding_pos
 
-let invariant ~cost_metrics acc body =
-  (* Check that the cost metrics computed incrementally are the same
-     as the one computed from scratch. *)
-  match Sys.getenv "COST_METRICS" with
-  | exception Not_found -> ()
-  | _ ->
-    let size_closure = Cost_metrics.size cost_metrics in
-    let size =
-      Cost_metrics.expr_size body
-        ~find_code:(fun i -> Code_id.Map.find i (Acc.code acc))
-    in 
-    if not (Code_size.equal size_closure size)
-    then begin
-      Misc.fatal_errorf
-        "Mismatch on code size from closure conversion:@ \n\
-         From closure conversion:@ %a@ \n\
-         From expr:@ %a@ \n\
-         Expression:@ %a@"
-        Code_size.print size_closure
-        Code_size.print size
-        Expr.print body
-    end
-
 (* Do not use [Simple.symbol], use this function instead, to ensure that
    we correctly compute the free names of [Code]. *)
 let use_of_symbol_as_simple acc symbol =
@@ -1032,7 +1009,6 @@ and close_one_function acc ~external_env ~by_closure_id decl
       ~dbg
       ~is_tupled
   in
-  invariant ~cost_metrics acc body;
   let code =
     Code.create
       code_id
