@@ -19,6 +19,7 @@
 open! Flambda.Import
 
 module DE = Downwards_env
+module DA = Downwards_acc
 
 (* CR mshinwell: We need to emit [Warnings.Inlining_impossible] as
    required.
@@ -134,6 +135,7 @@ module Call_site_decision = struct
     | Max_inlining_depth_exceeded
     | Recursion_depth_exceeded
     | Never_inline_attribute
+    | Rejected_by_cost_metrics
     | Inline of {
         attribute : attribute_causing_inlining option;
         unroll_to : int option;
@@ -151,6 +153,8 @@ module Call_site_decision = struct
       Format.fprintf ppf "Recursion_depth_exceeded"
     | Never_inline_attribute ->
       Format.fprintf ppf "Never_inline_attribute"
+    | Rejected_by_cost_metrics ->
+      Format.fprintf ppf "Rejected_by_cost_metrics"
     | Inline { attribute; unroll_to; } ->
       Format.fprintf ppf "@[<hov 1>(\
           @[<hov 1>(attribute@ %a)@]@ \
@@ -169,6 +173,7 @@ module Call_site_decision = struct
     | Unrolling_depth_exceeded
     | Max_inlining_depth_exceeded
     | Recursion_depth_exceeded
+    | Rejected_by_cost_metrics
     | Never_inline_attribute -> Do_not_inline
     | Inline { attribute = _; unroll_to; } -> Inline { unroll_to; }
 
@@ -185,6 +190,8 @@ module Call_site_decision = struct
       Format.fprintf fmt "the@ maximum@ recursion@ depth@ has@ been@ exceeded"
     | Never_inline_attribute ->
       Format.fprintf fmt "the@ call@ has@ an@ attribute@ forbidding@ inlining"
+    | Rejected_by_cost_metrics ->
+      Format.fprintf fmt "the@ cost@ metrics@ were@ not@ high@ enough"
     | Inline { attribute = None; unroll_to = None; } ->
       Format.fprintf fmt "the@ function@ was@ deemed@ inlinable@ from@ its@ declaration"
     | Inline { attribute = Some Always; unroll_to = _; } ->
@@ -215,37 +222,80 @@ end
 (* CR mshinwell: This parameter needs to be configurable *)
 let max_rec_depth = 1
 
-let make_decision_for_call_site denv ~function_decl_rec_info
-      ~apply_inlining_state (inline : Inline_attribute.t)
-      : Call_site_decision.t =
-  if (not (DE.can_inline denv)) then
-    Environment_says_never_inline
-  else
-    match inline with
-    | Never_inline -> Never_inline_attribute
-    | Default_inline | Unroll _ | Always_inline | Hint_inline ->
-      match Rec_info.unroll_to function_decl_rec_info with
-      | Some unroll_to ->
-        if Rec_info.depth function_decl_rec_info >= unroll_to then
-          Unrolling_depth_exceeded
-        else
-          Inline { attribute = None; unroll_to = None; }
-      | None ->
-        if Inlining_state.is_depth_exceeded apply_inlining_state
-        then
-          Max_inlining_depth_exceeded
-        else
-          match inline with
-          | Never_inline -> assert false
-          | Default_inline ->
-            if Rec_info.depth function_decl_rec_info >= max_rec_depth then
-              Recursion_depth_exceeded
-            else
-              Inline { attribute = None; unroll_to = None; }
-          | Unroll unroll_to ->
-            let unroll_to =
-              Rec_info.depth function_decl_rec_info + unroll_to
-            in
-            Inline { attribute = Some Unroll; unroll_to = Some unroll_to; }
-          | Always_inline | Hint_inline ->
-            Inline { attribute = Some Always; unroll_to = None; }
+module I = Flambda_type.Function_declaration_type.Inlinable
+
+let make_decision_for_call_site dacc ~simplify_expr ~function_decl
+      ~function_decl_rec_info ~apply : Call_site_decision.t =
+  let inline = Apply.inline apply in
+  let apply_inlining_state = Apply.inlining_state apply in
+  let force_inline ~attribute ~unroll_to : Call_site_decision.t =
+      Inline { attribute; unroll_to }
+  in
+  let might_inline ~attribute ~unroll_to : Call_site_decision.t =
+    let denv = DA.denv dacc in
+    let code_id = I.code_id function_decl in
+    let code = DE.find_code denv code_id in
+    let cost_metrics = Code.cost_metrics code in
+    let round = DE.round denv in
+    let is_it_a_small_function =
+      Cost_metrics.smaller_than_threshold
+        cost_metrics
+        ~threshold:(Clflags.Int_arg_helper.get ~key:round
+                      !Clflags.Flambda.Expert.small_function_threshold)
+    in
+    let env_prohibits_inlining = (not (DE.can_inline denv)) in
+    if is_it_a_small_function then
+      force_inline ~attribute ~unroll_to
+    else if env_prohibits_inlining then
+      Environment_says_never_inline
+    else
+      let _, expr =
+        Inlining_transforms.inline dacc ~apply ~unroll_to function_decl
+      in
+      let dacc = DA.with_denv dacc (DE.disable_function_inlining denv) in
+      let _, uacc =
+        simplify_expr dacc expr
+          ~down_to_up:(fun dacc ~rebuild ->
+            let uacc = Upwards_acc.create Upwards_env.empty dacc in
+            rebuild uacc ~after_rebuild:(fun expr uacc -> expr, uacc)
+          )
+      in
+      let threshold =
+        Clflags.Float_arg_helper.get ~key:round !Clflags.inline_threshold
+        |> int_of_float
+      in
+      let cost_metrics = Upwards_acc.cost_metrics uacc in
+      if Cost_metrics.smaller_than_threshold cost_metrics ~threshold then
+        force_inline ~attribute ~unroll_to
+      else
+        Rejected_by_cost_metrics
+
+  in
+  match inline with
+  | Never_inline -> Never_inline_attribute
+  | Default_inline | Unroll _ | Always_inline | Hint_inline ->
+    match Rec_info.unroll_to function_decl_rec_info with
+    | Some unroll_to ->
+      if Rec_info.depth function_decl_rec_info >= unroll_to then
+        Unrolling_depth_exceeded
+      else
+        might_inline ~attribute:None ~unroll_to:None
+    | None ->
+      if Inlining_state.is_depth_exceeded apply_inlining_state
+      then
+        Max_inlining_depth_exceeded
+      else
+        match inline with
+        | Never_inline -> assert false
+        | Default_inline ->
+          if Rec_info.depth function_decl_rec_info >= max_rec_depth then
+            Recursion_depth_exceeded
+          else
+            might_inline ~attribute:None ~unroll_to:None
+        | Unroll unroll_to ->
+          let unroll_to =
+            Rec_info.depth function_decl_rec_info + unroll_to
+          in
+          might_inline ~attribute:(Some Unroll) ~unroll_to:(Some unroll_to)
+        | Always_inline | Hint_inline ->
+          force_inline ~attribute:(Some Always) ~unroll_to:None

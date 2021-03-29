@@ -55,6 +55,7 @@ module Call_site_decision : sig
     | Max_inlining_depth_exceeded
     | Recursion_depth_exceeded
     | Never_inline_attribute
+    | Rejected_by_cost_metrics
     | Inline of {
         attribute : attribute_causing_inlining option;
         unroll_to : int option;
@@ -72,8 +73,9 @@ module Call_site_decision : sig
 end
 
 val make_decision_for_call_site
-   : Downwards_env.t
+   : Downwards_acc.t
+  -> simplify_expr:Expr.t Simplify_common.expr_simplifier
+  -> function_decl:Flambda_type.Function_declaration_type.Inlinable.t
   -> function_decl_rec_info:Rec_info.t
-  -> apply_inlining_state:Inlining_state.t
-  -> Inline_attribute.t
+  -> apply:Apply.t
   -> Call_site_decision.t
