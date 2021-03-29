@@ -382,6 +382,9 @@ let inline_attribute ?prefix ?suffix () ppf (i : Inline_attribute.t) =
   in
   pp_option ?prefix ?suffix Format.pp_print_string ppf str
 
+let code_size ?prefix ?suffix () ppf code_size =
+  pp_with ?prefix ?suffix ppf "%d" code_size
+
 let inline_attribute_opt ?prefix ?suffix () ppf i =
   pp_option ?prefix ?suffix (inline_attribute ()) ppf i
 
@@ -530,13 +533,15 @@ and symbol_binding ppf (sb : symbol_binding) =
     Format.fprintf ppf "@]@ end@]"
 
 and code_binding ppf ({ recursive = rec_; inline; id; newer_version_of;
-                        param_arity; ret_arity; params_and_body } : code) =
-  Format.fprintf ppf "code@[<h>%a%a@] @[<hov2>%a%a"
+                        param_arity; ret_arity; params_and_body;
+                        code_size = cs } : code) =
+  Format.fprintf ppf "code@[<h>%a%a%a@] @[<hov2>%a%a"
     recursive rec_
     (inline_attribute_opt ~prefix:"@ " ()) inline
     code_id id
+    (code_size ~prefix:"@ " ()) cs
     (pp_option ~prefix:"@ newer_version_of(" ~suffix:")" code_id)
-      newer_version_of;
+    newer_version_of;
   match params_and_body with
     | Deleted ->
       let pp_arity ppf =

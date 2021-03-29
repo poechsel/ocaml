@@ -199,19 +199,20 @@ code:
     exn_cont = exn_continuation_id;
     ret_arity = return_arity;
     EQUAL; body = expr;
-    { let recursive, inline, id, newer_version_of = header in
+    { let recursive, inline, id, newer_version_of, code_size = header in
       { id; newer_version_of; param_arity = None; ret_arity; recursive; inline;
         params_and_body = Present { params; closure_var; ret_cont; exn_cont;
-                                    body } } }
+                                    body };
+        code_size } }
   | header = code_header;
     DELETED;
     COLON;
     param_arity = kinds;
     MINUSGREATER;
     ret_arity = kinds;
-    { let recursive, inline, id, newer_version_of = header in
+    { let recursive, inline, id, newer_version_of, code_size = header in
       { id; newer_version_of; param_arity = Some param_arity;
-        ret_arity = Some ret_arity; recursive; inline;
+        ret_arity = Some ret_arity; recursive; inline; code_size;
         params_and_body = Deleted } }
 ;
 
@@ -220,8 +221,9 @@ code_header:
     recursive = recursive;
     inline = option(inline);
     id = code_id;
+    code_size = code_size;
     newer_version_of = option(newer_version_of);
-    { recursive, inline, id, newer_version_of }
+    { recursive, inline, id, newer_version_of, code_size }
 ;
 
 newer_version_of:
@@ -589,6 +591,9 @@ simple:
 code_id:
   | v = variable { v }
 ;
+
+code_size:
+  | i = plain_int { i }
  
 closure_id:
   | v = variable { v }

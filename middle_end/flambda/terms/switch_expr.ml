@@ -114,6 +114,15 @@ let invariant env ({ scrutinee; arms; } as t) =
 let create ~scrutinee ~arms =
   { scrutinee; arms; }
 
+let if_then_else ~scrutinee ~if_true ~if_false =
+  let arms =
+    Target_imm.Map.of_list [
+      Target_imm.bool_true, if_true;
+      Target_imm.bool_false, if_false;
+    ]
+  in
+  create ~scrutinee ~arms
+
 let iter t ~f = Target_imm.Map.iter f t.arms
 
 let num_arms t = Target_imm.Map.cardinal t.arms

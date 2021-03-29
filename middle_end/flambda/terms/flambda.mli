@@ -75,13 +75,6 @@ module rec Expr : sig
 
   val create_switch : Switch_expr.t -> t
 
-  (** Build a [Switch] corresponding to a traditional if-then-else. *)
-  val create_if_then_else
-     : scrutinee:Simple.t
-    -> if_true:Apply_cont_expr.t
-    -> if_false:Apply_cont_expr.t
-    -> t
-
   (** Create an expression indicating type-incorrect or unreachable code. *)
   val create_invalid : ?semantics:Invalid_term_semantics.t -> unit -> t
 
@@ -626,7 +619,7 @@ end and Code : sig
 
   val recursive : t -> Recursive.t
 
-  val cost_metrics : t -> Cost_metrics.t Or_unknown.t
+  val cost_metrics : t -> Cost_metrics.t
 
   val create
      : Code_id.t
@@ -639,15 +632,14 @@ end and Code : sig
     -> inline:Inline_attribute.t
     -> is_a_functor:bool
     -> recursive:Recursive.t
-    -> cost_metrics: Cost_metrics.t Or_unknown.t
+    -> cost_metrics:Cost_metrics.t
     -> t
 
   val with_code_id : Code_id.t -> t -> t
 
   val with_params_and_body
      : (Function_params_and_body.t * Name_occurrences.t) Or_deleted.t
-     (* CR poechsel: remove Or_unknown.t and force cost_metrics to be provided *)
-    -> cost_metrics:Cost_metrics.t Or_unknown.t
+    -> cost_metrics:Cost_metrics.t
     -> t
     -> t
 
@@ -672,8 +664,16 @@ end and Cost_metrics : sig
   val print : Format.formatter -> t -> unit
   val (+) : t -> t -> t
 
-  val set_of_closures : find_cost_metrics:(Code_id.t -> t Or_unknown.t) -> Set_of_closures.t -> t
-  val increase_due_to_let_expr : is_phantom:bool -> cost_metrics_of_defining_expr:t -> t
+  val set_of_closures
+     : find_cost_metrics:(Code_id.t -> t)
+    -> Set_of_closures.t
+    -> t
+
+  val increase_due_to_let_expr
+     : is_phantom:bool
+    -> cost_metrics_of_defining_expr:t
+    -> t
+
   val increase_due_to_let_cont_non_recursive : cost_metrics_of_handler:t -> t
   val increase_due_to_let_cont_recursive : cost_metrics_of_handlers:t -> t
 

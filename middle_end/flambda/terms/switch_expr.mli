@@ -33,6 +33,13 @@ val create
   -> arms:Apply_cont_expr.t Target_imm.Map.t
   -> t
 
+(** Create a [Switch] corresponding to a traditional if-then-else. *)
+val if_then_else
+   : scrutinee:Simple.t
+  -> if_true:Apply_cont_expr.t
+  -> if_false:Apply_cont_expr.t
+  -> t
+
 (** The scrutinee of the switch. *)
 val scrutinee : t -> Simple.t
 

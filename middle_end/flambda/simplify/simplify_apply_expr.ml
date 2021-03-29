@@ -243,7 +243,7 @@ let simplify_direct_partial_application ~simplify_expr dacc apply
       Apply.exn_continuation apply
       |> Exn_continuation.without_extra_args
     in
-    let body =
+    let body, cost_metrics_of_body =
       let full_application =
         Apply.create ~callee:(Apply.callee apply)
           ~continuation:(Return return_continuation)
@@ -254,22 +254,37 @@ let simplify_direct_partial_application ~simplify_expr dacc apply
           ~inline:Default_inline
           ~inlining_state:(Apply.inlining_state apply)
       in
-      List.fold_left (fun expr (closure_var, arg) ->
+      let cost_metrics =
+        Cost_metrics.from_size (Code_size.apply full_application)
+      in
+      List.fold_left (fun (expr, cost_metrics) (closure_var, arg) ->
           match Simple.must_be_var arg with
-          | None -> expr
+          | None -> expr, cost_metrics
           | Some arg ->
             let arg = VB.create arg Name_mode.normal in
-            Let.create (Bindable_let_bound.singleton arg)
-              (Named.create_prim
-                (Unary (Project_var {
-                  project_from = wrapper_closure_id;
-                  var = closure_var;
-                }, Simple.var my_closure))
-                dbg)
-              ~body:expr
-              ~free_names_of_body:Unknown
-            |> Expr.create_let)
-        (Expr.create_apply full_application)
+            let prim =
+              P.Unary (Project_var {
+                 project_from = wrapper_closure_id;
+                 var = closure_var;
+               }, Simple.var my_closure)
+            in
+            let cost_metrics_of_defining_expr =
+              Cost_metrics.from_size (Code_size.prim prim)
+            in
+            let expr =
+              Let.create (Bindable_let_bound.singleton arg)
+                (Named.create_prim prim dbg)
+                ~body:expr
+                ~free_names_of_body:Unknown
+              |> Expr.create_let
+            in
+            expr,
+            Cost_metrics.(+)
+              cost_metrics
+              (Cost_metrics.increase_due_to_let_expr
+                 ~is_phantom:false
+                 ~cost_metrics_of_defining_expr))
+        (Expr.create_apply full_application, cost_metrics)
         (List.rev applied_args_with_closure_vars)
     in
     let free_names_of_body = Expr.free_names body in
@@ -299,7 +314,7 @@ let simplify_direct_partial_application ~simplify_expr dacc apply
           ~inline:Default_inline
           ~is_a_functor:false
           ~recursive
-          ~cost_metrics:Unknown
+          ~cost_metrics:cost_metrics_of_body
       in
       Static_const.Code code
     in
@@ -372,7 +387,7 @@ let simplify_direct_over_application ~simplify_expr dacc apply ~param_arity ~res
         (* Remove one function call as this apply was removed and replaced by two new ones. *)
         let uacc =
           if coming_from_indirect then
-            UA.notify_removed 
+            UA.notify_removed
               ~operation:Removed_operations.direct_call_of_indirect
               uacc
           else

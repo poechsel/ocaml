@@ -84,30 +84,3 @@ and simplify_toplevel dacc expr ~return_continuation ~return_arity
 and [@inline always] simplify_let dacc let_expr ~down_to_up =
   Simplify_let_expr.simplify_let ~simplify_expr
     ~simplify_toplevel dacc let_expr ~down_to_up
-
-let simplify_expr dacc expr ~down_to_up =
-  (* XXX Temporary debugging code, to be removed *)
-  match Sys.getenv "FREE_NAMES" with
-  | exception Not_found -> simplify_expr dacc expr ~down_to_up
-  | _ ->
-    simplify_expr dacc expr
-      ~down_to_up:(fun dacc ~rebuild ->
-        down_to_up dacc ~rebuild:(fun uacc ~after_rebuild ->
-          rebuild uacc ~after_rebuild:(fun expr uacc ->
-            let code_size_uacc = UA.cost_metrics uacc |> Cost_metrics.size in
-            let denv = UA.creation_dacc uacc |> DA.denv in
-            let code_size_expr =
-              Cost_metrics.expr_size expr ~find_code:(Downwards_env.find_code denv)
-            in
-            if not (Code_size.equal code_size_uacc code_size_expr)
-            then begin
-              Misc.fatal_errorf "Mismatch on code size:@ \n\
-                  From UA:@ %a@ \n\
-                  From expr:@ %a@ \n\
-                  Expression:@ %a@"
-                Code_size.print code_size_uacc
-                Code_size.print code_size_expr
-                Expr.print expr
-            end;
-
-            after_rebuild expr uacc)))

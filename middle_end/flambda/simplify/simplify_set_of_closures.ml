@@ -459,7 +459,7 @@ let simplify_function context ~used_closure_vars ~shareable_constants
       |> Code.with_code_id new_code_id
       |> Code.with_newer_version_of (Some old_code_id)
       |> Code.with_params_and_body
-           ~cost_metrics:(Known cost_metrics)
+           ~cost_metrics
            (Present (params_and_body, free_names_of_code))
     in
     let code =

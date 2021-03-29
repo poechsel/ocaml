@@ -16,8 +16,6 @@
 
 [@@@ocaml.warning "+a-30-40-41-42"]
 
-open! Flambda.Import
-
 type failure =
   | Division_by_zero
   | Index_out_of_bounds
@@ -55,20 +53,14 @@ val print_list_of_simple_or_prim
   -> simple_or_prim list
   -> unit
 
-val expression_for_failure
-   : backend:(module Flambda_backend_intf.S)
-  -> Exn_continuation.t option
-  -> register_const_string:(string -> Symbol.t)
-  -> expr_primitive
-  -> Debuginfo.t
-  -> failure
-  -> Expr.t
+open Closure_conversion_aux
 
 val bind_rec
-   : backend:(module Flambda_backend_intf.S)
+   : Acc.t
+  -> backend:(module Flambda_backend_intf.S)
   -> Exn_continuation.t option
-  -> register_const_string:(string -> Symbol.t)
+  -> register_const_string:(Acc.t -> string -> Acc.t * Symbol.t)
   -> expr_primitive
   -> Debuginfo.t
-  -> (Named.t -> Expr.t)
-  -> Expr.t
+  -> (Acc.t -> Flambda.Named.t -> Acc.t * Expr_with_acc.t)
+  -> Acc.t * Expr_with_acc.t

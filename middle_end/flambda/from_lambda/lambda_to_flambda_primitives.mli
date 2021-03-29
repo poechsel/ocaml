@@ -14,12 +14,16 @@
 (*                                                                        *)
 (**************************************************************************)
 
+module Acc = Closure_conversion_aux.Acc
+module Expr_with_acc = Closure_conversion_aux.Expr_with_acc
+
 val convert_and_bind
-   : backend:(module Flambda_backend_intf.S)
+   : Acc.t
+  -> backend:(module Flambda_backend_intf.S)
   -> Exn_continuation.t option
-  -> register_const_string:(string -> Symbol.t)
+  -> register_const_string:(Acc.t -> string -> Acc.t * Symbol.t)
   -> Lambda.primitive
   -> args:Simple.t list
   -> Debuginfo.t
-  -> (Flambda.Named.t option -> Flambda.Expr.t)
-  -> Flambda.Expr.t
+  -> (Acc.t -> Flambda.Named.t option -> Acc.t * Expr_with_acc.t)
+  -> Acc.t * Expr_with_acc.t

@@ -139,7 +139,7 @@ let middle_end0 ppf ~prefixname ~backend ~filename ~module_ident
     let flambda =
       Profile.record_call "closure_conversion" (fun () ->
         Closure_conversion.ilambda_to_flambda ~backend ~module_ident
-          ~module_block_size_in_words ~filename ilambda)
+          ~module_block_size_in_words ilambda)
     in
     print_rawflambda ppf flambda;
     check_invariants flambda;
@@ -172,12 +172,10 @@ let middle_end ~ppf_dump:ppf ~prefixname ~backend ~filename ~module_ident
     | exception Not_found -> ()
     | _ ->
       Exported_code.iter simplify_result.all_code (fun id code ->
-        match Flambda.Code.cost_metrics code with
-        | Known cost_metrics ->
-          Format.fprintf Format.std_formatter "%a %a\n"
-            Code_id.print id
-            Flambda.Cost_metrics.print cost_metrics
-        | _ -> assert false);
+        let size = Flambda.Code.cost_metrics code in
+        Format.fprintf Format.std_formatter "%a %a\n"
+          Code_id.print id Flambda.Cost_metrics.print size
+      )
     end;
     { cmx = simplify_result.cmx;
       unit = simplify_result.unit;

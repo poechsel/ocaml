@@ -16,7 +16,6 @@
 
 [@@@ocaml.warning "+a-30-40-41-42"]
 
-open! Flambda.Import
 
 module C = Lambda_conversions
 module H = Lambda_to_flambda_primitives_helpers
@@ -1076,9 +1075,13 @@ let convert_lprim ~backend (prim : L.primitive) (args : Simple.t list)
       [Closure_conversion.close_primitive]"
       Printlambda.primitive prim
 
-let convert_and_bind ~backend exn_cont ~register_const_string
+module Acc = Closure_conversion_aux.Acc
+module Expr_with_acc = Closure_conversion_aux.Expr_with_acc
+
+let convert_and_bind acc ~backend exn_cont ~register_const_string
       (prim : L.primitive) ~(args : Simple.t list) (dbg : Debuginfo.t)
-      (cont : Named.t option -> Expr.t) : Expr.t =
+      (cont : Acc.t -> Flambda.Named.t option -> Acc.t * Expr_with_acc.t)
+  : Acc.t * Expr_with_acc.t =
   let expr = convert_lprim ~backend prim args dbg in
-  H.bind_rec ~backend exn_cont ~register_const_string expr dbg
-    (fun named -> cont (Some named))
+  H.bind_rec acc ~backend exn_cont ~register_const_string expr dbg
+    (fun acc named -> cont acc (Some named))

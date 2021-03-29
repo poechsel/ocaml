@@ -49,7 +49,7 @@ end) = struct
     inline : Inline_attribute.t;
     is_a_functor : bool;
     recursive : Recursive.t;
-    cost_metrics : Cost_metrics.t Or_unknown.t;
+    cost_metrics : Cost_metrics.t;
   }
 
   let code_id { code_id; _ } = code_id
@@ -172,7 +172,7 @@ end) = struct
           @[<hov 1>@<0>%s(params_arity@ @<0>%s%a@<0>%s)@<0>%s@]@ \
           @[<hov 1>@<0>%s(result_arity@ @<0>%s%a@<0>%s)@<0>%s@]@ \
           @[<hov 1>@<0>%s(recursive@ %a)@<0>%s@]@ \
-          @[<hov 1>@<0>%s(cost_metrics@ %a)@<0>%s@]@ \
+          @[<hov 1>(cost_metrics@ %a)@]@ \
           %a\
           )@]"
         (if Option.is_none newer_version_of then Flambda_colours.elide ()
@@ -213,11 +213,7 @@ end) = struct
         | Recursive -> Flambda_colours.normal ())
         Recursive.print recursive
         (Flambda_colours.normal ())
-        (match cost_metrics with
-        | Unknown -> Flambda_colours.elide ()
-        | Known _ -> Flambda_colours.normal ())
-        (Or_unknown.print Cost_metrics.print) cost_metrics
-        (Flambda_colours.normal ())
+        Cost_metrics.print cost_metrics
         (print_params_and_body_with_cache ~cache) params_and_body
     | Deleted ->
       Format.fprintf ppf "@[<hov 1>(\

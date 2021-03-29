@@ -633,8 +633,13 @@ and static_let_expr env bound_symbols defining_expr body : Fexpr.expr =
           in
           Present params_and_body
       in
+      let code_size =
+        Flambda.Code.cost_metrics code
+        |> Flambda.Cost_metrics.size
+        |> Code_size.to_int
+      in
       Code { id = code_id; newer_version_of; param_arity; ret_arity; recursive;
-             inline; params_and_body}
+             inline; params_and_body; code_size; }
     | _, _ ->
       Misc.fatal_errorf "Mismatched pattern and constant: %a vs. %a"
         Bound_symbols.Pattern.print pat

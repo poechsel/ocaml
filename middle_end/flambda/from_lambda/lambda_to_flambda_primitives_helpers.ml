@@ -17,6 +17,7 @@
 [@@@ocaml.warning "+a-30-40-41-42"]
 
 open! Flambda.Import
+open Closure_conversion_aux
 
 module P = Flambda_primitive
 module VB = Var_in_binding_pos
@@ -92,7 +93,7 @@ let caml_ml_array_bound_error =
   let name = Linkage_name.create "caml_ml_array_bound_error" in
   Symbol.create (Compilation_unit.external_symbols ()) name
 
-let raise_exn_for_failure ~dbg exn_cont exn_bucket extra_let_binding =
+let raise_exn_for_failure acc ~dbg exn_cont exn_bucket extra_let_binding =
   let exn_handler = Exn_continuation.exn_handler exn_cont in
   let trap_action =
     Trap_action.Pop {
@@ -107,19 +108,19 @@ let raise_exn_for_failure ~dbg exn_cont exn_bucket extra_let_binding =
     in
     [exn_bucket] @ extra_args
   in
-  let apply_cont =
-    Expr.create_apply_cont
+  let acc, apply_cont =
+    Expr_with_acc.create_apply_cont acc
       (Apply_cont.create ~trap_action exn_handler ~args ~dbg)
   in
   match extra_let_binding with
-  | None -> apply_cont
+  | None -> acc, apply_cont
   | Some (bound_var, defining_expr) ->
-    Let.create (Bindable_let_bound.singleton bound_var)
+    Let_with_acc.create acc (Bindable_let_bound.singleton bound_var)
       defining_expr ~body:apply_cont
       ~free_names_of_body:Unknown
-    |> Expr.create_let
+    |> Expr_with_acc.create_let
 
-let expression_for_failure ~backend exn_cont ~register_const_string
+let expression_for_failure acc ~backend exn_cont ~register_const_string
       primitive dbg (failure : failure) =
   let module B = (val backend : Flambda_backend_intf.S) in
   let exn_cont =
@@ -132,7 +133,7 @@ let expression_for_failure ~backend exn_cont ~register_const_string
   in
   match failure with
   | Division_by_zero ->
-    raise_exn_for_failure ~dbg exn_cont
+    raise_exn_for_failure acc ~dbg exn_cont
       (Simple.symbol B.division_by_zero) None
   | Index_out_of_bounds ->
     if true then begin
@@ -152,112 +153,138 @@ let expression_for_failure ~backend exn_cont ~register_const_string
         Apply.create ~callee ~continuation exn_cont
           ~args ~call_kind dbg ~inline ~inlining_state
       in
-      Expr.create_apply call
+      Expr_with_acc.create_apply acc call
     end else begin
       let exn_bucket = Variable.create "exn_bucket" in
       (* CR mshinwell: Share this text with elsewhere. *)
-      let error_text = register_const_string "index out of bounds" in
+      let acc, error_text = register_const_string acc "index out of bounds" in
       let contents_of_exn_bucket = [
         Simple.symbol B.invalid_argument;
         Simple.symbol error_text;
       ]
       in
-      let extra_let_binding =
-        Var_in_binding_pos.create exn_bucket Name_mode.normal,
-        Named.create_prim (Variadic (Make_block (
-          Values (Tag.Scannable.zero, [Any_value; Any_value]),
-          Immutable),
-                                     contents_of_exn_bucket))
+      let named =
+        Named.create_prim
+          (Variadic (Make_block
+                       (Values (Tag.Scannable.zero, [Any_value; Any_value]),
+                        Immutable),
+                     contents_of_exn_bucket))
           dbg
       in
+      let extra_let_binding =
+        Var_in_binding_pos.create exn_bucket Name_mode.normal,
+        named
+      in
       raise_exn_for_failure
-        ~dbg exn_cont
+        acc ~dbg exn_cont
         (Simple.var exn_bucket)
         (Some extra_let_binding)
     end
 
-let rec bind_rec ~backend exn_cont
+let rec bind_rec acc ~backend exn_cont
           ~register_const_string
           (prim : expr_primitive)
           (dbg : Debuginfo.t)
-          (cont : Named.t -> Expr.t)
-  : Expr.t =
+          (cont : Acc.t -> Named.t -> Acc.t * Expr_with_acc.t)
+  : Acc.t * Expr_with_acc.t =
   match prim with
-  | Simple simple -> cont (Named.create_simple simple)
+  | Simple simple ->
+    let named = Named.create_simple simple in
+    cont acc named
   | Unary (prim, arg) ->
-    let cont (arg : Simple.t) =
-      cont (Named.create_prim (Unary (prim, arg)) dbg)
+    let cont acc (arg : Simple.t) =
+      let named = Named.create_prim (Unary (prim, arg)) dbg in
+      cont acc named
     in
-    bind_rec_primitive ~backend exn_cont ~register_const_string arg dbg cont
+    bind_rec_primitive acc ~backend exn_cont ~register_const_string arg dbg cont
   | Binary (prim, arg1, arg2) ->
-    let cont (arg2 : Simple.t) =
-      let cont (arg1 : Simple.t) =
-        cont (Named.create_prim (Binary (prim, arg1, arg2)) dbg)
+    let cont acc (arg2 : Simple.t) =
+      let cont acc (arg1 : Simple.t) =
+        let named = Named.create_prim (Binary (prim, arg1, arg2)) dbg in
+        cont acc named
       in
-      bind_rec_primitive ~backend exn_cont ~register_const_string arg1 dbg cont
+      bind_rec_primitive acc ~backend exn_cont
+        ~register_const_string arg1 dbg cont
     in
-    bind_rec_primitive ~backend exn_cont ~register_const_string arg2 dbg cont
+    bind_rec_primitive acc ~backend exn_cont
+      ~register_const_string arg2 dbg cont
   | Ternary (prim, arg1, arg2, arg3) ->
-    let cont (arg3 : Simple.t) =
-      let cont (arg2 : Simple.t) =
-        let cont (arg1 : Simple.t) =
-          cont (Named.create_prim (Ternary (prim, arg1, arg2, arg3)) dbg)
+    let cont acc (arg3 : Simple.t) =
+      let cont acc (arg2 : Simple.t) =
+        let cont acc (arg1 : Simple.t) =
+          let named =
+            Named.create_prim (Ternary (prim, arg1, arg2, arg3)) dbg
+          in
+          cont acc named
         in
-        bind_rec_primitive ~backend exn_cont ~register_const_string arg1
+        bind_rec_primitive acc ~backend exn_cont ~register_const_string arg1
           dbg cont
       in
-      bind_rec_primitive ~backend exn_cont ~register_const_string arg2 dbg cont
+      bind_rec_primitive acc ~backend exn_cont
+        ~register_const_string arg2 dbg cont
     in
-    bind_rec_primitive ~backend exn_cont ~register_const_string arg3 dbg cont
+    bind_rec_primitive acc ~backend exn_cont
+      ~register_const_string arg3 dbg cont
   | Variadic (prim, args) ->
-    let cont args =
-      cont (Named.create_prim (Variadic (prim, args)) dbg)
+    let cont acc args =
+      let named =
+        Named.create_prim (Variadic (prim, args)) dbg
+      in
+      cont acc named
     in
-    let rec build_cont args_to_convert converted_args =
+    let rec build_cont acc args_to_convert converted_args =
       match args_to_convert with
       | [] ->
-        cont converted_args
+        cont acc converted_args
       | arg :: args_to_convert ->
-        let cont arg =
-          build_cont args_to_convert (arg :: converted_args)
+        let cont acc arg =
+          build_cont acc args_to_convert (arg :: converted_args)
         in
-        bind_rec_primitive ~backend exn_cont ~register_const_string arg dbg cont
+        bind_rec_primitive acc ~backend exn_cont
+          ~register_const_string arg dbg cont
     in
-    build_cont (List.rev args) []
+    build_cont acc (List.rev args) []
   | Checked { validity_conditions; primitive; failure; dbg; } ->
     let primitive_cont = Continuation.create () in
-    let primitive_cont_handler =
-      let handler =
-        bind_rec ~backend exn_cont ~register_const_string
-          primitive dbg cont
-      in
-      Continuation_handler.create [] ~handler
-        ~free_names_of_handler:Unknown
-        ~is_exn_handler:false
+    let cost_metrics_of_primitive_handler, acc, primitive_cont_handler =
+      Acc.measure_cost_metrics acc ~f:(fun acc ->
+        let acc, handler =
+          bind_rec acc ~backend exn_cont ~register_const_string
+            primitive dbg cont
+        in
+        Continuation_handler_with_acc.create acc [] ~handler
+          ~free_names_of_handler:Unknown
+          ~is_exn_handler:false
+      )
     in
     let failure_cont = Continuation.create () in
-    let failure_cont_handler =
-      let handler =
-        expression_for_failure ~backend exn_cont
-          ~register_const_string primitive dbg failure
-      in
-      Continuation_handler.create [] ~handler
-        ~free_names_of_handler:Unknown
-        ~is_exn_handler:false
+    let cost_metrics_of_failure_handler, acc, failure_cont_handler =
+      Acc.measure_cost_metrics acc ~f:(fun acc ->
+        let acc, handler =
+          expression_for_failure acc ~backend exn_cont
+            ~register_const_string primitive dbg failure
+        in
+        Continuation_handler_with_acc.create acc [] ~handler
+          ~free_names_of_handler:Unknown
+          ~is_exn_handler:false
+      )
     in
-    let check_validity_conditions =
-      List.fold_left (fun rest expr_primitive ->
+    let acc, check_validity_conditions =
+      List.fold_left (fun (acc, rest) expr_primitive ->
           let condition_passed_cont = Continuation.create () in
-          let condition_passed_cont_handler =
-            Continuation_handler.create [] ~handler:rest
-              ~free_names_of_handler:Unknown
-              ~is_exn_handler:false
+          let cost_metrics_of_handler, acc, condition_passed_cont_handler =
+            Acc.measure_cost_metrics acc ~f:(fun acc ->
+              Continuation_handler_with_acc.create acc [] ~handler:rest
+                ~free_names_of_handler:Unknown
+                ~is_exn_handler:false
+            )
           in
-          let body =
-            bind_rec_primitive ~backend exn_cont ~register_const_string
+          let acc, body =
+            bind_rec_primitive acc ~backend exn_cont ~register_const_string
               (Prim expr_primitive) dbg
-              (fun prim_result ->
-                (Expr.create_switch
+              (fun acc prim_result ->
+                (Expr_with_acc.create_switch
+                   acc
                    (Switch.create
                     ~scrutinee:prim_result
                     ~arms:(Target_imm.Map.of_list [
@@ -267,36 +294,43 @@ let rec bind_rec ~backend exn_cont
                         Apply_cont.goto failure_cont;
                   ]))))
           in
-          Let_cont.create_non_recursive condition_passed_cont
+          Let_cont_with_acc.create_non_recursive acc condition_passed_cont
             condition_passed_cont_handler ~body
-            ~free_names_of_body:Unknown)
-        (Expr.create_apply_cont
+            ~free_names_of_body:Unknown
+            ~cost_metrics_of_handler)
+        (Expr_with_acc.create_apply_cont acc
            (Apply_cont.create primitive_cont ~args:[] ~dbg:Debuginfo.none))
         validity_conditions
     in
-    Let_cont.create_non_recursive primitive_cont
+    let acc, body =
+      Let_cont_with_acc.create_non_recursive acc failure_cont
+        failure_cont_handler
+        ~body:check_validity_conditions
+        ~free_names_of_body:Unknown
+        ~cost_metrics_of_handler:cost_metrics_of_failure_handler
+    in
+    Let_cont_with_acc.create_non_recursive acc primitive_cont
       primitive_cont_handler
-      ~body:(
-        Let_cont.create_non_recursive failure_cont
-          failure_cont_handler
-          ~body:check_validity_conditions
-          ~free_names_of_body:Unknown)
+      ~body
       ~free_names_of_body:Unknown
+      ~cost_metrics_of_handler:cost_metrics_of_primitive_handler
 
-and bind_rec_primitive ~backend exn_cont ~register_const_string
+and bind_rec_primitive acc ~backend exn_cont ~register_const_string
       (prim : simple_or_prim)
       (dbg : Debuginfo.t)
-      (cont : Simple.t -> Expr.t) : Expr.t =
+      (cont : Acc.t -> Simple.t -> Acc.t * Expr_with_acc.t)
+  : Acc.t * Expr_with_acc.t =
   match prim with
   | Simple s ->
-    cont s
+    cont acc s
   | Prim p ->
     let var = Variable.create "prim" in
     let var' = VB.create var Name_mode.normal in
-    let cont named =
-      Let.create (Bindable_let_bound.singleton var') named
-        ~body:(cont (Simple.var var))
+    let cont acc named =
+      let acc, body = cont acc (Simple.var var) in
+      Let_with_acc.create acc (Bindable_let_bound.singleton var') named
+        ~body
         ~free_names_of_body:Unknown
-      |> Expr.create_let
+      |> Expr_with_acc.create_let
     in
-    bind_rec ~backend exn_cont ~register_const_string p dbg cont
+    bind_rec acc ~backend exn_cont ~register_const_string p dbg cont
