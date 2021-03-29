@@ -82,7 +82,9 @@ module Function_declaration_decision = struct
 
 end
 
-let make_decision_for_function_declaration denv ?cost_metrics function_decl
+type cost_metrics_source = From_denv | Metrics of Cost_metrics.t
+
+let make_decision_for_function_declaration denv ~cost_metrics_source function_decl
   : Function_declaration_decision.t =
   (* At present, we follow Closure, taking inlining decisions without
      first examining call sites. *)
@@ -107,9 +109,9 @@ let make_decision_for_function_declaration denv ?cost_metrics function_decl
               (float_of_int Inlining_cost.scale_inline_threshold_by)))
       in
       let metrics =
-        match cost_metrics  with
-        | Some metrics -> metrics
-        | None -> Code.cost_metrics code
+        match cost_metrics_source with
+        | Metrics metrics -> metrics
+        | From_denv -> Code.cost_metrics code
       in
       match Inlining_cost.can_inline ~metrics inlining_threshold ~bonus:0
       with
