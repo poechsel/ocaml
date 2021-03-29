@@ -26,10 +26,11 @@ open! Simplify_import
    file tail recursive, although it probably isn't necessary, as
    excessive levels of nesting of functions seems unlikely. *)
 
-let function_decl_type ~pass denv function_decl ?code_id ?params_and_body rec_info =
+let function_decl_type ~pass ~cost_metrics_source denv function_decl ?code_id
+      rec_info =
   let decision =
     Inlining_decision.make_decision_for_function_declaration
-      denv ?params_and_body function_decl
+      denv ~cost_metrics_source function_decl
   in
   let code_id = Option.value code_id ~default:(FD.code_id function_decl) in
   Inlining_report.record_decision (
@@ -160,6 +161,7 @@ end = struct
                   ~pass:Inlining_report.Before_simplify
                   denv function_decl
                   ~code_id:new_code_id
+                  ~cost_metrics_source:From_denv
                   (Rec_info.create ~depth:1 ~unroll_to:None))
               (Function_declarations.funs function_decls)
           in
@@ -467,12 +469,13 @@ let simplify_function context ~used_closure_vars ~shareable_constants
     in
     let function_decl = FD.update_code_id function_decl new_code_id in
     let function_type =
-      (* We need to use [dacc_after_body] to ensure that all [code_ids] in
-         [params_and_body] are available for the inlining decision code. *)
+      (* We need to manually specify the cost metrics to use to ensure that
+         they are the one of the body after simplification. *)
       function_decl_type
         ~pass:Inlining_report.After_simplify
+        ~cost_metrics_source:(Metrics cost_metrics)
         (DA.denv dacc_after_body) function_decl
-        ~params_and_body Rec_info.initial
+        Rec_info.initial
     in
     { function_decl;
       new_code_id;

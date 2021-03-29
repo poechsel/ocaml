@@ -32,9 +32,15 @@ module Function_declaration_decision : sig
   val can_inline : t -> bool
 end
 
+
+type cost_metrics_source = From_denv | Metrics of Cost_metrics.t
+
+(* If a cost_metrics is passed it will be used as the cost metrics for
+   the function declaration instead of grabbing the cost metrics from the
+   one stored on the code located in the env. *)
 val make_decision_for_function_declaration
    : Downwards_env.t
-  -> ?params_and_body:Function_params_and_body.t
+  -> cost_metrics_source:cost_metrics_source
   -> Function_declaration.t
   -> Function_declaration_decision.t
 
