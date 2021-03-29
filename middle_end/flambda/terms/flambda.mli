@@ -632,7 +632,7 @@ end and Code : sig
     -> inline:Inline_attribute.t
     -> is_a_functor:bool
     -> recursive:Recursive.t
-    -> cost_metrics: Cost_metrics.t
+    -> cost_metrics:Cost_metrics.t
     -> t
 
   val with_code_id : Code_id.t -> t -> t
@@ -664,8 +664,16 @@ end and Cost_metrics : sig
   val print : Format.formatter -> t -> unit
   val (+) : t -> t -> t
 
-  val set_of_closures : find_cost_metrics:(Code_id.t -> t) -> Set_of_closures.t -> t
-  val increase_due_to_let_expr : is_phantom:bool -> cost_metrics_of_defining_expr:t -> t
+  val set_of_closures
+     : find_cost_metrics:(Code_id.t -> t)
+    -> Set_of_closures.t
+    -> t
+
+  val increase_due_to_let_expr
+     : is_phantom:bool
+    -> cost_metrics_of_defining_expr:t
+    -> t
+
   val increase_due_to_let_cont_non_recursive : cost_metrics_of_handler:t -> t
   val increase_due_to_let_cont_recursive : cost_metrics_of_handlers:t -> t
 

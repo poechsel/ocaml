@@ -1075,7 +1075,8 @@ let convert_lprim ~backend (prim : L.primitive) (args : Simple.t list)
       [Closure_conversion.close_primitive]"
       Printlambda.primitive prim
 
-open Closure_conversion_aux
+module Acc = Closure_conversion_aux.Acc
+module Expr_with_acc = Closure_conversion_aux.Expr_with_acc
 
 let convert_and_bind acc ~backend exn_cont ~register_const_string
       (prim : L.primitive) ~(args : Simple.t list) (dbg : Debuginfo.t)

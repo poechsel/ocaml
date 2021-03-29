@@ -24,7 +24,8 @@ module Env = Closure_conversion_aux.Env
 module Expr_with_acc = Closure_conversion_aux.Expr_with_acc
 module Let_cont_with_acc = Closure_conversion_aux.Let_cont_with_acc
 module Let_with_acc = Closure_conversion_aux.Let_with_acc
-module Continuation_handler_with_acc = Closure_conversion_aux.Continuation_handler_with_acc
+module Continuation_handler_with_acc =
+  Closure_conversion_aux.Continuation_handler_with_acc
 
 module Function_decls = Closure_conversion_aux.Function_decls
 module Function_decl = Function_decls.Function_decl
@@ -134,7 +135,7 @@ let rec declare_const acc (const : Lambda.structured_constant)
 
 let close_const0 acc (const : Lambda.structured_constant) =
   let acc, const, name = declare_const acc const in
-  match  const with
+  match const with
   | Tagged_immediate c ->
     acc, Simple.const (Reg_width_const.tagged_immediate c), name
   | Symbol s ->
@@ -177,14 +178,11 @@ let close_c_call acc ~let_bound_var (prim : Primitive.description)
       ~(args : Simple.t list) exn_continuation dbg
       (k : Acc.t -> Named.t option -> Acc.t * Expr_with_acc.t)
   : Acc.t * Expr_with_acc.t =
-  (* XCR pchambart: there should be a special case if body is a
-     apply_cont
-     mshinwell: done. *)
   (* We always replace the original Ilambda [Let] with an Flambda
      expression, so we call [k] with [None], to get just the closure-converted
      body of that [Let]. *)
   let cost_metrics_of_body, acc, body =
-    Acc.with_blank_cost_metrics acc ~f:(fun acc -> k acc None)
+    Acc.measure_cost_metrics acc ~f:(fun acc -> k acc None)
   in
   let return_continuation, needs_wrapper =
     match Expr.descr body with
@@ -329,7 +327,7 @@ let close_c_call acc ~let_bound_var (prim : Primitive.description)
   in
   let wrap_c_call acc ~handler_param ~code_after_call c_call =
     let cost_metrics_of_handler, acc, after_call =
-      Acc.with_blank_cost_metrics acc ~f:(fun acc ->
+      Acc.measure_cost_metrics acc ~f:(fun acc ->
         let return_kind =
           Flambda_kind.With_subkind.create return_kind Anything
         in
@@ -474,13 +472,9 @@ let rec close acc env (ilam : Ilambda.t) : Acc.t * Expr_with_acc.t =
     let cont acc (defining_expr : Named.t option) =
       let body_env =
         match defining_expr with
-        | Some n -> begin
-            match n with
-            | Simple simple ->
-              Env.add_simple_to_substitute body_env id simple
-            | _ -> body_env
-          end
-        | None -> body_env
+        | Some (Simple simple) ->
+          Env.add_simple_to_substitute body_env id simple
+        | Some _ | None -> body_env
       in
       (* CR pchambart: Not tail ! *)
       let acc, body = close acc body_env body in
@@ -520,7 +514,7 @@ let rec close acc env (ilam : Ilambda.t) : Acc.t * Expr_with_acc.t =
         params_with_kinds
     in
     let cost_metrics_of_handler, acc, handler =
-      Acc.with_blank_cost_metrics acc ~f:(fun acc ->
+      Acc.measure_cost_metrics acc ~f:(fun acc ->
         close acc handler_env handler)
     in
     let acc, handler =
@@ -791,12 +785,13 @@ and close_functions acc external_env function_declarations =
   in
   let acc, funs =
     List.fold_left (fun (acc, by_closure_id) function_decl ->
-      let _, acc, expr =
-        Acc.with_blank_cost_metrics acc ~f:(fun acc ->
-        close_one_function acc ~external_env ~by_closure_id function_decl
-          ~var_within_closures_from_idents ~closure_ids_from_idents
-          function_declarations)
-      in acc, expr)
+        let _, acc, expr =
+          Acc.measure_cost_metrics acc ~f:(fun acc ->
+            close_one_function acc ~external_env ~by_closure_id function_decl
+              ~var_within_closures_from_idents ~closure_ids_from_idents
+              function_declarations)
+        in
+        acc, expr)
       (acc, Closure_id.Map.empty)
       func_decl_list
   in
@@ -960,7 +955,7 @@ and close_one_function acc ~external_env ~by_closure_id decl
   let acc, body =
     Variable.Map.fold (fun var var_within_closure (acc, body) ->
         let var = VB.create var Name_mode.normal in
-        let named = 
+        let named =
           Named.create_prim
              (Unary (Project_var {
                 project_from = my_closure_id;
@@ -1106,7 +1101,7 @@ let ilambda_to_flambda ~backend ~module_ident ~module_block_size_in_words
       (acc, body) (List.rev field_vars)
   in
   let cost_metrics_of_handler, acc, load_fields_cont_handler =
-    Acc.with_blank_cost_metrics acc ~f:(fun acc ->
+    Acc.measure_cost_metrics acc ~f:(fun acc ->
       let param =
         Kinded_parameter.create module_block_var K.With_subkind.any_value
       in
@@ -1185,6 +1180,6 @@ let ilambda_to_flambda ~backend ~module_ident ~module_block_size_in_words
       (acc, body)
       (Acc.declared_symbols acc)
   in
-  ignore acc;
+  ignore (acc : Acc.t);
   Flambda_unit.create ~return_continuation:return_cont ~exn_continuation
     ~body ~module_symbol ~used_closure_vars:Unknown
