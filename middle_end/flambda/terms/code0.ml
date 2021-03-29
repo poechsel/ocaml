@@ -172,7 +172,7 @@ end) = struct
           @[<hov 1>@<0>%s(params_arity@ @<0>%s%a@<0>%s)@<0>%s@]@ \
           @[<hov 1>@<0>%s(result_arity@ @<0>%s%a@<0>%s)@<0>%s@]@ \
           @[<hov 1>@<0>%s(recursive@ %a)@<0>%s@]@ \
-          @[<hov 1>@<0>(cost_metrics@ %a)@<0>@]@ \
+          @[<hov 1>(cost_metrics@ %a)@]@ \
           %a\
           )@]"
         (if Option.is_none newer_version_of then Flambda_colours.elide ()

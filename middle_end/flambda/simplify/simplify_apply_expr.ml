@@ -262,14 +262,15 @@ let simplify_direct_partial_application ~simplify_expr dacc apply
           | None -> expr, cost_metrics
           | Some arg ->
             let arg = VB.create arg Name_mode.normal in
-            let prim = 
+            let prim =
               P.Unary (Project_var {
                  project_from = wrapper_closure_id;
                  var = closure_var;
                }, Simple.var my_closure)
             in
             let cost_metrics_of_defining_expr =
-              Cost_metrics.from_size (Code_size.prim prim) in
+              Cost_metrics.from_size (Code_size.prim prim)
+            in
             let expr =
               Let.create (Bindable_let_bound.singleton arg)
                 (Named.create_prim prim dbg)
@@ -386,7 +387,7 @@ let simplify_direct_over_application ~simplify_expr dacc apply ~param_arity ~res
         (* Remove one function call as this apply was removed and replaced by two new ones. *)
         let uacc =
           if coming_from_indirect then
-            UA.notify_removed 
+            UA.notify_removed
               ~operation:Removed_operations.direct_call_of_indirect
               uacc
           else

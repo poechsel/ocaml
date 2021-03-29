@@ -163,7 +163,7 @@ let expression_for_failure acc ~backend exn_cont ~register_const_string
         Simple.symbol error_text;
       ]
       in
-      let named = 
+      let named =
         Named.create_prim
           (Variadic (Make_block
                        (Values (Tag.Scannable.zero, [Any_value; Any_value]),
@@ -227,7 +227,7 @@ let rec bind_rec acc ~backend exn_cont
       ~register_const_string arg3 dbg cont
   | Variadic (prim, args) ->
     let cont acc args =
-      let named = 
+      let named =
         Named.create_prim (Variadic (prim, args)) dbg
       in
       cont acc named
@@ -247,7 +247,7 @@ let rec bind_rec acc ~backend exn_cont
   | Checked { validity_conditions; primitive; failure; dbg; } ->
     let primitive_cont = Continuation.create () in
     let cost_metrics_of_primitive_handler, acc, primitive_cont_handler =
-      Acc.with_blank_cost_metrics acc ~f:(fun acc ->
+      Acc.measure_cost_metrics acc ~f:(fun acc ->
         let acc, handler =
           bind_rec acc ~backend exn_cont ~register_const_string
             primitive dbg cont
@@ -259,7 +259,7 @@ let rec bind_rec acc ~backend exn_cont
     in
     let failure_cont = Continuation.create () in
     let cost_metrics_of_failure_handler, acc, failure_cont_handler =
-      Acc.with_blank_cost_metrics acc ~f:(fun acc ->
+      Acc.measure_cost_metrics acc ~f:(fun acc ->
         let acc, handler =
           expression_for_failure acc ~backend exn_cont
             ~register_const_string primitive dbg failure
@@ -273,7 +273,7 @@ let rec bind_rec acc ~backend exn_cont
       List.fold_left (fun (acc, rest) expr_primitive ->
           let condition_passed_cont = Continuation.create () in
           let cost_metrics_of_handler, acc, condition_passed_cont_handler =
-            Acc.with_blank_cost_metrics acc ~f:(fun acc ->
+            Acc.measure_cost_metrics acc ~f:(fun acc ->
               Continuation_handler_with_acc.create acc [] ~handler:rest
                 ~free_names_of_handler:Unknown
                 ~is_exn_handler:false
@@ -302,7 +302,7 @@ let rec bind_rec acc ~backend exn_cont
            (Apply_cont.create primitive_cont ~args:[] ~dbg:Debuginfo.none))
         validity_conditions
     in
-    let acc, body = 
+    let acc, body =
       Let_cont_with_acc.create_non_recursive acc failure_cont
         failure_cont_handler
         ~body:check_validity_conditions
