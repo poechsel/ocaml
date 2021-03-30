@@ -674,6 +674,7 @@ end and Cost_metrics : sig
   val notify_removed : operation:Removed_operations.t -> t -> t
 
   val expr_size : find_code:(Code_id.t -> Code.t) -> Expr.t -> Code_size.t
+  val evaluate : round:int -> t -> float
 end
 
 module Function_declaration = Function_declaration

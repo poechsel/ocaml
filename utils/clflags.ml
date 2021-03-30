@@ -202,11 +202,11 @@ let default_inline_threshold = 10.
 let inline_toplevel_multiplier = 16
 let default_inline_toplevel_threshold =
   int_of_float ((float inline_toplevel_multiplier) *. default_inline_threshold)
-let default_inline_call_cost = 0.5
-let default_inline_alloc_cost = 0.7
-let default_inline_prim_cost = 0.3
-let default_inline_branch_cost = 0.5
-let default_inline_indirect_cost = 0.4
+let default_inline_call_cost = 5. /. 8.
+let default_inline_alloc_cost = 7. /. 8.
+let default_inline_prim_cost = 3. /. 8.
+let default_inline_branch_cost = 5. /. 8.
+let default_inline_indirect_cost = 4. /. 8.
 let default_inline_branch_factor = 0.1
 let default_inline_lifting_benefit = 1300
 let default_inline_max_unroll = 0

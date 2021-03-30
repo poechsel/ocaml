@@ -139,3 +139,7 @@ let increase_due_to_let_cont_recursive ~cost_metrics_of_handlers =
   cost_metrics_of_handlers
 
 let from_size size = { size; removed = Removed_operations.zero; }
+
+let evaluate ~round (t : t) =
+  Code_size.evaluate ~round t.size
+  -. Removed_operations.evaluate ~round t.removed

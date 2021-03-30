@@ -407,3 +407,5 @@ let print ppf t = Format.fprintf ppf "%d" t
 
 let of_int t = t
 let to_int t = t
+
+let evaluate ~round:_ t = float_of_int t

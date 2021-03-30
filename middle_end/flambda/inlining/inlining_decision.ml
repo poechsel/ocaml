@@ -21,6 +21,26 @@ open! Flambda.Import
 module DE = Downwards_env
 module DA = Downwards_acc
 
+let is_it_a_small_function ~round cost_metrics =
+  let small_function_size =
+    Clflags.Int_arg_helper.get ~key:round !Clflags.inline_small_function_size
+  in
+  Cost_metrics.size cost_metrics
+  |> Code_size.smaller_than ~size:small_function_size
+
+let get_big_function_size ~round =
+  Clflags.Int_arg_helper.get ~key:round !Clflags.inline_big_function_size
+
+let is_it_a_big_function ~round cost_metrics =
+  Cost_metrics.size cost_metrics
+  |> Code_size.smaller_than ~size:(get_big_function_size ~round)
+
+let is_it_under_inline_threshold ~round cost_metrics =
+  let threshold =
+    Clflags.Float_arg_helper.get ~key:round !Clflags.inline_threshold
+  in
+  Float.compare (Cost_metrics.evaluate ~round cost_metrics) threshold <= 0
+
 (* CR mshinwell: We need to emit [Warnings.Inlining_impossible] as
    required.
    When in fallback-inlining mode: if we want to follow Closure we should
@@ -101,19 +121,16 @@ let make_decision_for_function_declaration denv ~cost_metrics_source function_de
     if Code.stub code then Stub
     else
       let round = DE.round denv in
-      let big_function_size =
-        Clflags.Int_arg_helper.get ~key:round !Clflags.inline_big_function_size
-      in
       let metrics =
         match cost_metrics_source with
         | Metrics metrics -> metrics
         | From_denv -> Code.cost_metrics code
       in
-      let size = Cost_metrics.size metrics in
-      if Code_size.smaller_than size ~size:big_function_size then
-        Inline (Some (size, Code_size.of_int big_function_size))
+      if is_it_a_big_function ~round metrics then
+        Inline (Some (Cost_metrics.size metrics,
+                      Code_size.of_int (get_big_function_size ~round)))
       else
-        Function_body_too_large (Code_size.of_int big_function_size)
+        Function_body_too_large (Code_size.of_int (get_big_function_size ~round))
 
 module Call_site_decision = struct
   type attribute_causing_inlining =
@@ -222,8 +239,25 @@ module I = Flambda_type.Function_declaration_type.Inlinable
 
 let make_decision_for_call_site dacc ~simplify_expr ~function_decl
       ~function_decl_rec_info ~apply : Call_site_decision.t =
-  let inline = Apply.inline apply in
-  let apply_inlining_state = Apply.inlining_state apply in
+  let get_inlined_cost_metrics ~unroll_to dacc =
+    let _, expr =
+      Inlining_transforms.inline dacc ~apply ~unroll_to function_decl
+    in
+    let dacc = DA.set_do_not_rebuild_terms dacc in
+    let dacc =
+      DA.denv dacc
+      |> DE.disable_function_inlining
+      |> DA.with_denv dacc
+    in
+    let _, uacc =
+      simplify_expr dacc expr
+        ~down_to_up:(fun dacc ~rebuild ->
+          let uacc = Upwards_acc.create Upwards_env.empty dacc in
+          rebuild uacc ~after_rebuild:(fun expr uacc -> expr, uacc)
+        )
+    in
+    Upwards_acc.cost_metrics uacc
+  in
   let force_inline ~attribute ~unroll_to : Call_site_decision.t =
       Inline { attribute; unroll_to }
   in
@@ -233,42 +267,21 @@ let make_decision_for_call_site dacc ~simplify_expr ~function_decl
     let code = DE.find_code denv code_id in
     let cost_metrics = Code.cost_metrics code in
     let round = DE.round denv in
-    let is_it_a_small_function =
-      let small_function_size =
-        Clflags.Int_arg_helper.get ~key:round !Clflags.inline_small_function_size
-      in
-      Cost_metrics.size cost_metrics
-      |> Code_size.smaller_than ~size:small_function_size
-    in
-    let env_prohibits_inlining = (not (DE.can_inline denv)) in
+    let is_it_a_small_function = is_it_a_small_function ~round cost_metrics in
+    let env_prohibits_inlining = not (DE.can_inline denv) in
     if is_it_a_small_function then
       force_inline ~attribute ~unroll_to
     else if env_prohibits_inlining then
       Environment_says_never_inline
     else
-      let _, expr =
-        Inlining_transforms.inline dacc ~apply ~unroll_to function_decl
-      in
-      let dacc = DA.set_do_not_rebuild_terms dacc in
-      let dacc = DA.with_denv dacc (DE.disable_function_inlining denv) in
-      let _, uacc =
-        simplify_expr dacc expr
-          ~down_to_up:(fun dacc ~rebuild ->
-            let uacc = Upwards_acc.create Upwards_env.empty dacc in
-            rebuild uacc ~after_rebuild:(fun expr uacc -> expr, uacc)
-          )
-      in
-      let threshold =
-        Clflags.Float_arg_helper.get ~key:round !Clflags.inline_threshold
-        |> int_of_float
-      in
-      let cost_metrics = Upwards_acc.cost_metrics uacc in
-      if Cost_metrics.smaller_than_threshold cost_metrics ~threshold then
+      let cost_metrics = get_inlined_cost_metrics ~unroll_to dacc in
+      if is_it_under_inline_threshold ~round cost_metrics then
         force_inline ~attribute ~unroll_to
       else
         Rejected_by_cost_metrics
 
   in
+  let inline = Apply.inline apply in
   match inline with
   | Never_inline -> Never_inline_attribute
   | Default_inline | Unroll _ | Always_inline | Hint_inline ->
@@ -279,6 +292,7 @@ let make_decision_for_call_site dacc ~simplify_expr ~function_decl
       else
         might_inline ~attribute:None ~unroll_to:None
     | None ->
+      let apply_inlining_state = Apply.inlining_state apply in
       if Inlining_state.is_depth_exceeded apply_inlining_state
       then
         Max_inlining_depth_exceeded
