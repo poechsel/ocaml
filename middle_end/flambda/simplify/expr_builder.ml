@@ -690,9 +690,7 @@ let add_wrapper_for_fixed_arity_continuation0 uacc cont_or_apply_cont
     end;
     This_continuation cont
   | Some rewrite ->
-    let params = List.map (fun _kind -> Variable.create "param") arity in
-    let params = List.map2 KP.create params arity in
-    let new_wrapper expr ~free_names ~cost_metrics =
+    let new_wrapper params expr ~free_names ~cost_metrics =
       let new_cont = Continuation.create () in
       let new_handler =
         RE.Continuation_handler.create (UA.are_rebuilding_terms uacc) params
@@ -709,6 +707,8 @@ let add_wrapper_for_fixed_arity_continuation0 uacc cont_or_apply_cont
     | Continuation cont ->
       (* In this case, any generated [Apply_cont] will sit inside a wrapper
          that binds [kinded_params]. *)
+      let params = List.map (fun _kind -> Variable.create "param") arity in
+      let params = List.map2 KP.create params arity in
       let args = List.map KP.simple params in
       let apply_cont = Apply_cont.create cont ~args ~dbg:Debuginfo.none in
       begin match rewrite_use uacc rewrite use_id apply_cont with
@@ -716,7 +716,7 @@ let add_wrapper_for_fixed_arity_continuation0 uacc cont_or_apply_cont
         let cost_metrics =
           Cost_metrics.from_size (Code_size.apply_cont apply_cont)
         in
-        new_wrapper
+        new_wrapper params
           (RE.create_apply_cont apply_cont)
           ~free_names:(Apply_cont.free_names apply_cont)
           ~cost_metrics
@@ -727,7 +727,7 @@ let add_wrapper_for_fixed_arity_continuation0 uacc cont_or_apply_cont
             Cost_metrics.from_size (Code_size.apply_cont apply_cont),
             Apply_cont.free_names apply_cont)
         in
-        new_wrapper expr ~free_names ~cost_metrics
+        new_wrapper params expr ~free_names ~cost_metrics
       end
     | Apply_cont apply_cont ->
       let apply_cont = Apply_cont.update_continuation apply_cont cont in
@@ -740,7 +740,7 @@ let add_wrapper_for_fixed_arity_continuation0 uacc cont_or_apply_cont
             Cost_metrics.from_size (Code_size.apply_cont apply_cont),
             Apply_cont.free_names apply_cont)
         in
-        new_wrapper expr ~free_names ~cost_metrics
+        new_wrapper [] expr ~free_names ~cost_metrics
 
 type add_wrapper_for_switch_arm_result =
   | Apply_cont of Apply_cont.t
