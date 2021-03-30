@@ -40,6 +40,7 @@ val create
   -> get_imported_code:get_imported_code
   -> float_const_prop:bool
   -> unit_toplevel_exn_continuation:Continuation.t
+  -> unit_toplevel_return_continuation:Continuation.t
   -> t
 
 (** Obtain the first-class module that gives information about the
@@ -61,6 +62,8 @@ val is_defined_at_toplevel : t -> Variable.t -> bool
 val add_symbol_projection : t -> Variable.t -> Symbol_projection.t -> t
 
 val find_symbol_projection : t -> Variable.t -> Symbol_projection.t option
+
+val unit_toplevel_return_continuation : t -> Continuation.t
 
 val unit_toplevel_exn_continuation : t -> Continuation.t
 

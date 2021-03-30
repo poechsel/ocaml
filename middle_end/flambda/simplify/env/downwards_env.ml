@@ -39,6 +39,7 @@ type t = {
   float_const_prop : bool;
   code : Code.t Code_id.Map.t;
   at_unit_toplevel : bool;
+  unit_toplevel_return_continuation : Continuation.t;
   unit_toplevel_exn_continuation : Continuation.t;
   symbols_currently_being_defined : Symbol.Set.t;
   variables_defined_at_toplevel : Variable.Set.t;
@@ -55,6 +56,7 @@ let print ppf { backend = _; round; typing_env; get_imported_code = _;
                 symbols_currently_being_defined;
                 variables_defined_at_toplevel; cse;
                 closure_var_uses; do_not_rebuild_terms; closure_info;
+                unit_toplevel_return_continuation;
               } =
   Format.fprintf ppf "@[<hov 1>(\
       @[<hov 1>(round@ %d)@]@ \
@@ -64,6 +66,7 @@ let print ppf { backend = _; round; typing_env; get_imported_code = _;
       @[<hov 1>(inlining_state@ %a)@]@ \
       @[<hov 1>(float_const_prop@ %b)@]@ \
       @[<hov 1>(at_unit_toplevel@ %b)@]@ \
+      @[<hov 1>(unit_toplevel_return_continuation@ %a)@]@ \
       @[<hov 1>(unit_toplevel_exn_continuation@ %a)@]@ \
       @[<hov 1>(symbols_currently_being_defined@ %a)@]@ \
       @[<hov 1>(variables_defined_at_toplevel@ %a)@]@ \
@@ -80,6 +83,7 @@ let print ppf { backend = _; round; typing_env; get_imported_code = _;
     Inlining_state.print inlining_state
     float_const_prop
     at_unit_toplevel
+    Continuation.print unit_toplevel_return_continuation
     Continuation.print unit_toplevel_exn_continuation
     Symbol.Set.print symbols_currently_being_defined
     Variable.Set.print variables_defined_at_toplevel
@@ -94,7 +98,8 @@ let invariant _t = ()
 let create ~round ~backend ~(resolver : resolver)
       ~(get_imported_names : get_imported_names)
       ~(get_imported_code : get_imported_code)
-      ~float_const_prop ~unit_toplevel_exn_continuation =
+      ~float_const_prop ~unit_toplevel_exn_continuation
+      ~unit_toplevel_return_continuation =
   { backend;
     round;
     typing_env = TE.create ~resolver ~get_imported_names;
@@ -105,6 +110,7 @@ let create ~round ~backend ~(resolver : resolver)
     float_const_prop;
     code = Code_id.Map.empty;
     at_unit_toplevel = true;
+    unit_toplevel_return_continuation;
     unit_toplevel_exn_continuation;
     symbols_currently_being_defined = Symbol.Set.empty;
     variables_defined_at_toplevel = Variable.Set.empty;
@@ -123,6 +129,7 @@ let can_inline t = t.can_inline
 let float_const_prop t = t.float_const_prop
 
 let unit_toplevel_exn_continuation t = t.unit_toplevel_exn_continuation
+let unit_toplevel_return_continuation t = t.unit_toplevel_return_continuation
 
 let at_unit_toplevel t = t.at_unit_toplevel
 
@@ -187,6 +194,7 @@ let enter_set_of_closures
         inlined_debuginfo = _; can_inline;
         inlining_state;
         float_const_prop; code; at_unit_toplevel = _;
+        unit_toplevel_return_continuation;
         unit_toplevel_exn_continuation;
         symbols_currently_being_defined;
         variables_defined_at_toplevel; cse = _;
@@ -203,6 +211,7 @@ let enter_set_of_closures
     float_const_prop;
     code;
     at_unit_toplevel = false;
+    unit_toplevel_return_continuation;
     unit_toplevel_exn_continuation;
     symbols_currently_being_defined;
     variables_defined_at_toplevel;

@@ -121,6 +121,7 @@ let simplify_direct_full_application ~simplify_expr dacc apply function_decl_opt
           ~apply
           ~function_decl
           ~function_decl_rec_info
+          ~return_arity:result_arity
       in
       let code_id = T.Function_declaration_type.Inlinable.code_id function_decl in
       Inlining_report.record_decision

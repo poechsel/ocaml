@@ -74,6 +74,7 @@ let run ~backend ~round unit =
       ~get_imported_names
       ~get_imported_code
       ~float_const_prop:!Clflags.float_const_prop
+      ~unit_toplevel_return_continuation:return_continuation
       ~unit_toplevel_exn_continuation:exn_continuation
   in
   let return_cont_scope = DE.get_continuation_scope_level denv in
