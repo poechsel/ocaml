@@ -21,9 +21,9 @@ open! Flambda.Import
 module Function_declaration_decision : sig
   type t = private
     | Never_inline_attribute
-    | Function_body_too_large of Inlining_cost.Threshold.t
+    | Function_body_too_large of Code_size.t
     | Stub
-    | Inline of (int * Inlining_cost.Threshold.t) option
+    | Inline of (Code_size.t * Code_size.t) option
 
   val print : Format.formatter -> t -> unit
 

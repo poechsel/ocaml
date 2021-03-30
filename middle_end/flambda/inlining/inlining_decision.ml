@@ -34,9 +34,9 @@ module DA = Downwards_acc
 module Function_declaration_decision = struct
   type t =
     | Never_inline_attribute
-    | Function_body_too_large of Inlining_cost.Threshold.t
+    | Function_body_too_large of Code_size.t
     | Stub
-    | Inline of (int * Inlining_cost.Threshold.t) option
+    | Inline of (Code_size.t * Code_size.t) option
 
   let can_inline t =
     match t with
@@ -48,33 +48,36 @@ module Function_declaration_decision = struct
   let print fmt = function
     | Never_inline_attribute ->
       Format.fprintf fmt "Never_inline_attribute"
-    | Function_body_too_large threshold ->
+    | Function_body_too_large big_function_size ->
       Format.fprintf fmt "Function_body_too_large(%a)"
-        Inlining_cost.Threshold.print threshold
+        Code_size.print big_function_size
     | Stub ->
       Format.fprintf fmt "Stub"
     | Inline None ->
       Format.fprintf fmt "Inline_no_cost_computed"
-    | Inline Some (size, threshold) ->
-      Format.fprintf fmt "Inline(size=%d, %a)" size
-        Inlining_cost.Threshold.print threshold
+    | Inline Some (size, big_function_size) ->
+      Format.fprintf fmt "Inline(size=%a, %a)"
+        Code_size.print size
+        Code_size.print big_function_size
 
   let report_reason fmt = function
     | Never_inline_attribute ->
       Format.fprintf fmt "%a"
         Format.pp_print_text "the function has an attribute preventing its inlining"
-    | Function_body_too_large threshold ->
+    | Function_body_too_large big_function_size ->
       Format.fprintf fmt "the@ function's@ body@ is@ too@ large,@ \
-                          more@ specifically,@ it@ is@ larger@ than@ the@ threshold:@ %a"
-        Inlining_cost.Threshold.print threshold
+                          more@ specifically,@ it@ is@ larger@ than@ \
+                          the@ big@ function@ size:@ %a"
+        Code_size.print big_function_size
     | Stub ->
       Format.fprintf fmt "the@ function@ is@ a@ stub"
     | Inline None ->
       Format.fprintf fmt "the@ function@ has@ an@ attribute@ forcing@ its@ inlining"
-    | Inline Some (size, threshold) ->
+    | Inline Some (size, big_function_size) ->
       Format.fprintf fmt "the@ function's@ body@ is@ smaller@ \
-                          than@ the@ threshold:@ size=%d < threshold=%a"
-        size Inlining_cost.Threshold.print threshold
+                          than@ the@ big_function_size:@ size=%a < \
+                          big@ function@ size=%a"
+        Code_size.print size Code_size.print big_function_size
 
   let report fmt t =
     Format.fprintf fmt "@[<v>The function %s be inlined at its use-sites@ \
@@ -97,27 +100,20 @@ let make_decision_for_function_declaration denv ~cost_metrics_source function_de
   | Default_inline | Unroll _ ->
     if Code.stub code then Stub
     else
-      let inlining_threshold : Inlining_cost.Threshold.t =
-        let round = DE.round denv in
-        let unscaled =
-          Clflags.Float_arg_helper.get ~key:round !Clflags.inline_threshold
-        in
-        (* CR-soon pchambart: Add a warning if this is too big
-           mshinwell: later *)
-        Can_inline_if_no_larger_than
-          (int_of_float
-             (unscaled *.
-              (float_of_int Inlining_cost.scale_inline_threshold_by)))
+      let round = DE.round denv in
+      let big_function_size =
+        Clflags.Int_arg_helper.get ~key:round !Clflags.inline_big_function_size
       in
       let metrics =
         match cost_metrics_source with
         | Metrics metrics -> metrics
         | From_denv -> Code.cost_metrics code
       in
-      match Inlining_cost.can_inline ~metrics inlining_threshold ~bonus:0
-      with
-      | Can_inline size -> Inline (Some (size, inlining_threshold))
-      | Cannot_inline -> Function_body_too_large inlining_threshold
+      let size = Cost_metrics.size metrics in
+      if Code_size.smaller_than size ~size:big_function_size then
+        Inline (Some (size, Code_size.of_int big_function_size))
+      else
+        Function_body_too_large (Code_size.of_int big_function_size)
 
 module Call_site_decision = struct
   type attribute_causing_inlining =
@@ -238,10 +234,11 @@ let make_decision_for_call_site dacc ~simplify_expr ~function_decl
     let cost_metrics = Code.cost_metrics code in
     let round = DE.round denv in
     let is_it_a_small_function =
-      Cost_metrics.smaller_than_threshold
-        cost_metrics
-        ~threshold:(Clflags.Int_arg_helper.get ~key:round
-                      !Clflags.Flambda.Expert.small_function_threshold)
+      let small_function_size =
+        Clflags.Int_arg_helper.get ~key:round !Clflags.inline_small_function_size
+      in
+      Cost_metrics.size cost_metrics
+      |> Code_size.smaller_than ~size:small_function_size
     in
     let env_prohibits_inlining = (not (DE.can_inline denv)) in
     if is_it_a_small_function then

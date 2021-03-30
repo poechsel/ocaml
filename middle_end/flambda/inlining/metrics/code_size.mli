@@ -29,7 +29,7 @@ val to_int : t -> int
 
 val zero : t
 val (+) : t -> t -> t
-val smaller_than_threshold : t -> threshold:int -> bool
+val smaller_than : t -> size:int -> bool
 val equal : t -> t -> bool
 val print : Format.formatter -> t -> unit
 

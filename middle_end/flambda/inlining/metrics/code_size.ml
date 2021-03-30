@@ -19,7 +19,7 @@
 type t = int
 
 let zero = 0
-let smaller_than_threshold t ~threshold = t <= threshold
+let smaller_than t ~size = t <= size
 let equal a b = a = b
 let (+) (a : t) (b : t) : t = a + b
 

@@ -73,8 +73,9 @@ let can_inline ~metrics inlining_threshold ~bonus : inline_res =
     | Some size -> Can_inline size
     end
 
-let cost (flag : Clflags.Int_arg_helper.parsed) ~round =
-  Clflags.Int_arg_helper.get ~key:round flag
+let cost (flag : Clflags.Float_arg_helper.parsed) ~round =
+  Clflags.Float_arg_helper.get ~key:round flag
+  |> int_of_float
 
 let benefit_factor = 1
 

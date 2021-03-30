@@ -44,17 +44,19 @@ module Float_arg_helper : sig
 end
 
 type inlining_arguments = {
-  inline_call_cost : int option;
-  inline_alloc_cost : int option;
-  inline_prim_cost : int option;
-  inline_branch_cost : int option;
-  inline_indirect_cost : int option;
+  inline_call_cost : float option;
+  inline_alloc_cost : float option;
+  inline_prim_cost : float option;
+  inline_branch_cost : float option;
+  inline_indirect_cost : float option;
   inline_lifting_benefit : int option;
   inline_branch_factor : float option;
   inline_max_depth : int option;
   inline_max_unroll : int option;
   inline_threshold : float option;
   inline_toplevel_threshold : int option;
+  inline_small_function_size : int option;
+  inline_big_function_size : int option;
 }
 
 val classic_arguments : inlining_arguments
@@ -172,18 +174,22 @@ val default_inline_max_unroll : int
 val inline_max_unroll : Int_arg_helper.parsed ref
 val default_inline_toplevel_threshold : int
 val inline_toplevel_threshold : Int_arg_helper.parsed ref
-val default_inline_call_cost : int
-val default_inline_alloc_cost : int
-val default_inline_prim_cost : int
-val default_inline_branch_cost : int
-val default_inline_indirect_cost : int
+val default_inline_call_cost : float
+val default_inline_alloc_cost : float
+val default_inline_prim_cost : float
+val default_inline_branch_cost : float
+val default_inline_indirect_cost : float
 val default_inline_lifting_benefit : int
-val inline_call_cost : Int_arg_helper.parsed ref
-val inline_alloc_cost : Int_arg_helper.parsed ref
-val inline_prim_cost : Int_arg_helper.parsed ref
-val inline_branch_cost : Int_arg_helper.parsed ref
-val inline_indirect_cost : Int_arg_helper.parsed ref
+val default_inline_small_function_size : int
+val default_inline_big_function_size : int
+val inline_call_cost : Float_arg_helper.parsed ref
+val inline_alloc_cost : Float_arg_helper.parsed ref
+val inline_prim_cost : Float_arg_helper.parsed ref
+val inline_branch_cost : Float_arg_helper.parsed ref
+val inline_indirect_cost : Float_arg_helper.parsed ref
 val inline_lifting_benefit : Int_arg_helper.parsed ref
+val inline_small_function_size : Int_arg_helper.parsed ref
+val inline_big_function_size : Int_arg_helper.parsed ref
 val default_inline_branch_factor : float
 val inline_branch_factor : Float_arg_helper.parsed ref
 val dont_write_files : bool ref
@@ -258,10 +264,6 @@ module Flambda : sig
     val inline_effects_in_cmm : bool ref
     val phantom_lets : bool ref
     val max_inlining_depth : int ref
-    val default_small_function_threshold : int
-    val default_big_function_threshold : int
-    val small_function_threshold : Int_arg_helper.parsed ref
-    val big_function_threshold : Int_arg_helper.parsed ref
     val max_block_size_for_projections : int option ref
   end
 
