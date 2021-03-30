@@ -28,24 +28,20 @@ let simplify_field_of_block dacc (field : Field_of_block.t) =
   | Tagged_immediate i -> field, T.this_tagged_immediate i
   | Dynamically_computed var ->
     let min_name_mode = Name_mode.normal in
-    match S.simplify_simple dacc (Simple.var var) ~min_name_mode with
-    | Bottom, ty ->
-      assert (K.equal (T.kind ty) K.value);
-      (* CR mshinwell: This should be "invalid" and propagate up *)
-      field, T.bottom K.value
-    | Ok simple, ty ->
-      Simple.pattern_match simple
-        ~name:(fun name ->
-          Name.pattern_match name
-            ~var:(fun var -> Field_of_block.Dynamically_computed var, ty)
-            ~symbol:(fun sym -> Field_of_block.Symbol sym, ty))
-        ~const:(fun const ->
-          match Reg_width_const.descr const with
-          | Tagged_immediate imm -> Field_of_block.Tagged_immediate imm, ty
-          | Naked_immediate _ | Naked_float _ | Naked_int32 _
-              | Naked_int64 _ | Naked_nativeint _ ->
-            (* CR mshinwell: This should be "invalid" and propagate up *)
-            field, ty)
+    let ty = S.simplify_simple dacc (Simple.var var) ~min_name_mode in
+    let simple = T.get_alias_exn ty in
+    Simple.pattern_match simple
+      ~name:(fun name ->
+        Name.pattern_match name
+          ~var:(fun var -> Field_of_block.Dynamically_computed var, ty)
+          ~symbol:(fun sym -> Field_of_block.Symbol sym, ty))
+      ~const:(fun const ->
+        match Reg_width_const.descr const with
+        | Tagged_immediate imm -> Field_of_block.Tagged_immediate imm, ty
+        | Naked_immediate _ | Naked_float _ | Naked_int32 _
+            | Naked_int64 _ | Naked_nativeint _ ->
+          (* CR mshinwell: This should be "invalid" and propagate up *)
+          field, ty)
 
 let simplify_or_variable dacc type_for_const
       (or_variable : _ Or_variable.t) =

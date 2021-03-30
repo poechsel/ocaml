@@ -149,21 +149,15 @@ let simplify_named0 dacc (bindable_let_bound : Bindable_let_bound.t)
   | Simple simple ->
     let bound_var = Bindable_let_bound.must_be_singleton bindable_let_bound in
     let min_name_mode = Var_in_binding_pos.name_mode bound_var in
-    begin match S.simplify_simple dacc simple ~min_name_mode with
-    | Bottom, ty ->
-      let dacc = DA.add_variable dacc bound_var (T.bottom (T.kind ty)) in
-      let defining_expr = Simplified_named.invalid () in
-      Simplify_named_result.have_simplified_to_single_term dacc
-        bindable_let_bound defining_expr ~original_defining_expr:named
-    | Ok new_simple, ty ->
-      let dacc = DA.add_variable dacc bound_var ty in
-      let defining_expr =
-        if simple == new_simple then Simplified_named.reachable named
-        else Simplified_named.reachable (Named.create_simple simple)
-      in
-      Simplify_named_result.have_simplified_to_single_term dacc
-        bindable_let_bound defining_expr ~original_defining_expr:named
-    end
+    let ty = S.simplify_simple dacc simple ~min_name_mode in
+    let new_simple = T.get_alias_exn ty in
+    let dacc = DA.add_variable dacc bound_var ty in
+    let defining_expr =
+      if simple == new_simple then Simplified_named.reachable named
+      else Simplified_named.reachable (Named.create_simple simple)
+    in
+    Simplify_named_result.have_simplified_to_single_term dacc
+      bindable_let_bound defining_expr ~original_defining_expr:named
   | Prim (prim, dbg) ->
     let bound_var = Bindable_let_bound.must_be_singleton bindable_let_bound in
     let term, env_extension, simplified_args, dacc =

@@ -260,58 +260,50 @@ let rebuild_switch ~simplify_let dacc ~arms ~scrutinee ~scrutinee_ty uacc
 
 let simplify_switch ~simplify_let dacc switch ~down_to_up =
   let module AC = Apply_cont in
-  let min_name_mode = Name_mode.normal in
   let scrutinee = Switch.scrutinee switch in
-  match S.simplify_simple dacc scrutinee ~min_name_mode with
-  | Bottom, _ty ->
-    down_to_up dacc ~rebuild:(fun uacc ~after_rebuild ->
-      let uacc =
-        UA.notify_removed ~operation:Removed_operations.branch uacc
-      in
-      EB.rebuild_invalid uacc ~after_rebuild
-    )
-  | Ok scrutinee, scrutinee_ty ->
-    let arms, dacc =
-      let typing_env_at_use = DA.typing_env dacc in
-      Target_imm.Map.fold (fun arm action (arms, dacc) ->
-          let shape =
-            let imm = Target_imm.int (Target_imm.to_targetint arm) in
-            T.this_naked_immediate imm
+  let scrutinee_ty =
+    S.simplify_simple dacc scrutinee ~min_name_mode:NM.normal
+  in
+  let scrutinee = T.get_alias_exn scrutinee_ty in
+  let arms, dacc =
+    let typing_env_at_use = DA.typing_env dacc in
+    Target_imm.Map.fold (fun arm action (arms, dacc) ->
+        let shape =
+          let imm = Target_imm.int (Target_imm.to_targetint arm) in
+          T.this_naked_immediate imm
+        in
+        match T.meet typing_env_at_use scrutinee_ty shape with
+        | Bottom -> arms, dacc
+        | Ok (_meet_ty, env_extension) ->
+          let env_at_use =
+            TE.add_env_extension typing_env_at_use env_extension
+            |> DE.with_typing_env (DA.denv dacc)
           in
-          match T.meet typing_env_at_use scrutinee_ty shape with
-          | Bottom -> arms, dacc
-          | Ok (_meet_ty, env_extension) ->
-            let env_at_use =
-              TE.add_env_extension typing_env_at_use env_extension
-              |> DE.with_typing_env (DA.denv dacc)
+          let args = AC.args action in
+          match args with
+          | [] ->
+            let dacc, rewrite_id =
+              DA.record_continuation_use dacc (AC.continuation action)
+                Non_inlinable ~env_at_use ~arg_types:[]
             in
-            let args = AC.args action in
-            match args with
-            | [] ->
-              let dacc, rewrite_id =
-                DA.record_continuation_use dacc (AC.continuation action)
-                  Non_inlinable ~env_at_use ~arg_types:[]
-              in
-              let arms = Target_imm.Map.add arm (action, rewrite_id, []) arms in
-              arms, dacc
-            | _::_ ->
-              let min_name_mode = Name_mode.normal in
-              match S.simplify_simples dacc args ~min_name_mode with
-              | _, Bottom -> arms, dacc
-              | _changed, Ok args_with_types ->
-                let args, arg_types = List.split args_with_types in
-                let dacc, rewrite_id =
-                  DA.record_continuation_use dacc (AC.continuation action)
-                    Non_inlinable ~env_at_use ~arg_types
-                in
-                let arity = List.map T.kind arg_types in
-                let action = Apply_cont.update_args action ~args in
-                let arms =
-                  Target_imm.Map.add arm (action, rewrite_id, arity) arms
-                in
-                arms, dacc)
-        (Switch.arms switch)
-        (Target_imm.Map.empty, dacc)
+            let arms = Target_imm.Map.add arm (action, rewrite_id, []) arms in
+            arms, dacc
+          | _::_ ->
+            let { S. simples = args; simple_tys = arg_types; } =
+              S.simplify_simples dacc args
+            in
+            let dacc, rewrite_id =
+              DA.record_continuation_use dacc (AC.continuation action)
+                Non_inlinable ~env_at_use ~arg_types
+            in
+            let arity = List.map T.kind arg_types in
+            let action = Apply_cont.update_args action ~args in
+            let arms =
+              Target_imm.Map.add arm (action, rewrite_id, arity) arms
+            in
+            arms, dacc)
+      (Switch.arms switch)
+      (Target_imm.Map.empty, dacc)
     in
     down_to_up dacc
       ~rebuild:(rebuild_switch ~simplify_let dacc ~arms ~scrutinee
