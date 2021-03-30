@@ -243,11 +243,8 @@ let make_decision_for_call_site dacc ~simplify_expr ~function_decl
     let _, expr =
       Inlining_transforms.inline dacc ~apply ~unroll_to function_decl
     in
-    let dacc = DA.set_do_not_rebuild_terms dacc in
     let dacc =
-      DA.denv dacc
-      |> DE.disable_function_inlining
-      |> DA.with_denv dacc
+      DA.set_do_not_rebuild_terms_and_disable_inlining dacc
     in
     let _, uacc =
       simplify_expr dacc expr

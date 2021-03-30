@@ -182,8 +182,8 @@ let all_continuations_used t =
 let with_used_closure_vars t ~used_closure_vars =
   { t with used_closure_vars = used_closure_vars; }
 
-let set_do_not_rebuild_terms t =
-  { t with denv = DE.set_do_not_rebuild_terms t.denv; }
+let set_do_not_rebuild_terms_and_disable_inlining t =
+  { t with denv = DE.set_do_not_rebuild_terms_and_disable_inlining t.denv; }
 
 let are_rebuilding_terms t =
   DE.are_rebuilding_terms t.denv

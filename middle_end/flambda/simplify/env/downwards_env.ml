@@ -570,7 +570,7 @@ let without_closure_var_uses t =
     closure_var_uses = Var_within_closure.Set.empty;
   }
 
-let set_do_not_rebuild_terms t =
+let set_do_not_rebuild_terms_and_disable_inlining t =
   { t with
     do_not_rebuild_terms = true;
     can_inline = false;
