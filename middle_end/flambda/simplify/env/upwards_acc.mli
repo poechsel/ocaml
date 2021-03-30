@@ -82,3 +82,6 @@ val notify_added: code_size:Code_size.t -> t -> t
 
 val notify_removed: operation:Removed_operations.t -> t -> t
 
+val generate_phantom_lets : t -> bool
+
+val are_rebuilding_terms : t -> Are_rebuilding_terms.t

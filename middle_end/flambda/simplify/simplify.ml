@@ -89,6 +89,7 @@ let run ~backend ~round unit =
       ~return_arity:[K.With_subkind.any_value] exn_continuation
       ~return_cont_scope ~exn_cont_scope
   in
+  let body = Rebuilt_expr.to_expr body (UA.are_rebuilding_terms uacc) in
   let name_occurrences = UA.name_occurrences uacc in
   Name_occurrences.fold_names name_occurrences ~init:()
     ~f:(fun () name ->
@@ -99,15 +100,6 @@ let run ~backend ~round unit =
             Variable.print var
             Expr.print body)
         ~symbol:(fun _symbol -> ()));
-  (* CR mshinwell: We can't do this for dominator-scoped symbols.
-          if Symbol.in_compilation_unit symbol
-            (Compilation_unit.get_current_exn ())
-          then begin
-            Misc.fatal_errorf "Symbol %a (defined in current compilation unit) \
-                not expected to be free in whole-compilation-unit term:@ %a"
-              Symbol.print symbol
-              Expr.print body
-          end)); *)
   let return_cont_env = DA.continuation_uses_env (UA.creation_dacc uacc) in
   let all_code =
     Exported_code.merge (UA.all_code uacc)
