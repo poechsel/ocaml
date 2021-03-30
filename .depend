@@ -6265,7 +6265,6 @@ middle_end/flambda/simplify/rebuilt_static_const.cmi : \
     middle_end/flambda/basic/recursive.cmi \
     middle_end/flambda/simplify/rebuilt_expr.cmi \
     middle_end/flambda/basic/or_variable.cmi \
-    middle_end/flambda/types/basic/or_unknown.cmi \
     middle_end/flambda/basic/or_deleted.cmi \
     utils/numbers.cmi \
     middle_end/flambda/naming/name_occurrences.cmi \
@@ -6494,6 +6493,7 @@ middle_end/flambda/simplify/simplify_common.cmo : \
     middle_end/flambda/basic/exn_continuation.cmi \
     middle_end/flambda/simplify/env/downwards_acc.cmi \
     middle_end/flambda/basic/continuation.cmi \
+    middle_end/flambda/basic/code_id.cmi \
     middle_end/flambda/terms/call_kind.cmi \
     middle_end/flambda/simplify/simplify_common.cmi
 middle_end/flambda/simplify/simplify_common.cmx : \
@@ -6518,6 +6518,7 @@ middle_end/flambda/simplify/simplify_common.cmx : \
     middle_end/flambda/basic/exn_continuation.cmx \
     middle_end/flambda/simplify/env/downwards_acc.cmx \
     middle_end/flambda/basic/continuation.cmx \
+    middle_end/flambda/basic/code_id.cmx \
     middle_end/flambda/terms/call_kind.cmx \
     middle_end/flambda/simplify/simplify_common.cmi
 middle_end/flambda/simplify/simplify_common.cmi : \
@@ -6986,7 +6987,6 @@ middle_end/flambda/simplify/simplify_switch_expr.cmo : \
     middle_end/flambda/basic/simple.cmi \
     middle_end/flambda/inlining/metrics/removed_operations.cmi \
     middle_end/flambda/basic/reg_width_const.cmi \
-    middle_end/flambda/simplify/rebuilt_expr.cmi \
     middle_end/flambda/naming/name_occurrences.cmi \
     middle_end/flambda/naming/name_mode.cmi \
     utils/misc.cmi \
@@ -7005,7 +7005,6 @@ middle_end/flambda/simplify/simplify_switch_expr.cmx : \
     middle_end/flambda/basic/simple.cmx \
     middle_end/flambda/inlining/metrics/removed_operations.cmx \
     middle_end/flambda/basic/reg_width_const.cmx \
-    middle_end/flambda/simplify/rebuilt_expr.cmx \
     middle_end/flambda/naming/name_occurrences.cmx \
     middle_end/flambda/naming/name_mode.cmx \
     utils/misc.cmx \
@@ -7212,6 +7211,23 @@ middle_end/flambda/simplify/env/are_rebuilding_terms.cmx : \
     middle_end/flambda/simplify/env/are_rebuilding_terms.cmi
 middle_end/flambda/simplify/env/are_rebuilding_terms.cmi : \
     middle_end/flambda/simplify/env/downwards_env.cmi
+middle_end/flambda/simplify/env/closure_info.cmo : \
+    middle_end/flambda/terms/flambda.cmi \
+    middle_end/flambda/basic/exn_continuation.cmi \
+    middle_end/flambda/basic/continuation.cmi \
+    middle_end/flambda/basic/code_id.cmi \
+    middle_end/flambda/simplify/env/closure_info.cmi
+middle_end/flambda/simplify/env/closure_info.cmx : \
+    middle_end/flambda/terms/flambda.cmx \
+    middle_end/flambda/basic/exn_continuation.cmx \
+    middle_end/flambda/basic/continuation.cmx \
+    middle_end/flambda/basic/code_id.cmx \
+    middle_end/flambda/simplify/env/closure_info.cmi
+middle_end/flambda/simplify/env/closure_info.cmi : \
+    middle_end/flambda/terms/flambda.cmi \
+    middle_end/flambda/basic/exn_continuation.cmi \
+    middle_end/flambda/basic/continuation.cmi \
+    middle_end/flambda/basic/code_id.cmi
 middle_end/flambda/simplify/env/continuation_env_and_param_types.cmo : \
     middle_end/flambda/types/flambda_type.cmi \
     middle_end/flambda/simplify/env/downwards_env.cmi \
@@ -7330,6 +7346,7 @@ middle_end/flambda/simplify/env/downwards_env.cmo : \
     middle_end/flambda/compilenv_deps/compilation_unit.cmi \
     middle_end/flambda/simplify/common_subexpression_elimination.cmi \
     middle_end/flambda/basic/code_id.cmi \
+    middle_end/flambda/simplify/env/closure_info.cmi \
     middle_end/flambda/simplify/env/downwards_env.cmi
 middle_end/flambda/simplify/env/downwards_env.cmx : \
     middle_end/flambda/compilenv_deps/variable.cmx \
@@ -7353,6 +7370,7 @@ middle_end/flambda/simplify/env/downwards_env.cmx : \
     middle_end/flambda/compilenv_deps/compilation_unit.cmx \
     middle_end/flambda/simplify/common_subexpression_elimination.cmx \
     middle_end/flambda/basic/code_id.cmx \
+    middle_end/flambda/simplify/env/closure_info.cmx \
     middle_end/flambda/simplify/env/downwards_env.cmi
 middle_end/flambda/simplify/env/downwards_env.cmi : \
     middle_end/flambda/compilenv_deps/variable.cmi \
@@ -7372,6 +7390,7 @@ middle_end/flambda/simplify/env/downwards_env.cmi : \
     middle_end/flambda/flambda_backend_intf.cmi \
     middle_end/flambda/terms/flambda.cmi \
     middle_end/flambda/cmx/exported_code.cmi \
+    middle_end/flambda/basic/exn_continuation.cmi \
     lambda/debuginfo.cmi \
     middle_end/flambda/basic/continuation.cmi \
     middle_end/flambda/compilenv_deps/compilation_unit.cmi \

@@ -249,7 +249,7 @@ end = struct
     let denv = DA.denv dacc_prior_to_sets in
     let denv_inside_functions =
       denv
-      |> DE.enter_closure
+      |> DE.enter_set_of_closures
       |> DE.increment_continuation_scope_level_twice
     in
     let env_inside_functions,
@@ -369,6 +369,8 @@ let simplify_function context ~used_closure_vars ~shareable_constants
           let dacc =
             DA.map_denv dacc ~f:(fun denv ->
               denv
+              |> DE.enter_closure code_id
+                   return_continuation exn_continuation
               |> DE.map_typing_env ~f:(fun typing_env ->
                 let code_age_relation =
                   (* CR mshinwell: Tidy up propagation to avoid union *)
@@ -385,9 +387,8 @@ let simplify_function context ~used_closure_vars ~shareable_constants
           (* CR mshinwell: DE.no_longer_defining_symbol is redundant now? *)
           match
             C.simplify_toplevel context dacc body
-              ~return_continuation
+              ~return_continuation exn_continuation
               ~return_arity:(Code.result_arity code)
-              exn_continuation
               ~return_cont_scope:Scope.initial
               ~exn_cont_scope:(Scope.next Scope.initial)
           with

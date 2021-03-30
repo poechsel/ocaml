@@ -64,7 +64,7 @@ val find_symbol_projection : t -> Variable.t -> Symbol_projection.t option
 
 val unit_toplevel_exn_continuation : t -> Continuation.t
 
-val enter_closure : t -> t
+val enter_set_of_closures : t -> t
 
 val increment_continuation_scope_level : t -> t
 
@@ -224,3 +224,12 @@ type are_rebuilding_terms
 val are_rebuilding_terms : t -> are_rebuilding_terms
 
 val are_rebuilding_terms_to_bool : are_rebuilding_terms -> bool
+
+val enter_closure
+  : Code_id.t
+ -> Continuation.t
+ -> Exn_continuation.t
+ -> t -> t
+
+val closure_info : t -> Closure_info.t
+
