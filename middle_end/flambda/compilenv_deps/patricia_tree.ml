@@ -21,6 +21,9 @@ open! Int_replace_polymorphic_compare
 
 (* The following is a "little endian" implementation. *)
 
+(* CR mshinwell: Can we fix the traversal order by swapping endianness?
+   What other (dis)advantages might that have? *)
+
 let zero_bit i bit =
   i land bit = 0
 
@@ -924,12 +927,31 @@ struct
   let bindings s =
     List.sort (fun (id1, _) (id2, _) -> Int.compare id1 id2)
       (bindings_aux [] s)
-(*
-  (* XXX still wrong *)
-  let rec merge' f t0 t1 =
+
+  let rec merge' : type a b c.
+    (key -> a option -> b option -> c option)
+    -> a t -> b t -> c t
+    = fun f t0 t1 ->
     match t0, t1 with
-    | Empty, _ -> t1
-    | _, Empty -> t0
+    (* Empty cases, just recurse and be sure to call f on all
+       leaf cases recursively *)
+    | Empty, Empty -> Empty
+    | Empty, Leaf (i, d) ->
+    begin match f i None (Some d) with
+      | None -> Empty
+      | Some d' -> Leaf (i, d')
+      end
+    | Leaf (i, d), Empty ->
+      begin match f i (Some d) None with
+      | None -> Empty
+      | Some d' -> Leaf (i, d')
+      end
+    | Empty, Branch (prefix, bit, t10, t11) ->
+      Branch (prefix, bit, merge' f t0 t10, merge' f t0 t11)
+    | Branch (prefix, bit, t00, t01), Empty ->
+      Branch (prefix, bit, merge' f t00 t1, merge' f t01 t1)
+
+    (* Leaf cases *)
     | Leaf (i, d0), Leaf (j, d1) when i = j ->
       begin match f i (Some d0) (Some d1) with
       | None -> Empty
@@ -942,45 +964,46 @@ struct
       | None, Some d1 -> Leaf (j, d1)
       | Some d0, Some d1 -> join i (Leaf (i, d0)) j (Leaf (j, d1))
       end
+
+    (* leaf <-> Branch cases *)
     | Leaf (i, d), Branch (prefix, bit, t10, t11) ->
       if match_prefix i prefix bit then
         if zero_bit i bit then
-          branch prefix bit (merge' f t0 t10) t11
+          branch prefix bit (merge' f t0 t10) (merge' f Empty t11)
         else
-          branch prefix bit t10 (merge' f t0 t11)
+          branch prefix bit (merge' f Empty t10) (merge' f t0 t11)
       else
         begin match f i (Some d) None with
-        | None -> t1
-        | Some d -> join i (Leaf(i, d)) prefix t1
+        | None -> merge' f Empty t1
+        | Some d -> join i (Leaf(i, d)) prefix (merge' f Empty t1)
         end
     | Branch (prefix, bit, t00, t01), Leaf (i, d) ->
       if match_prefix i prefix bit then
         let f i d0 d1 = f i d1 d0 in  (* CR mshinwell: add flag to disable? *)
         if zero_bit i bit then
-          branch prefix bit (merge' f t1 t00) t01
+          branch prefix bit (merge' f t1 t00) (merge' f Empty t01)
         else
-          branch prefix bit t00 (merge' f t1 t01)
+          branch prefix bit (merge' f Empty t00) (merge' f t1 t01)
       else
         begin match f i None (Some d) with
-        | None -> t0
-        | Some d -> join i (Leaf(i, d)) prefix t0
+        | None -> merge' f t0 Empty
+        | Some d -> join i (Leaf(i, d)) prefix (merge' f t0 Empty)
         end
     | Branch(prefix0, bit0, t00, t01), Branch(prefix1, bit1, t10, t11) ->
       if equal_prefix prefix0 bit0 prefix1 bit1 then
         branch prefix0 bit0 (merge' f t00 t10) (merge' f t01 t11)
       else if includes_prefix prefix0 bit0 prefix1 bit1 then
         if zero_bit prefix1 bit0 then
-          branch prefix0 bit0 (merge' f t00 t1) t01
+          branch prefix0 bit0 (merge' f t00 t1) (merge' f t01 Empty)
         else
-          branch prefix0 bit0 t00 (merge' f t01 t1)
+          branch prefix0 bit0 (merge' f t00 Empty) (merge' f t01 t1)
       else if includes_prefix prefix1 bit1 prefix0 bit0 then
         if zero_bit prefix0 bit1 then
-          branch prefix1 bit1 (merge' f t0 t10) t11
+          branch prefix1 bit1 (merge' f t0 t10) (merge' f Empty t11)
         else
-          branch prefix1 bit1 t10 (merge' f t0 t11)
+          branch prefix1 bit1 (merge' f Empty t10) (merge' f t0 t11)
       else
-        join prefix0 t0 prefix1 t1
-*)
+        join prefix0 (merge' f t0 Empty) prefix1 (merge' f Empty t1)
 
   let find_opt t key =
     match find t key with
@@ -1036,41 +1059,10 @@ struct
         | Some r -> add id r map)
       t empty
 
-  let to_list t =
-    let rec to_list' t acc =
-      match t with
-      | Empty -> acc
-      | Leaf (id, v) -> (id, v) :: acc
-      | Branch(_, _, t0, t1) -> to_list' t0 (to_list' t1 acc)
-    in
-    List.sort (fun (id1, _) (id2, _) -> Int.compare id1 id2)
-      (to_list' t [])
-
   let of_list l =
     List.fold_left (fun map (id, v) -> add id v map) empty l
 
-  let merge f t0 t1 =
-    let l1 = to_list t0 in
-    let l2 = to_list t1 in
-    let rec loop l1 l2 acc =
-      let accum id a b =
-        match f id a b with
-        | None -> acc
-        | Some v -> add id v acc
-      in
-      match l1, l2 with
-      | [], [] -> acc
-      | (id, h1) :: t1, [] -> loop t1 [] (accum id (Some h1) None)
-      | [], (id, h2) :: t2 -> loop [] t2 (accum id None (Some h2))
-      | (id1, h1) :: t1, (id2, h2) :: t2 ->
-        if id1 = id2 then
-          loop t1 t2 (accum id1 (Some h1) (Some h2))
-        else if id1 < id2 then
-          loop t1 l2 (accum id1 (Some h1) None)
-        else
-          loop l1 t2 (accum id2 None (Some h2))
-    in
-    loop l1 l2 Empty
+  let merge f t0 t1 = merge' f t0 t1
 
   (* CR mshinwell: fix this *)
   let disjoint_union ?eq ?print t1 t2 =
