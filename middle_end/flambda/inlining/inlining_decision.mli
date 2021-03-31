@@ -78,5 +78,6 @@ val make_decision_for_call_site
   -> function_decl:Flambda_type.Function_declaration_type.Inlinable.t
   -> function_decl_rec_info:Rec_info.t
   -> apply:Apply.t
-  -> return_arity:Flambda_arity.With_subkinds.t
+  -> down_to_up:(Rebuilt_expr.t * Upwards_acc.t, Rebuilt_expr.t * Upwards_acc.t)
+                  Simplify_common.down_to_up
   -> Call_site_decision.t
