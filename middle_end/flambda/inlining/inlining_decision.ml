@@ -241,11 +241,13 @@ module I = Flambda_type.Function_declaration_type.Inlinable
 let make_decision_for_call_site dacc ~simplify_expr ~function_decl
       ~function_decl_rec_info ~apply ~return_arity : Call_site_decision.t =
   let speculative_inlining ~unroll_to dacc =
-    let _, expr =
-      Inlining_transforms.inline dacc ~apply ~unroll_to function_decl
-    in
     let dacc =
       DA.set_do_not_rebuild_terms_and_disable_inlining dacc
+    in
+    (* CR-someday: [Inlining_transforms.inline] should only be called once
+       and not twice (once there and once in [simplify_apply_expr] )*)
+    let dacc, expr =
+      Inlining_transforms.inline dacc ~apply ~unroll_to function_decl
     in
     let denv = DA.denv dacc in
     let scope = DE.get_continuation_scope_level denv in 
