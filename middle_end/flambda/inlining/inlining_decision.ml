@@ -20,6 +20,7 @@ open! Flambda.Import
 
 module DE = Downwards_env
 module DA = Downwards_acc
+module UE = Upwards_env
 
 let is_it_a_small_function ~round cost_metrics =
   let small_function_size =
@@ -238,7 +239,7 @@ let max_rec_depth = 1
 module I = Flambda_type.Function_declaration_type.Inlinable
 
 let make_decision_for_call_site dacc ~simplify_expr ~function_decl
-      ~function_decl_rec_info ~apply ~down_to_up : Call_site_decision.t =
+      ~function_decl_rec_info ~apply ~return_arity : Call_site_decision.t =
   let speculative_inlining ~unroll_to dacc =
     let dacc =
       DA.set_do_not_rebuild_terms_and_disable_inlining dacc
@@ -248,7 +249,22 @@ let make_decision_for_call_site dacc ~simplify_expr ~function_decl
     let dacc, expr =
       Inlining_transforms.inline dacc ~apply ~unroll_to function_decl
     in
-    let _, uacc = simplify_expr dacc expr ~down_to_up in
+    let denv = DA.denv dacc in
+    let scope = DE.get_continuation_scope_level denv in
+    let _, uacc =
+      simplify_expr dacc expr ~down_to_up:(fun dacc ~rebuild ->
+        let exn_continuation = Apply.exn_continuation apply in
+        let uenv = UE.add_exn_continuation UE.empty exn_continuation scope in
+        let uenv =
+          match Apply.continuation apply with
+          | Never_returns -> uenv
+          | Return return_continuation ->
+            UE.add_return_continuation uenv return_continuation scope return_arity
+          in
+          let uacc = Upwards_acc.create uenv dacc in
+          rebuild uacc ~after_rebuild:(fun expr uacc -> expr, uacc)
+        )
+    in
     Upwards_acc.cost_metrics uacc
   in
   let force_inline ~attribute ~unroll_to : Call_site_decision.t =
