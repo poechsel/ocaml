@@ -979,11 +979,10 @@ struct
         end
     | Branch (prefix, bit, t00, t01), Leaf (i, d) ->
       if match_prefix i prefix bit then
-        let f i d0 d1 = f i d1 d0 in  (* CR mshinwell: add flag to disable? *)
         if zero_bit i bit then
-          branch prefix bit (merge' f t1 t00) (merge' f Empty t01)
+          branch prefix bit (merge' f t00 t1) (merge' f t01 Empty)
         else
-          branch prefix bit (merge' f Empty t00) (merge' f t1 t01)
+          branch prefix bit (merge' f t00 Empty) (merge' f t01 t1)
       else
         begin match f i None (Some d) with
         | None -> merge' f t0 Empty
