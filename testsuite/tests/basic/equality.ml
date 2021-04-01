@@ -73,8 +73,8 @@ let _ =
   test 37 eqm1 (compare (0.0, nan) (0.0, neg_infinity));
   test 38 eq0 (compare (nan, 0.0) (nan, 0.0));
 
-  (* Force inline these functions to ensures that the simplifier will
-     simplify the comparisons. *)
+  (* Force inline these functions to allow evaluation of the comparisons at
+     compile time by the middle end. *)
   let [@inline always] cmpgen x y =
     (x=y, x<>y, x<y, x<=y, x>y, x>=y)
   in
@@ -112,7 +112,8 @@ let _ =
   test 54 eqtrue (testcmpfloat 1.0 0.0);
   test 55 eqtrue (testcmpfloat 0.0 1.0);
 
-  (* Check the equality at run time. *)
+  (* Prevent inlining of these functions to force evaluation of the comparisons
+     at runtime and test the corresponding code generation. *)
   let [@inline never] cmpgen x y =
     (x=y, x<>y, x<y, x<=y, x>y, x>=y)
   in
