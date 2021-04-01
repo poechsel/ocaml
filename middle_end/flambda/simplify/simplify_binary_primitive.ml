@@ -778,14 +778,31 @@ end = struct
   let op (op : op) n1 n2 =
     match op with
     | Yielding_bool op ->
+      let has_nan = F.is_any_nan n1 || F.is_any_nan n2 in
       let bool b = Target_imm.bool b in
       begin match op with
       | Eq -> Some (bool (F.IEEE_semantics.equal n1 n2))
       | Neq -> Some (bool (not (F.IEEE_semantics.equal n1 n2)))
-      | Lt -> Some (bool (F.IEEE_semantics.compare n1 n2 < 0))
-      | Gt -> Some (bool (F.IEEE_semantics.compare n1 n2 > 0))
-      | Le -> Some (bool (F.IEEE_semantics.compare n1 n2 <= 0))
-      | Ge -> Some (bool (F.IEEE_semantics.compare n1 n2 >= 0))
+      | Lt ->
+        if has_nan then
+          Some (bool false)
+        else
+          Some (bool (F.IEEE_semantics.compare n1 n2 < 0))
+      | Gt ->
+        if has_nan then
+          Some (bool false)
+        else
+          Some (bool (F.IEEE_semantics.compare n1 n2 > 0))
+      | Le ->
+        if has_nan then
+          Some (bool false)
+        else
+          Some (bool (F.IEEE_semantics.compare n1 n2 <= 0))
+      | Ge ->
+        if has_nan then
+          Some (bool false)
+        else
+          Some (bool (F.IEEE_semantics.compare n1 n2 >= 0))
       end
     | Yielding_int_like_compare_functions ->
       let int i = Target_imm.int (Targetint.OCaml.of_int i) in
