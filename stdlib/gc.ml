@@ -113,10 +113,8 @@ let rec call_alarm arec =
   end
 
 
-(* [create_alarm] are marked as [@inline never] to prohibit the inliner from
-   lifting to toplevel any allocations happening inside it. Flambda2 has a
-   tendency to lift [arec] and to statically allocate it, which is incompatible
-   with the semantics of [finalise]. *)
+(* We use [@inline never] to ensure [arec] is never statically allocated
+   (which would prevent installation of the finaliser). *)
 let [@inline never] create_alarm f =
   let arec = { active = ref true; f = f } in
   finalise call_alarm arec;
