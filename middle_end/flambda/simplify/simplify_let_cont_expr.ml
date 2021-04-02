@@ -481,11 +481,7 @@ let simplify_non_recursive_let_cont ~simplify_expr dacc non_rec ~down_to_up =
                             Name_occurrences.union name_occurrences_body
                               name_occurrences_subsequent_exprs
                           in
-                          uacc
-                          |> UA.with_name_occurrences ~name_occurrences
-                            (* At this point one let cont has been removed *)
-                          |> UA.notify_removed
-                               ~operation:Removed_operations.alloc
+                          UA.with_name_occurrences ~name_occurrences uacc
                         in
                         (* The cost_metrics stored in uacc is the cost_metrics
                            of the body at this point *)
