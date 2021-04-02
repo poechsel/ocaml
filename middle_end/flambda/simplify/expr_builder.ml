@@ -129,8 +129,9 @@ let create_let uacc (bound_vars : BLB.t) defining_expr
   | None -> body, uacc, let_creation_result
   | Some name_mode ->
     let free_names_of_body = UA.name_occurrences uacc in
+    let is_phantom = Name_mode.is_phantom name_mode in
     let free_names_of_defining_expr =
-      if not generate_phantom_lets then (* CR mshinwell: refine condition *)
+      if not is_phantom then (* CR mshinwell: refine condition *)
         free_names_of_defining_expr
       else
         Name_occurrences.downgrade_occurrences_at_strictly_greater_kind
@@ -144,7 +145,6 @@ let create_let uacc (bound_vars : BLB.t) defining_expr
       in
       Name_occurrences.union without_bound_vars free_names_of_defining_expr
     in
-    let is_phantom = Name_mode.is_phantom name_mode in
     let uacc =
       (* CR mshinwell: This is reallocating UA twice on every [Let] *)
       UA.with_name_occurrences uacc ~name_occurrences:free_names_of_let
