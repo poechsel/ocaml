@@ -182,7 +182,7 @@ module type Optcommon_options = sig
   val _inline_indirect_cost : string -> unit
   val _inline_lifting_benefit : string -> unit
   val _inline_small_function_size : string -> unit
-  val _inline_big_function_size : string -> unit
+  val _inline_large_function_size : string -> unit
   val _unbox_closures : unit -> unit
   val _unbox_closures_factor : int -> unit
   val _inline_branch_factor : string -> unit

@@ -56,7 +56,7 @@ type inlining_arguments = {
   inline_threshold : float option;
   inline_toplevel_threshold : int option;
   inline_small_function_size : int option;
-  inline_big_function_size : int option;
+  inline_large_function_size : int option;
 }
 
 val classic_arguments : inlining_arguments
@@ -181,7 +181,7 @@ val default_inline_branch_cost : float
 val default_inline_indirect_cost : float
 val default_inline_lifting_benefit : int
 val default_inline_small_function_size : int
-val default_inline_big_function_size : int
+val default_inline_large_function_size : int
 val inline_call_cost : Float_arg_helper.parsed ref
 val inline_alloc_cost : Float_arg_helper.parsed ref
 val inline_prim_cost : Float_arg_helper.parsed ref
@@ -189,7 +189,7 @@ val inline_branch_cost : Float_arg_helper.parsed ref
 val inline_indirect_cost : Float_arg_helper.parsed ref
 val inline_lifting_benefit : Int_arg_helper.parsed ref
 val inline_small_function_size : Int_arg_helper.parsed ref
-val inline_big_function_size : Int_arg_helper.parsed ref
+val inline_large_function_size : Int_arg_helper.parsed ref
 val default_inline_branch_factor : float
 val inline_branch_factor : Float_arg_helper.parsed ref
 val dont_write_files : bool ref

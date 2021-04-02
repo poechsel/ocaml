@@ -316,10 +316,10 @@ let read_one_param ppf position name v =
     Int_arg_helper.parse v
       "Bad syntax in OCAMLPARAM for 'inline-small-function-size'"
       inline_small_function_size
-  | "inline-big-function-size" ->
+  | "inline-large-function-size" ->
     Int_arg_helper.parse v
-      "Bad syntax in OCAMLPARAM for 'inline-big-function-size'"
-      inline_big_function_size
+      "Bad syntax in OCAMLPARAM for 'inline-large-function-size'"
+      inline_large_function_size
 
   | "Oclassic" ->
     if check_bool ppf "Oclassic" v then begin

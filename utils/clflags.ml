@@ -212,7 +212,7 @@ let default_inline_lifting_benefit = 1300
 let default_inline_max_unroll = 0
 let default_inline_max_depth = 1
 let default_inline_small_function_size = 10
-let default_inline_big_function_size = 10
+let default_inline_large_function_size = 10
 
 let inline_threshold = ref (Float_arg_helper.default default_inline_threshold)
 let inline_toplevel_threshold =
@@ -234,8 +234,8 @@ let inline_max_depth =
   ref (Int_arg_helper.default default_inline_max_depth)
 let inline_small_function_size =
   ref (Int_arg_helper.default default_inline_small_function_size)
-let inline_big_function_size =
-  ref (Int_arg_helper.default default_inline_big_function_size)
+let inline_large_function_size =
+  ref (Int_arg_helper.default default_inline_large_function_size)
 
 
 let unbox_specialised_args = ref true   (* -no-unbox-specialised-args *)
@@ -259,7 +259,7 @@ type inlining_arguments = {
   inline_threshold : float option;
   inline_toplevel_threshold : int option;
   inline_small_function_size : int option;
-  inline_big_function_size : int option;
+  inline_large_function_size : int option;
 }
 
 let set_int_arg round (arg:Int_arg_helper.parsed ref) default value =
@@ -312,8 +312,8 @@ let use_inlining_arguments_set ?round (arg:inlining_arguments) =
     default_inline_toplevel_threshold arg.inline_toplevel_threshold;
   set_int inline_small_function_size
     default_inline_small_function_size arg.inline_small_function_size;
-  set_int inline_big_function_size
-    default_inline_big_function_size arg.inline_big_function_size
+  set_int inline_large_function_size
+    default_inline_large_function_size arg.inline_large_function_size
 
 (* o1 is the default *)
 let o1_arguments = {
@@ -329,7 +329,7 @@ let o1_arguments = {
   inline_threshold = None;
   inline_toplevel_threshold = None;
   inline_small_function_size = None;
-  inline_big_function_size = None;
+  inline_large_function_size = None;
 }
 
 let classic_arguments = {
@@ -349,7 +349,7 @@ let classic_arguments = {
   (* [inline_toplevel_threshold] is not used in classic mode. *)
   inline_toplevel_threshold = Some 1;
   inline_small_function_size = Some (10);
-  inline_big_function_size = Some (10);
+  inline_large_function_size = Some (10);
 }
 
 let o2_arguments = {
@@ -366,8 +366,8 @@ let o2_arguments = {
   inline_toplevel_threshold = Some (25 * inline_toplevel_multiplier);
   inline_small_function_size =
     Some (2 * default_inline_small_function_size);
-  inline_big_function_size =
-    Some (4 * default_inline_big_function_size);
+  inline_large_function_size =
+    Some (4 * default_inline_large_function_size);
 }
 
 let o3_arguments = {
@@ -384,8 +384,8 @@ let o3_arguments = {
   inline_toplevel_threshold = Some (50 * inline_toplevel_multiplier);
   inline_small_function_size =
     Some (3 * default_inline_small_function_size);
-  inline_big_function_size =
-    Some (8 * default_inline_big_function_size);
+  inline_large_function_size =
+    Some (8 * default_inline_large_function_size);
 }
 
 let flambda_unicode = ref true

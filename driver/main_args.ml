@@ -245,11 +245,11 @@ let mk_inline_small_function_size f =
     Clflags.default_inline_small_function_size
 ;;
 
-let mk_inline_big_function_size f =
-  "-inline-big-function-size", Arg.String f,
+let mk_inline_large_function_size f =
+  "-inline-large-function-size", Arg.String f,
   Printf.sprintf "<n>|<round>=<n>[,...] Functions with a cost greater than this \
                   size will never be inlined (default %d)."
-    Clflags.default_inline_big_function_size
+    Clflags.default_inline_large_function_size
 ;;
 
 
@@ -1205,7 +1205,7 @@ module type Optcommon_options = sig
   val _inline_indirect_cost : string -> unit
   val _inline_lifting_benefit : string -> unit
   val _inline_small_function_size : string -> unit
-  val _inline_big_function_size : string -> unit
+  val _inline_large_function_size : string -> unit
   val _unbox_closures : unit -> unit
   val _unbox_closures_factor : int -> unit
   val _inline_branch_factor : string -> unit
@@ -1529,7 +1529,7 @@ struct
     mk_inline_indirect_cost F._inline_indirect_cost;
     mk_inline_lifting_benefit F._inline_lifting_benefit;
     mk_inline_small_function_size F._inline_small_function_size;
-    mk_inline_big_function_size F._inline_big_function_size;
+    mk_inline_large_function_size F._inline_large_function_size;
     mk_inlining_report F._inlining_report;
     mk_inlining_report_bin F._inlining_report_bin;
     mk_insn_sched F._insn_sched;
@@ -1719,7 +1719,7 @@ module Make_opttop_options (F : Opttop_options) = struct
     mk_inline_lifting_benefit F._inline_lifting_benefit;
     mk_inline_branch_factor F._inline_branch_factor;
     mk_inline_small_function_size F._inline_small_function_size;
-    mk_inline_big_function_size F._inline_big_function_size;
+    mk_inline_large_function_size F._inline_large_function_size;
     mk_labels F._labels;
     mk_alias_deps F._alias_deps;
     mk_no_alias_deps F._no_alias_deps;
@@ -2075,10 +2075,10 @@ module Default = struct
       Int_arg_helper.parse spec
         "Syntax: -inline-small-function-size <n> | <round>=<n>[,...]"
         inline_small_function_size
-    let _inline_big_function_size spec =
+    let _inline_large_function_size spec =
       Int_arg_helper.parse spec
-        "Syntax: -inline-big-function-size <n> | <round>=<n>[,...]"
-        inline_big_function_size
+        "Syntax: -inline-large-function-size <n> | <round>=<n>[,...]"
+        inline_large_function_size
 
     let _inlining_report () = inlining_report := true
     let _inlining_report_bin () = inlining_report_bin := true
