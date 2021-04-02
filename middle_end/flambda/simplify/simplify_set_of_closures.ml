@@ -472,8 +472,9 @@ let simplify_function context ~used_closure_vars ~shareable_constants
     in
     let function_decl = FD.update_code_id function_decl new_code_id in
     let function_type =
-      (* When not rebuilding terms we only give a skeleton function type so
-         that we can distinguish between direct and indirect calls. *)
+      (* When not rebuilding terms we always give a non-inlinable function type,
+         since the body is not available for inlining, but we would still like
+         to generate direct calls to the function *)
       if Are_rebuilding_terms.do_not_rebuild_terms
            (DA.are_rebuilding_terms dacc_after_body)
       then
