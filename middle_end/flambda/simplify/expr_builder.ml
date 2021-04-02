@@ -29,8 +29,8 @@ module UE = Upwards_env
 module VB = Var_in_binding_pos
 
 type let_creation_result =
-  | Have_deleted
-  | Nothing_deleted
+  | Defining_expr_deleted_at_runtime
+  | Nothing_deleted_at_runtime
 
 let create_let uacc (bound_vars : BLB.t) defining_expr
       ~free_names_of_defining_expr ~body ~cost_metrics_of_defining_expr =
@@ -89,7 +89,7 @@ let create_let uacc (bound_vars : BLB.t) defining_expr
           BLB.print bound_vars
           Named.print defining_expr
       end;
-      bound_vars, Some Name_mode.normal, Nothing_deleted
+      bound_vars, Some Name_mode.normal, Nothing_deleted_at_runtime
     end else begin
       let has_uses = Name_mode.Or_absent.is_present greatest_name_mode in
       let user_visible =
@@ -104,7 +104,7 @@ let create_let uacc (bound_vars : BLB.t) defining_expr
         not (has_uses || (generate_phantom_lets && user_visible))
       in
       if will_delete_binding then begin
-        bound_vars, None, Have_deleted
+        bound_vars, None, Defining_expr_deleted_at_runtime
       end else
         let name_mode =
           match greatest_name_mode with
@@ -114,9 +114,9 @@ let create_let uacc (bound_vars : BLB.t) defining_expr
         assert (Name_mode.can_be_in_terms name_mode);
         let bound_vars = BLB.with_name_mode bound_vars name_mode in
         if Name_mode.is_normal name_mode then
-          bound_vars, Some name_mode, Nothing_deleted
+          bound_vars, Some name_mode, Nothing_deleted_at_runtime
         else
-          bound_vars, Some name_mode, Have_deleted
+          bound_vars, Some name_mode, Defining_expr_deleted_at_runtime
     end
   in
   (* CR mshinwell: When leaving behind phantom lets, maybe we should turn
@@ -155,7 +155,7 @@ let create_let uacc (bound_vars : BLB.t) defining_expr
     RE.create_let (UA.are_rebuilding_terms uacc) bound_vars defining_expr
       ~body ~free_names_of_body,
     uacc,
-    Nothing_deleted
+    let_creation_result
 
 let make_new_let_bindings uacc
       ~(bindings_outermost_first : Simplify_named_result.binding_to_place list)
@@ -195,8 +195,8 @@ let make_new_let_bindings uacc
         in
         let uacc =
           match creation_result with
-          | Nothing_deleted -> uacc
-          | Have_deleted ->
+          | Nothing_deleted_at_runtime -> uacc
+          | Defining_expr_deleted_at_runtime ->
             begin
               match (original_defining_expr : Named.t option) with
               | Some (Prim (prim, _dbg)) ->
