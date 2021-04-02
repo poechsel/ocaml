@@ -52,21 +52,29 @@ val make_decision_for_function_declaration
   -> Function_declaration_decision.t
 
 module Call_site_decision : sig
-  type attribute_causing_inlining = private
-    | Unroll
-    | Always
-
   type t = private
     | Environment_says_never_inline
     | Unrolling_depth_exceeded
     | Max_inlining_depth_exceeded
     | Recursion_depth_exceeded
     | Never_inline_attribute
-    | Rejected_by_cost_metrics
-    | Inline of {
-        attribute : attribute_causing_inlining option;
-        unroll_to : int option;
+    | Speculatively_not_inline of {
+        cost_metrics: Cost_metrics.t;
+        evaluated_to: float;
+        threshold: float;
       }
+    | Attribute_always
+    | Attribute_unroll of int
+    | Speculatively_inline of {
+        cost_metrics: Cost_metrics.t;
+        evaluated_to: float;
+        threshold: float;
+      }
+    | Small_function of {
+        size: Code_size.t;
+        small_function_size: Code_size.t;
+      }
+
 
   val print : Format.formatter -> t -> unit
 
