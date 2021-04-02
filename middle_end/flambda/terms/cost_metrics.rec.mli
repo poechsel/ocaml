@@ -29,7 +29,6 @@ val expr_size : find_code:(Code_id.t -> Code.t) -> Expr.t -> Code_size.t
 
 val zero : t
 val from_size : Code_size.t -> t
-val smaller_than_threshold : t -> threshold:int -> bool
 val size : t -> Code_size.t
 val print : Format.formatter -> t -> unit
 val (+) : t -> t -> t

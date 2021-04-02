@@ -22,19 +22,13 @@ module DE = Downwards_env
 module DA = Downwards_acc
 module UE = Upwards_env
 
-let is_it_a_small_function ~round cost_metrics =
-  let small_function_size =
-    Clflags.Int_arg_helper.get ~key:round !Clflags.inline_small_function_size
-  in
-  Cost_metrics.size cost_metrics
-  |> Code_size.smaller_than ~size:small_function_size
+let get_small_function_size ~round =
+  Clflags.Int_arg_helper.get ~key:round !Clflags.inline_small_function_size
+  |> Code_size.of_int
 
 let get_large_function_size ~round =
   Clflags.Int_arg_helper.get ~key:round !Clflags.inline_large_function_size
-
-let is_it_a_large_function ~round cost_metrics =
-  Cost_metrics.size cost_metrics
-  |> Code_size.smaller_than ~size:(get_large_function_size ~round)
+  |> Code_size.of_int
 
 let is_it_under_inline_threshold ~round cost_metrics =
   let threshold =
@@ -57,14 +51,23 @@ module Function_declaration_decision = struct
     | Never_inline_attribute
     | Function_body_too_large of Code_size.t
     | Stub
-    | Inline of (Code_size.t * Code_size.t) option
+    | Attribute_inline
+    | Small_function of {
+        size: Code_size.t;
+        small_function_size: Code_size.t }
+    | Speculatively_inlinable of {
+        size: Code_size.t;
+        small_function_size: Code_size.t;
+        large_function_size: Code_size.t}
 
   let can_inline t =
     match t with
     | Never_inline_attribute
     | Function_body_too_large _ -> false
     | Stub
-    | Inline _ -> true
+    | Attribute_inline
+    | Small_function _
+    | Speculatively_inlinable _-> true
 
   let print fmt = function
     | Never_inline_attribute ->
@@ -74,11 +77,20 @@ module Function_declaration_decision = struct
         Code_size.print large_function_size
     | Stub ->
       Format.fprintf fmt "Stub"
-    | Inline None ->
-      Format.fprintf fmt "Inline_no_cost_computed"
-    | Inline Some (size, large_function_size) ->
-      Format.fprintf fmt "Inline(size=%a, %a)"
+    | Attribute_inline ->
+      Format.fprintf fmt "Attribute_inline"
+    | Small_function {size; small_function_size} ->
+      Format.fprintf fmt "Small_function(size=%a, small_function_size=%a)"
         Code_size.print size
+        Code_size.print small_function_size
+    | Speculatively_inlinable {size;
+                               small_function_size;
+                               large_function_size} ->
+      Format.fprintf fmt "Speculatively_inlinable(size=%a, \
+                          small_function_size=%a, \
+                          large_function_size=%a)"
+        Code_size.print size
+        Code_size.print small_function_size
         Code_size.print large_function_size
 
   let report_reason fmt = function
@@ -92,13 +104,26 @@ module Function_declaration_decision = struct
         Code_size.print large_function_size
     | Stub ->
       Format.fprintf fmt "the@ function@ is@ a@ stub"
-    | Inline None ->
+    | Attribute_inline ->
       Format.fprintf fmt "the@ function@ has@ an@ attribute@ forcing@ its@ inlining"
-    | Inline Some (size, large_function_size) ->
+    | Small_function {size; small_function_size} ->
       Format.fprintf fmt "the@ function's@ body@ is@ smaller@ \
-                          than@ the@ large_function_size:@ size=%a < \
+                          than@ the@ threshold@ size@ for@ small@ functions: \
+                          size=%a <= \
                           large@ function@ size=%a"
-        Code_size.print size Code_size.print large_function_size
+        Code_size.print size Code_size.print small_function_size
+    | Speculatively_inlinable {size;
+                               small_function_size;
+                               large_function_size} ->
+      Format.fprintf fmt "the@ function's@ body@ is@ between@ \
+                          the@ threshold@ size@ for@ small@ functions and \
+                          the@ threshold@ size@ for@ large@ functions: \
+                          small@ function@ size=%a < \
+                          size=%a < \
+                          large@ function@ size=%a"
+        Code_size.print small_function_size
+        Code_size.print size
+        Code_size.print large_function_size
 
   let report fmt t =
     Format.fprintf fmt "@[<v>The function %s be inlined at its use-sites@ \
@@ -117,7 +142,7 @@ let make_decision_for_function_declaration denv ~cost_metrics_source function_de
   let code = DE.find_code denv code_id in
   match Code.inline code with
   | Never_inline -> Never_inline_attribute
-  | Hint_inline | Always_inline -> Inline None
+  | Hint_inline | Always_inline -> Attribute_inline
   | Default_inline | Unroll _ ->
     if Code.stub code then Stub
     else
@@ -127,11 +152,24 @@ let make_decision_for_function_declaration denv ~cost_metrics_source function_de
         | Metrics metrics -> metrics
         | From_denv -> Code.cost_metrics code
       in
-      if is_it_a_large_function ~round metrics then
-        Inline (Some (Cost_metrics.size metrics,
-                      Code_size.of_int (get_large_function_size ~round)))
+      let large_function_size = get_large_function_size ~round in
+      let small_function_size = get_small_function_size ~round in
+      let size = Cost_metrics.size metrics in
+      let is_small = Code_size.(<=) size small_function_size in
+      let is_large = Code_size.(<=) large_function_size size in
+      if is_large then
+        Function_body_too_large ( large_function_size )
+      else if is_small then
+        Small_function {
+          size = Cost_metrics.size metrics;
+          small_function_size
+        }
       else
-        Function_body_too_large (Code_size.of_int (get_large_function_size ~round))
+        Speculatively_inlinable {
+          size = Cost_metrics.size metrics;
+          small_function_size;
+          large_function_size
+        }
 
 module Call_site_decision = struct
   type attribute_causing_inlining =
@@ -275,8 +313,10 @@ let make_decision_for_call_site dacc ~simplify_expr ~function_decl
     let code_id = I.code_id function_decl in
     let code = DE.find_code denv code_id in
     let cost_metrics = Code.cost_metrics code in
+    let size = Cost_metrics.size cost_metrics in
     let round = DE.round denv in
-    let is_it_a_small_function = is_it_a_small_function ~round cost_metrics in
+    let small_function_size = get_small_function_size ~round in
+    let is_it_a_small_function = Code_size.(<=) size small_function_size in
     let env_prohibits_inlining = not (DE.can_inline denv) in
     if is_it_a_small_function then
       force_inline ~attribute ~unroll_to

@@ -97,7 +97,6 @@ type t = {
 
 let zero = { size = Code_size.zero; removed = Removed_operations.zero } 
 let size t = t.size
-let smaller_than_threshold t ~threshold = (Code_size.to_int t.size) <= threshold
 
 let print ppf t = Format.fprintf ppf "@[size: %a removed: {%a}]"
                     Code_size.print t.size

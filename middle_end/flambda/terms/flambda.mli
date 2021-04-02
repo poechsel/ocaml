@@ -653,7 +653,6 @@ end and Cost_metrics : sig
   val zero : t
   val from_size : Code_size.t -> t
   val size : t -> Code_size.t
-  val smaller_than_threshold : t -> threshold:int -> bool
   val print : Format.formatter -> t -> unit
   val (+) : t -> t -> t
 

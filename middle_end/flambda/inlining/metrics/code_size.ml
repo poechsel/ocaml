@@ -19,9 +19,9 @@
 type t = int
 
 let zero = 0
-let smaller_than t ~size = t <= size
 let equal a b = a = b
 let (+) (a : t) (b : t) : t = a + b
+let ( <= ) a b = a <= b
 
 let arch32 = Targetint.size = 32 (* are we compiling for a 32-bit arch *)
 let arch64 = Targetint.size = 64 (* are we compiling for a 64-bit arch *)

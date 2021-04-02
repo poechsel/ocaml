@@ -23,7 +23,14 @@ module Function_declaration_decision : sig
     | Never_inline_attribute
     | Function_body_too_large of Code_size.t
     | Stub
-    | Inline of (Code_size.t * Code_size.t) option
+    | Attribute_inline
+    | Small_function of {
+        size: Code_size.t;
+        small_function_size: Code_size.t }
+    | Speculatively_inlinable of {
+        size: Code_size.t;
+        small_function_size: Code_size.t;
+        large_function_size: Code_size.t}
 
   val print : Format.formatter -> t -> unit
 
