@@ -131,7 +131,7 @@ let create_let uacc (bound_vars : BLB.t) defining_expr
     let free_names_of_body = UA.name_occurrences uacc in
     let is_phantom = Name_mode.is_phantom name_mode in
     let free_names_of_defining_expr =
-      if not is_phantom then (* CR mshinwell: refine condition *)
+      if not is_phantom then
         free_names_of_defining_expr
       else
         Name_occurrences.downgrade_occurrences_at_strictly_greater_kind
