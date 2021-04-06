@@ -499,7 +499,11 @@ inline:
   | INLINE LPAREN DEFAULT RPAREN { Default_inline }
 
 inlining_state:
-  | INLINING_STATE LPAREN; i = inlining_state_depth; RPAREN { Inlining_state.create ~depth:i }
+    | INLINING_STATE LPAREN; i = inlining_state_depth; RPAREN
+      {
+        (* CR poechsel: Parse the inlining arguments *)
+        Inlining_state.create ~arguments:Inlining_arguments.unknown ~depth:i
+      }
 
 inlining_state_depth:
   | INLINING_STATE_DEPTH; i = plain_int; { i }

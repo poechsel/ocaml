@@ -678,6 +678,8 @@ let rec expr env (e : Fexpr.expr) : Flambda.Expr.t =
             ~is_a_functor:false
             ~recursive
             ~cost_metrics
+            (* CR poechsel: grab inlining arguments from fexpr. *)
+            ~inlining_arguments:Inlining_arguments.unknown
         in
         Code code
     in

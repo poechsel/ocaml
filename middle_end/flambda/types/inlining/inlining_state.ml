@@ -16,20 +16,38 @@
 
 [@@@ocaml.warning "+a-4-30-40-41-42"]
 
-type t = {depth:int}
+type t = {
+  arguments: Inlining_arguments.t;
+  depth: int
+}
 
-let increment_depth t = { depth = t.depth + 1 } 
+let increment_depth t = { t with depth = t.depth + 1 } 
 
-let default = { depth = 0 }
+let default = {
+    arguments = Inlining_arguments.unknown;
+    depth = 0
+  }
 
-let create ~depth = { depth }
+let create ~arguments ~depth = { arguments; depth }
 
-let print ppf t = Format.fprintf ppf "@[<hov 1>(depth@ %d)@]" t.depth
+let print ppf t =
+  Format.fprintf ppf "@[<hov 1>(depth@ %d, arguments@ %a)@]"
+    t.depth
+    Inlining_arguments.print t.arguments
 
 let is_depth_exceeded t = t.depth >= !Clflags.Flambda.Expert.max_inlining_depth
 
-let merge t1 t2 = { depth = t1.depth + t2.depth }
+let merge t1 t2 = {
+  depth = t1.depth + t2.depth;
+  arguments = Inlining_arguments.merge t1.arguments t2.arguments
+}
 
-let equal t1 t2 = t1.depth = t2.depth
+let equal t1 t2 =
+  t1.depth = t2.depth
+  && Inlining_arguments.equal t1.arguments t2.arguments
 
 let invariant t = assert (t.depth >= 0)
+
+let with_arguments arguments t = { t with arguments }
+
+let arguments t = t.arguments

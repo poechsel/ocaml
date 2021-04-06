@@ -53,6 +53,8 @@ module type S = sig
 
   val cost_metrics : t -> cost_metrics
 
+  val inlining_arguments : t -> Inlining_arguments.t
+
   val create
      : Code_id.t  (** needed for [compare], although useful otherwise too *)
     -> params_and_body:
@@ -65,6 +67,7 @@ module type S = sig
     -> is_a_functor:bool
     -> recursive:Recursive.t
     -> cost_metrics:cost_metrics
+    -> inlining_arguments:Inlining_arguments.t
     -> t
 
   val with_code_id : Code_id.t -> t -> t

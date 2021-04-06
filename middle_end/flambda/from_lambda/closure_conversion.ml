@@ -1017,6 +1017,7 @@ and close_one_function acc ~external_env ~by_closure_id decl
       ~recursive
       ~newer_version_of:None
       ~cost_metrics
+      ~inlining_arguments:Inlining_arguments.unknown
   in
   Acc.add_code ~code_id ~code acc,
   Closure_id.Map.add my_closure_id fun_decl by_closure_id

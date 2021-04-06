@@ -614,6 +614,8 @@ end and Code : sig
 
   val cost_metrics : t -> Cost_metrics.t
 
+  val inlining_arguments : t -> Inlining_arguments.t
+
   val create
      : Code_id.t
     -> params_and_body:
@@ -626,6 +628,7 @@ end and Code : sig
     -> is_a_functor:bool
     -> recursive:Recursive.t
     -> cost_metrics:Cost_metrics.t
+    -> inlining_arguments:Inlining_arguments.t
     -> t
 
   val with_code_id : Code_id.t -> t -> t

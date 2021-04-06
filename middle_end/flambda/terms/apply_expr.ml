@@ -343,3 +343,5 @@ let with_continuation_callee_and_args t continuation ~callee ~args =
     callee;
     args;
   }
+let inlining_arguments t =
+  inlining_state t |> Inlining_state.arguments
