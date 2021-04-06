@@ -35,7 +35,8 @@ let print ppf t =
     t.depth
     Inlining_arguments.print t.arguments
 
-let is_depth_exceeded t = t.depth >= !Clflags.Flambda.Expert.max_inlining_depth
+let is_depth_exceeded t =
+  t.depth >= (Inlining_arguments.max_inlining_depth t.arguments)
 
 let merge t1 t2 = {
   depth = t1.depth + t2.depth;
