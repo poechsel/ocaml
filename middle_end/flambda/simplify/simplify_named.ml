@@ -313,7 +313,7 @@ let removed_operations (named : Named.t) result =
   | Set_of_closures _ -> begin
       match descr with
       | Multiple_bindings_to_symbols _ ->
-          Removed_operations.alloc
+        Removed_operations.alloc
       | Single_term { simplified_defining_expr; _ } -> begin
           match simplified_defining_expr with
           | Reachable { named = Set_of_closures _; _ } ->

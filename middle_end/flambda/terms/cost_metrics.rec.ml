@@ -66,17 +66,25 @@ and named_size ~find_code (named : Named.t) size =
   | Set_of_closures set_of_closures ->
     let func_decls = Set_of_closures.function_decls set_of_closures in
     let funs = Function_declarations.funs func_decls in
+    let num_clos_vars =
+      Set_of_closures.closure_elements set_of_closures
+      |> Var_within_closure.Map.cardinal
+    in
     Closure_id.Map.fold (fun _ func_decl size ->
       let code_id = Function_declaration.code_id func_decl in
       let code = find_code code_id in
-      match Code.params_and_body code with
-      | Present params_and_body ->
-        Function_params_and_body.pattern_match params_and_body
-          ~f:(fun ~return_continuation:_ _exn_continuation _params
-               ~body ~my_closure:_ ~is_my_closure_used:_ ->
-               expr_size ~find_code body size)
-      | Deleted -> size)
-      funs size
+      let arity = List.length (Code.params_arity code) in
+      let size =
+        match Code.params_and_body code with
+        | Present params_and_body ->
+          Function_params_and_body.pattern_match params_and_body
+            ~f:(fun ~return_continuation:_ _exn_continuation _params
+                 ~body ~my_closure:_ ~is_my_closure_used:_ ->
+                 expr_size ~find_code body size)
+        | Deleted -> size
+      in
+      size + (if arity = 1 then 2 else 3))
+      funs (Code_size.to_int Code_size.alloc_size + num_clos_vars + size)
   | Prim (prim, _dbg) ->
     size + (Code_size.prim prim |> Code_size.to_int)
   | Static_consts _ -> size
@@ -102,6 +110,8 @@ let print ppf t = Format.fprintf ppf "@[size: %a removed: {%a}]"
                     Code_size.print t.size
                     Removed_operations.print t.removed
 
+let from_size size = { size; removed = Removed_operations.zero; }
+
 let notify_added ~code_size t =
   { t with size = Code_size.(+) t.size code_size }
 
@@ -118,15 +128,37 @@ let (+) a b ={
 (* The metrics for a set of closures are the sum of the metrics for each closure
    it contains. The intuition behind it is that if we do inline a function f in
    which a set of closure is defined then we will copy the body of all functions
-   referred by this set of closure as they are dependent upon f.*)
-let set_of_closures ~find_cost_metrics set_of_closures =
+   referred by this set of closure as they are dependent upon f.
+
+   A set of closures introduces implicitly an alloc whose size (as in OCaml 4.11)
+   is:
+     total number of closure variables + sum of s(arity) for each closure
+   where s(a) = if a = 1 then 2 else 3
+*)
+let set_of_closures ~find_cost_characteristics set_of_closures =
   let func_decls = Set_of_closures.function_decls set_of_closures in
   let funs = Function_declarations.funs func_decls in
-  Closure_id.Map.fold (fun _ func_decl metrics ->
+  let num_clos_vars =
+    Set_of_closures.closure_elements set_of_closures
+    |> Var_within_closure.Map.cardinal
+  in
+  let cost_metrics, num_blocks =
+    Closure_id.Map.fold (fun _ func_decl (metrics, num_blocks) ->
       let code_id = Function_declaration.code_id func_decl in
-      metrics + find_cost_metrics code_id
+      let code_metrics, code_arity = find_cost_characteristics code_id in
+      metrics + code_metrics,
+      (* CR poechsel: valid until OCaml 4.13 *)
+      Stdlib.(+) num_blocks (if code_arity = 1 then 2 else 3)
     )
-    funs (zero)
+      funs
+      (zero, num_clos_vars)
+  in
+  let alloc_size =
+    Code_size.(+)
+      Code_size.alloc_size
+      (Code_size.of_int num_blocks)
+  in
+  cost_metrics + (from_size alloc_size)
 
 let increase_due_to_let_expr ~is_phantom ~cost_metrics_of_defining_expr =
   if is_phantom then zero else cost_metrics_of_defining_expr
@@ -136,8 +168,6 @@ let increase_due_to_let_cont_non_recursive ~cost_metrics_of_handler =
 
 let increase_due_to_let_cont_recursive ~cost_metrics_of_handlers =
   cost_metrics_of_handlers
-
-let from_size size = { size; removed = Removed_operations.zero; }
 
 let evaluate ~round (t : t) =
   Code_size.evaluate ~round t.size

@@ -772,13 +772,14 @@ let simplify_non_lifted_set_of_closures0 dacc bound_vars ~closure_bound_vars
   let dacc = introduce_code dacc code in
   let defining_expr =
     let named = Named.create_set_of_closures set_of_closures in
-    let find_cost_metrics code_id =
+    let find_cost_characteristics code_id =
       let env = Downwards_acc.denv dacc in
-      Downwards_env.find_code env code_id
-      |> Code.cost_metrics
+      let code = Downwards_env.find_code env code_id in
+      Code.cost_metrics code,
+      List.length (Code.result_arity code)
     in
     Simplified_named.reachable_with_known_free_names
-      ~find_cost_metrics
+      ~find_cost_characteristics
       (Named.create_set_of_closures set_of_closures)
       ~free_names:(Named.free_names named)
   in

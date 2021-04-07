@@ -40,5 +40,5 @@ val apply : Apply_expr.t -> t
 val apply_cont : Apply_cont_expr.t -> t
 val switch : Switch_expr.t -> t
 val invalid : t
-
 val evaluate : round:int -> t -> float
+val alloc_size : t

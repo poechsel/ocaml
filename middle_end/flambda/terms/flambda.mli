@@ -657,7 +657,7 @@ end and Cost_metrics : sig
   val (+) : t -> t -> t
 
   val set_of_closures
-     : find_cost_metrics:(Code_id.t -> t)
+     : find_cost_characteristics:(Code_id.t -> t * int)
     -> Set_of_closures.t
     -> t
 

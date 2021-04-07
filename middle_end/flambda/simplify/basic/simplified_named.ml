@@ -61,7 +61,8 @@ let reachable (named : Named.t) =
     free_names = Named.free_names named;
   }
 
-let reachable_with_known_free_names ~find_cost_metrics (named : Named.t) ~free_names =
+let reachable_with_known_free_names ~find_cost_characteristics
+      (named : Named.t) ~free_names =
   let (simplified_named : simplified_named), cost_metrics =
     match named with
     | Simple simple ->
@@ -72,7 +73,7 @@ let reachable_with_known_free_names ~find_cost_metrics (named : Named.t) ~free_n
        Cost_metrics.from_size (Code_size.prim prim)
     | Set_of_closures set ->
        Set_of_closures set,
-       Cost_metrics.set_of_closures ~find_cost_metrics set
+       Cost_metrics.set_of_closures ~find_cost_characteristics set
     | Static_consts _ ->
       Misc.fatal_errorf "Cannot create [Simplified_named] from \
           [Static_consts];@ use the lifted constant infrastructure instead:@ %a"
