@@ -95,7 +95,7 @@ type t = {
   removed: Removed_operations.t;
 }
 
-let zero = { size = Code_size.zero; removed = Removed_operations.zero } 
+let zero = { size = Code_size.zero; removed = Removed_operations.zero }
 let size t = t.size
 
 let print ppf t = Format.fprintf ppf "@[size: %a removed: {%a}]"

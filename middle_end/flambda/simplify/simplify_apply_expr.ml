@@ -125,7 +125,8 @@ let simplify_direct_full_application ~simplify_expr dacc apply function_decl_opt
       in
       let code_id = T.Function_declaration_type.Inlinable.code_id function_decl in
       Inlining_report.record_decision
-        (At_call_site (Inlinable_function { code_id = Code_id.export code_id; decision; }))
+        (At_call_site (
+          Inlinable_function { code_id = Code_id.export code_id; decision; }))
         ~dbg:(DE.add_inlined_debuginfo' (DA.denv dacc) (Apply.dbg apply));
       match Inlining_decision.Call_site_decision.can_inline decision with
       | Do_not_inline ->

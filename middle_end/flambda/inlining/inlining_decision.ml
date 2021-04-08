@@ -20,6 +20,7 @@ open! Flambda.Import
 
 module DE = Downwards_env
 module DA = Downwards_acc
+module UA = Upwards_acc
 module UE = Upwards_env
 
 let get_small_function_size ~round =
@@ -31,6 +32,9 @@ let get_large_function_size ~round =
   |> Code_size.of_int
 
 let get_inline_threshold ~round =
+  (* CR mshinwell: Hmm, this seems to be comparing against something whose
+     default value (see clflags.ml) has the divisor of 8 (the default is 10/8).
+     Should we remove the "/8" from the default? *)
   Clflags.Float_arg_helper.get ~key:round !Clflags.inline_threshold
 
 (* CR mshinwell: We need to emit [Warnings.Inlining_impossible] as
@@ -51,11 +55,13 @@ module Function_declaration_decision = struct
     | Attribute_inline
     | Small_function of {
         size: Code_size.t;
-        small_function_size: Code_size.t }
+        small_function_size: Code_size.t;
+      }
     | Speculatively_inlinable of {
         size: Code_size.t;
         small_function_size: Code_size.t;
-        large_function_size: Code_size.t}
+        large_function_size: Code_size.t;
+      }
 
   let can_inline t =
     match t with
@@ -66,6 +72,7 @@ module Function_declaration_decision = struct
     | Small_function _
     | Speculatively_inlinable _-> true
 
+  (* CR mshinwell: This should print a sexp *)
   let print fmt = function
     | Never_inline_attribute ->
       Format.fprintf fmt "Never_inline_attribute"
@@ -155,7 +162,7 @@ let make_decision_for_function_declaration denv ~cost_metrics_source function_de
       let is_small = Code_size.(<=) size small_function_size in
       let is_large = Code_size.(<=) large_function_size size in
       if is_large then
-        Function_body_too_large ( large_function_size )
+        Function_body_too_large large_function_size
       else if is_small then
         Small_function {
           size = Cost_metrics.size metrics;
@@ -207,33 +214,37 @@ module Call_site_decision = struct
     | Attribute_always ->
       Format.fprintf ppf "Attribute_unroll"
     | Attribute_unroll unroll_to ->
-      Format.fprintf ppf "Attribute_unroll @[<hov 1>(\
+      Format.fprintf ppf
+        "@[<hov 1>(Attribute_unroll@ \
           @[<hov 1>(unroll_to@ %d)@]\
           )@]"
         unroll_to
     | Speculatively_not_inline { cost_metrics; threshold; evaluated_to; } ->
-      Format.fprintf ppf "Speculatively_not_inline @[<hov 1>(\
-                          @[<hov 1>(cost_metrics@ %a)@]@ \
-                          @[<hov 1>(evaluated_to@ %f)@]\
-                          @[<hov 1>(threshold@ %f)@]\
-                          )@]"
+      Format.fprintf ppf
+        "@[<hov 1>(Speculatively_not_inline@ \
+          @[<hov 1>(cost_metrics@ %a)@]@ \
+          @[<hov 1>(evaluated_to@ %f)@]@ \
+          @[<hov 1>(threshold@ %f)@]\
+          )@]"
         Cost_metrics.print cost_metrics
         evaluated_to
         threshold
     | Speculatively_inline { cost_metrics; threshold; evaluated_to; } ->
-      Format.fprintf ppf "Speculatively_inline @[<hov 1>(\
-                          @[<hov 1>(cost_metrics@ %a)@]@ \
-                          @[<hov 1>(evaluated_to@ %f)@]\
-                          @[<hov 1>(threshold@ %f)@]\
-                          )@]"
+      Format.fprintf ppf
+        "@[<hov 1>(Speculatively_inline@ \
+          @[<hov 1>(cost_metrics@ %a)@]@ \
+          @[<hov 1>(evaluated_to@ %f)@]@ \
+          @[<hov 1>(threshold@ %f)@]\
+          )@]"
         Cost_metrics.print cost_metrics
         evaluated_to
         threshold
     | Small_function { size; small_function_size; } ->
-      Format.fprintf ppf "Small_function @[<hov 1>(\
-                          @[<hov 1>(size@ %a)@]@ \
-                          @[<hov 1>(small_function_size@ %a)@]@ \
-                          )@]"
+      Format.fprintf ppf
+        "@[<hov 1>(Small_function@ \
+          @[<hov 1>(size@ %a)@]@ \
+          @[<hov 1>(small_function_size@ %a)@]\
+          )@]"
         Code_size.print size
         Code_size.print small_function_size
 
@@ -249,11 +260,10 @@ module Call_site_decision = struct
     | Recursion_depth_exceeded
     | Speculatively_not_inline _
     | Never_inline_attribute -> Do_not_inline
-    | Attribute_unroll unroll_to -> Inline { unroll_to = Some (unroll_to )}
+    | Attribute_unroll unroll_to -> Inline { unroll_to = Some unroll_to; }
     | Speculatively_inline _
     | Small_function _
-    | Attribute_always -> Inline { unroll_to = None }
-
+    | Attribute_always -> Inline { unroll_to = None; }
 
   let report_reason fmt t =
     match (t : t) with
@@ -272,33 +282,36 @@ module Call_site_decision = struct
     | Attribute_unroll n ->
       Format.fprintf fmt "the@ call@ has@ an@ [@@unroll %d]@ attribute" n
     | Speculatively_not_inline { cost_metrics; evaluated_to; threshold } ->
-      Format.fprintf fmt "the@ function@ is@ not@ inlined@ after@ speculation@ as@ \
-                          its@ cost@ metrics are=%a, which@ is@ evaluated@ \
-                          to=%f > threshold@ %f"
+      Format.fprintf fmt
+        "the@ function@ was@ not@ inlined@ after@ speculation@ as@ \
+          its@ cost@ metrics were=%a,@ which@ was@ evaluated@ \
+          to@ %f > threshold %f"
         Cost_metrics.print cost_metrics
         evaluated_to
         threshold
     | Speculatively_inline { cost_metrics; evaluated_to; threshold } ->
-      Format.fprintf fmt "the@ function@ is@ inlined@ after@ speculation@ as@ \
-                          its@ cost@ metrics are=%a, which@ is@ evaluated@ \
-                          to=%f <= threshold@ %f"
+      Format.fprintf fmt
+        "the@ function@ was@ inlined@ after@ speculation@ as@ \
+          its@ cost@ metrics were=%a,@ which@ was@ evaluated@ \
+          to@ %f <= threshold %f"
         Cost_metrics.print cost_metrics
         evaluated_to
         threshold
     | Small_function { size; small_function_size; } ->
-      Format.fprintf fmt "the@ function@ is@ classified@ as@ a@ small@ \
-                          function@ and@ was@ inlined: \
-                          size=%a <= small@ function@ size=%a "
+      Format.fprintf fmt
+        "the@ function@ was@ classified@ as@ a@ small@ \
+          function@ and@ was@ therefore@ inlined:@ \
+          size=%a <= small function size=%a"
         Code_size.print size
         Code_size.print small_function_size
 
   let report fmt t =
-    Format.fprintf fmt "@[<v>The function call %s been inlined@ because @[<hov>%a@]@]"
+    Format.fprintf fmt
+      "@[<v>The function call %s been inlined@ because @[<hov>%a@]@]"
       (match can_inline t with
        | Inline _ -> "has"
        | Do_not_inline -> "has not")
       report_reason t
-
 end
 
 (* CR mshinwell: Overhaul handling of the inlining depth tracking so that
@@ -312,19 +325,26 @@ module I = Flambda_type.Function_declaration_type.Inlinable
 
 let make_decision_for_call_site dacc ~simplify_expr ~function_decl
       ~function_decl_rec_info ~apply ~return_arity : Call_site_decision.t =
+  (* CR mshinwell: Please move speculative_inlining and might_inline to
+     toplevel, causing them to be closed by providing extra parameters, so
+     that we don't allocate closures every time we examine a call site. *)
   let speculative_inlining dacc =
-    let dacc =
-      DA.set_do_not_rebuild_terms_and_disable_inlining dacc
-    in
-    (* CR-someday: [Inlining_transforms.inline] should only be called once
-       and not twice (once there and once in [simplify_apply_expr] )*)
+    let dacc = DA.set_do_not_rebuild_terms_and_disable_inlining dacc in
+    (* CR poechsel: [Inlining_transforms.inline] should only be called
+       once and not twice (once there and once in [simplify_apply_expr])
+       mshinwell: I think it needs to be called twice; the second time,
+       inlining will be on in the environment.  Is that wrong?  Let's resolve
+       this now. *)
     let dacc, expr =
       (* We only speculatively inline when there's no [unroll] annotation,
          that is the unroll_to is None *)
+      (* CR mshinwell: I don't follow this comment.  Earlier on in this file
+         we still say that speculation can occur even if an unrolling
+         attribute was found.  Or is this comment supposed to say just that
+         we disable unrolling when speculating? *)
       Inlining_transforms.inline dacc ~apply ~unroll_to:None function_decl
     in
-    let denv = DA.denv dacc in
-    let scope = DE.get_continuation_scope_level denv in
+    let scope = DE.get_continuation_scope_level (DA.denv dacc) in
     let _, uacc =
       simplify_expr dacc expr ~down_to_up:(fun dacc ~rebuild ->
         let exn_continuation = Apply.exn_continuation apply in
@@ -333,13 +353,14 @@ let make_decision_for_call_site dacc ~simplify_expr ~function_decl
           match Apply.continuation apply with
           | Never_returns -> uenv
           | Return return_continuation ->
-            UE.add_return_continuation uenv return_continuation scope return_arity
+            UE.add_return_continuation uenv return_continuation scope
+              return_arity
           in
-          let uacc = Upwards_acc.create uenv dacc in
+          let uacc = UA.create uenv dacc in
           rebuild uacc ~after_rebuild:(fun expr uacc -> expr, uacc)
         )
     in
-    Upwards_acc.cost_metrics uacc
+    UA.cost_metrics uacc
   in
   let might_inline () : Call_site_decision.t =
     let denv = DA.denv dacc in
@@ -349,9 +370,9 @@ let make_decision_for_call_site dacc ~simplify_expr ~function_decl
     let size = Cost_metrics.size cost_metrics in
     let round = DE.round denv in
     let small_function_size = get_small_function_size ~round in
-    let is_it_a_small_function = Code_size.(<=) size small_function_size in
+    let is_a_small_function = Code_size.(<=) size small_function_size in
     let env_prohibits_inlining = not (DE.can_inline denv) in
-    if is_it_a_small_function then
+    if is_a_small_function then
       Small_function { size; small_function_size }
     else if env_prohibits_inlining then
       Environment_says_never_inline
@@ -359,10 +380,10 @@ let make_decision_for_call_site dacc ~simplify_expr ~function_decl
       let cost_metrics = speculative_inlining dacc in
       let evaluated_to = Cost_metrics.evaluate ~round cost_metrics in
       let threshold = get_inline_threshold ~round in
-      let is_it_under_inline_threshold =
+      let is_under_inline_threshold =
         Float.compare evaluated_to threshold <= 0
       in
-      if is_it_under_inline_threshold then
+      if is_under_inline_threshold then
         Speculatively_inline { cost_metrics; evaluated_to; threshold }
       else
         Speculatively_not_inline { cost_metrics; evaluated_to; threshold }
