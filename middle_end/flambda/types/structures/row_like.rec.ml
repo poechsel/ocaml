@@ -48,7 +48,11 @@ struct
     | Known of Index.t (** Known x represents the singleton set: { x } *)
     | At_least of Index.t (** At_least x represents the set { y | x \subset y } *)
 
-  type case = { maps_to : Maps_to.t; index : index }
+  type case = {
+    maps_to : Maps_to.t;
+    index : index;
+    env_extension : TEE.t;
+  }
 
   type t = {
     known_tags : case Tag.Map.t;
@@ -77,10 +81,15 @@ struct
       else
         Format.fprintf ppf "%s_|_%s" colour (Flambda_colours.normal ())
     else
-      let print ppf { maps_to; index } =
-        Format.fprintf ppf "=> %a,@ %a"
+      let pp_env_extension ppf env_extension =
+        if not (TEE.is_empty env_extension) then
+          Format.fprintf ppf "@ %a" TEE.print env_extension
+      in
+      let print ppf { maps_to; index; env_extension } =
+        Format.fprintf ppf "=> %a,@ %a%a"
           print_index index
           (Maps_to.print_with_cache ~cache) maps_to
+          pp_env_extension env_extension
       in
       Format.fprintf ppf
         "@[<hov 1>(\
@@ -101,7 +110,10 @@ struct
     }
 
   let create_exactly tag index maps_to =
-    { known_tags = Tag.Map.singleton tag { maps_to; index = Known index };
+    { known_tags =
+        Tag.Map.singleton tag
+          { maps_to; index = Known index;
+            env_extension = TEE.empty (); };
       other_tags = Bottom;
     }
 
@@ -112,7 +124,10 @@ struct
    *   () *)
 
   let create_at_least tag index maps_to =
-    { known_tags = Tag.Map.singleton tag { maps_to; index = At_least index };
+    { known_tags =
+        Tag.Map.singleton tag
+          { maps_to; index = At_least index;
+            env_extension = TEE.empty (); };
       other_tags = Bottom;
     }
 
@@ -123,7 +138,8 @@ struct
 
   let create_at_least_unknown_tag index maps_to =
     { known_tags = Tag.Map.empty;
-      other_tags = Ok { maps_to; index = At_least index };
+      other_tags = Ok { maps_to; index = At_least index;
+                        env_extension = TEE.empty (); };
     }
 
   (* let create_at_least_multiple at_least = ()
@@ -135,10 +151,20 @@ struct
     let ({ known_tags = known1; other_tags = other1; } : t) = t1 in
     let ({ known_tags = known2; other_tags = other2; } : t) = t2 in
     let env_extension = ref None in
+    let need_join =
+      match other1, other2, Tag.Map.get_singleton known1, Tag.Map.get_singleton known2 with
+      | _, _, None, None -> true (* Overapproximaxion: tags sets don't need to be the sames *)
+      | Ok _, _, _, None -> true
+      | _, Ok _, None, _ -> true
+      | Ok _, Ok _, Some _, Some _ -> true (* Overapproximaxion: tags don't need to be the sames *)
+      | Bottom, _, Some _, _ -> false
+      | _, Bottom, _, Some _ -> false
+    in
     let join_env_extension ext =
       match !env_extension with
       | None -> env_extension := Some ext
       | Some ext2 ->
+        assert need_join;
         env_extension := Some (TEE.join meet_env ext2 ext)
     in
     let meet_index i1 i2 : index Or_bottom.t =
@@ -167,8 +193,18 @@ struct
         match Maps_to.meet meet_env case1.maps_to case2.maps_to with
         | Bottom -> None
         | Ok (maps_to, env_extension') ->
-          join_env_extension env_extension';
-          Some { maps_to; index }
+          match TEE.meet meet_env case1.env_extension case2.env_extension with
+          | Bottom -> None
+          | Ok env_extension'' ->
+            match TEE.meet meet_env env_extension' env_extension'' with
+            | Bottom -> None
+            | Ok env_extension ->
+              join_env_extension env_extension;
+              let env_extension =
+                if need_join then env_extension
+                else TEE.empty ()
+              in
+              Some { maps_to; index; env_extension; }
     in
     let meet_knowns_tags case1 case2 : case option =
       match case1, case2 with
@@ -231,7 +267,14 @@ struct
       let join_case env case1 case2 =
         let index = join_index case1.index case2.index in
         let maps_to = Maps_to.join env case1.maps_to case2.maps_to in
-        { maps_to; index }
+        let meet_env =
+          Meet_env.create (Join_env.target_join_env env)
+        in
+        let env_extension =
+          TEE.join meet_env
+            case1.env_extension case2.env_extension
+        in
+        { maps_to; index; env_extension }
       in
       let join_knowns_tags case1 case2 : case option =
         match case1, case2 with
@@ -312,7 +355,9 @@ struct
       | Bottom ->
         match Tag.Map.get_singleton known_tags with
         | None -> None
-        | Some (tag, { maps_to; index }) ->
+        | Some (tag, { maps_to; index; env_extension = _ }) ->
+          (* If this is a singleton all the information from the
+             env_extension is already part of the environment *)
           match index with
           | At_least _ -> None
           | Known index ->
@@ -330,35 +375,41 @@ struct
 
     let free_names { known_tags; other_tags; } =
       let from_known_tags =
-        Tag.Map.fold (fun _tag { maps_to; index = _ } free_names ->
+        Tag.Map.fold (fun _tag { maps_to; env_extension; index = _ } free_names ->
             Name_occurrences.union free_names
-              (Maps_to.free_names maps_to))
+              (Name_occurrences.union
+                 (TEE.free_names env_extension)
+                 (Maps_to.free_names maps_to)))
           known_tags
           Name_occurrences.empty
       in
       match other_tags with
       | Bottom ->
         from_known_tags
-      | Ok { maps_to; index = _ } ->
+      | Ok { maps_to; env_extension; index = _ } ->
         Name_occurrences.union
           (Maps_to.free_names maps_to)
-          from_known_tags
+          (Name_occurrences.union from_known_tags
+             (TEE.free_names env_extension))
 
     let all_ids_for_export { known_tags; other_tags; } =
       let from_known_tags =
-        Tag.Map.fold (fun _tag { maps_to; index = _ } ids ->
+        Tag.Map.fold (fun _tag { maps_to; env_extension; index = _ } ids ->
             Ids_for_export.union ids
-              (Maps_to.all_ids_for_export maps_to))
+              (Ids_for_export.union
+                 (Maps_to.all_ids_for_export maps_to)
+                 (TEE.all_ids_for_export env_extension)))
           known_tags
           Ids_for_export.empty
       in
       match other_tags with
       | Bottom ->
         from_known_tags
-      | Ok { maps_to; index = _ } ->
+      | Ok { maps_to; env_extension; index = _ } ->
         Ids_for_export.union
           (Maps_to.all_ids_for_export maps_to)
-          from_known_tags
+          (Ids_for_export.union from_known_tags
+             (TEE.all_ids_for_export env_extension))
 
     let map_maps_to { known_tags; other_tags; }
           ~(f : Maps_to.t -> Maps_to.t Or_bottom.t)
@@ -391,19 +442,19 @@ struct
         | At_least index -> At_least (Index.apply_renaming index renaming)
       in
       let known_tags' =
-        Tag.Map.map_sharing (fun { index; maps_to } ->
-            { index = rename_index index;
-              maps_to = Maps_to.apply_renaming maps_to renaming;
-            })
+        Tag.Map.map_sharing (fun { index; maps_to; env_extension; } ->
+          let env_extension = TEE.apply_renaming env_extension renaming in
+          { index = rename_index index; env_extension;
+            maps_to = Maps_to.apply_renaming maps_to renaming; })
           known_tags
       in
       let other_tags' : _ Or_bottom.t =
         match other_tags with
         | Bottom -> Bottom
-        | Ok { index; maps_to } ->
-          Ok { index = rename_index index;
-               maps_to = Maps_to.apply_renaming maps_to renaming;
-             }
+        | Ok { index; maps_to; env_extension; } ->
+          let env_extension = TEE.apply_renaming env_extension renaming in
+          Ok { index = rename_index index; env_extension;
+               maps_to = Maps_to.apply_renaming maps_to renaming }
       in
       if known_tags == known_tags' && other_tags == other_tags' then t
       else
@@ -504,7 +555,9 @@ struct
 
     let create_blocks_with_these_tags ~field_kind tags =
       let maps_to = Product.Int_indexed.create_top field_kind in
-      let case = { maps_to; index = At_least Targetint.OCaml.zero } in
+      let case =
+        { maps_to; index = At_least Targetint.OCaml.zero;
+          env_extension = TEE.empty () } in
       { known_tags = Tag.Map.of_set (fun _ -> case) tags;
         other_tags = Bottom;
       }
@@ -524,6 +577,7 @@ struct
             let size = Targetint.OCaml.of_int (List.length field_tys) in
             { maps_to;
               index = Known size;
+              env_extension = TEE.empty ();
             })
           field_tys_by_tag
       in
@@ -574,7 +628,8 @@ struct
         (closures_entry : Closures_entry.t) : t =
       let known_tags =
         Closure_id.Map.singleton closure_id
-          { index = Known contents; maps_to = closures_entry }
+          { index = Known contents; maps_to = closures_entry;
+            env_extension = TEE.empty (); }
       in
       { known_tags;
         other_tags = Bottom;
@@ -586,7 +641,9 @@ struct
         (closures_entry : Closures_entry.t) : t =
       let known_tags =
         Closure_id.Map.singleton closure_id
-          { index = At_least contents; maps_to = closures_entry }
+          { index = At_least contents;
+            maps_to = closures_entry;
+            env_extension = TEE.empty (); }
       in
       { known_tags;
         other_tags = Bottom;
