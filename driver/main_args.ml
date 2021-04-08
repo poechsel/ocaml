@@ -238,6 +238,10 @@ let mk_inline_branch_cost =
 let mk_inline_indirect_cost =
   mk_inline_cost "indirect" "an indirect call"
     Clflags.default_inline_indirect_cost
+
+(* CR mshinwell: We need to have a check that the parameters provided by
+   the user are sensible, e.g. small_function_size <= large_function_size. *)
+
 let mk_inline_small_function_size f =
   "-inline-small-function-size", Arg.String f,
   Printf.sprintf "<n>|<round>=<n>[,...] Functions with a cost less than this \

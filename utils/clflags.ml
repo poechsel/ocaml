@@ -348,8 +348,10 @@ let classic_arguments = {
   inline_threshold = Some (10. /. 8.);
   (* [inline_toplevel_threshold] is not used in classic mode. *)
   inline_toplevel_threshold = Some 1;
-  inline_small_function_size = Some (10);
-  inline_large_function_size = Some (10);
+  (* We set the small and large function sizes to the same value here to
+     recover "classic mode" semantics (no speculative inlining). *)
+  inline_small_function_size = Some default_inline_small_function_size;
+  inline_large_function_size = Some default_inline_small_function_size;
 }
 
 let o2_arguments = {
@@ -358,6 +360,8 @@ let o2_arguments = {
   inline_prim_cost = Some (2.0 *. default_inline_prim_cost);
   inline_branch_cost = Some (2.0 *. default_inline_branch_cost);
   inline_indirect_cost = Some (2.0 *. default_inline_indirect_cost);
+  (* CR mshinwell: We should review these other parameters to determine
+     which ones are still needed for Flambda 2. *)
   inline_lifting_benefit = None;
   inline_branch_factor = None;
   inline_max_depth = Some 2;
