@@ -871,44 +871,44 @@ let reify ?allowed_if_free_vars_defined_in ?additional_free_var_criterion
           | None -> try_canonical_simple ()
           | Some ((tag, size), field_types) ->
             assert (Targetint.OCaml.equal size
-              (Product.Int_indexed.width field_types));
+                      (Product.Int_indexed.width field_types));
             (* CR mshinwell: Could recognise other things, e.g. tagged
                immediates and float arrays, supported by [Static_part]. *)
-            let field_types =
-              Product.Int_indexed.components field_types
-            in
-            let vars_or_symbols_or_tagged_immediates =
-              List.filter_map
-                (fun field_type
+            begin match Tag.Scannable.of_tag tag with
+            | None -> try_canonical_simple ()
+            | Some tag ->
+              let field_types =
+                Product.Int_indexed.components field_types
+              in
+              let vars_or_symbols_or_tagged_immediates =
+                List.filter_map
+                  (fun field_type
                        : var_or_symbol_or_tagged_immediate option ->
-                  match
-                    (* CR mshinwell: Change this to a function
-                       [prove_equals_to_simple]? *)
-                    prove_equals_to_var_or_symbol_or_tagged_immediate env
-                      field_type
-                  with
-                  | Proved (Var var) ->
-                    if var_allowed var then Some (Var var) else None
-                  | Proved (Symbol sym) -> Some (Symbol sym)
-                  | Proved (Tagged_immediate imm) ->
-                    Some (Tagged_immediate imm)
-                  (* CR mshinwell: [Invalid] should propagate up *)
-                  | Unknown | Invalid -> None)
-                field_types
-            in
-            if List.compare_lengths field_types
-                 vars_or_symbols_or_tagged_immediates = 0
-            then
-              match Tag.Scannable.of_tag tag with
-              | Some tag ->
+                    match
+                      (* CR mshinwell: Change this to a function
+                         [prove_equals_to_simple]? *)
+                      prove_equals_to_var_or_symbol_or_tagged_immediate env
+                        field_type
+                    with
+                    | Proved (Var var) ->
+                      if var_allowed var then Some (Var var) else None
+                    | Proved (Symbol sym) -> Some (Symbol sym)
+                    | Proved (Tagged_immediate imm) ->
+                      Some (Tagged_immediate imm)
+                    (* CR mshinwell: [Invalid] should propagate up *)
+                    | Unknown | Invalid -> None)
+                  field_types
+              in
+              if List.compare_lengths field_types
+                   vars_or_symbols_or_tagged_immediates = 0 then
                 Lift (Immutable_block {
                   tag;
                   is_unique = blocks_imms.is_unique;
                   fields = vars_or_symbols_or_tagged_immediates;
                 })
-              | None -> try_canonical_simple ()
-            else
-              try_canonical_simple ()
+              else
+                try_canonical_simple ()
+            end
           end
         else if Row_like.For_blocks.is_bottom blocks then
           match prove_naked_immediates env imms with
