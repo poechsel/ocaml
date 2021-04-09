@@ -19,6 +19,20 @@
 open! Flambda.Import
 
 module DE = Downwards_env
+module DA = Downwards_acc
+module UA = Upwards_acc
+module UE = Upwards_env
+
+let get_small_function_size ~round =
+  Clflags.Int_arg_helper.get ~key:round !Clflags.inline_small_function_size
+  |> Code_size.of_int
+
+let get_large_function_size ~round =
+  Clflags.Int_arg_helper.get ~key:round !Clflags.inline_large_function_size
+  |> Code_size.of_int
+
+let get_inline_threshold ~round =
+  Clflags.Float_arg_helper.get ~key:round !Clflags.inline_threshold
 
 (* CR mshinwell: We need to emit [Warnings.Inlining_impossible] as
    required.
@@ -33,47 +47,91 @@ module DE = Downwards_env
 module Function_declaration_decision = struct
   type t =
     | Never_inline_attribute
-    | Function_body_too_large of Inlining_cost.Threshold.t
+    | Function_body_too_large of Code_size.t
     | Stub
-    | Inline of (int * Inlining_cost.Threshold.t) option
+    | Attribute_inline
+    | Small_function of {
+        size: Code_size.t;
+        small_function_size: Code_size.t;
+      }
+    | Speculatively_inlinable of {
+        size: Code_size.t;
+        small_function_size: Code_size.t;
+        large_function_size: Code_size.t;
+      }
 
   let can_inline t =
     match t with
     | Never_inline_attribute
     | Function_body_too_large _ -> false
     | Stub
-    | Inline _ -> true
+    | Attribute_inline
+    | Small_function _
+    | Speculatively_inlinable _-> true
 
   let print fmt = function
     | Never_inline_attribute ->
       Format.fprintf fmt "Never_inline_attribute"
-    | Function_body_too_large threshold ->
-      Format.fprintf fmt "Function_body_too_large(%a)"
-        Inlining_cost.Threshold.print threshold
+    | Function_body_too_large large_function_size ->
+      Format.fprintf fmt
+        "@[<hov 1>(Function_body_too_large@ %a)@]"
+        Code_size.print large_function_size
     | Stub ->
       Format.fprintf fmt "Stub"
-    | Inline None ->
-      Format.fprintf fmt "Inline_no_cost_computed"
-    | Inline Some (size, threshold) ->
-      Format.fprintf fmt "Inline(size=%d, %a)" size
-        Inlining_cost.Threshold.print threshold
+    | Attribute_inline ->
+      Format.fprintf fmt "Attribute_inline"
+    | Small_function {size; small_function_size} ->
+      Format.fprintf fmt
+        "@[<hov 1>(Small_function@ \
+         @[<hov 1>(size@ %a)@]@ \
+         @[<hov 1>(small_function_size@ %a)@]\
+          )@]"
+        Code_size.print size
+        Code_size.print small_function_size
+    | Speculatively_inlinable {size;
+                               small_function_size;
+                               large_function_size} ->
+      Format.fprintf fmt
+        "@[<hov 1>(Speculatively_inlinable@ \
+         @[<hov 1>(size@ %a)@]@ \
+         @[<hov 1>(small_function_size@ %a)@]@ \
+         @[<hov 1>(large_function_size@ %a)@]\
+         )@]"
+        Code_size.print size
+        Code_size.print small_function_size
+        Code_size.print large_function_size
 
   let report_reason fmt = function
     | Never_inline_attribute ->
       Format.fprintf fmt "%a"
         Format.pp_print_text "the function has an attribute preventing its inlining"
-    | Function_body_too_large threshold ->
+    | Function_body_too_large large_function_size ->
       Format.fprintf fmt "the@ function's@ body@ is@ too@ large,@ \
-                          more@ specifically,@ it@ is@ larger@ than@ the@ threshold:@ %a"
-        Inlining_cost.Threshold.print threshold
+                          more@ specifically,@ it@ is@ larger@ than@ \
+                          the@ large@ function@ size:@ %a"
+        Code_size.print large_function_size
     | Stub ->
       Format.fprintf fmt "the@ function@ is@ a@ stub"
-    | Inline None ->
+    | Attribute_inline ->
       Format.fprintf fmt "the@ function@ has@ an@ attribute@ forcing@ its@ inlining"
-    | Inline Some (size, threshold) ->
+    | Small_function {size; small_function_size} ->
       Format.fprintf fmt "the@ function's@ body@ is@ smaller@ \
-                          than@ the@ threshold:@ size=%d < threshold=%a"
-        size Inlining_cost.Threshold.print threshold
+                          than@ the@ threshold@ size@ for@ small@ functions: \
+                          size=%a <= \
+                          large@ function@ size=%a"
+        Code_size.print size Code_size.print small_function_size
+    | Speculatively_inlinable {size;
+                               small_function_size;
+                               large_function_size} ->
+      Format.fprintf fmt "the@ function's@ body@ is@ between@ \
+                          the@ threshold@ size@ for@ small@ functions and \
+                          the@ threshold@ size@ for@ large@ functions: \
+                          small@ function@ size=%a < \
+                          size=%a < \
+                          large@ function@ size=%a"
+        Code_size.print small_function_size
+        Code_size.print size
+        Code_size.print large_function_size
 
   let report fmt t =
     Format.fprintf fmt "@[<v>The function %s be inlined at its use-sites@ \
@@ -92,51 +150,57 @@ let make_decision_for_function_declaration denv ~cost_metrics_source function_de
   let code = DE.find_code denv code_id in
   match Code.inline code with
   | Never_inline -> Never_inline_attribute
-  | Hint_inline | Always_inline -> Inline None
+  | Hint_inline | Always_inline -> Attribute_inline
   | Default_inline | Unroll _ ->
     if Code.stub code then Stub
     else
-      let inlining_threshold : Inlining_cost.Threshold.t =
-        let round = DE.round denv in
-        let unscaled =
-          Clflags.Float_arg_helper.get ~key:round !Clflags.inline_threshold
-        in
-        (* CR-soon pchambart: Add a warning if this is too big
-           mshinwell: later *)
-        Can_inline_if_no_larger_than
-          (int_of_float
-             (unscaled *.
-              (float_of_int Inlining_cost.scale_inline_threshold_by)))
-      in
+      let round = DE.round denv in
       let metrics =
         match cost_metrics_source with
         | Metrics metrics -> metrics
         | From_denv -> Code.cost_metrics code
       in
-      match Inlining_cost.can_inline ~metrics inlining_threshold ~bonus:0
-      with
-      | Can_inline size -> Inline (Some (size, inlining_threshold))
-      | Cannot_inline -> Function_body_too_large inlining_threshold
+      let large_function_size = get_large_function_size ~round in
+      let small_function_size = get_small_function_size ~round in
+      let size = Cost_metrics.size metrics in
+      let is_small = Code_size.(<=) size small_function_size in
+      let is_large = Code_size.(<=) large_function_size size in
+      if is_large then
+        Function_body_too_large large_function_size
+      else if is_small then
+        Small_function {
+          size = Cost_metrics.size metrics;
+          small_function_size
+        }
+      else
+        Speculatively_inlinable {
+          size = Cost_metrics.size metrics;
+          small_function_size;
+          large_function_size
+        }
 
 module Call_site_decision = struct
-  type attribute_causing_inlining =
-    | Unroll
-    | Always
-
-  let print_attribute_causing_inlining ppf attr =
-    match attr with
-    | Unroll -> Format.fprintf ppf "Unroll"
-    | Always -> Format.fprintf ppf "Always"
-
   type t =
     | Environment_says_never_inline
     | Unrolling_depth_exceeded
     | Max_inlining_depth_exceeded
     | Recursion_depth_exceeded
     | Never_inline_attribute
-    | Inline of {
-        attribute : attribute_causing_inlining option;
-        unroll_to : int option;
+    | Speculatively_not_inline of {
+        cost_metrics: Cost_metrics.t;
+        evaluated_to: float;
+        threshold: float;
+      }
+    | Attribute_always
+    | Attribute_unroll of int
+    | Speculatively_inline of {
+        cost_metrics: Cost_metrics.t;
+        evaluated_to: float;
+        threshold: float;
+      }
+    | Small_function of {
+        size: Code_size.t;
+        small_function_size: Code_size.t;
       }
 
   let print ppf t =
@@ -151,13 +215,42 @@ module Call_site_decision = struct
       Format.fprintf ppf "Recursion_depth_exceeded"
     | Never_inline_attribute ->
       Format.fprintf ppf "Never_inline_attribute"
-    | Inline { attribute; unroll_to; } ->
-      Format.fprintf ppf "@[<hov 1>(\
-          @[<hov 1>(attribute@ %a)@]@ \
-          @[<hov 1>(unroll_to@ %a)@]\
+    | Attribute_always ->
+      Format.fprintf ppf "Attribute_unroll"
+    | Attribute_unroll unroll_to ->
+      Format.fprintf ppf
+        "@[<hov 1>(Attribute_unroll@ \
+          @[<hov 1>(unroll_to@ %d)@]\
           )@]"
-        (Misc.Stdlib.Option.print print_attribute_causing_inlining) attribute
-        (Misc.Stdlib.Option.print Numbers.Int.print) unroll_to
+        unroll_to
+    | Speculatively_not_inline { cost_metrics; threshold; evaluated_to; } ->
+      Format.fprintf ppf
+        "@[<hov 1>(Speculatively_not_inline@ \
+          @[<hov 1>(cost_metrics@ %a)@]@ \
+          @[<hov 1>(evaluated_to@ %f)@]@ \
+          @[<hov 1>(threshold@ %f)@]\
+          )@]"
+        Cost_metrics.print cost_metrics
+        evaluated_to
+        threshold
+    | Speculatively_inline { cost_metrics; threshold; evaluated_to; } ->
+      Format.fprintf ppf
+        "@[<hov 1>(Speculatively_inline@ \
+          @[<hov 1>(cost_metrics@ %a)@]@ \
+          @[<hov 1>(evaluated_to@ %f)@]@ \
+          @[<hov 1>(threshold@ %f)@]\
+          )@]"
+        Cost_metrics.print cost_metrics
+        evaluated_to
+        threshold
+    | Small_function { size; small_function_size; } ->
+      Format.fprintf ppf
+        "@[<hov 1>(Small_function@ \
+          @[<hov 1>(size@ %a)@]@ \
+          @[<hov 1>(small_function_size@ %a)@]\
+          )@]"
+        Code_size.print size
+        Code_size.print small_function_size
 
   type can_inline =
     | Do_not_inline
@@ -169,9 +262,12 @@ module Call_site_decision = struct
     | Unrolling_depth_exceeded
     | Max_inlining_depth_exceeded
     | Recursion_depth_exceeded
+    | Speculatively_not_inline _
     | Never_inline_attribute -> Do_not_inline
-    | Inline { attribute = _; unroll_to; } -> Inline { unroll_to; }
-
+    | Attribute_unroll unroll_to -> Inline { unroll_to = Some unroll_to; }
+    | Speculatively_inline _
+    | Small_function _
+    | Attribute_always -> Inline { unroll_to = None; }
 
   let report_reason fmt t =
     match (t : t) with
@@ -185,27 +281,41 @@ module Call_site_decision = struct
       Format.fprintf fmt "the@ maximum@ recursion@ depth@ has@ been@ exceeded"
     | Never_inline_attribute ->
       Format.fprintf fmt "the@ call@ has@ an@ attribute@ forbidding@ inlining"
-    | Inline { attribute = None; unroll_to = None; } ->
-      Format.fprintf fmt "the@ function@ was@ deemed@ inlinable@ from@ its@ declaration"
-    | Inline { attribute = Some Always; unroll_to = _; } ->
+    | Attribute_always ->
       Format.fprintf fmt "the@ call@ has@ an@ [@@inline always]@ attribute"
-    | Inline { attribute = Some Unroll; unroll_to = Some n; } ->
+    | Attribute_unroll n ->
       Format.fprintf fmt "the@ call@ has@ an@ [@@unroll %d]@ attribute" n
-
-    (* this should not happen *)
-    | Inline { attribute = None; unroll_to = Some _; }
-    | Inline { attribute = Some Unroll; unroll_to = None; }
-      ->
-      Misc.fatal_errorf "This should not happen (Inlining_decision.report is not in sync\
-                         with Inlining_decision.make_decision_for_call_site)"
+    | Speculatively_not_inline { cost_metrics; evaluated_to; threshold } ->
+      Format.fprintf fmt
+        "the@ function@ was@ not@ inlined@ after@ speculation@ as@ \
+          its@ cost@ metrics were=%a,@ which@ was@ evaluated@ \
+          to@ %f > threshold %f"
+        Cost_metrics.print cost_metrics
+        evaluated_to
+        threshold
+    | Speculatively_inline { cost_metrics; evaluated_to; threshold } ->
+      Format.fprintf fmt
+        "the@ function@ was@ inlined@ after@ speculation@ as@ \
+          its@ cost@ metrics were=%a,@ which@ was@ evaluated@ \
+          to@ %f <= threshold %f"
+        Cost_metrics.print cost_metrics
+        evaluated_to
+        threshold
+    | Small_function { size; small_function_size; } ->
+      Format.fprintf fmt
+        "the@ function@ was@ classified@ as@ a@ small@ \
+          function@ and@ was@ therefore@ inlined:@ \
+          size=%a <= small function size=%a"
+        Code_size.print size
+        Code_size.print small_function_size
 
   let report fmt t =
-    Format.fprintf fmt "@[<v>The function call %s been inlined@ because @[<hov>%a@]@]"
+    Format.fprintf fmt
+      "@[<v>The function call %s been inlined@ because @[<hov>%a@]@]"
       (match can_inline t with
        | Inline _ -> "has"
        | Do_not_inline -> "has not")
       report_reason t
-
 end
 
 (* CR mshinwell: Overhaul handling of the inlining depth tracking so that
@@ -215,37 +325,104 @@ end
 (* CR mshinwell: This parameter needs to be configurable *)
 let max_rec_depth = 1
 
-let make_decision_for_call_site denv ~function_decl_rec_info
-      ~apply_inlining_state (inline : Inline_attribute.t)
-      : Call_site_decision.t =
-  if (not (DE.can_inline denv)) then
+module I = Flambda_type.Function_declaration_type.Inlinable
+
+let speculative_inlining dacc ~apply ~function_decl ~simplify_expr
+      ~return_arity =
+  let dacc = DA.set_do_not_rebuild_terms_and_disable_inlining dacc in
+  (* CR-someday poechsel: [Inlining_transforms.inline] is preparing the body
+     for inlining. Right know it may be called twice (once there and once in
+     [simplify_apply_expr]) on the same apply expr. It should be possible to
+     only call it once and remove some allocations.
+  *)
+  let dacc, expr =
+    (* The only way for [unroll_to] not to be None is when an explicit
+       Unroll annotation is provided by the user. If this is the case then
+       inliner will always inline the function and will not call
+       [speculative_inlining]. Thus inside of [speculative_inlining] we
+       will always have [unroll_to] = None. We are not disabling unrolling
+       when speculating, it just happens that no unrolling can happen while
+       speculating right now.
+    *)
+    Inlining_transforms.inline dacc ~apply ~unroll_to:None function_decl
+  in
+  let scope = DE.get_continuation_scope_level (DA.denv dacc) in
+  let _, uacc =
+    simplify_expr dacc expr ~down_to_up:(fun dacc ~rebuild ->
+      let exn_continuation = Apply.exn_continuation apply in
+      let uenv = UE.add_exn_continuation UE.empty exn_continuation scope in
+      let uenv =
+        match Apply.continuation apply with
+        | Never_returns -> uenv
+        | Return return_continuation ->
+          UE.add_return_continuation uenv return_continuation scope
+            return_arity
+      in
+      let uacc = UA.create uenv dacc in
+      rebuild uacc ~after_rebuild:(fun expr uacc -> expr, uacc)
+    )
+  in
+  UA.cost_metrics uacc
+
+let might_inline dacc ~apply ~function_decl ~simplify_expr ~return_arity
+  : Call_site_decision.t =
+  let denv = DA.denv dacc in
+  let code_id = I.code_id function_decl in
+  let code = DE.find_code denv code_id in
+  let cost_metrics = Code.cost_metrics code in
+  let size = Cost_metrics.size cost_metrics in
+  let round = DE.round denv in
+  let small_function_size = get_small_function_size ~round in
+  let is_a_small_function = Code_size.(<=) size small_function_size in
+  let env_prohibits_inlining = not (DE.can_inline denv) in
+  if is_a_small_function then
+    Small_function { size; small_function_size }
+  else if env_prohibits_inlining then
     Environment_says_never_inline
   else
-    match inline with
-    | Never_inline -> Never_inline_attribute
-    | Default_inline | Unroll _ | Always_inline | Hint_inline ->
-      match Rec_info.unroll_to function_decl_rec_info with
-      | Some unroll_to ->
-        if Rec_info.depth function_decl_rec_info >= unroll_to then
-          Unrolling_depth_exceeded
-        else
-          Inline { attribute = None; unroll_to = None; }
-      | None ->
-        if Inlining_state.is_depth_exceeded apply_inlining_state
-        then
-          Max_inlining_depth_exceeded
-        else
-          match inline with
-          | Never_inline -> assert false
-          | Default_inline ->
-            if Rec_info.depth function_decl_rec_info >= max_rec_depth then
-              Recursion_depth_exceeded
-            else
-              Inline { attribute = None; unroll_to = None; }
-          | Unroll unroll_to ->
-            let unroll_to =
-              Rec_info.depth function_decl_rec_info + unroll_to
-            in
-            Inline { attribute = Some Unroll; unroll_to = Some unroll_to; }
-          | Always_inline | Hint_inline ->
-            Inline { attribute = Some Always; unroll_to = None; }
+    let cost_metrics =
+      speculative_inlining ~apply dacc ~simplify_expr ~return_arity
+        ~function_decl
+    in
+    let evaluated_to = Cost_metrics.evaluate ~round cost_metrics in
+    let threshold = get_inline_threshold ~round in
+    let is_under_inline_threshold =
+      Float.compare evaluated_to threshold <= 0
+    in
+    if is_under_inline_threshold then
+      Speculatively_inline { cost_metrics; evaluated_to; threshold }
+    else
+      Speculatively_not_inline { cost_metrics; evaluated_to; threshold }
+
+let make_decision_for_call_site dacc ~simplify_expr ~function_decl
+      ~function_decl_rec_info ~apply ~return_arity : Call_site_decision.t =
+  let inline = Apply.inline apply in
+  match inline with
+  | Never_inline -> Never_inline_attribute
+  | Default_inline | Unroll _ | Always_inline | Hint_inline ->
+    match Rec_info.unroll_to function_decl_rec_info with
+    | Some unroll_to ->
+      if Rec_info.depth function_decl_rec_info >= unroll_to then
+        Unrolling_depth_exceeded
+      else
+        might_inline dacc ~apply ~function_decl ~simplify_expr ~return_arity
+    | None ->
+      let apply_inlining_state = Apply.inlining_state apply in
+      if Inlining_state.is_depth_exceeded apply_inlining_state
+      then
+        Max_inlining_depth_exceeded
+      else
+        match inline with
+        | Never_inline -> assert false
+        | Default_inline ->
+          if Rec_info.depth function_decl_rec_info >= max_rec_depth then
+            Recursion_depth_exceeded
+          else
+            might_inline dacc ~apply ~function_decl ~simplify_expr ~return_arity
+        | Unroll unroll_to ->
+          let unroll_to =
+            Rec_info.depth function_decl_rec_info + unroll_to
+          in
+          Attribute_unroll unroll_to
+        | Always_inline | Hint_inline ->
+          Attribute_always

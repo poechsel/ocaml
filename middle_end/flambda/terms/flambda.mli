@@ -653,7 +653,6 @@ end and Cost_metrics : sig
   val zero : t
   val from_size : Code_size.t -> t
   val size : t -> Code_size.t
-  val smaller_than_threshold : t -> threshold:int -> bool
   val print : Format.formatter -> t -> unit
   val (+) : t -> t -> t
 
@@ -674,6 +673,7 @@ end and Cost_metrics : sig
   val notify_removed : operation:Removed_operations.t -> t -> t
 
   val expr_size : find_code:(Code_id.t -> Code.t) -> Expr.t -> Code_size.t
+  val evaluate : round:int -> t -> float
 end
 
 module Function_declaration = Function_declaration

@@ -19,9 +19,9 @@
 type t = int
 
 let zero = 0
-let smaller_than_threshold t ~threshold = t <= threshold
 let equal a b = a = b
 let (+) (a : t) (b : t) : t = a + b
+let ( <= ) a b = a <= b
 
 let arch32 = Targetint.size = 32 (* are we compiling for a 32-bit arch *)
 let arch64 = Targetint.size = 64 (* are we compiling for a 64-bit arch *)
@@ -407,3 +407,5 @@ let print ppf t = Format.fprintf ppf "%d" t
 
 let of_int t = t
 let to_int t = t
+
+let evaluate ~round:_ t = float_of_int t

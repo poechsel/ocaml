@@ -165,9 +165,13 @@ let wrap_inlined_body_for_exn_support ~extra_args ~apply_exn_continuation
     ~free_names_of_body:Unknown
 
 
-let inline dacc ~callee ~args function_decl
-      ~apply_return_continuation ~apply_exn_continuation
-      ~apply_inlining_state ~unroll_to dbg =
+let inline dacc ~apply ~unroll_to function_decl =
+  let callee = Apply.callee apply in
+  let args = Apply.args apply in
+  let apply_return_continuation = Apply.continuation apply in
+  let apply_exn_continuation = Apply.exn_continuation apply in
+  let apply_inlining_state = Apply.inlining_state apply in 
+  let dbg = Apply.dbg apply in
   (* CR mshinwell: Add meet constraint to the return continuation *)
   let denv = DA.denv dacc in
   let code = DE.find_code denv (I.code_id function_decl) in

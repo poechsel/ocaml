@@ -98,8 +98,6 @@ let rebuild_non_inlined_direct_full_application apply ~use_id ~exn_cont_use_id
 
 let simplify_direct_full_application ~simplify_expr dacc apply function_decl_opt
       ~callee's_code_id ~result_arity ~down_to_up ~coming_from_indirect =
-  let callee = Apply.callee apply in
-  let args = Apply.args apply in
   let inlined =
     match function_decl_opt with
     | None ->
@@ -117,16 +115,18 @@ let simplify_direct_full_application ~simplify_expr dacc apply function_decl_opt
       end;
       None
     | Some (function_decl, function_decl_rec_info) ->
-      let apply_inlining_state = Apply.inlining_state apply in
       let decision =
-        Inlining_decision.make_decision_for_call_site (DA.denv dacc)
+        Inlining_decision.make_decision_for_call_site dacc
+          ~simplify_expr
+          ~apply
+          ~function_decl
           ~function_decl_rec_info
-          ~apply_inlining_state
-          (Apply.inline apply)
+          ~return_arity:result_arity
       in
       let code_id = T.Function_declaration_type.Inlinable.code_id function_decl in
       Inlining_report.record_decision
-        (At_call_site (Inlinable_function { code_id = Code_id.export code_id; decision; }))
+        (At_call_site (
+          Inlinable_function { code_id = Code_id.export code_id; decision; }))
         ~dbg:(DE.add_inlined_debuginfo' (DA.denv dacc) (Apply.dbg apply));
       match Inlining_decision.Call_site_decision.can_inline decision with
       | Do_not_inline ->
@@ -142,12 +142,7 @@ let simplify_direct_full_application ~simplify_expr dacc apply function_decl_opt
         None
       | Inline { unroll_to; } ->
         let dacc, inlined =
-          Inlining_transforms.inline dacc ~callee
-            ~args function_decl
-            ~apply_return_continuation:(Apply.continuation apply)
-            ~apply_exn_continuation:(Apply.exn_continuation apply)
-            ~apply_inlining_state ~unroll_to
-            (Apply.dbg apply)
+          Inlining_transforms.inline dacc ~apply ~unroll_to function_decl
         in
         Some (dacc, inlined)
   in

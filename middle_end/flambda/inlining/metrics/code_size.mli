@@ -29,7 +29,7 @@ val to_int : t -> int
 
 val zero : t
 val (+) : t -> t -> t
-val smaller_than_threshold : t -> threshold:int -> bool
+val (<=) : t -> t -> bool
 val equal : t -> t -> bool
 val print : Format.formatter -> t -> unit
 
@@ -40,3 +40,5 @@ val apply : Apply_expr.t -> t
 val apply_cont : Apply_cont_expr.t -> t
 val switch : Switch_expr.t -> t
 val invalid : t
+
+val evaluate : round:int -> t -> float

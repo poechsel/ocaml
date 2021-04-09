@@ -181,6 +181,8 @@ module type Optcommon_options = sig
   val _inline_branch_cost : string -> unit
   val _inline_indirect_cost : string -> unit
   val _inline_lifting_benefit : string -> unit
+  val _inline_small_function_size : string -> unit
+  val _inline_large_function_size : string -> unit
   val _unbox_closures : unit -> unit
   val _unbox_closures_factor : int -> unit
   val _inline_branch_factor : string -> unit
@@ -243,8 +245,6 @@ module type Optcommon_options = sig
   val _flambda_expert_phantom_lets : unit -> unit
   val _no_flambda_expert_phantom_lets : unit -> unit
   val _flambda_expert_max_inlining_depth : int -> unit
-  val _flambda_expert_small_function_threshold : string -> unit
-  val _flambda_expert_big_function_threshold : string -> unit
   val _flambda_expert_max_block_size_for_projections : int -> unit
   val _flambda_debug_permute_every_name : unit -> unit
   val _no_flambda_debug_permute_every_name : unit -> unit
