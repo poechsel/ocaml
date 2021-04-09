@@ -22,6 +22,9 @@
    functor applications produce "undefined recursive module" errors. *)
 
 (* CR mshinwell: tidy up! *)
+(* CR gbury: Consider using Tag.Scannable.t instead of Tag.t in
+             For_blocks, and use another module to specifically handle
+             record of floats *)
 module For_blocks : sig
   type t
 
