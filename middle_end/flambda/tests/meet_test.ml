@@ -91,7 +91,7 @@ let test_meet_chains_three_vars () =
     let env = TE.add_equation env (Name.var var3) meet_ty in
     Format.eprintf "Final situation:@ %a\n%!" TE.print env
 
-let meet_variants_don't_loose_aliases () =
+let meet_variants_don't_lose_aliases () =
   let env = TE.create ~resolver ~get_imported_names in
   let define env v =
       let v' = Var_in_binding_pos.create v Name_mode.normal in
@@ -154,4 +154,4 @@ let () =
   Format.eprintf "\nMEET CHAINS WITH THREE VARS\n\n%!";
   test_meet_chains_three_vars ();
   Format.eprintf "@.MEET VARIANT@.@.";
-  meet_variants_don't_loose_aliases ()
+  meet_variants_don't_lose_aliases ()
