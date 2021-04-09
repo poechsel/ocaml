@@ -40,9 +40,6 @@ let print ppf t =
     "@[<hov 1>(equations@ @[<v 1>%a@])@]"
     print_equations t.equations
 
-let print_with_cache ~cache:_ ppf t =
-  print ppf t
-
 let fold ~equation t acc =
   Name.Map.fold equation t.equations acc
 
