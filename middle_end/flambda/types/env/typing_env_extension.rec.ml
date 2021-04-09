@@ -142,16 +142,12 @@ let meet env t1 t2 : _ Or_bottom.t =
   with Bottom_meet -> Bottom
 
 let join env t1 t2 =
-  let env = Meet_env.env env in
-  let join_env =
-    Join_env.create env ~left_env:env ~right_env:env
-  in
   let equations =
     Name.Map.merge (fun _name ty1_opt ty2_opt ->
         match ty1_opt, ty2_opt with
         | None, _ | _, None -> None
         | Some ty1, Some ty2 ->
-          begin match Type_grammar.join join_env ty1 ty2 with
+          begin match Type_grammar.join env ty1 ty2 with
           | Known ty -> Some ty
           | Unknown -> None
           end)

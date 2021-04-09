@@ -49,7 +49,7 @@ val meet : Meet_env.t -> t -> t -> t Or_bottom.t
    are created for meets, and this function is here for case where a meet
    produces a disjunction, in which case the extensions must be joined together.
 *)
-val join : Meet_env.t -> t -> t -> t
+val join : Join_env.t -> t -> t -> t
 
 module With_extra_variables : sig
   type t
