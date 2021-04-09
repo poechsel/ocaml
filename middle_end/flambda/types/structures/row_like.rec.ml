@@ -152,13 +152,24 @@ struct
     let ({ known_tags = known2; other_tags = other2; } : t) = t2 in
     let env_extension = ref None in
     let need_join =
-      match other1, other2, Tag.Map.get_singleton known1, Tag.Map.get_singleton known2 with
-      | _, _, None, None -> true (* Overapproximaxion: tags sets don't need to be the sames *)
-      | Ok _, _, _, None -> true
-      | _, Ok _, None, _ -> true
-      | Ok _, Ok _, Some _, Some _ -> true (* Overapproximaxion: tags don't need to be the sames *)
-      | Bottom, _, Some _, _ -> false
-      | _, Bottom, _, Some _ -> false
+    (* The returned env_extension is the join of the env_extension produced by
+       each non bottom cases. Therefore there is some loss of precision in that
+       case and we need to store the one produced for each tag. But when only
+       one tag is kept it would be wasteful (but correct) to store it.
+
+       We consider that the result of the meet between t1 and t2 will have only
+       one tag when t1 (or t2) has exactly one tag (one that and no 'other'
+       cases).
+
+       This is an overapproximation because the result could have only one tag
+       for instance if
+       t1 = [Tag 1 | Tag 2] and t2 = [Tag 2 | Tag 3], or if
+       t1 = [Tag 1 | Tag 2] and t2 = [Tag 1 | Tag 2] but the meet between some
+       combinations result in a bottom. *)
+      match other1, Tag.Map.get_singleton known1, other2, Tag.Map.get_singleton known2 with
+      | Bottom, Some _, _, _           -> false
+      | _, _,           Bottom, Some _ -> false
+      | _ -> true
     in
     let env = Meet_env.env meet_env in
     let join_env =
