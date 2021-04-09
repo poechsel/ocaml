@@ -33,7 +33,14 @@ val size : t -> Code_size.t
 val print : Format.formatter -> t -> unit
 val (+) : t -> t -> t
 
-val set_of_closures : find_cost_metrics:(Code_id.t -> t) -> Set_of_closures.t -> t
+type code_characteristics = {
+  cost_metrics : t;
+  params_arity : int;
+}
+val set_of_closures
+  : find_code_characteristics:(Code_id.t -> code_characteristics)
+  -> Set_of_closures.t
+  -> t
 
 val increase_due_to_let_expr : is_phantom:bool -> cost_metrics_of_defining_expr:t -> t
 val increase_due_to_let_cont_non_recursive : cost_metrics_of_handler:t -> t

@@ -347,9 +347,13 @@ module Let_with_acc = struct
       | Named.Set_of_closures set_of_closures ->
         let code_mapping = Acc.code acc in
         Cost_metrics.set_of_closures
-          ~find_cost_metrics:(fun code_id ->
-            Code_id.Map.find code_id code_mapping
-            |> Code.cost_metrics)
+          ~find_code_characteristics:(fun code_id ->
+            let code = Code_id.Map.find code_id code_mapping in
+            {
+              cost_metrics = Code.cost_metrics code;
+              params_arity = List.length (Code.params_arity code)
+            }
+          )
           set_of_closures
     in
     let acc =
