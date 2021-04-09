@@ -38,6 +38,8 @@ module With_name_mode : sig
 
   val name_mode : t -> Name_mode.t
 
+  val scoped_name_mode : t -> min_binding_time:binding_time -> Name_mode.t
+
   val print : Format.formatter -> t -> unit
 
   val equal : t -> t -> bool

@@ -28,6 +28,7 @@ module Aliases_of_canonical_element : sig
 
   val find_earliest_candidates
      : t
+    -> filter_by_scope:(Name_mode.t -> Simple.Set.t -> Simple.Set.t)
     -> min_name_mode:Name_mode.t
     -> Simple.Set.t option
 
@@ -41,8 +42,6 @@ module Aliases_of_canonical_element : sig
   val rename : (Simple.t -> Simple.t) -> t -> t
 
   val merge : t -> t -> t
-
-  val move_variables_to_mode_in_types : t -> t
 end = struct
   type t = {
     aliases : Simple.Set.t Name_mode.Map.t;
@@ -84,7 +83,7 @@ end = struct
       all;
     }
 
-  let find_earliest_candidates t ~min_name_mode =
+  let find_earliest_candidates t ~filter_by_scope ~min_name_mode =
     Name_mode.Map.fold (fun order aliases res_opt ->
         match res_opt with
         | Some _ -> res_opt
@@ -95,7 +94,10 @@ end = struct
           with
           | None -> None
           | Some result ->
-            if result >= 0 then Some aliases else None
+            if result >= 0 then
+              let aliases = filter_by_scope order aliases in
+              if Simple.Set.is_empty aliases then None else Some aliases
+            else None
           end)
       t.aliases
       None
@@ -152,30 +154,6 @@ end = struct
     in
     let all = Simple.Set.union t1.all t2.all in
     { aliases; all; }
-
-  let move_variables_to_mode_in_types { aliases; all; } =
-    let (no_vars_aliases, all_variables) =
-      Name_mode.Map.fold (fun mode aliases (no_vars_aliases, all_variables) ->
-          let (vars, non_vars) = Simple.Set.partition Simple.is_var aliases in
-          let no_vars_aliases =
-            if Simple.Set.is_empty non_vars then no_vars_aliases
-            else Name_mode.Map.add mode non_vars no_vars_aliases
-          in
-          no_vars_aliases, Simple.Set.union vars all_variables)
-        aliases
-        (Name_mode.Map.empty, Simple.Set.empty)
-    in
-    let aliases =
-      if Name_mode.Map.mem Name_mode.in_types no_vars_aliases
-      then Misc.fatal_errorf "move_variables_to_mode_in_types: \
-             The following non-vars have mode In_types:@ %a"
-             Simple.Set.print
-             (Name_mode.Map.find Name_mode.in_types no_vars_aliases)
-      else
-        if Simple.Set.is_empty all_variables then no_vars_aliases
-        else Name_mode.Map.add Name_mode.in_types all_variables no_vars_aliases
-    in
-    { aliases; all; }
 end
 
 type t = {
@@ -214,9 +192,14 @@ let defined_earlier t alias ~than =
     (Binding_time.With_name_mode.binding_time info1)
     ~than:(Binding_time.With_name_mode.binding_time info2)
 
-let name_mode t elt =
+let name_mode_unscoped t elt =
   Binding_time.With_name_mode.name_mode
     (Simple.Map.find elt t.binding_times_and_modes)
+
+let name_mode t elt ~min_binding_time =
+  Binding_time.With_name_mode.scoped_name_mode
+    (Simple.Map.find elt t.binding_times_and_modes)
+    ~min_binding_time
 
 let invariant t =
   if !Clflags.flambda_invariant_checks then begin
@@ -306,7 +289,7 @@ let add_alias_between_canonical_elements t ~canonical_element ~to_be_demoted =
       Aliases_of_canonical_element.add
         (Aliases_of_canonical_element.union aliases_of_to_be_demoted
           aliases_of_canonical_element)
-        to_be_demoted (name_mode t to_be_demoted)
+        to_be_demoted (name_mode_unscoped t to_be_demoted)
     in
     let aliases_of_canonical_elements =
       t.aliases_of_canonical_elements
@@ -461,7 +444,8 @@ let mem t element =
       print t
   *)
 
-let get_canonical_element_exn t element elt_name_mode ~min_name_mode =
+let get_canonical_element_exn t element elt_name_mode ~min_name_mode
+      ~min_binding_time =
   match Simple.Map.find element t.canonical_elements with
   | exception Not_found ->
     begin match
@@ -481,9 +465,24 @@ Format.eprintf "looking for canonical for %a, candidate canonical %a, min order 
 *)
     let find_earliest () =
       let aliases = get_aliases_of_canonical_element t ~canonical_element in
+      let filter_by_scope name_mode simples =
+        if Name_mode.equal name_mode Name_mode.in_types then simples
+        else
+          Simple.Set.filter (fun simple ->
+              let binding_time_and_mode =
+                Simple.Map.find simple t.binding_times_and_modes
+              in
+              let scoped_name_mode =
+                Binding_time.With_name_mode.scoped_name_mode
+                  binding_time_and_mode
+                  ~min_binding_time
+              in
+              Name_mode.equal name_mode scoped_name_mode)
+            simples
+      in
       match
         Aliases_of_canonical_element.find_earliest_candidates aliases
-          ~min_name_mode
+          ~filter_by_scope ~min_name_mode
       with
       | Some at_earliest_mode ->
         (* Aliases_of_canonical_element.find_earliest_candidates only returns
@@ -499,7 +498,7 @@ Format.eprintf "looking for canonical for %a, candidate canonical %a, min order 
     in
     match
       Name_mode.compare_partial_order
-        (name_mode t canonical_element)
+        (name_mode t canonical_element ~min_binding_time)
         min_name_mode
     with
     | None -> find_earliest ()
@@ -628,23 +627,8 @@ let clean_for_export
       { canonical_elements;
         aliases_of_canonical_elements;
         binding_times_and_modes; } =
-  let binding_times_and_modes =
-    Simple.Map.mapi (fun simple binding_time_and_mode ->
-        let module BTM = Binding_time.With_name_mode in
-        let new_mode =
-          if Simple.is_var simple then Name_mode.in_types
-          else BTM.name_mode binding_time_and_mode
-        in
-        BTM.create (BTM.binding_time binding_time_and_mode) new_mode)
-      binding_times_and_modes
-  in
-  let aliases_of_canonical_elements =
-    (* Note: the relative order of the aliases and of their canonical element
-       will be unchanged, as it only depends on the binding times.
-    *)
-    Simple.Map.map Aliases_of_canonical_element.move_variables_to_mode_in_types
-      aliases_of_canonical_elements
-  in
+  (* CR vlaviron: This function is kept as a reminder that we'd like
+     to remove unreachable entries at some point. *)
   { canonical_elements;
     aliases_of_canonical_elements;
     binding_times_and_modes;

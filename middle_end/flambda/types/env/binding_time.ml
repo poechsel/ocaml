@@ -68,6 +68,16 @@ module With_name_mode = struct
     | 2 -> Name_mode.phantom
     | _ -> assert false
 
+  let scoped_name_mode t ~min_binding_time =
+    (* Strictly before [min_binding_time] means out of scope,
+       at [min_binding_time] or later is in scope. *)
+    if (binding_time t) < earliest_var
+    || min_binding_time <= binding_time t
+    then (* Constant, symbol, or variable in the allowed scope *)
+      name_mode t
+    else (* Variable out of the allowed scope *)
+      Name_mode.in_types
+
   let print ppf t =
     Format.fprintf ppf "(bound at time %d %a)" (binding_time t)
       Name_mode.print (name_mode t)
