@@ -455,8 +455,8 @@ struct
       in
       let known_tags' =
         Tag.Map.map_sharing (fun { index; maps_to; env_extension; } ->
-          let env_extension = TEE.apply_renaming env_extension renaming in
-          { index = rename_index index; env_extension;
+          { index = rename_index index;
+            env_extension = TEE.apply_renaming env_extension renaming;
             maps_to = Maps_to.apply_renaming maps_to renaming; })
           known_tags
       in
@@ -464,8 +464,8 @@ struct
         match other_tags with
         | Bottom -> Bottom
         | Ok { index; maps_to; env_extension; } ->
-          let env_extension = TEE.apply_renaming env_extension renaming in
-          Ok { index = rename_index index; env_extension;
+          Ok { index = rename_index index;
+               env_extension = TEE.apply_renaming env_extension renaming;
                maps_to = Maps_to.apply_renaming maps_to renaming }
       in
       if known_tags == known_tags' && other_tags == other_tags' then t
