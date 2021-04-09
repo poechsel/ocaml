@@ -32,12 +32,6 @@ let get_large_function_size ~round =
   |> Code_size.of_int
 
 let get_inline_threshold ~round =
-  (* XCR mshinwell: Hmm, this seems to be comparing against something whose
-     default value (see clflags.ml) has the divisor of 8 (the default is 10/8).
-     Should we remove the "/8" from the default?
-
-     poechsel: You're right, I missed it. It's fixed now.
-  *)
   Clflags.Float_arg_helper.get ~key:round !Clflags.inline_threshold
 
 (* CR mshinwell: We need to emit [Warnings.Inlining_impossible] as
@@ -75,10 +69,6 @@ module Function_declaration_decision = struct
     | Small_function _
     | Speculatively_inlinable _-> true
 
-  (* XCR mshinwell: This should print a sexp
-
-     poechsel: Done
-  *)
   let print fmt = function
     | Never_inline_attribute ->
       Format.fprintf fmt "Never_inline_attribute"
@@ -94,7 +84,7 @@ module Function_declaration_decision = struct
       Format.fprintf fmt
         "@[<hov 1>(Small_function@ \
          @[<hov 1>(size@ %a)@]@ \
-         @[<hov 1>(small_function_size@ %a)@]@ \
+         @[<hov 1>(small_function_size@ %a)@]\
           )@]"
         Code_size.print size
         Code_size.print small_function_size
@@ -105,7 +95,7 @@ module Function_declaration_decision = struct
         "@[<hov 1>(Speculatively_inlinable@ \
          @[<hov 1>(size@ %a)@]@ \
          @[<hov 1>(small_function_size@ %a)@]@ \
-         @[<hov 1>(large_function_size@ %a)@]@ \
+         @[<hov 1>(large_function_size@ %a)@]\
          )@]"
         Code_size.print size
         Code_size.print small_function_size
@@ -337,41 +327,16 @@ let max_rec_depth = 1
 
 module I = Flambda_type.Function_declaration_type.Inlinable
 
-(* XCR mshinwell: Please move speculative_inlining and might_inline to
-   toplevel, causing them to be closed by providing extra parameters, so
-   that we don't allocate closures every time we examine a call site.
-
-   poechsel: Done
-*)
 let speculative_inlining dacc ~apply ~function_decl ~simplify_expr
       ~return_arity =
   let dacc = DA.set_do_not_rebuild_terms_and_disable_inlining dacc in
-  (* CR poechsel: [Inlining_transforms.inline] should only be called
-     once and not twice (once there and once in [simplify_apply_expr])
-
-     mshinwell: I think it needs to be called twice; the second time,
-     inlining will be on in the environment.  Is that wrong?  Let's resolve
-     this now.
-
-     poechsel: I think you are confused between [Inlining_transforms.inline]
-     and [simplify_expr]. [Inlining_transforms] builds the expression that is
-     going to replace the call (mostly wraps the body in some continuations).
-     Right now it may be called twice for the same function (once before
-     speculating and once if we decided to inline the call in the end). If
-     needed I can make [Inlining_decision] return a
-     [Call_site_decision.t * Expr.t option] but then
-     [make_decision_for_call_site] wouldn't only be taking a decision. It may
-     remove a few allocations but I think that would be a premature optimisation.
+  (* CR-someday poechsel: [Inlining_transforms.inline] is preparing the body
+     for inlining. Right know it may be called twice (once there and once in
+     [simplify_apply_expr]) on the same apply expr. It should be possible to
+     only call it once and remove some allocations.
   *)
   let dacc, expr =
-    (* We only speculatively inline when there's no [unroll] annotation,
-       that is the unroll_to is None *)
-    (* XCR mshinwell: I don't follow this comment.  Earlier on in this file
-       we still say that speculation can occur even if an unrolling
-       attribute was found.  Or is this comment supposed to say just that
-       we disable unrolling when speculating?
-
-       poechsel: The only way [unroll_to] is not None is when an explicit
+    (* The only way for [unroll_to] not to be None is when an explicit
        Unroll annotation is provided by the user. If this is the case then
        inliner will always inline the function and will not call
        [speculative_inlining]. Thus inside of [speculative_inlining] we
