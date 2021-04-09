@@ -70,21 +70,24 @@ and named_size ~find_code (named : Named.t) size =
       Set_of_closures.closure_elements set_of_closures
       |> Var_within_closure.Map.cardinal
     in
-    Closure_id.Map.fold (fun _ func_decl size ->
-      let code_id = Function_declaration.code_id func_decl in
-      let code = find_code code_id in
-      let arity = List.length (Code.params_arity code) in
-      let size =
-        match Code.params_and_body code with
-        | Present params_and_body ->
-          Function_params_and_body.pattern_match params_and_body
-            ~f:(fun ~return_continuation:_ _exn_continuation _params
-                 ~body ~my_closure:_ ~is_my_closure_used:_ ->
-                 expr_size ~find_code body size)
-        | Deleted -> size
-      in
-      size + (if arity = 1 then 2 else 3))
-      funs (Code_size.to_int Code_size.alloc_size + num_clos_vars + size)
+    Closure_id.Map.fold
+      (fun _ func_decl size ->
+         let code_id = Function_declaration.code_id func_decl in
+         let code = find_code code_id in
+         let arity = List.length (Code.params_arity code) in
+         let size =
+           match Code.params_and_body code with
+           | Present params_and_body ->
+             Function_params_and_body.pattern_match params_and_body
+               ~f:(fun ~return_continuation:_ _exn_continuation _params
+                    ~body ~my_closure:_ ~is_my_closure_used:_ ->
+                    expr_size ~find_code body size)
+           | Deleted -> size
+         in
+         size + (if arity <= 1 then 2 else 3)
+      )
+      funs
+      (Code_size.to_int Code_size.alloc_size + num_clos_vars + size)
   | Prim (prim, _dbg) ->
     size + (Code_size.prim prim |> Code_size.to_int)
   | Static_consts _ -> size
@@ -101,6 +104,11 @@ and continuation_handler_size ~find_code handler size =
 type t = {
   size: Code_size.t;
   removed: Removed_operations.t;
+}
+
+type code_characteristics = {
+  cost_metrics : t;
+  params_arity : int;
 }
 
 let zero = { size = Code_size.zero; removed = Removed_operations.zero }
@@ -135,20 +143,20 @@ let (+) a b ={
      total number of closure variables + sum of s(arity) for each closure
    where s(a) = if a = 1 then 2 else 3
 *)
-let set_of_closures ~find_cost_characteristics set_of_closures =
+let set_of_closures ~find_code_characteristics set_of_closures =
   let func_decls = Set_of_closures.function_decls set_of_closures in
   let funs = Function_declarations.funs func_decls in
   let num_clos_vars =
     Set_of_closures.closure_elements set_of_closures
     |> Var_within_closure.Map.cardinal
   in
-  let cost_metrics, num_blocks =
-    Closure_id.Map.fold (fun _ func_decl (metrics, num_blocks) ->
+  let cost_metrics, num_words =
+    Closure_id.Map.fold (fun _ func_decl (metrics, num_words) ->
       let code_id = Function_declaration.code_id func_decl in
-      let code_metrics, code_arity = find_cost_characteristics code_id in
-      metrics + code_metrics,
-      (* CR poechsel: valid until OCaml 4.13 *)
-      Stdlib.(+) num_blocks (if code_arity = 1 then 2 else 3)
+      let { cost_metrics; params_arity } = find_code_characteristics code_id in
+      metrics + cost_metrics,
+      (* CR poechsel: valid until OCaml 4.13, as for named_size *)
+      Stdlib.(+) num_words (if params_arity <= 1 then 2 else 3)
     )
       funs
       (zero, num_clos_vars)
@@ -156,7 +164,7 @@ let set_of_closures ~find_cost_characteristics set_of_closures =
   let alloc_size =
     Code_size.(+)
       Code_size.alloc_size
-      (Code_size.of_int num_blocks)
+      (Code_size.of_int num_words)
   in
   cost_metrics + (from_size alloc_size)
 
