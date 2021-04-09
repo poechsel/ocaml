@@ -345,7 +345,7 @@ let classic_arguments = {
   (* [inline_threshold] matches the current compiler's default.
      Note that this particular fraction can be expressed exactly in
      floating point. *)
-  inline_threshold = Some (10. /. 8.);
+  inline_threshold = Some (10.);
   (* [inline_toplevel_threshold] is not used in classic mode. *)
   inline_toplevel_threshold = Some 1;
   (* We set the small and large function sizes to the same value here to

@@ -32,9 +32,12 @@ let get_large_function_size ~round =
   |> Code_size.of_int
 
 let get_inline_threshold ~round =
-  (* CR mshinwell: Hmm, this seems to be comparing against something whose
+  (* XCR mshinwell: Hmm, this seems to be comparing against something whose
      default value (see clflags.ml) has the divisor of 8 (the default is 10/8).
-     Should we remove the "/8" from the default? *)
+     Should we remove the "/8" from the default?
+
+     poechsel: You're right, I missed it. It's fixed now.
+  *)
   Clflags.Float_arg_helper.get ~key:round !Clflags.inline_threshold
 
 (* CR mshinwell: We need to emit [Warnings.Inlining_impossible] as
@@ -72,27 +75,38 @@ module Function_declaration_decision = struct
     | Small_function _
     | Speculatively_inlinable _-> true
 
-  (* CR mshinwell: This should print a sexp *)
+  (* XCR mshinwell: This should print a sexp
+
+     poechsel: Done
+  *)
   let print fmt = function
     | Never_inline_attribute ->
       Format.fprintf fmt "Never_inline_attribute"
     | Function_body_too_large large_function_size ->
-      Format.fprintf fmt "Function_body_too_large(%a)"
+      Format.fprintf fmt
+        "@[<hov 1>(Function_body_too_large@ %a)@]"
         Code_size.print large_function_size
     | Stub ->
       Format.fprintf fmt "Stub"
     | Attribute_inline ->
       Format.fprintf fmt "Attribute_inline"
     | Small_function {size; small_function_size} ->
-      Format.fprintf fmt "Small_function(size=%a, small_function_size=%a)"
+      Format.fprintf fmt
+        "@[<hov 1>(Small_function@ \
+         @[<hov 1>(size@ %a)@]@ \
+         @[<hov 1>(small_function_size@ %a)@]@ \
+          )@]"
         Code_size.print size
         Code_size.print small_function_size
     | Speculatively_inlinable {size;
                                small_function_size;
                                large_function_size} ->
-      Format.fprintf fmt "Speculatively_inlinable(size=%a, \
-                          small_function_size=%a, \
-                          large_function_size=%a)"
+      Format.fprintf fmt
+        "@[<hov 1>(Speculatively_inlinable@ \
+         @[<hov 1>(size@ %a)@]@ \
+         @[<hov 1>(small_function_size@ %a)@]@ \
+         @[<hov 1>(large_function_size@ %a)@]@ \
+         )@]"
         Code_size.print size
         Code_size.print small_function_size
         Code_size.print large_function_size
@@ -323,71 +337,100 @@ let max_rec_depth = 1
 
 module I = Flambda_type.Function_declaration_type.Inlinable
 
+(* XCR mshinwell: Please move speculative_inlining and might_inline to
+   toplevel, causing them to be closed by providing extra parameters, so
+   that we don't allocate closures every time we examine a call site.
+
+   poechsel: Done
+*)
+let speculative_inlining dacc ~apply ~function_decl ~simplify_expr
+      ~return_arity =
+  let dacc = DA.set_do_not_rebuild_terms_and_disable_inlining dacc in
+  (* CR poechsel: [Inlining_transforms.inline] should only be called
+     once and not twice (once there and once in [simplify_apply_expr])
+
+     mshinwell: I think it needs to be called twice; the second time,
+     inlining will be on in the environment.  Is that wrong?  Let's resolve
+     this now.
+
+     poechsel: I think you are confused between [Inlining_transforms.inline]
+     and [simplify_expr]. [Inlining_transforms] builds the expression that is
+     going to replace the call (mostly wraps the body in some continuations).
+     Right now it may be called twice for the same function (once before
+     speculating and once if we decided to inline the call in the end). If
+     needed I can make [Inlining_decision] return a
+     [Call_site_decision.t * Expr.t option] but then
+     [make_decision_for_call_site] wouldn't only be taking a decision. It may
+     remove a few allocations but I think that would be a premature optimisation.
+  *)
+  let dacc, expr =
+    (* We only speculatively inline when there's no [unroll] annotation,
+       that is the unroll_to is None *)
+    (* XCR mshinwell: I don't follow this comment.  Earlier on in this file
+       we still say that speculation can occur even if an unrolling
+       attribute was found.  Or is this comment supposed to say just that
+       we disable unrolling when speculating?
+
+       poechsel: The only way [unroll_to] is not None is when an explicit
+       Unroll annotation is provided by the user. If this is the case then
+       inliner will always inline the function and will not call
+       [speculative_inlining]. Thus inside of [speculative_inlining] we
+       will always have [unroll_to] = None. We are not disabling unrolling
+       when speculating, it just happens that no unrolling can happen while
+       speculating right now.
+    *)
+    Inlining_transforms.inline dacc ~apply ~unroll_to:None function_decl
+  in
+  let scope = DE.get_continuation_scope_level (DA.denv dacc) in
+  let _, uacc =
+    simplify_expr dacc expr ~down_to_up:(fun dacc ~rebuild ->
+      let exn_continuation = Apply.exn_continuation apply in
+      let uenv = UE.add_exn_continuation UE.empty exn_continuation scope in
+      let uenv =
+        match Apply.continuation apply with
+        | Never_returns -> uenv
+        | Return return_continuation ->
+          UE.add_return_continuation uenv return_continuation scope
+            return_arity
+      in
+      let uacc = UA.create uenv dacc in
+      rebuild uacc ~after_rebuild:(fun expr uacc -> expr, uacc)
+    )
+  in
+  UA.cost_metrics uacc
+
+let might_inline dacc ~apply ~function_decl ~simplify_expr ~return_arity
+  : Call_site_decision.t =
+  let denv = DA.denv dacc in
+  let code_id = I.code_id function_decl in
+  let code = DE.find_code denv code_id in
+  let cost_metrics = Code.cost_metrics code in
+  let size = Cost_metrics.size cost_metrics in
+  let round = DE.round denv in
+  let small_function_size = get_small_function_size ~round in
+  let is_a_small_function = Code_size.(<=) size small_function_size in
+  let env_prohibits_inlining = not (DE.can_inline denv) in
+  if is_a_small_function then
+    Small_function { size; small_function_size }
+  else if env_prohibits_inlining then
+    Environment_says_never_inline
+  else
+    let cost_metrics =
+      speculative_inlining ~apply dacc ~simplify_expr ~return_arity
+        ~function_decl
+    in
+    let evaluated_to = Cost_metrics.evaluate ~round cost_metrics in
+    let threshold = get_inline_threshold ~round in
+    let is_under_inline_threshold =
+      Float.compare evaluated_to threshold <= 0
+    in
+    if is_under_inline_threshold then
+      Speculatively_inline { cost_metrics; evaluated_to; threshold }
+    else
+      Speculatively_not_inline { cost_metrics; evaluated_to; threshold }
+
 let make_decision_for_call_site dacc ~simplify_expr ~function_decl
       ~function_decl_rec_info ~apply ~return_arity : Call_site_decision.t =
-  (* CR mshinwell: Please move speculative_inlining and might_inline to
-     toplevel, causing them to be closed by providing extra parameters, so
-     that we don't allocate closures every time we examine a call site. *)
-  let speculative_inlining dacc =
-    let dacc = DA.set_do_not_rebuild_terms_and_disable_inlining dacc in
-    (* CR poechsel: [Inlining_transforms.inline] should only be called
-       once and not twice (once there and once in [simplify_apply_expr])
-       mshinwell: I think it needs to be called twice; the second time,
-       inlining will be on in the environment.  Is that wrong?  Let's resolve
-       this now. *)
-    let dacc, expr =
-      (* We only speculatively inline when there's no [unroll] annotation,
-         that is the unroll_to is None *)
-      (* CR mshinwell: I don't follow this comment.  Earlier on in this file
-         we still say that speculation can occur even if an unrolling
-         attribute was found.  Or is this comment supposed to say just that
-         we disable unrolling when speculating? *)
-      Inlining_transforms.inline dacc ~apply ~unroll_to:None function_decl
-    in
-    let scope = DE.get_continuation_scope_level (DA.denv dacc) in
-    let _, uacc =
-      simplify_expr dacc expr ~down_to_up:(fun dacc ~rebuild ->
-        let exn_continuation = Apply.exn_continuation apply in
-        let uenv = UE.add_exn_continuation UE.empty exn_continuation scope in
-        let uenv =
-          match Apply.continuation apply with
-          | Never_returns -> uenv
-          | Return return_continuation ->
-            UE.add_return_continuation uenv return_continuation scope
-              return_arity
-          in
-          let uacc = UA.create uenv dacc in
-          rebuild uacc ~after_rebuild:(fun expr uacc -> expr, uacc)
-        )
-    in
-    UA.cost_metrics uacc
-  in
-  let might_inline () : Call_site_decision.t =
-    let denv = DA.denv dacc in
-    let code_id = I.code_id function_decl in
-    let code = DE.find_code denv code_id in
-    let cost_metrics = Code.cost_metrics code in
-    let size = Cost_metrics.size cost_metrics in
-    let round = DE.round denv in
-    let small_function_size = get_small_function_size ~round in
-    let is_a_small_function = Code_size.(<=) size small_function_size in
-    let env_prohibits_inlining = not (DE.can_inline denv) in
-    if is_a_small_function then
-      Small_function { size; small_function_size }
-    else if env_prohibits_inlining then
-      Environment_says_never_inline
-    else
-      let cost_metrics = speculative_inlining dacc in
-      let evaluated_to = Cost_metrics.evaluate ~round cost_metrics in
-      let threshold = get_inline_threshold ~round in
-      let is_under_inline_threshold =
-        Float.compare evaluated_to threshold <= 0
-      in
-      if is_under_inline_threshold then
-        Speculatively_inline { cost_metrics; evaluated_to; threshold }
-      else
-        Speculatively_not_inline { cost_metrics; evaluated_to; threshold }
-  in
   let inline = Apply.inline apply in
   match inline with
   | Never_inline -> Never_inline_attribute
@@ -397,7 +440,7 @@ let make_decision_for_call_site dacc ~simplify_expr ~function_decl
       if Rec_info.depth function_decl_rec_info >= unroll_to then
         Unrolling_depth_exceeded
       else
-        might_inline ()
+        might_inline dacc ~apply ~function_decl ~simplify_expr ~return_arity
     | None ->
       let apply_inlining_state = Apply.inlining_state apply in
       if Inlining_state.is_depth_exceeded apply_inlining_state
@@ -410,7 +453,7 @@ let make_decision_for_call_site dacc ~simplify_expr ~function_decl
           if Rec_info.depth function_decl_rec_info >= max_rec_depth then
             Recursion_depth_exceeded
           else
-            might_inline ()
+            might_inline dacc ~apply ~function_decl ~simplify_expr ~return_arity
         | Unroll unroll_to ->
           let unroll_to =
             Rec_info.depth function_decl_rec_info + unroll_to
