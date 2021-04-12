@@ -31,3 +31,19 @@ val meet : t -> t -> t
 val equal : t -> t -> bool
 
 val max_inlining_depth : t -> int
+
+val call_cost : t -> float
+
+val alloc_cost : t -> float
+
+val prim_cost : t -> float
+
+val branch_cost : t -> float
+
+val indirect_cost : t -> float
+
+val small_function_size : t -> int
+
+val large_function_size : t -> int
+
+val threshold : t -> float

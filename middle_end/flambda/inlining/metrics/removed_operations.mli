@@ -29,4 +29,4 @@ val direct_call_of_indirect: t
 val (+) : t -> t -> t
 val print : Format.formatter -> t -> unit
 
-val evaluate : round:int -> t -> float
+val evaluate : args:Inlining_arguments.t -> t -> float

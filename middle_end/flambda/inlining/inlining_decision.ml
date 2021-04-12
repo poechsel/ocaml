@@ -23,17 +23,6 @@ module DA = Downwards_acc
 module UA = Upwards_acc
 module UE = Upwards_env
 
-let get_small_function_size ~round =
-  Clflags.Int_arg_helper.get ~key:round !Clflags.inline_small_function_size
-  |> Code_size.of_int
-
-let get_large_function_size ~round =
-  Clflags.Int_arg_helper.get ~key:round !Clflags.inline_large_function_size
-  |> Code_size.of_int
-
-let get_inline_threshold ~round =
-  Clflags.Float_arg_helper.get ~key:round !Clflags.inline_threshold
-
 (* CR mshinwell: We need to emit [Warnings.Inlining_impossible] as
    required.
    When in fallback-inlining mode: if we want to follow Closure we should
@@ -148,20 +137,27 @@ let make_decision_for_function_declaration denv ~cost_metrics_source function_de
      first examining call sites. *)
   let code_id = Function_declaration.code_id function_decl in
   let code = DE.find_code denv code_id in
+  let args =
+    Code.inlining_arguments code
+    |> Inlining_arguments.meet (DE.inlining_arguments denv)
+  in
   match Code.inline code with
   | Never_inline -> Never_inline_attribute
   | Hint_inline | Always_inline -> Attribute_inline
   | Default_inline | Unroll _ ->
     if Code.stub code then Stub
     else
-      let round = DE.round denv in
       let metrics =
         match cost_metrics_source with
         | Metrics metrics -> metrics
         | From_denv -> Code.cost_metrics code
       in
-      let large_function_size = get_large_function_size ~round in
-      let small_function_size = get_small_function_size ~round in
+      let large_function_size =
+        Inlining_arguments.large_function_size args |> Code_size.of_int
+      in
+      let small_function_size =
+        Inlining_arguments.small_function_size args |> Code_size.of_int
+      in
       let size = Cost_metrics.size metrics in
       let is_small = Code_size.(<=) size small_function_size in
       let is_large = Code_size.(<=) large_function_size size in
@@ -370,9 +366,14 @@ let might_inline dacc ~apply ~function_decl ~simplify_expr ~return_arity
   let code_id = I.code_id function_decl in
   let code = DE.find_code denv code_id in
   let cost_metrics = Code.cost_metrics code in
+  let args =
+    Apply.inlining_arguments apply
+    |> Inlining_arguments.meet (DA.denv dacc |> DE.inlining_arguments)
+  in
   let size = Cost_metrics.size cost_metrics in
-  let round = DE.round denv in
-  let small_function_size = get_small_function_size ~round in
+  let small_function_size =
+    Inlining_arguments.small_function_size args |> Code_size.of_int
+  in
   let is_a_small_function = Code_size.(<=) size small_function_size in
   let env_prohibits_inlining = not (DE.can_inline denv) in
   if is_a_small_function then
@@ -384,8 +385,8 @@ let might_inline dacc ~apply ~function_decl ~simplify_expr ~return_arity
       speculative_inlining ~apply dacc ~simplify_expr ~return_arity
         ~function_decl
     in
-    let evaluated_to = Cost_metrics.evaluate ~round cost_metrics in
-    let threshold = get_inline_threshold ~round in
+    let evaluated_to = Cost_metrics.evaluate ~args cost_metrics in
+    let threshold = Inlining_arguments.threshold args in
     let is_under_inline_threshold =
       Float.compare evaluated_to threshold <= 0
     in
