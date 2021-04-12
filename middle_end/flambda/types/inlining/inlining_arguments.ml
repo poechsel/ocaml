@@ -52,7 +52,7 @@ let compress t =
     else if equal t O3 then O3
     else t
 
-let refine t1 t2 =
+let meet_custom t1 t2 =
   let max_inlining_depth =
     if (max_inlining_depth t1) <= (max_inlining_depth t2) then
       max_inlining_depth t1
@@ -61,7 +61,7 @@ let refine t1 t2 =
   in
   Custom { max_inlining_depth }
 
-let merge t1 t2 =
+let meet t1 t2 =
   match t1, t2 with
   | Unknown, Unknown -> Unknown
   | Unknown, (O1 | O2 | O3 | Custom _) -> t2
@@ -70,7 +70,7 @@ let merge t1 t2 =
   | O1, O1 | O1, (O2 | O3) | (O2 | O3), O1 -> O1
   | O2, O2 | O3, O2 | O2, O3 -> O2
   | O3, O3 -> O3
-  | Custom _, _ | _, Custom _ -> refine t1 t2
+  | Custom _, _ | _, Custom _ -> meet_custom t1 t2
 
 let create ~round:_ =
   compress (Custom {

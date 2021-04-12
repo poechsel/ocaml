@@ -14,6 +14,8 @@
 
 [@@@ocaml.warning "+a-4-30-40-41-42"]
 
+(** Set of all arguments related to inlining. *)
+
 type t
 
 val unknown : t
@@ -22,7 +24,9 @@ val create : round:int -> t
 
 val print : Format.formatter -> t -> unit
 
-val merge : t -> t -> t
+(* [meet A B] constructs a set of argument that inline at most as strongly as [A]
+   and [B] would *)
+val meet : t -> t -> t
 
 val equal : t -> t -> bool
 

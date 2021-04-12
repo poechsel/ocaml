@@ -307,12 +307,12 @@ module C = Context_for_multiple_sets_of_closures
 
 let dacc_inside_function context ~used_closure_vars ~shareable_constants
       ~params ~my_closure closure_id ~closure_bound_names_inside_function
-      ~inlining_argument_definition =
+      ~inlining_arguments =
   let dacc =
     DA.map_denv (C.dacc_inside_functions context) ~f:(fun denv ->
       let denv = DE.add_parameters_with_unknown_types denv params in
       let denv =
-        DE.restrict_inlining_arguments inlining_argument_definition denv
+        DE.restrict_inlining_arguments inlining_arguments denv
       in
       match
         Closure_id.Map.find closure_id closure_bound_names_inside_function
@@ -369,7 +369,7 @@ let simplify_function context ~used_closure_vars ~shareable_constants
             dacc_inside_function context ~used_closure_vars ~shareable_constants
               ~params ~my_closure closure_id
               ~closure_bound_names_inside_function
-              ~inlining_argument_definition:(Code.inlining_arguments code)
+              ~inlining_arguments:(Code.inlining_arguments code)
           in
           if not (DA.no_lifted_constants dacc) then begin
             Misc.fatal_errorf "Did not expect lifted constants in [dacc]:@ %a"

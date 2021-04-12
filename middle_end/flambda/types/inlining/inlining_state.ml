@@ -38,9 +38,9 @@ let print ppf t =
 let is_depth_exceeded t =
   t.depth >= (Inlining_arguments.max_inlining_depth t.arguments)
 
-let merge t1 t2 = {
+let meet t1 t2 = {
   depth = t1.depth + t2.depth;
-  arguments = Inlining_arguments.merge t1.arguments t2.arguments
+  arguments = Inlining_arguments.meet t1.arguments t2.arguments
 }
 
 let equal t1 t2 =

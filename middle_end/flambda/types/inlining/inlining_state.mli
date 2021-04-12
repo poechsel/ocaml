@@ -32,7 +32,7 @@ val increment_depth : t -> t
 
 val is_depth_exceeded : t -> bool
 
-val merge : t -> t -> t
+val meet : t -> t -> t
 
 val invariant : t -> unit
 

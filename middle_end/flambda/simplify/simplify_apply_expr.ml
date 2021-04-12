@@ -248,16 +248,6 @@ let simplify_direct_partial_application ~simplify_expr dacc apply
       |> Exn_continuation.without_extra_args
     in
     let body, cost_metrics_of_body =
-      let inlining_arguments =
-        Inlining_arguments.merge
-          (Apply.inlining_arguments apply)
-          (DE.inlining_arguments (DA.denv dacc))
-      in
-      let inlining_state =
-        Inlining_state.with_arguments
-          inlining_arguments
-          (Apply.inlining_state apply)
-      in
       let full_application =
         Apply.create ~callee:(Apply.callee apply)
           ~continuation:(Return return_continuation)
@@ -266,7 +256,7 @@ let simplify_direct_partial_application ~simplify_expr dacc apply
           ~call_kind
           dbg
           ~inline:Default_inline
-          ~inlining_state
+          ~inlining_state:(Apply.inlining_state apply)
       in
       let cost_metrics =
         Cost_metrics.from_size (Code_size.apply full_application)
@@ -720,7 +710,7 @@ let simplify_apply_shared dacc apply : _ Or_bottom.t =
     S.simplify_simples dacc (Apply.args apply)
   in
   let inlining_state =
-    Inlining_state.merge
+    Inlining_state.meet
       (DE.get_inlining_state (DA.denv dacc))
       (Apply.inlining_state apply)
   in

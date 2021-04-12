@@ -610,7 +610,7 @@ let inlining_arguments { inlining_state; _ } =
 let restrict_inlining_arguments inlining_arguments t =
   let arguments =
     Inlining_state.arguments t.inlining_state
-    |> Inlining_arguments.merge inlining_arguments
+    |> Inlining_arguments.meet inlining_arguments
   in
   { t with inlining_state =
              Inlining_state.with_arguments arguments t.inlining_state
@@ -619,8 +619,8 @@ let restrict_inlining_arguments inlining_arguments t =
 let enter_inlined_apply ~called_code ~apply t =
   let arguments =
     Inlining_state.arguments t.inlining_state
-    |> Inlining_arguments.merge (Code.inlining_arguments called_code)
-    |> Inlining_arguments.merge (Apply.inlining_arguments apply)
+    |> Inlining_arguments.meet (Code.inlining_arguments called_code)
+    |> Inlining_arguments.meet (Apply.inlining_arguments apply)
   in
   { t with
     inlined_debuginfo = Apply.dbg apply;
