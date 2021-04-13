@@ -568,33 +568,6 @@ let prove_variant env t : variant_proof proof_allowing_kind_mismatch =
   | Naked_int64 _ -> Wrong_kind
   | Naked_nativeint _ -> Wrong_kind
 
-let prove_is_a_tagged_immediate env t : _ proof_allowing_kind_mismatch =
-  match expand_head t env with
-  | Const (Tagged_immediate _) -> Proved ()
-  | Const _ -> Wrong_kind
-  | Value Unknown -> Unknown
-  | Value (Ok (Variant { blocks; immediates; is_unique = _; })) ->
-    begin match blocks, immediates with
-    | Unknown, Unknown -> Unknown
-    | Unknown, Known imms ->
-      if is_bottom env imms
-      then Invalid
-      else Unknown
-    | Known blocks, Unknown ->
-      if Row_like.For_blocks.is_bottom blocks
-      then Proved ()
-      else Unknown
-    | Known blocks, Known imms ->
-      if is_bottom env imms then
-        Invalid
-      else if Row_like.For_blocks.is_bottom blocks then
-        Proved ()
-      else
-        Unknown
-    end
-  | Value _ -> Invalid
-  | _ -> Wrong_kind
-
 let prove_is_a_boxed_number env t
   : Flambda_kind.Boxable_number.t proof_allowing_kind_mismatch =
   match expand_head t env with
@@ -626,6 +599,14 @@ let prove_is_a_boxed_number env t
   | Value (Ok (Boxed_nativeint _)) -> Proved Naked_nativeint
   | Value _ -> Invalid
   | _ -> Wrong_kind
+
+let prove_is_a_tagged_immediate env t : _ proof_allowing_kind_mismatch =
+  match prove_is_a_boxed_number env t with
+  | Proved Untagged_immediate -> Proved ()
+  | Proved _ -> Unknown
+  | Invalid -> Invalid
+  | Wrong_kind -> Wrong_kind
+  | Unknown -> Unknown
 
 let prove_is_a_boxed_float env t : _ proof_allowing_kind_mismatch =
   match expand_head t env with
