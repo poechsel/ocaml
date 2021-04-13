@@ -68,9 +68,8 @@ let is_proved proof =
 let simplify_comparison ~dbg ~dacc ~cont
       ~int_prim ~float_prim a b a_ty b_ty =
   let tenv = DA.typing_env dacc in
-  match is_proved (T.prove_is_a_tagged_immediate tenv a_ty),
-        is_proved (T.prove_is_a_tagged_immediate tenv b_ty) with
-  | true, true ->
+  if is_proved (T.prove_is_a_tagged_immediate tenv a_ty) &&
+     is_proved (T.prove_is_a_tagged_immediate tenv b_ty) then begin
     let v_comp = Variable.create "comp" in
     let tagged = Variable.create "tagged" in
     let _, res =
@@ -80,26 +79,24 @@ let simplify_comparison ~dbg ~dacc ~cont
       apply_cont ~dbg cont tagged
     in
     Poly_compare_specialized (dacc, res)
-  | false, true | true, false | false, false ->
-    begin match is_proved (T.prove_is_a_boxed_float tenv a_ty),
-                is_proved (T.prove_is_a_boxed_float tenv b_ty) with
-    | true, true ->
-      let a_naked = Variable.create "naked_float" in
-      let b_naked = Variable.create "naked_float" in
-      let v_comp = Variable.create "comp" in
-      let tagged = Variable.create "tagged" in
-      let _, res =
-        let_prim ~dbg a_naked (P.Unary (Unbox_number Naked_float, a)) @@
-        let_prim ~dbg b_naked (P.Unary (Unbox_number Naked_float, b)) @@
-        let_prim ~dbg v_comp
-          (P.Binary (float_prim, simple_of_var a_naked, simple_of_var b_naked)) @@
-        let_prim ~dbg tagged
-             (P.Unary (Box_number Untagged_immediate, simple_of_var v_comp)) @@
-        apply_cont ~dbg cont tagged
-      in
-      Poly_compare_specialized (dacc, res)
-    | false, true | true, false | false, false -> Unchanged
-    end
+  end else if is_proved (T.prove_is_a_boxed_float tenv a_ty) &&
+              is_proved (T.prove_is_a_boxed_float tenv b_ty) then begin
+    let a_naked = Variable.create "naked_float" in
+    let b_naked = Variable.create "naked_float" in
+    let v_comp = Variable.create "comp" in
+    let tagged = Variable.create "tagged" in
+    let _, res =
+      let_prim ~dbg a_naked (P.Unary (Unbox_number Naked_float, a)) @@
+      let_prim ~dbg b_naked (P.Unary (Unbox_number Naked_float, b)) @@
+      let_prim ~dbg v_comp
+        (P.Binary (float_prim, simple_of_var a_naked, simple_of_var b_naked)) @@
+      let_prim ~dbg tagged
+        (P.Unary (Box_number Untagged_immediate, simple_of_var v_comp)) @@
+      apply_cont ~dbg cont tagged
+    in
+    Poly_compare_specialized (dacc, res)
+  end else
+    Unchanged
 
 
 let simplify_returning_extcall
