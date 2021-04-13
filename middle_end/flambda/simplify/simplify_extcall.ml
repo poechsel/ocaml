@@ -62,36 +62,63 @@ let is_proved proof =
 (* Exported simplification function *)
 (* ******************************** *)
 
-let simplify_comparison ~dbg ~dacc ~cont
-      ~int_prim ~float_prim a b a_ty b_ty =
+let simplify_comparison_of_tagged_immediates ~dbg dacc ~cmp_prim cont a b =
+  let v_comp = Variable.create "comp" in
+  let tagged = Variable.create "tagged" in
+  let _free_names, res =
+    let_prim ~dbg v_comp (P.Binary (cmp_prim, a, b)) @@
+    let_prim ~dbg tagged
+      (P.Unary (Box_number Untagged_immediate, Simple.var v_comp)) @@
+    apply_cont ~dbg cont tagged
+  in
+  Poly_compare_specialized (dacc, res)
+
+let simplify_comparison_of_boxed_numbers ~dbg dacc ~kind ~cmp_prim cont a b =
+  let a_naked = Variable.create "unboxed" in
+  let b_naked = Variable.create "unboxed" in
+  let v_comp = Variable.create "comp" in
+  let tagged = Variable.create "tagged" in
+  let _free_names, res =
+    let_prim ~dbg a_naked (P.Unary (Unbox_number kind, a)) @@
+    let_prim ~dbg b_naked (P.Unary (Unbox_number kind, b)) @@
+    let_prim ~dbg v_comp
+      (P.Binary (cmp_prim, Simple.var a_naked, Simple.var b_naked)) @@
+    let_prim ~dbg tagged
+      (P.Unary (Box_number Untagged_immediate, Simple.var v_comp)) @@
+    apply_cont ~dbg cont tagged
+  in
+  Poly_compare_specialized (dacc, res)
+
+let simplify_comparison
+      ~dbg ~dacc ~cont
+      ~tagged_prim ~float_prim ~boxed_int_prim
+      a b a_ty b_ty =
   let tenv = DA.typing_env dacc in
   if is_proved (T.prove_is_a_tagged_immediate tenv a_ty) &&
      is_proved (T.prove_is_a_tagged_immediate tenv b_ty) then begin
-    let v_comp = Variable.create "comp" in
-    let tagged = Variable.create "tagged" in
-    let _free_names, res =
-      let_prim ~dbg v_comp (P.Binary (int_prim, a, b)) @@
-      let_prim ~dbg tagged
-        (P.Unary (Box_number Untagged_immediate, Simple.var v_comp)) @@
-      apply_cont ~dbg cont tagged
-    in
-    Poly_compare_specialized (dacc, res)
+    simplify_comparison_of_tagged_immediates
+      ~dbg dacc cont a b
+      ~cmp_prim:tagged_prim
   end else if is_proved (T.prove_is_a_boxed_float tenv a_ty) &&
               is_proved (T.prove_is_a_boxed_float tenv b_ty) then begin
-    let a_naked = Variable.create "naked_float" in
-    let b_naked = Variable.create "naked_float" in
-    let v_comp = Variable.create "comp" in
-    let tagged = Variable.create "tagged" in
-    let _free_names, res =
-      let_prim ~dbg a_naked (P.Unary (Unbox_number Naked_float, a)) @@
-      let_prim ~dbg b_naked (P.Unary (Unbox_number Naked_float, b)) @@
-      let_prim ~dbg v_comp
-        (P.Binary (float_prim, Simple.var a_naked, Simple.var b_naked)) @@
-      let_prim ~dbg tagged
-        (P.Unary (Box_number Untagged_immediate, Simple.var v_comp)) @@
-      apply_cont ~dbg cont tagged
-    in
-    Poly_compare_specialized (dacc, res)
+    simplify_comparison_of_boxed_numbers
+      ~dbg dacc cont a b ~kind:Naked_float
+      ~cmp_prim:float_prim
+  end else if is_proved (T.prove_is_a_boxed_int32 tenv a_ty) &&
+              is_proved (T.prove_is_a_boxed_int32 tenv b_ty) then begin
+    simplify_comparison_of_boxed_numbers
+      ~dbg dacc cont a b ~kind:Naked_int32
+      ~cmp_prim:(boxed_int_prim K.Standard_int.Naked_int32)
+  end else if is_proved (T.prove_is_a_boxed_int64 tenv a_ty) &&
+              is_proved (T.prove_is_a_boxed_int64 tenv b_ty) then begin
+    simplify_comparison_of_boxed_numbers
+      ~dbg dacc cont a b ~kind:Naked_int64
+      ~cmp_prim:(boxed_int_prim K.Standard_int.Naked_int64)
+  end else if is_proved (T.prove_is_a_boxed_nativeint tenv a_ty) &&
+              is_proved (T.prove_is_a_boxed_nativeint tenv b_ty) then begin
+    simplify_comparison_of_boxed_numbers
+      ~dbg dacc cont a b ~kind:Naked_nativeint
+      ~cmp_prim:(boxed_int_prim K.Standard_int.Naked_nativeint)
   end else
     Unchanged
 
@@ -103,31 +130,39 @@ let simplify_returning_extcall
   | ".extern__caml_compare", [a; b], [a_ty; b_ty] ->
     simplify_comparison ~dbg ~dacc ~cont a b a_ty b_ty
       ~float_prim:(Float_comp Yielding_int_like_compare_functions)
-      ~int_prim:(Int_comp (Tagged_immediate, Signed, Yielding_int_like_compare_functions))
+      ~tagged_prim:(Int_comp (Tagged_immediate, Signed, Yielding_int_like_compare_functions))
+      ~boxed_int_prim:(fun kind ->
+        Int_comp (kind, Signed, Yielding_int_like_compare_functions))
   | ".extern__caml_equal", [a; b], [a_ty; b_ty] ->
     simplify_comparison ~dbg ~dacc ~cont a b a_ty b_ty
-      ~int_prim:(Phys_equal (K.value, Eq))
+      ~tagged_prim:(Phys_equal (K.value, Eq))
       ~float_prim:(Float_comp (Yielding_bool Eq))
+      ~boxed_int_prim:(fun kind -> Phys_equal (K.Standard_int.to_kind kind, Eq))
   | ".extern__caml_notequal", [a; b], [a_ty; b_ty] ->
     simplify_comparison ~dbg ~dacc ~cont a b a_ty b_ty
-      ~int_prim:(Phys_equal (K.value, Neq))
+      ~tagged_prim:(Phys_equal (K.value, Neq))
       ~float_prim:(Float_comp (Yielding_bool Neq))
+      ~boxed_int_prim:(fun kind -> Phys_equal (K.Standard_int.to_kind kind, Neq))
   | ".extern__caml_lessequal", [a; b], [a_ty; b_ty] ->
     simplify_comparison ~dbg ~dacc ~cont a b a_ty b_ty
       ~float_prim:(Float_comp (Yielding_bool Le))
-      ~int_prim:(Int_comp (Tagged_immediate, Signed, Yielding_bool Le))
+      ~tagged_prim:(Int_comp (Tagged_immediate, Signed, Yielding_bool Le))
+      ~boxed_int_prim:(fun kind -> Int_comp (kind, Signed, Yielding_bool Le))
   | ".extern__caml_lessthan", [a; b], [a_ty; b_ty] ->
     simplify_comparison ~dbg ~dacc ~cont a b a_ty b_ty
       ~float_prim:(Float_comp (Yielding_bool Lt))
-      ~int_prim:(Int_comp (Tagged_immediate, Signed, Yielding_bool Lt))
+      ~tagged_prim:(Int_comp (Tagged_immediate, Signed, Yielding_bool Lt))
+      ~boxed_int_prim:(fun kind -> Int_comp (kind, Signed, Yielding_bool Lt))
   | ".extern__caml_greaterequal", [a; b], [a_ty; b_ty] ->
     simplify_comparison ~dbg ~dacc ~cont a b a_ty b_ty
       ~float_prim:(Float_comp (Yielding_bool Ge))
-      ~int_prim:(Int_comp (Tagged_immediate, Signed, Yielding_bool Ge))
+      ~tagged_prim:(Int_comp (Tagged_immediate, Signed, Yielding_bool Ge))
+      ~boxed_int_prim:(fun kind -> Int_comp (kind, Signed, Yielding_bool Ge))
   | ".extern__caml_greaterthan", [a; b], [a_ty; b_ty] ->
     simplify_comparison ~dbg ~dacc ~cont a b a_ty b_ty
       ~float_prim:(Float_comp (Yielding_bool Gt))
-      ~int_prim:(Int_comp (Tagged_immediate, Signed, Yielding_bool Gt))
+      ~tagged_prim:(Int_comp (Tagged_immediate, Signed, Yielding_bool Gt))
+      ~boxed_int_prim:(fun kind -> Int_comp (kind, Signed, Yielding_bool Gt))
 
   (* Catchall *)
   | _ -> Unchanged
