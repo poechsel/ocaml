@@ -25,6 +25,7 @@
   tests/exotic-syntax
   tests/extension-constructor
   tests/flambda
+  tests/flambda-specialization
 # tests/float-unboxing              FAIL (FIXME)  'float_subst_boxed_number.ml' see flambdatest/mlexamples/float_unboxing.ml for a simplified error example
   tests/fma
   tests/formats-transition
