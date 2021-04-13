@@ -524,6 +524,11 @@ val prove_variant
   -> t
   -> variant_proof proof_allowing_kind_mismatch
 
+val prove_is_a_boxed_number
+   : Typing_env.t
+  -> t
+  -> Flambda_kind.Boxable_number.t proof_allowing_kind_mismatch
+
 val prove_is_a_tagged_immediate
    : Typing_env.t
   -> t
