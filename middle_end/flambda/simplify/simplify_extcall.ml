@@ -15,9 +15,6 @@
 
 [@@@ocaml.warning "+a-30-40-41-42"]
 
-(* The matches on type proofs are annoying to write exhaustively. *)
-[@@@ocaml.warning "-4"]
-
 open! Simplify_import
 
 type t =
@@ -59,6 +56,11 @@ let let_prim ~dbg v prim (free_names, body) =
   let expr = Expr.create_let let_expr in
   free_names, expr
 
+let is_proved proof =
+  match (proof : unit T.proof_allowing_kind_mismatch) with
+  | Proved () -> true
+  | Unknown | Invalid | Wrong_kind -> false
+
 
 (* Exported simplification function *)
 (* ******************************** *)
@@ -66,9 +68,9 @@ let let_prim ~dbg v prim (free_names, body) =
 let simplify_comparison ~dbg ~dacc ~cont
       ~int_prim ~float_prim a b a_ty b_ty =
   let tenv = DA.typing_env dacc in
-  match T.prove_is_a_tagged_immediate tenv a_ty,
-        T.prove_is_a_tagged_immediate tenv b_ty with
-  | Proved (), Proved () ->
+  match is_proved (T.prove_is_a_tagged_immediate tenv a_ty),
+        is_proved (T.prove_is_a_tagged_immediate tenv b_ty) with
+  | true, true ->
     let v_comp = Variable.create "comp" in
     let tagged = Variable.create "tagged" in
     let _, res =
@@ -78,10 +80,10 @@ let simplify_comparison ~dbg ~dacc ~cont
       apply_cont ~dbg cont tagged
     in
     Poly_compare_specialized (dacc, res)
-  | _ ->
-    begin match T.prove_is_a_boxed_float tenv a_ty,
-                T.prove_is_a_boxed_float tenv b_ty with
-    | Proved (), Proved () ->
+  | false, true | true, false | false, false ->
+    begin match is_proved (T.prove_is_a_boxed_float tenv a_ty),
+                is_proved (T.prove_is_a_boxed_float tenv b_ty) with
+    | true, true ->
       let a_naked = Variable.create "naked_float" in
       let b_naked = Variable.create "naked_float" in
       let v_comp = Variable.create "comp" in
@@ -96,7 +98,7 @@ let simplify_comparison ~dbg ~dacc ~cont
         apply_cont ~dbg cont tagged
       in
       Poly_compare_specialized (dacc, res)
-    | _ -> Unchanged
+    | false, true | true, false | false, false -> Unchanged
     end
 
 
