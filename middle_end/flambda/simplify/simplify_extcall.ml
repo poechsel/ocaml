@@ -36,9 +36,6 @@ let fun_symbol simple =
         ~symbol:(fun sym -> sym))
     ~const:(fun _ -> fail simple)
 
-let simple_of_var v =
-  Simple.name (Name.var v)
-
 let apply_cont cont v ~dbg =
   let args = [ Simple.name (Name.var v) ] in
   let apply_cont = Apply_cont.create cont ~args ~dbg in
@@ -75,7 +72,7 @@ let simplify_comparison ~dbg ~dacc ~cont
     let _, res =
       let_prim ~dbg v_comp (P.Binary (int_prim, a, b)) @@
       let_prim ~dbg tagged
-        (P.Unary (Box_number Untagged_immediate, simple_of_var v_comp)) @@
+        (P.Unary (Box_number Untagged_immediate, Simple.var v_comp)) @@
       apply_cont ~dbg cont tagged
     in
     Poly_compare_specialized (dacc, res)
@@ -89,9 +86,9 @@ let simplify_comparison ~dbg ~dacc ~cont
       let_prim ~dbg a_naked (P.Unary (Unbox_number Naked_float, a)) @@
       let_prim ~dbg b_naked (P.Unary (Unbox_number Naked_float, b)) @@
       let_prim ~dbg v_comp
-        (P.Binary (float_prim, simple_of_var a_naked, simple_of_var b_naked)) @@
+        (P.Binary (float_prim, Simple.var a_naked, Simple.var b_naked)) @@
       let_prim ~dbg tagged
-        (P.Unary (Box_number Untagged_immediate, simple_of_var v_comp)) @@
+        (P.Unary (Box_number Untagged_immediate, Simple.var v_comp)) @@
       apply_cont ~dbg cont tagged
     in
     Poly_compare_specialized (dacc, res)
