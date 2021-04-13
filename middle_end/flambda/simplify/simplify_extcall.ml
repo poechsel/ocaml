@@ -69,7 +69,7 @@ let simplify_comparison ~dbg ~dacc ~cont
      is_proved (T.prove_is_a_tagged_immediate tenv b_ty) then begin
     let v_comp = Variable.create "comp" in
     let tagged = Variable.create "tagged" in
-    let _, res =
+    let _free_names, res =
       let_prim ~dbg v_comp (P.Binary (int_prim, a, b)) @@
       let_prim ~dbg tagged
         (P.Unary (Box_number Untagged_immediate, Simple.var v_comp)) @@
@@ -82,7 +82,7 @@ let simplify_comparison ~dbg ~dacc ~cont
     let b_naked = Variable.create "naked_float" in
     let v_comp = Variable.create "comp" in
     let tagged = Variable.create "tagged" in
-    let _, res =
+    let _free_names, res =
       let_prim ~dbg a_naked (P.Unary (Unbox_number Naked_float, a)) @@
       let_prim ~dbg b_naked (P.Unary (Unbox_number Naked_float, b)) @@
       let_prim ~dbg v_comp
