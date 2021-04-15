@@ -191,50 +191,24 @@ let unknown = Or_unknown.Unknown
 
 let print ppf = Or_unknown.print Args.print ppf
 
-let max_inlining_depth = function
-  | Or_unknown.Unknown -> assert false
-  | Or_unknown.Known Args.{ max_inlining_depth; _ } ->
-    max_inlining_depth
+let get_or_fail t : Args.t =
+  match t with
+  | Or_unknown.Unknown ->
+    Misc.fatal_errorf
+      "Trying to access an unknown set of inliner arguments. This should not \
+       happen, usually it should have been [meet] with a known set of \
+       arguments at this points."
+  | Or_unknown.Known s -> s
 
-let call_cost = function
-  | Or_unknown.Unknown -> assert false
-  | Or_unknown.Known Args.{ call_cost; _ } ->
-    call_cost
-
-let alloc_cost = function
-  | Or_unknown.Unknown -> assert false
-  | Or_unknown.Known Args.{ alloc_cost; _ } ->
-    alloc_cost
-
-let prim_cost = function
-  | Or_unknown.Unknown -> assert false
-  | Or_unknown.Known Args.{ prim_cost; _ } ->
-    prim_cost
-
-let branch_cost = function
-  | Or_unknown.Unknown -> assert false
-  | Or_unknown.Known Args.{ branch_cost; _ } ->
-    branch_cost
-
-let indirect_call_cost = function
-  | Or_unknown.Unknown -> assert false
-  | Or_unknown.Known Args.{ indirect_call_cost; _ } ->
-    indirect_call_cost
-
-let small_function_size = function
-  | Or_unknown.Unknown -> assert false
-  | Or_unknown.Known Args.{ small_function_size; _ } ->
-    small_function_size
-
-let large_function_size = function
-  | Or_unknown.Unknown -> assert false
-  | Or_unknown.Known Args.{ large_function_size; _ } ->
-    large_function_size
-
-let threshold = function
-  | Or_unknown.Unknown -> assert false
-  | Or_unknown.Known Args.{ threshold; _ } ->
-    threshold
+let max_inlining_depth t = (get_or_fail t).max_inlining_depth
+let call_cost t = (get_or_fail t).call_cost
+let alloc_cost t = (get_or_fail t).alloc_cost
+let prim_cost t = (get_or_fail t).prim_cost
+let branch_cost t = (get_or_fail t).branch_cost
+let indirect_call_cost t = (get_or_fail t).indirect_call_cost
+let small_function_size t = (get_or_fail t).small_function_size
+let large_function_size t = (get_or_fail t).large_function_size
+let threshold t = (get_or_fail t).threshold
 
 let meet (t1 : _ Or_unknown.t) (t2 : _ Or_unknown.t) : t =
   match t1, t2 with
