@@ -836,7 +836,6 @@ let simplify_c_call ~simplify_expr dacc apply ~callee_ty ~param_arity
   | Poly_compare_specialized (dacc, expr) ->
     simplify_expr dacc expr ~down_to_up:(fun dacc ~rebuild ->
       down_to_up dacc ~rebuild:(fun uacc ~after_rebuild ->
-        Format.eprintf "Foo!@.";
         let uacc =
           UA.notify_removed
             ~operation:Removed_operations.specialized_poly_compare

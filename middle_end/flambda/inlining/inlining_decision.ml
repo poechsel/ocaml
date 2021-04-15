@@ -343,7 +343,6 @@ let speculative_inlining dacc ~apply ~function_decl ~simplify_expr
     Inlining_transforms.inline dacc ~apply ~unroll_to:None function_decl
   in
   let scope = DE.get_continuation_scope_level (DA.denv dacc) in
-  Format.eprintf "Speculative !!@.";
   let _, uacc =
     simplify_expr dacc expr ~down_to_up:(fun dacc ~rebuild ->
       let exn_continuation = Apply.exn_continuation apply in
@@ -359,7 +358,6 @@ let speculative_inlining dacc ~apply ~function_decl ~simplify_expr
       rebuild uacc ~after_rebuild:(fun expr uacc -> expr, uacc)
     )
   in
-  Format.eprintf "done.@.";
   UA.cost_metrics uacc
 
 let might_inline dacc ~apply ~function_decl ~simplify_expr ~return_arity
