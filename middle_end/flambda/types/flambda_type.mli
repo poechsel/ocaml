@@ -524,6 +524,13 @@ val prove_variant
   -> t
   -> variant_proof proof_allowing_kind_mismatch
 
+(** If [ty] is known to represent a boxed number or a tagged integer,
+    [prove_is_a_boxed_number env ty] is [Proved kind]. [kind] is the kind of
+    the unboxed number.
+    If [ty] is known to represent something of kind value that is not a number
+    [prove_is_a_boxed_number env ty] is [Invalid].
+    Otherwise it is [Unknown] or [Wrong_kind] when [ty] is not of kind value.
+*)
 val prove_is_a_boxed_number
    : Typing_env.t
   -> t
