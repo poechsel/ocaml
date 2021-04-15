@@ -251,6 +251,10 @@ end = struct
       denv
       |> DE.enter_set_of_closures
       |> DE.increment_continuation_scope_level_twice
+      (* Even if we are not rebuilding terms we should always rebuild them
+         for local functions. The type of a function is dependent on its
+	 term and not knowing it prohibits us from inlining it.*)
+      |> DE.set_rebuild_terms
     in
     let env_inside_functions,
         closure_element_types_all_sets_inside_functions_rev =

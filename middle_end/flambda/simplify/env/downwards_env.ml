@@ -585,6 +585,8 @@ let set_do_not_rebuild_terms_and_disable_inlining t =
     can_inline = false;
   }
 
+let set_rebuild_terms t = { t with do_not_rebuild_terms = false }
+
 type are_rebuilding_terms = bool
 
 let are_rebuilding_terms t = not t.do_not_rebuild_terms
@@ -598,4 +600,3 @@ let enter_closure code_id return_continuation exn_continuation t =
   }
 
 let closure_info t = t.closure_info
-

@@ -221,6 +221,8 @@ val without_closure_var_uses : t -> t
 
 val set_do_not_rebuild_terms_and_disable_inlining : t -> t
 
+val set_rebuild_terms : t -> t
+
 type are_rebuilding_terms
 
 val are_rebuilding_terms : t -> are_rebuilding_terms
@@ -234,4 +236,3 @@ val enter_closure
  -> t -> t
 
 val closure_info : t -> Closure_info.t
-
