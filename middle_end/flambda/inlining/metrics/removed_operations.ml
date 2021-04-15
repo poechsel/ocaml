@@ -97,4 +97,4 @@ let evaluate ~args (t : t) =
    +. (float_of_int t.prim *. Inlining_arguments.prim_cost args)
    +. (float_of_int t.branch *. Inlining_arguments.branch_cost args)
    +. (float_of_int t.direct_call_of_indirect
-       *. Inlining_arguments.indirect_cost args)
+       *. Inlining_arguments.indirect_call_cost args)

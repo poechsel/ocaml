@@ -296,10 +296,10 @@ let read_one_param ppf position name v =
     Float_arg_helper.parse v
       "Bad syntax in OCAMLPARAM for 'inline-branch-cost'"
       inline_branch_cost
-  | "inline-indirect-cost" ->
+  | "inline-indirect-call-cost" ->
     Float_arg_helper.parse v
-      "Bad syntax in OCAMLPARAM for 'inline-indirect-cost'"
-      inline_indirect_cost
+      "Bad syntax in OCAMLPARAM for 'inline-indirect-call-cost'"
+      inline_indirect_call_cost
   | "inline-lifting-benefit" ->
     Int_arg_helper.parse v
       "Bad syntax in OCAMLPARAM for 'inline-lifting-benefit'"

@@ -112,7 +112,7 @@ section\ \ref{ss:flambda-assessment-inlining}.
   \machine{-inline-call-cost}] Controls how the inliner assesses the runtime
   performance penalties associated with various operations.  See
   section\ \ref{ss:flambda-assessment-inlining}.
-\item[\machine{-inline-indirect-cost},
+\item[\machine{-inline-indirect-call-cost},
   \machine{-inline-prim-cost}] Likewise.
 \item[\machine{-inline-lifting-benefit}] Controls inlining of functors
 at toplevel.  See section\ \ref{ss:flambda-assessment-inlining}.
@@ -433,7 +433,7 @@ detailed in section\ \ref{ss:flambda-rounds}.
 \item[\machine{-inline-alloc-cost}] The cost of an allocation.
 \item[\machine{-inline-branch-cost}] The cost of a branch.
 \item[\machine{-inline-call-cost}] The cost of a direct function call.
-\item[\machine{-inline-indirect-cost}] The cost of an indirect function call.
+\item[\machine{-inline-indirect-call-cost}] The cost of an indirect function call.
 \item[\machine{-inline-prim-cost}] The cost of a {\em primitive}.  Primitives
 encompass operations including arithmetic and memory access.
 \end{options}
@@ -646,7 +646,7 @@ round of optimisation using the following parameters.
 \entree{{\tt -inline-alloc-cost}}{7}
 \entree{{\tt -inline-branch-cost}}{5}
 \entree{{\tt -inline-call-cost}}{5}
-\entree{{\tt -inline-indirect-cost}}{4}
+\entree{{\tt -inline-indirect-call-cost}}{4}
 \entree{{\tt -inline-prim-cost}}{3}
 \entree{{\tt -inline-lifting-benefit}}{1300}
 \entree{{\tt -inline-toplevel}}{160}
@@ -667,7 +667,7 @@ the following parameters.
 \entree{{\tt -inline-alloc-cost}}{Double the default}
 \entree{{\tt -inline-branch-cost}}{Double the default}
 \entree{{\tt -inline-call-cost}}{Double the default}
-\entree{{\tt -inline-indirect-cost}}{Double the default}
+\entree{{\tt -inline-indirect-call-cost}}{Double the default}
 \entree{{\tt -inline-prim-cost}}{Double the default}
 \entree{{\tt -inline-lifting-benefit}}{Same as default}
 \entree{{\tt -inline-toplevel}}{400}
@@ -688,7 +688,7 @@ the following parameters.
 \entree{{\tt -inline-alloc-cost}}{Triple the default}
 \entree{{\tt -inline-branch-cost}}{Triple the default}
 \entree{{\tt -inline-call-cost}}{Triple the default}
-\entree{{\tt -inline-indirect-cost}}{Triple the default}
+\entree{{\tt -inline-indirect-call-cost}}{Triple the default}
 \entree{{\tt -inline-prim-cost}}{Triple the default}
 \entree{{\tt -inline-lifting-benefit}}{Same as default}
 \entree{{\tt -inline-toplevel}}{800}

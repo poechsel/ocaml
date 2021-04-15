@@ -14,7 +14,13 @@
 
 [@@@ocaml.warning "+a-4-30-40-41-42"]
 
-(** Set of all arguments related to inlining. *)
+(** Set of all arguments related to inlining. This set is stored inside the term
+    language and is used to access the set of parameters to use in the
+    simplifier.
+    This module also allows to [meet] two set of arguments, that is given t1
+    and t2 to return the set of arguments that will inline at most as much as
+    either t1 and t2 would.
+*)
 
 type t
 
@@ -40,7 +46,7 @@ val prim_cost : t -> float
 
 val branch_cost : t -> float
 
-val indirect_cost : t -> float
+val indirect_call_cost : t -> float
 
 val small_function_size : t -> int
 
