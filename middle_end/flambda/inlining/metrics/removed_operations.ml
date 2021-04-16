@@ -78,7 +78,7 @@ let specialized_poly_compare =
 let print ppf b =
   Format.fprintf ppf "@[call: %i@ alloc: %i@ \
                       prim: %i@ branch: %i@ \
-                      direct: %i@ compare: %i@ \
+                      direct: %i@ poly_cmp: %i@ \
                       requested: %i@]"
     b.call
     b.alloc
