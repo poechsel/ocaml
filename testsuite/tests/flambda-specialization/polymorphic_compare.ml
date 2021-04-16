@@ -53,6 +53,7 @@ let[@inline never] test_ge (x:float) y = test_aux_ge x y
 let[@inline never] test_eq (x:float) y = test_aux_eq x y
 let[@inline never] test_ne (x:float) y = test_aux_ne x y
 let[@inline never] test_cmp (x:float) y = test_aux_cmp x y
+let[@inline never] test_fail x y = test_aux_cmp x y
 
 let () =
   check_no_alloc __LINE__ test_lt 5. 1. (Some 1);
@@ -62,5 +63,6 @@ let () =
   check_no_alloc __LINE__ test_eq 5. 1. (Some 1);
   check_no_alloc __LINE__ test_ne 5. 1. (Some 1);
   check_no_alloc __LINE__ test_cmp 5. 1. (Some 1);
+  check_no_alloc __LINE__ test_fail () () (Some 1);
   ()
 
