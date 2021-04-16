@@ -56,7 +56,7 @@ let inline_linearly_used_continuation uacc ~create_apply_cont ~params ~handler
     let expr, uacc =
       let uacc =
         UA.with_name_occurrences uacc ~name_occurrences:free_names_of_handler
-        |> UA.add_cost_metrics cost_metrics_of_handler
+        |> UA.with_cost_metrics cost_metrics_of_handler
       in
       EB.make_new_let_bindings uacc ~bindings_outermost_first ~body:handler
     in
