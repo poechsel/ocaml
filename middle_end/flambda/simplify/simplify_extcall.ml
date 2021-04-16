@@ -172,7 +172,6 @@ let simplify_returning_extcall
       ~tagged_prim:(Int_comp (Tagged_immediate, Signed, Yielding_bool Gt))
       ~boxed_int_prim:(fun kind -> Int_comp (kind, Signed, Yielding_bool Gt))
 
-  (* Catchall *)
   | _ -> Unchanged
 
 
