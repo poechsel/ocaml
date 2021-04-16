@@ -202,7 +202,7 @@ let get_or_fail t : Args.t =
     Misc.fatal_errorf
       "Trying to access an unknown set of inliner arguments. This should not \
        happen, usually [meet] should have been called with a known set of \
-       arguments by this points."
+       arguments by this point."
   | Or_unknown.Known s -> s
 
 let max_inlining_depth t = (get_or_fail t).max_inlining_depth
