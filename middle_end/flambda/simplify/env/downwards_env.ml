@@ -106,7 +106,10 @@ let create ~round ~backend ~(resolver : resolver)
     get_imported_code;
     inlined_debuginfo = Debuginfo.none;
     can_inline = true;
-    inlining_state = Inlining_state.default;
+    inlining_state =
+      Inlining_state.default
+      |> Inlining_state.with_arguments
+           (Inlining_arguments.create ~round);
     float_const_prop;
     code = Code_id.Map.empty;
     at_unit_toplevel = true;
@@ -600,3 +603,29 @@ let enter_closure code_id return_continuation exn_continuation t =
   }
 
 let closure_info t = t.closure_info
+
+let inlining_arguments { inlining_state; _ } =
+  Inlining_state.arguments inlining_state
+
+let restrict_inlining_arguments inlining_arguments t =
+  let arguments =
+    Inlining_state.arguments t.inlining_state
+    |> Inlining_arguments.meet inlining_arguments
+  in
+  { t with inlining_state =
+             Inlining_state.with_arguments arguments t.inlining_state
+  }
+
+let enter_inlined_apply ~called_code ~apply t =
+  let arguments =
+    Inlining_state.arguments t.inlining_state
+    |> Inlining_arguments.meet (Code.inlining_arguments called_code)
+    |> Inlining_arguments.meet (Apply.inlining_arguments apply)
+  in
+  { t with
+    inlined_debuginfo = Apply.dbg apply;
+    inlining_state =
+      t.inlining_state
+      |> Inlining_state.increment_depth
+      |> Inlining_state.with_arguments arguments;
+  }

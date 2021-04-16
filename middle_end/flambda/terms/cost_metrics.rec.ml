@@ -177,6 +177,6 @@ let increase_due_to_let_cont_non_recursive ~cost_metrics_of_handler =
 let increase_due_to_let_cont_recursive ~cost_metrics_of_handlers =
   cost_metrics_of_handlers
 
-let evaluate ~round (t : t) =
-  Code_size.evaluate ~round t.size
-  -. Removed_operations.evaluate ~round t.removed
+let evaluate ~args (t : t) =
+  Code_size.evaluate ~args t.size
+  -. Removed_operations.evaluate ~args t.removed

@@ -91,13 +91,10 @@ let (+) t1 t2 = {
     requested_inline = t1.requested_inline + t2.requested_inline;
   }
 
-let cost (flag : Clflags.Float_arg_helper.parsed) ~round =
-  Clflags.Float_arg_helper.get ~key:round flag
-
-let evaluate ~round (t : t) =
-  (float_of_int t.call *. (cost !Clflags.inline_call_cost ~round)
-   +. (float_of_int t.alloc *. (cost !Clflags.inline_alloc_cost ~round))
-   +. (float_of_int t.prim *. (cost !Clflags.inline_prim_cost ~round))
-   +. (float_of_int t.branch *. (cost !Clflags.inline_branch_cost ~round))
+let evaluate ~args (t : t) =
+  (float_of_int t.call *. Inlining_arguments.call_cost args)
+   +. (float_of_int t.alloc *. Inlining_arguments.alloc_cost args)
+   +. (float_of_int t.prim *. Inlining_arguments.prim_cost args)
+   +. (float_of_int t.branch *. Inlining_arguments.branch_cost args)
    +. (float_of_int t.direct_call_of_indirect
-      *. cost !Clflags.inline_indirect_cost ~round))
+       *. Inlining_arguments.indirect_call_cost args)

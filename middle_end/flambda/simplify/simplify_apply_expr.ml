@@ -318,6 +318,7 @@ let simplify_direct_partial_application ~simplify_expr dacc apply
           ~is_a_functor:false
           ~recursive
           ~cost_metrics:cost_metrics_of_body
+          ~inlining_arguments:(DE.inlining_arguments (DA.denv dacc))
       in
       Static_const.Code code
     in
@@ -709,7 +710,8 @@ let simplify_apply_shared dacc apply : _ Or_bottom.t =
     S.simplify_simples dacc (Apply.args apply)
   in
   let inlining_state =
-    Inlining_state.merge (DE.get_inlining_state (DA.denv dacc))
+    Inlining_state.meet
+      (DE.get_inlining_state (DA.denv dacc))
       (Apply.inlining_state apply)
   in
   let apply =

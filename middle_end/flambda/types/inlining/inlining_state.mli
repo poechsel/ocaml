@@ -26,12 +26,16 @@ val equal : t -> t -> bool
 
 val default : t
 
-val create : depth:int -> t
+val create : arguments:Inlining_arguments.t -> depth:int -> t
 
 val increment_depth : t -> t
 
 val is_depth_exceeded : t -> bool
 
-val merge : t -> t -> t
+val meet : t -> t -> t
 
 val invariant : t -> unit
+
+val with_arguments : Inlining_arguments.t -> t -> t
+
+val arguments : t -> Inlining_arguments.t

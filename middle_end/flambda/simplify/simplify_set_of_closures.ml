@@ -306,10 +306,14 @@ end
 module C = Context_for_multiple_sets_of_closures
 
 let dacc_inside_function context ~used_closure_vars ~shareable_constants
-      ~params ~my_closure closure_id ~closure_bound_names_inside_function =
+      ~params ~my_closure closure_id ~closure_bound_names_inside_function
+      ~inlining_arguments =
   let dacc =
     DA.map_denv (C.dacc_inside_functions context) ~f:(fun denv ->
       let denv = DE.add_parameters_with_unknown_types denv params in
+      let denv =
+        DE.restrict_inlining_arguments inlining_arguments denv
+      in
       match
         Closure_id.Map.find closure_id closure_bound_names_inside_function
       with
@@ -357,7 +361,7 @@ let simplify_function context ~used_closure_vars ~shareable_constants
       Code.params_and_body_must_be_present code ~error_context:"Simplifying"
     in
     let params_and_body, dacc_after_body, free_names_of_code,
-        uacc_after_upwards_traversal =
+        uacc_after_upwards_traversal, inlining_arguments =
       Function_params_and_body.pattern_match params_and_body
         ~f:(fun ~return_continuation exn_continuation params ~body
                 ~my_closure ~is_my_closure_used:_ ->
@@ -365,6 +369,7 @@ let simplify_function context ~used_closure_vars ~shareable_constants
             dacc_inside_function context ~used_closure_vars ~shareable_constants
               ~params ~my_closure closure_id
               ~closure_bound_names_inside_function
+              ~inlining_arguments:(Code.inlining_arguments code)
           in
           if not (DA.no_lifted_constants dacc) then begin
             Misc.fatal_errorf "Did not expect lifted constants in [dacc]:@ %a"
@@ -387,6 +392,7 @@ let simplify_function context ~used_closure_vars ~shareable_constants
                    put into the environment for subsequent functions. *)
                 LCS.add_to_denv denv lifted_consts_prev_functions)
           in
+          let inlining_arguments = DE.inlining_arguments (DA.denv dacc) in
           assert (not (DE.at_unit_toplevel (DA.denv dacc)));
           (* CR mshinwell: DE.no_longer_defining_symbol is redundant now? *)
           match
@@ -436,7 +442,8 @@ let simplify_function context ~used_closure_vars ~shareable_constants
                 Variable.print my_closure
                 (RE.print (UA.are_rebuilding_terms uacc)) body
             end;
-            params_and_body, dacc_after_body, free_names_of_code, uacc
+            params_and_body, dacc_after_body, free_names_of_code, uacc,
+            inlining_arguments
           | exception Misc.Fatal_error ->
             if !Clflags.flambda_context_on_error then begin
               Format.eprintf "\n%sContext is:%s simplifying function \
@@ -473,6 +480,7 @@ let simplify_function context ~used_closure_vars ~shareable_constants
         ~is_a_functor:(Code.is_a_functor code)
         ~recursive:(Code.recursive code)
         ~cost_metrics
+        ~inlining_arguments
     in
     let function_decl = FD.update_code_id function_decl new_code_id in
     let function_type =
@@ -482,9 +490,9 @@ let simplify_function context ~used_closure_vars ~shareable_constants
       if Are_rebuilding_terms.do_not_rebuild_terms
            (DA.are_rebuilding_terms dacc_after_body)
       then
-	T.create_non_inlinable_function_declaration
-	   ~code_id:new_code_id
-	   ~is_tupled:(FD.is_tupled function_decl)
+        T.create_non_inlinable_function_declaration
+          ~code_id:new_code_id
+          ~is_tupled:(FD.is_tupled function_decl)
       else
         (* We need to manually specify the cost metrics to use to ensure that
            they are the one of the body after simplification. *)

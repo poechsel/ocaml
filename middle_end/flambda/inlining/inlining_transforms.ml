@@ -156,7 +156,7 @@ let wrap_inlined_body_for_exn_support ~extra_args ~apply_exn_continuation
     let body =
       Apply_cont.create ~trap_action push_wrapper_cont ~args:[]
         ~dbg:Debuginfo.none
-      |> Expr.create_apply_cont 
+      |> Expr.create_apply_cont
     in
     Let_cont.create_non_recursive push_wrapper_cont push_wrapper_handler ~body
       ~free_names_of_body:Unknown
@@ -170,22 +170,16 @@ let inline dacc ~apply ~unroll_to function_decl =
   let args = Apply.args apply in
   let apply_return_continuation = Apply.continuation apply in
   let apply_exn_continuation = Apply.exn_continuation apply in
-  let apply_inlining_state = Apply.inlining_state apply in 
-  let dbg = Apply.dbg apply in
   (* CR mshinwell: Add meet constraint to the return continuation *)
   let denv = DA.denv dacc in
   let code = DE.find_code denv (I.code_id function_decl) in
+  let denv = DE.enter_inlined_apply ~called_code:code ~apply denv in
   let params_and_body =
     Code.params_and_body_must_be_present code ~error_context:"Inlining"
   in
   Function_params_and_body.pattern_match params_and_body
     ~f:(fun ~return_continuation exn_continuation params ~body ~my_closure
             ~is_my_closure_used:_ ->
-          let denv =
-            DE.set_inlining_state
-              (DE.set_inlined_debuginfo denv dbg)
-              (Inlining_state.increment_depth apply_inlining_state)
-          in
           let make_inlined_body =
             make_inlined_body ~callee ~unroll_to ~params ~args ~my_closure ~body
               ~exn_continuation ~return_continuation
@@ -198,7 +192,7 @@ let inline dacc ~apply ~unroll_to function_decl =
                 (Exn_continuation.exn_handler apply_exn_continuation)
                 ~apply_return_continuation
             | extra_args ->
-               wrap_inlined_body_for_exn_support ~extra_args 
+               wrap_inlined_body_for_exn_support ~extra_args
                  ~apply_exn_continuation ~apply_return_continuation
                  ~result_arity:(Code.result_arity code) ~make_inlined_body
           in

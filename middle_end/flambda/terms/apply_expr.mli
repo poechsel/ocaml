@@ -95,3 +95,5 @@ val with_continuation_callee_and_args
   -> t
 
 val inlining_state : t -> Inlining_state.t
+
+val inlining_arguments : t -> Inlining_arguments.t

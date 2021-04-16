@@ -50,6 +50,7 @@ end) = struct
     is_a_functor : bool;
     recursive : Recursive.t;
     cost_metrics : Cost_metrics.t;
+    inlining_arguments : Inlining_arguments.t;
   }
 
   let code_id { code_id; _ } = code_id
@@ -80,7 +81,9 @@ end) = struct
 
   let recursive { recursive; _ } = recursive
 
-  let cost_metrics {cost_metrics; _} = cost_metrics
+  let cost_metrics { cost_metrics; _ } = cost_metrics
+
+  let inlining_arguments { inlining_arguments; _ } = inlining_arguments
 
   let check_params_and_body code_id (params_and_body : _ Or_deleted.t) =
     let free_names_of_params_and_body =
@@ -115,7 +118,8 @@ end) = struct
         ~(inline:Inline_attribute.t)
         ~is_a_functor
         ~recursive
-        ~cost_metrics =
+        ~cost_metrics
+        ~inlining_arguments =
     begin match stub, inline with
     | true, (Hint_inline | Never_inline | Default_inline)
     | false, (Never_inline | Default_inline | Always_inline | Hint_inline
@@ -138,6 +142,7 @@ end) = struct
       is_a_functor;
       recursive;
       cost_metrics;
+      inlining_arguments;
     }
 
   let with_code_id code_id t = { t with code_id }
@@ -160,7 +165,7 @@ end) = struct
   let print_with_cache ~cache ppf
         { code_id = _; params_and_body; newer_version_of; stub; inline;
           is_a_functor; params_arity; result_arity; recursive;
-          free_names_of_params_and_body = _; cost_metrics } =
+          free_names_of_params_and_body = _; cost_metrics; inlining_arguments } =
     let module C = Flambda_colours in
     match params_and_body with
     | Present _ ->
@@ -173,6 +178,7 @@ end) = struct
           @[<hov 1>@<0>%s(result_arity@ @<0>%s%a@<0>%s)@<0>%s@]@ \
           @[<hov 1>@<0>%s(recursive@ %a)@<0>%s@]@ \
           @[<hov 1>(cost_metrics@ %a)@]@ \
+          @[<hov 1>(inlining_arguments@ %a)@]@ \
           %a\
           )@]"
         (if Option.is_none newer_version_of then Flambda_colours.elide ()
@@ -214,6 +220,7 @@ end) = struct
         Recursive.print recursive
         (Flambda_colours.normal ())
         Cost_metrics.print cost_metrics
+        Inlining_arguments.print inlining_arguments
         (print_params_and_body_with_cache ~cache) params_and_body
     | Deleted ->
       Format.fprintf ppf "@[<hov 1>(\
@@ -246,7 +253,8 @@ end) = struct
   let apply_renaming
         ({ code_id; params_and_body; newer_version_of; params_arity = _;
           result_arity = _; stub = _; inline = _; is_a_functor = _;
-          recursive = _; cost_metrics = _; free_names_of_params_and_body; } as t)
+           recursive = _; cost_metrics = _; free_names_of_params_and_body;
+           inlining_arguments = _; } as t)
         perm =
     (* inlined and modified version of Option.map to preserve sharing *)
     let newer_version_of' =
@@ -289,7 +297,8 @@ end) = struct
   let all_ids_for_export { code_id; params_and_body; newer_version_of;
                           params_arity = _; result_arity = _; stub = _;
                           inline = _; is_a_functor = _; recursive = _;
-                          cost_metrics = _; free_names_of_params_and_body = _; } =
+                           cost_metrics = _; free_names_of_params_and_body = _;
+                           inlining_arguments = _; } =
     let newer_version_of_ids =
       match newer_version_of with
       | None -> Ids_for_export.empty

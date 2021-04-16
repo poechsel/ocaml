@@ -49,4 +49,4 @@ val increase_due_to_let_cont_recursive : cost_metrics_of_handlers:t -> t
 val notify_added: code_size:Code_size.t -> t -> t
 val notify_removed : operation:Removed_operations.t -> t -> t
 
-val evaluate : round:int -> t -> float
+val evaluate : args:Inlining_arguments.t -> t -> float
