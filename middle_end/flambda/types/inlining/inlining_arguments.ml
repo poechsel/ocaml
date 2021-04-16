@@ -91,9 +91,14 @@ module Args = struct
     && Float.compare t1_threshold t2_threshold = 0
 
   let (<=) t1 t2 =
-    (* The comparison of two [Args.t] is a pointwise comparison. It isn't a
-       total order so it may happen that both [t1 <= t2] and [t2 <= t1] are
-       false. *)
+    (* The comparison of two [Args.t] is a pointwise comparison. It is a
+       partial order so it may happen that both [t1 <= t2] and [t2 <= t1] are
+       false. For example we could have:
+       t1 = { call_cost = 2; alloc_cost = 2 }
+       t2 = { call_cost = 4; alloc_cost = 1 }
+       In that case [(<=) t1 t2 = false] as [t1.alloc_cost > t2.alloc_cost] and
+       [(<=) t2 t1 = false] as [t2.call_cost > t1.call_cost]
+    *)
     let {
       max_inlining_depth = t1_max_inlining_depth;
       call_cost = t1_call_cost;
@@ -196,8 +201,8 @@ let get_or_fail t : Args.t =
   | Or_unknown.Unknown ->
     Misc.fatal_errorf
       "Trying to access an unknown set of inliner arguments. This should not \
-       happen, usually it should have been [meet] with a known set of \
-       arguments at this points."
+       happen, usually [meet] should have been called with a known set of \
+       arguments by this points."
   | Or_unknown.Known s -> s
 
 let max_inlining_depth t = (get_or_fail t).max_inlining_depth
