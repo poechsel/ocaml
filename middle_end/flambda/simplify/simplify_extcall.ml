@@ -53,11 +53,6 @@ let let_prim ~dbg v prim (free_names, body) =
   let expr = Expr.create_let let_expr in
   free_names, expr
 
-let is_proved proof =
-  match (proof : unit T.proof_allowing_kind_mismatch) with
-  | Proved () -> true
-  | Unknown | Invalid | Wrong_kind -> false
-
 
 (* Exported simplification function *)
 (* ******************************** *)
@@ -94,33 +89,46 @@ let simplify_comparison
       ~tagged_prim ~float_prim ~boxed_int_prim
       a b a_ty b_ty =
   let tenv = DA.typing_env dacc in
-  if is_proved (T.prove_is_a_tagged_immediate tenv a_ty) &&
-     is_proved (T.prove_is_a_tagged_immediate tenv b_ty) then begin
+  match T.prove_is_a_boxed_number tenv a_ty,
+        T.prove_is_a_boxed_number tenv b_ty with
+  | Proved Untagged_immediate, Proved Untagged_immediate ->
     simplify_comparison_of_tagged_immediates
       ~dbg dacc cont a b
       ~cmp_prim:tagged_prim
-  end else if is_proved (T.prove_is_a_boxed_float tenv a_ty) &&
-              is_proved (T.prove_is_a_boxed_float tenv b_ty) then begin
+  | Proved Naked_float, Proved Naked_float ->
     simplify_comparison_of_boxed_numbers
       ~dbg dacc cont a b ~kind:Naked_float
       ~cmp_prim:float_prim
-  end else if is_proved (T.prove_is_a_boxed_int32 tenv a_ty) &&
-              is_proved (T.prove_is_a_boxed_int32 tenv b_ty) then begin
+  | Proved Naked_int32, Proved Naked_int32 ->
     simplify_comparison_of_boxed_numbers
       ~dbg dacc cont a b ~kind:Naked_int32
       ~cmp_prim:(boxed_int_prim K.Standard_int.Naked_int32)
-  end else if is_proved (T.prove_is_a_boxed_int64 tenv a_ty) &&
-              is_proved (T.prove_is_a_boxed_int64 tenv b_ty) then begin
+  | Proved Naked_int64, Proved Naked_int64 ->
     simplify_comparison_of_boxed_numbers
       ~dbg dacc cont a b ~kind:Naked_int64
       ~cmp_prim:(boxed_int_prim K.Standard_int.Naked_int64)
-  end else if is_proved (T.prove_is_a_boxed_nativeint tenv a_ty) &&
-              is_proved (T.prove_is_a_boxed_nativeint tenv b_ty) then begin
+  | Proved Naked_nativeint, Proved Naked_nativeint ->
     simplify_comparison_of_boxed_numbers
       ~dbg dacc cont a b ~kind:Naked_nativeint
       ~cmp_prim:(boxed_int_prim K.Standard_int.Naked_nativeint)
-  end else
-    Unchanged
+  (* Kind differences *)
+  | Proved Untagged_immediate,
+    Proved (Naked_float | Naked_nativeint | Naked_int32 | Naked_int64)
+  | Proved Naked_float,
+    Proved (Untagged_immediate | Naked_nativeint | Naked_int32 | Naked_int64)
+  | Proved Naked_int32,
+    Proved (Untagged_immediate | Naked_float | Naked_nativeint | Naked_int64)
+  | Proved Naked_int64,
+    Proved (Untagged_immediate | Naked_float | Naked_nativeint | Naked_int32)
+  | Proved Naked_nativeint,
+    Proved (Untagged_immediate | Naked_float | Naked_int32 | Naked_int64)
+  (* One or two of the arguments is not known *)
+  | (Unknown | Invalid | Wrong_kind), (Unknown | Invalid | Wrong_kind)
+  | (Unknown | Invalid | Wrong_kind),
+    Proved (Untagged_immediate | Naked_float | Naked_nativeint | Naked_int32 | Naked_int64)
+  | Proved (Untagged_immediate | Naked_float | Naked_nativeint | Naked_int32 | Naked_int64),
+    (Unknown | Invalid | Wrong_kind)
+    -> Unchanged
 
 
 let simplify_returning_extcall
