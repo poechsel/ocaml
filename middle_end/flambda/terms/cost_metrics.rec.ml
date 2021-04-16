@@ -128,7 +128,7 @@ let notify_removed ~operation t =
 
 let expr_size ~find_code e = Code_size.of_int (expr_size ~find_code e 0)
 
-let (+) a b ={
+let (+) a b = {
     size = Code_size.(+) a.size b.size;
     removed = Removed_operations.(+) a.removed b.removed
   }

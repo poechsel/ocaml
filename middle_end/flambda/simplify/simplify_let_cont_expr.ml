@@ -40,6 +40,7 @@ let rebuild_one_continuation_handler cont ~at_unit_toplevel
         ~critical_deps_of_bindings:(KP.List.free_names params)
   in
   let free_names = UA.name_occurrences uacc in
+  let cost_metrics = UA.cost_metrics uacc in
   let used_params, new_phantom_params =
     (* Removal of unused parameters of recursive continuations is not
        currently supported. *)
@@ -121,7 +122,7 @@ let rebuild_one_continuation_handler cont ~at_unit_toplevel
       UE.add_apply_cont_rewrite uenv cont rewrite)
   in
   after_rebuild cont_handler ~params:params' ~handler
-    ~free_names_of_handler:free_names uacc
+    ~free_names_of_handler:free_names ~cost_metrics_of_handler:cost_metrics uacc
 
 let simplify_one_continuation_handler ~simplify_expr dacc cont
       ~at_unit_toplevel recursive cont_handler ~params ~handler
@@ -145,7 +146,8 @@ type behaviour =
 
 let rebuild_non_recursive_let_cont_handler cont
       (uses : Continuation_env_and_param_types.t) ~params ~handler
-      ~free_names_of_handler ~is_single_inlinable_use scope ~is_exn_handler
+      ~free_names_of_handler ~cost_metrics_of_handler
+      ~is_single_inlinable_use scope ~is_exn_handler
       (extra_params_and_args : EPA.t)
       (cont_handler : RE.Continuation_handler.t) uacc ~after_rebuild =
   let uenv = UA.uenv uacc in
@@ -167,8 +169,7 @@ let rebuild_non_recursive_let_cont_handler cont
         (* We pass the parameters and the handler expression, rather than
            the [CH.t], to avoid re-opening the name abstraction. *)
         UE.add_linearly_used_inlinable_continuation uenv cont scope
-          ~params ~handler ~free_names_of_handler
-          ~cost_metrics_of_handler:(UA.cost_metrics uacc)
+          ~params ~handler ~free_names_of_handler ~cost_metrics_of_handler
       end else begin
         let behaviour =
           (* CR-someday mshinwell: This could be replaced by a more sophisticated
@@ -269,6 +270,7 @@ let simplify_non_recursive_let_cont_handler ~simplify_expr
            execution. *)
         rebuild_non_recursive_let_cont_handler cont uses ~params
           ~handler ~free_names_of_handler:Name_occurrences.empty
+          ~cost_metrics_of_handler:Cost_metrics.zero
           ~is_single_inlinable_use:false scope ~is_exn_handler
           EPA.empty cont_handler uacc ~after_rebuild)
   | Uses { handler_env; arg_types_by_use_id; extra_params_and_args;
@@ -342,12 +344,12 @@ let simplify_non_recursive_let_cont_handler ~simplify_expr
       ~is_single_inlinable_use ~down_to_up:(fun dacc ~rebuild ->
         down_to_up dacc ~continuation_has_zero_uses:false
           ~rebuild:(fun uacc ~after_rebuild ->
-            rebuild uacc ~after_rebuild:(fun cont_handler ~params
-                  ~handler ~free_names_of_handler uacc ->
+            rebuild uacc ~after_rebuild:(fun cont_handler ~params ~handler
+                  ~free_names_of_handler ~cost_metrics_of_handler uacc ->
               rebuild_non_recursive_let_cont_handler cont uses ~params ~handler
-                ~free_names_of_handler ~is_single_inlinable_use
-                scope ~is_exn_handler extra_params_and_args cont_handler uacc
-                ~after_rebuild)))
+                ~free_names_of_handler ~cost_metrics_of_handler
+                ~is_single_inlinable_use scope ~is_exn_handler
+                extra_params_and_args cont_handler uacc ~after_rebuild)))
 
 let simplify_non_recursive_let_cont ~simplify_expr dacc non_rec ~down_to_up =
   let cont_handler = Non_recursive_let_cont_handler.handler non_rec in
@@ -605,7 +607,7 @@ let simplify_recursive_let_cont_handlers ~simplify_expr
         in
         let uacc = UA.clear_name_occurrences uacc in
         rebuild_handler uacc ~after_rebuild:(fun cont_handler ~params
-              ~handler ~free_names_of_handler:_ uacc ->
+              ~handler ~free_names_of_handler:_ ~cost_metrics_of_handler:_ uacc ->
           let uacc = UA.add_free_names uacc name_occurrences_subsequent_exprs in
           (* The parameters are removed from the free name information as they
              are no longer in scope. *)
