@@ -837,9 +837,8 @@ let simplify_c_call ~simplify_expr dacc apply ~callee_ty ~param_arity
     simplify_expr dacc expr ~down_to_up:(fun dacc ~rebuild ->
       down_to_up dacc ~rebuild:(fun uacc ~after_rebuild ->
         let uacc =
-          UA.notify_removed
+          UA.notify_removed uacc
             ~operation:Removed_operations.specialized_poly_compare
-            uacc
         in
         rebuild uacc ~after_rebuild))
   | Unchanged ->
