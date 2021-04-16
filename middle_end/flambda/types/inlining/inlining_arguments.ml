@@ -54,6 +54,7 @@ module Args = struct
       prim_cost
       branch_cost
       indirect_call_cost
+      poly_compare_cost
       small_function_size
       large_function_size
       threshold
