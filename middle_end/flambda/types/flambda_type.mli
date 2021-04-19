@@ -595,10 +595,54 @@ val prove_single_closures_entry'
 
 val prove_strings : Typing_env.t -> t -> String_info.Set.t proof
 
+val prove_untagged_int_simple
+  : Typing_env.t
+  -> min_name_mode:Name_mode.t
+  -> t
+  -> Simple.t proof
+
+val prove_untagged_int_simple_maybe
+  : Typing_env.t
+  -> min_name_mode:Name_mode.t
+  -> t
+  -> Simple.t proof
+
+val prove_unboxed_float_simple
+   : Typing_env.t
+  -> min_name_mode:Name_mode.t
+  -> t
+  -> Simple.t proof
+
+val prove_unboxed_int32_simple
+   : Typing_env.t
+  -> min_name_mode:Name_mode.t
+  -> t
+  -> Simple.t proof
+
+val prove_unboxed_int64_simple
+   : Typing_env.t
+  -> min_name_mode:Name_mode.t
+  -> t
+  -> Simple.t proof
+
+val prove_unboxed_nativeint_simple
+   : Typing_env.t
+  -> min_name_mode:Name_mode.t
+  -> t
+  -> Simple.t proof
+
 val prove_block_field_simple
    : Typing_env.t
   -> min_name_mode:Name_mode.t
   -> t
+  -> Target_imm.t
+  -> Simple.t proof
+
+val prove_variant_field_simple
+   : Typing_env.t
+  -> min_name_mode:Name_mode.t
+  -> t
+  -> Tag.t
   -> Target_imm.t
   -> Simple.t proof
 

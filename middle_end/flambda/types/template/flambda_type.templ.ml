@@ -738,7 +738,151 @@ let prove_strings env t : String_info.Set.t proof =
   | Naked_immediate _ | Naked_float _ | Naked_int32 _ | Naked_int64 _
   | Naked_nativeint _ -> wrong_kind ()
 
-let prove_block_field_simple env ~min_name_mode t field_index : Simple.t proof =
+let prove_untagged_int_simple env ~min_name_mode t : Simple.t proof =
+  let wrong_kind () =
+    Misc.fatal_errorf "Kind error: expected [Value]:@ %a" print t
+  in
+  match expand_head t env with
+  | Const (Tagged_immediate _ as imm) ->
+    Proved (Simple.const_from_descr imm)
+  | Const _ -> wrong_kind ()
+  | Value Unknown -> Unknown
+  | Value (Ok (Variant { immediates; blocks; is_unique = _; })) ->
+    begin match blocks with
+    | Unknown -> Unknown
+    | Known blocks ->
+      if not (Row_like.For_blocks.is_bottom blocks) then
+        Unknown
+      else begin match immediates with
+        | Unknown -> Unknown
+        | Known ty ->
+          begin match get_alias_exn ty with
+          | simple ->
+            begin match
+              Typing_env.get_canonical_simple_exn env ~min_name_mode simple
+            with
+            | simple -> Proved simple
+            | exception Not_found -> Unknown
+            end
+          | exception Not_found -> Unknown
+          end
+      end
+    end
+  | Value _ -> Invalid
+  | _ -> wrong_kind ()
+
+let prove_untagged_int_simple_maybe env ~min_name_mode t : Simple.t proof =
+  let wrong_kind () =
+    Misc.fatal_errorf "Kind error: expected [Value]:@ %a" print t
+  in
+  match expand_head t env with
+  | Const (Tagged_immediate _ as imm) ->
+    Proved (Simple.const_from_descr imm)
+  | Const _ -> wrong_kind ()
+  | Value Unknown -> Unknown
+  | Value (Ok (Variant { immediates; blocks = _; is_unique = _; })) ->
+    begin match immediates with
+    | Unknown -> Unknown
+    | Known ty ->
+      begin match get_alias_exn ty with
+      | simple ->
+        begin match
+          Typing_env.get_canonical_simple_exn env ~min_name_mode simple
+        with
+        | simple -> Proved simple
+        | exception Not_found -> Unknown
+        end
+      | exception Not_found -> Unknown
+      end
+    end
+  | Value _ -> Invalid
+  | _ -> wrong_kind ()
+
+let prove_unboxed_float_simple env ~min_name_mode t : Simple.t proof =
+  let wrong_kind () =
+    Misc.fatal_errorf "Kind error: expected [Value]:@ %a" print t
+  in
+  match expand_head t env with
+  | Const _ -> wrong_kind ()
+  | Value Unknown -> Unknown
+  | Value (Ok (Boxed_float ty)) ->
+    begin match get_alias_exn ty with
+    | simple ->
+      begin match
+        Typing_env.get_canonical_simple_exn env ~min_name_mode simple
+      with
+      | simple -> Proved simple
+      | exception Not_found -> Unknown
+      end
+    | exception Not_found -> Unknown
+    end
+  | Value _ -> Invalid
+  | _ -> wrong_kind ()
+
+let prove_unboxed_int64_simple env ~min_name_mode t : Simple.t proof =
+  let wrong_kind () =
+    Misc.fatal_errorf "Kind error: expected [Value]:@ %a" print t
+  in
+  match expand_head t env with
+  | Const _ -> wrong_kind ()
+  | Value Unknown -> Unknown
+  | Value (Ok (Boxed_int64 ty)) ->
+    begin match get_alias_exn ty with
+    | simple ->
+      begin match
+        Typing_env.get_canonical_simple_exn env ~min_name_mode simple
+      with
+      | simple -> Proved simple
+      | exception Not_found -> Unknown
+      end
+    | exception Not_found -> Unknown
+    end
+  | Value _ -> Invalid
+  | _ -> wrong_kind ()
+
+let prove_unboxed_int32_simple env ~min_name_mode t : Simple.t proof =
+  let wrong_kind () =
+    Misc.fatal_errorf "Kind error: expected [Value]:@ %a" print t
+  in
+  match expand_head t env with
+  | Const _ -> wrong_kind ()
+  | Value Unknown -> Unknown
+  | Value (Ok (Boxed_int32 ty)) ->
+    begin match get_alias_exn ty with
+    | simple ->
+      begin match
+        Typing_env.get_canonical_simple_exn env ~min_name_mode simple
+      with
+      | simple -> Proved simple
+      | exception Not_found -> Unknown
+      end
+    | exception Not_found -> Unknown
+    end
+  | Value _ -> Invalid
+  | _ -> wrong_kind ()
+
+let prove_unboxed_nativeint_simple env ~min_name_mode t : Simple.t proof =
+  let wrong_kind () =
+    Misc.fatal_errorf "Kind error: expected [Value]:@ %a" print t
+  in
+  match expand_head t env with
+  | Const _ -> wrong_kind ()
+  | Value Unknown -> Unknown
+  | Value (Ok (Boxed_nativeint ty)) ->
+    begin match get_alias_exn ty with
+    | simple ->
+      begin match
+        Typing_env.get_canonical_simple_exn env ~min_name_mode simple
+      with
+      | simple -> Proved simple
+      | exception Not_found -> Unknown
+      end
+    | exception Not_found -> Unknown
+    end
+  | Value _ -> Invalid
+  | _ -> wrong_kind ()
+
+let[@inline] prove_block_field_simple_aux env ~min_name_mode t get_field : Simple.t proof =
   let wrong_kind () =
     Misc.fatal_errorf "Kind error: expected [Value]:@ %a" print t
   in
@@ -757,7 +901,7 @@ let prove_block_field_simple env ~min_name_mode t field_index : Simple.t proof =
         else if not (is_obviously_bottom imms) then
           Unknown
         else
-          begin match Row_like.For_blocks.get_field blocks field_index with
+          begin match (get_field blocks : _ Or_unknown_or_bottom.t) with
           | Bottom -> Invalid
           | Unknown -> Unknown
           | Ok ty ->
@@ -779,6 +923,16 @@ let prove_block_field_simple env ~min_name_mode t field_index : Simple.t proof =
   | Value Bottom -> Invalid
   | Naked_immediate _ | Naked_float _ | Naked_int32 _ | Naked_int64 _
   | Naked_nativeint _ -> wrong_kind ()
+
+let prove_block_field_simple env ~min_name_mode t field_index =
+  let[@inline] get blocks = Row_like.For_blocks.get_field blocks field_index in
+  (prove_block_field_simple_aux[@inlined]) env ~min_name_mode t get
+
+let prove_variant_field_simple env ~min_name_mode t variant_tag field_index =
+  let[@inline] get blocks =
+    Row_like.For_blocks.get_variant_field blocks variant_tag field_index
+  in
+  (prove_block_field_simple_aux[@inlined]) env ~min_name_mode t get
 
 let prove_project_var_simple env ~min_name_mode t env_var : Simple.t proof =
   let wrong_kind () =
