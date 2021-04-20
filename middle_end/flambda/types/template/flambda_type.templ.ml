@@ -798,89 +798,60 @@ let prove_untagged_int_simple_maybe env ~min_name_mode t : Simple.t proof =
   | Value _ -> Invalid
   | _ -> wrong_kind ()
 
-let prove_unboxed_float_simple env ~min_name_mode t : Simple.t proof =
-  let wrong_kind () =
-    Misc.fatal_errorf "Kind error: expected [Value]:@ %a" print t
-  in
+let [@inline always] prove_boxed_number_containing_simple
+      ~contents_of_boxed_number env ~min_name_mode t : Simple.t proof =
   match expand_head t env with
-  | Const _ -> wrong_kind ()
-  | Value Unknown -> Unknown
-  | Value (Ok (Boxed_float ty)) ->
-    begin match get_alias_exn ty with
-    | simple ->
-      begin match
-        Typing_env.get_canonical_simple_exn env ~min_name_mode simple
-      with
-      | simple -> Proved simple
+  | Value (Ok ty_value) ->
+    begin match contents_of_boxed_number ty_value with
+    | None -> Invalid
+    | Some ty ->
+      match get_alias_exn ty with
+      | simple ->
+        begin match
+          Typing_env.get_canonical_simple_exn env ~min_name_mode simple
+        with
+        | simple -> Proved simple
+        | exception Not_found -> Unknown
+        end
       | exception Not_found -> Unknown
-      end
-    | exception Not_found -> Unknown
     end
-  | Value _ -> Invalid
-  | _ -> wrong_kind ()
+  | Value Unknown -> Unknown
+  | Value Bottom -> Invalid
+  | Const _ | Naked_immediate _ | Naked_float _ | Naked_int32 _
+  | Naked_int64 _ | Naked_nativeint _ ->
+    Misc.fatal_errorf "Kind error: expected [Value]:@ %a" print t
 
-let prove_unboxed_int64_simple env ~min_name_mode t : Simple.t proof =
-  let wrong_kind () =
-    Misc.fatal_errorf "Kind error: expected [Value]:@ %a" print t
-  in
-  match expand_head t env with
-  | Const _ -> wrong_kind ()
-  | Value Unknown -> Unknown
-  | Value (Ok (Boxed_int64 ty)) ->
-    begin match get_alias_exn ty with
-    | simple ->
-      begin match
-        Typing_env.get_canonical_simple_exn env ~min_name_mode simple
-      with
-      | simple -> Proved simple
-      | exception Not_found -> Unknown
-      end
-    | exception Not_found -> Unknown
-    end
-  | Value _ -> Invalid
-  | _ -> wrong_kind ()
+let prove_boxed_float_containing_simple =
+  prove_boxed_number_containing_simple
+    ~contents_of_boxed_number:(fun (ty_value : Type_of_kind_value0.t) ->
+      match ty_value with
+      | Boxed_float ty -> Some ty
+      | Variant _ | Boxed_int32 _ | Boxed_int64 _ | Boxed_nativeint _
+      | Closures _ | String _ | Array _ -> None)
 
-let prove_unboxed_int32_simple env ~min_name_mode t : Simple.t proof =
-  let wrong_kind () =
-    Misc.fatal_errorf "Kind error: expected [Value]:@ %a" print t
-  in
-  match expand_head t env with
-  | Const _ -> wrong_kind ()
-  | Value Unknown -> Unknown
-  | Value (Ok (Boxed_int32 ty)) ->
-    begin match get_alias_exn ty with
-    | simple ->
-      begin match
-        Typing_env.get_canonical_simple_exn env ~min_name_mode simple
-      with
-      | simple -> Proved simple
-      | exception Not_found -> Unknown
-      end
-    | exception Not_found -> Unknown
-    end
-  | Value _ -> Invalid
-  | _ -> wrong_kind ()
+let prove_boxed_int32_containing_simple =
+  prove_boxed_number_containing_simple
+    ~contents_of_boxed_number:(fun (ty_value : Type_of_kind_value0.t) ->
+      match ty_value with
+      | Boxed_int32 ty -> Some ty
+      | Variant _ | Boxed_float _ | Boxed_int64 _ | Boxed_nativeint _
+      | Closures _ | String _ | Array _ -> None)
 
-let prove_unboxed_nativeint_simple env ~min_name_mode t : Simple.t proof =
-  let wrong_kind () =
-    Misc.fatal_errorf "Kind error: expected [Value]:@ %a" print t
-  in
-  match expand_head t env with
-  | Const _ -> wrong_kind ()
-  | Value Unknown -> Unknown
-  | Value (Ok (Boxed_nativeint ty)) ->
-    begin match get_alias_exn ty with
-    | simple ->
-      begin match
-        Typing_env.get_canonical_simple_exn env ~min_name_mode simple
-      with
-      | simple -> Proved simple
-      | exception Not_found -> Unknown
-      end
-    | exception Not_found -> Unknown
-    end
-  | Value _ -> Invalid
-  | _ -> wrong_kind ()
+let prove_boxed_int64_containing_simple =
+  prove_boxed_number_containing_simple
+    ~contents_of_boxed_number:(fun (ty_value : Type_of_kind_value0.t) ->
+      match ty_value with
+      | Boxed_int64 ty -> Some ty
+      | Variant _ | Boxed_float _ | Boxed_int32 _ | Boxed_nativeint _
+      | Closures _ | String _ | Array _ -> None)
+
+let prove_boxed_nativeint_containing_simple =
+  prove_boxed_number_containing_simple
+    ~contents_of_boxed_number:(fun (ty_value : Type_of_kind_value0.t) ->
+      match ty_value with
+      | Boxed_nativeint ty -> Some ty
+      | Variant _ | Boxed_float _ | Boxed_int32 _ | Boxed_int64 _
+      | Closures _ | String _ | Array _ -> None)
 
 let[@inline] prove_block_field_simple_aux env ~min_name_mode t get_field : Simple.t proof =
   let wrong_kind () =

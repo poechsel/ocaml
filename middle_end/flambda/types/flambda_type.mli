@@ -607,25 +607,25 @@ val prove_untagged_int_simple_maybe
   -> t
   -> Simple.t proof
 
-val prove_unboxed_float_simple
+val prove_boxed_float_containing_simple
    : Typing_env.t
   -> min_name_mode:Name_mode.t
   -> t
   -> Simple.t proof
 
-val prove_unboxed_int32_simple
+val prove_boxed_int32_containing_simple
    : Typing_env.t
   -> min_name_mode:Name_mode.t
   -> t
   -> Simple.t proof
 
-val prove_unboxed_int64_simple
+val prove_boxed_int64_containing_simple
    : Typing_env.t
   -> min_name_mode:Name_mode.t
   -> t
   -> Simple.t proof
 
-val prove_unboxed_nativeint_simple
+val prove_boxed_nativeint_containing_simple
    : Typing_env.t
   -> min_name_mode:Name_mode.t
   -> t
