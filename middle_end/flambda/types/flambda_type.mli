@@ -595,17 +595,22 @@ val prove_single_closures_entry'
 
 val prove_strings : Typing_env.t -> t -> String_info.Set.t proof
 
-(** Attempt to show that the provided type expresses the tagging of a
-    naked immediate [Simple].  This function will return [Invalid] if values of
-    the provided type might sometimes, but not always, be a tagged immediate
-    (for example if it is a variant type involving blocks). *)
-val prove_is_tagging_of_simple
+(** Attempt to show that the provided type describes the tagged version of
+    a unique naked immediate [Simple].
+    This function will return [Invalid] if values of the provided type might
+    sometimes, but not always, be a tagged immediate (for example if it is a
+    variant type involving blocks). *)
+val prove_is_always_tagging_of_simple
    : Typing_env.t
   -> min_name_mode:Name_mode.t
   -> t
   -> Simple.t proof
 
-val prove_untagged_int_simple_maybe
+(** Attempt to show that the provided type _can_ describe, but might not
+    always describe, the tagged version of a unique naked immediate [Simple].
+    It is guaranteed that if a [Simple] is returned, the type does not
+    describe any other tagged immediate. *)
+val prove_could_be_tagging_of_simple
    : Typing_env.t
   -> min_name_mode:Name_mode.t
   -> t
