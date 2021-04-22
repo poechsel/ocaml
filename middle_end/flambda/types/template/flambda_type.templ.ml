@@ -738,6 +738,10 @@ let prove_strings env t : String_info.Set.t proof =
   | Naked_immediate _ | Naked_float _ | Naked_int32 _ | Naked_int64 _
   | Naked_nativeint _ -> wrong_kind ()
 
+type prove_tagging_function =
+  | Prove_could_be_tagging_of_simple
+  | Prove_is_always_tagging_of_simple
+
 let prove_is_tagging_of_simple
     ~prove_function env ~min_name_mode t : Simple.t proof =
   let wrong_kind () =
@@ -751,12 +755,12 @@ let prove_is_tagging_of_simple
     | Unknown -> Unknown
     | Known blocks ->
       match prove_function with
-      | `Prove_is_always_tagging_of_simple
+      | Prove_is_always_tagging_of_simple
         when not (Row_like.For_blocks.is_bottom blocks) ->
         Unknown
-      | `Prove_is_always_tagging_of_simple
+      | Prove_is_always_tagging_of_simple
         (* when (Row_like.For_blocks.is_bottom blocks) *)
-      | `Prove_could_be_tagging_of_simple ->
+      | Prove_could_be_tagging_of_simple ->
         match immediates with
         | Unknown -> Unknown
         | Known t ->
@@ -790,11 +794,11 @@ let prove_is_tagging_of_simple
 
 let prove_is_always_tagging_of_simple =
   prove_is_tagging_of_simple
-    ~prove_function:`Prove_is_always_tagging_of_simple
+    ~prove_function:Prove_is_always_tagging_of_simple
 
 let prove_could_be_tagging_of_simple =
   prove_is_tagging_of_simple
-    ~prove_function:`Prove_could_be_tagging_of_simple
+    ~prove_function:Prove_could_be_tagging_of_simple
 
 let [@inline always] prove_boxed_number_containing_simple
       ~contents_of_boxed_number env ~min_name_mode t : Simple.t proof =
