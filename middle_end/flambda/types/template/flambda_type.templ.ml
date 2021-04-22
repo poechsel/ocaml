@@ -750,17 +750,13 @@ let prove_is_tagging_of_simple
     begin match blocks with
     | Unknown -> Unknown
     | Known blocks ->
-      let result =
-        match prove_function with
-        | `Prove_could_be_tagging_of_simple -> `Continue
-        | `Prove_is_always_tagging_of_simple ->
-          if Row_like.For_blocks.is_bottom blocks
-          then `Continue
-          else `Return (Unknown : _ proof)
-      in
-      match result with
-      | `Return res -> res
-      | `Continue ->
+      match prove_function with
+      | `Prove_is_always_tagging_of_simple
+        when not (Row_like.For_blocks.is_bottom blocks) ->
+        Unknown
+      | `Prove_is_always_tagging_of_simple
+        (* when (Row_like.For_blocks.is_bottom blocks) *)
+      | `Prove_could_be_tagging_of_simple ->
         match immediates with
         | Unknown -> Unknown
         | Known t ->
