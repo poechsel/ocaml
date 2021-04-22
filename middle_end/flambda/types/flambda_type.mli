@@ -597,7 +597,7 @@ val prove_strings : Typing_env.t -> t -> String_info.Set.t proof
 
 (** Attempt to show that the provided type describes the tagged version of
     a unique naked immediate [Simple].
-    This function will return [Invalid] if values of the provided type might
+    This function will return [Unknown] if values of the provided type might
     sometimes, but not always, be a tagged immediate (for example if it is a
     variant type involving blocks). *)
 val prove_is_always_tagging_of_simple
