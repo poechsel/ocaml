@@ -738,7 +738,9 @@ let prove_strings env t : String_info.Set.t proof =
   | Naked_immediate _ | Naked_float _ | Naked_int32 _ | Naked_int64 _
   | Naked_nativeint _ -> wrong_kind ()
 
-let prove_is_always_tagging_of_simple env ~min_name_mode t : Simple.t proof =
+let prove_is_tagging_of_simple
+    ~must_be_a_tagged_int_and_nothing_else
+    env ~min_name_mode t : Simple.t proof =
   let wrong_kind () =
     Misc.fatal_errorf "Kind error: expected [Value]:@ %a" print t
   in
@@ -749,7 +751,8 @@ let prove_is_always_tagging_of_simple env ~min_name_mode t : Simple.t proof =
     begin match blocks with
     | Unknown -> Unknown
     | Known blocks ->
-      if not (Row_like.For_blocks.is_bottom blocks) then
+      if must_be_a_tagged_int_and_nothing_else &&
+         not (Row_like.For_blocks.is_bottom blocks) then
         Unknown
       else
         match immediates with
@@ -783,44 +786,13 @@ let prove_is_always_tagging_of_simple env ~min_name_mode t : Simple.t proof =
   | Const _ | Naked_immediate _ | Naked_float _ | Naked_int32 _
   | Naked_int64 _ | Naked_nativeint _ -> wrong_kind ()
 
-let prove_could_be_tagging_of_simple env ~min_name_mode t : Simple.t proof =
-  let wrong_kind () =
-    Misc.fatal_errorf "Kind error: expected [Value]:@ %a" print t
-  in
-  match expand_head t env with
-  | Const (Tagged_immediate imm) ->
-    Proved (Simple.const (Reg_width_const.naked_immediate imm))
-  | Value (Ok (Variant { immediates; blocks = _; is_unique = _; })) ->
-    begin match immediates with
-    | Unknown -> Unknown
-    | Known t ->
-      let from_alias =
-        match get_alias_exn t with
-        | simple ->
-          begin match
-            Typing_env.get_canonical_simple_exn env ~min_name_mode simple
-          with
-          | simple -> Some simple
-          | exception Not_found -> None
-          end
-        | exception Not_found -> None
-      in
-      match from_alias with
-      | Some simple -> Proved simple
-      | None ->
-        match prove_naked_immediates env t with
-        | Unknown -> Unknown
-        | Invalid -> Invalid
-        | Proved imms ->
-          match Target_imm.Set.get_singleton imms with
-          | Some imm ->
-            Proved (Simple.const (Reg_width_const.naked_immediate imm))
-          | None -> Unknown
-    end
-  | Value Unknown -> Unknown
-  | Value _ -> Invalid
-  | Const _ | Naked_immediate _ | Naked_float _ | Naked_int32 _
-  | Naked_int64 _ | Naked_nativeint _ -> wrong_kind ()
+let prove_is_always_tagging_of_simple =
+  prove_is_tagging_of_simple
+    ~must_be_a_tagged_int_and_nothing_else:true
+
+let prove_could_be_tagging_of_simple =
+  prove_is_tagging_of_simple
+    ~must_be_a_tagged_int_and_nothing_else:false
 
 let [@inline always] prove_boxed_number_containing_simple
       ~contents_of_boxed_number env ~min_name_mode t : Simple.t proof =
