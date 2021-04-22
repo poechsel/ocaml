@@ -739,8 +739,7 @@ let prove_strings env t : String_info.Set.t proof =
   | Naked_nativeint _ -> wrong_kind ()
 
 let prove_is_tagging_of_simple
-    ~must_be_a_tagged_int_and_nothing_else
-    env ~min_name_mode t : Simple.t proof =
+    ~prove_function env ~min_name_mode t : Simple.t proof =
   let wrong_kind () =
     Misc.fatal_errorf "Kind error: expected [Value]:@ %a" print t
   in
@@ -751,10 +750,17 @@ let prove_is_tagging_of_simple
     begin match blocks with
     | Unknown -> Unknown
     | Known blocks ->
-      if must_be_a_tagged_int_and_nothing_else &&
-         not (Row_like.For_blocks.is_bottom blocks) then
-        Unknown
-      else
+      let result =
+        match prove_function with
+        | `Prove_could_be_tagging_of_simple -> `Continue
+        | `Prove_is_always_tagging_of_simple ->
+          if Row_like.For_blocks.is_bottom blocks
+          then `Continue
+          else `Return (Unknown : _ proof)
+      in
+      match result with
+      | `Return res -> res
+      | `Continue ->
         match immediates with
         | Unknown -> Unknown
         | Known t ->
@@ -788,14 +794,14 @@ let prove_is_tagging_of_simple
 
 let prove_is_always_tagging_of_simple =
   prove_is_tagging_of_simple
-    ~must_be_a_tagged_int_and_nothing_else:true
+    ~prove_function:`Prove_is_always_tagging_of_simple
 
 let prove_could_be_tagging_of_simple =
   prove_is_tagging_of_simple
-    ~must_be_a_tagged_int_and_nothing_else:false
+    ~prove_function:`Prove_could_be_tagging_of_simple
 
 let [@inline always] prove_boxed_number_containing_simple
-      ~contents_of_boxed_number env ~min_name_mode t : Simple.t proof =
+                       ~contents_of_boxed_number env ~min_name_mode t : Simple.t proof =
   match expand_head t env with
   | Value (Ok ty_value) ->
     begin match contents_of_boxed_number ty_value with
