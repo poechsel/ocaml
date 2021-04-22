@@ -750,7 +750,7 @@ let prove_is_always_tagging_of_simple env ~min_name_mode t : Simple.t proof =
     | Unknown -> Unknown
     | Known blocks ->
       if not (Row_like.For_blocks.is_bottom blocks) then
-        Invalid
+        Unknown
       else
         match immediates with
         | Unknown -> Unknown
