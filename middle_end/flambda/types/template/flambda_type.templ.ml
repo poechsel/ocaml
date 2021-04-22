@@ -801,7 +801,7 @@ let prove_could_be_tagging_of_simple =
     ~prove_function:`Prove_could_be_tagging_of_simple
 
 let [@inline always] prove_boxed_number_containing_simple
-                       ~contents_of_boxed_number env ~min_name_mode t : Simple.t proof =
+      ~contents_of_boxed_number env ~min_name_mode t : Simple.t proof =
   match expand_head t env with
   | Value (Ok ty_value) ->
     begin match contents_of_boxed_number ty_value with
