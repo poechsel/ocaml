@@ -807,14 +807,11 @@ let [@inline always] prove_boxed_number_containing_simple
     begin match contents_of_boxed_number ty_value with
     | None -> Invalid
     | Some ty ->
-      match get_alias_exn ty with
-      | simple ->
-        begin match
-          Typing_env.get_canonical_simple_exn env ~min_name_mode simple
-        with
-        | simple -> Proved simple
-        | exception Not_found -> Unknown
-        end
+      match
+        Typing_env.get_canonical_simple_exn
+          env ~min_name_mode (get_alias_exn ty)
+      with
+      | simple -> Proved simple
       | exception Not_found -> Unknown
     end
   | Value Unknown -> Unknown
