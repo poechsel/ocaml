@@ -765,14 +765,11 @@ let prove_is_tagging_of_simple
         | Unknown -> Unknown
         | Known t ->
           let from_alias =
-            match get_alias_exn t with
-            | simple ->
-              begin match
-                Typing_env.get_canonical_simple_exn env ~min_name_mode simple
-              with
-              | simple -> Some simple
-              | exception Not_found -> None
-              end
+            match
+              Typing_env.get_canonical_simple_exn
+                env ~min_name_mode (get_alias_exn t)
+            with
+            | simple -> Some simple
             | exception Not_found -> None
           in
           match from_alias with
