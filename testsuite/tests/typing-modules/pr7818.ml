@@ -275,6 +275,7 @@ module MkT :
       val get_singleton : t -> elt option
       val to_seq_from : elt -> t -> elt Seq.t
       val to_seq : t -> elt Seq.t
+      val to_rev_seq : t -> elt Seq.t
       val add_seq : elt Seq.t -> t -> t
       val of_seq : elt Seq.t -> t
     end

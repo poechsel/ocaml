@@ -50,8 +50,6 @@ type specific_operation =
 and float_operation =
     Ifloatadd | Ifloatsub | Ifloatmul | Ifloatdiv
 
-let spacetime_node_hole_pointer_is_live_before _specific_op = false
-
 (* Sizes, endianness *)
 
 let big_endian = false
@@ -135,34 +133,6 @@ let print_specific_operation printreg op ppf arg =
       fprintf ppf "sextend32 %a" printreg arg.(0)
   | Izextend32 ->
       fprintf ppf "zextend32 %a" printreg arg.(0)
-
-(* Register typing on specific operations *)
-
-let infer_specific arg res = function
-  | Ilea _ ->
-      Array.fold_left (fun acc r ->
-          `Bound (r, Cmm.Int) :: acc
-        ) [] arg
-  | Istore_int _ ->
-      [ `Bound (arg.(0), Cmm.Val) ]
-  | Ioffset_loc _ ->
-      [ `Bound (arg.(0), Cmm.Val) ]
-  | Ifloatarithmem _ ->
-      [ `Bound (res.(0), Cmm.Float);
-        `Bound (arg.(0), Cmm.Float);
-        `Bound (arg.(1), Cmm.Val) ]
-  | Ibswap _ ->
-      [ `Bound (arg.(0), Cmm.Int);
-        `Bound (res.(0), Cmm.Int) ]
-  | Isqrtf ->
-      [ `Bound (arg.(0), Cmm.Float);
-        `Bound (res.(0), Cmm.Float) ]
-  | Ifloatsqrtf _ ->
-      [ `Bound (arg.(0), Cmm.Val);
-        `Bound (res.(0), Cmm.Float) ]
-  | Isextend32 | Izextend32 ->
-      [ `Bound (arg.(0), Cmm.Int);
-        `Bound (res.(0), Cmm.Int) ]
 
 let win64 =
   match Config.system with

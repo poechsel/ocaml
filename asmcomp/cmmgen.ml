@@ -207,18 +207,15 @@ let rec expr_size env = function
 let transl_constant dbg = function
   | Uconst_int n ->
       int_const dbg n
-  | Uconst_ptr n ->
-      if n <= max_repr_int && n >= min_repr_int
-      then Cconst_pointer((n lsl 1) + 1, dbg)
-      else Cconst_natpointer
-              (Nativeint.add (Nativeint.shift_left (Nativeint.of_int n) 1) 1n,
-               dbg)
-  | Uconst_ref (label, _) ->
+  | Uconst_ref (label, def_opt) ->
+      Option.iter
+        (fun def -> Cmmgen_state.add_structured_constant label def)
+        def_opt;
       Cconst_symbol (label, dbg)
 
 let emit_constant cst cont =
   match cst with
-  | Uconst_int n | Uconst_ptr n ->
+  | Uconst_int n ->
       cint_const n
       :: cont
   | Uconst_ref (sym, _) ->
@@ -346,10 +343,10 @@ let is_unboxed_number_cmm ~strict cmm =
     r := join_unboxed_number_kind ~strict !r k
   in
   let rec aux = function
-    | Cop(Calloc, [Cblockheader (hdr, _); _], dbg)
+    | Cop(Calloc, [Cconst_natint (hdr, _); _], dbg)
       when Nativeint.equal hdr float_header ->
         notify (Boxed (Boxed_float dbg, false))
-    | Cop(Calloc, [Cblockheader (hdr, _); Cconst_symbol (ops, _); _], dbg) ->
+    | Cop(Calloc, [Cconst_natint (hdr, _); Cconst_symbol (ops, _); _], dbg) ->
         if Nativeint.equal hdr boxedintnat_header
         && String.equal ops caml_nativeint_ops
         then
@@ -408,6 +405,7 @@ let rec transl env e =
       in
       Cconst_symbol (sym, dbg)
   | Uclosure(fundecls, clos_vars) ->
+      let startenv = fundecls_size fundecls in
       let rec transl_fundecls pos = function
           [] ->
             List.map (transl env) clos_vars
@@ -417,16 +415,19 @@ let rec transl env e =
             let without_header =
               if f.arity = 1 || f.arity = 0 then
                 Cconst_symbol (f.label, dbg) ::
-                int_const dbg f.arity ::
+                alloc_closure_info ~arity:f.arity
+                                   ~startenv:(startenv - pos) dbg ::
                 transl_fundecls (pos + 3) rem
               else
                 Cconst_symbol (curry_function_sym f.arity, dbg) ::
-                int_const dbg f.arity ::
+                alloc_closure_info ~arity:f.arity
+                                   ~startenv:(startenv - pos) dbg ::
                 Cconst_symbol (f.label, dbg) ::
                 transl_fundecls (pos + 4) rem
             in
-            if pos = 0 then without_header
-            else (alloc_infix_header pos f.dbg) :: without_header
+            if pos = 0
+            then without_header
+            else alloc_infix_header pos f.dbg :: without_header
       in
       let dbg =
         match fundecls with
@@ -464,7 +465,7 @@ let rec transl env e =
               Cphantom_const_symbol sym
             | Uphantom_read_symbol_field { sym; field; } ->
               Cphantom_read_symbol_field { sym; field; }
-            | Uphantom_const (Uconst_int i) | Uphantom_const (Uconst_ptr i) ->
+            | Uphantom_const (Uconst_int i) ->
               Cphantom_const_int (targetint_const i)
             | Uphantom_var var -> Cphantom_var var
             | Uphantom_read_field { var; field; } ->
@@ -761,7 +762,7 @@ and transl_make_array dbg env kind args =
   match kind with
   | Pgenarray ->
     Cop(Cextcall { func = "caml_make_array"; ty = typ_val;
-                   alloc = true; label_after =  None; returns = true; },
+                   alloc = true; ty_args = []; returns = true; },
           [make_alloc dbg 0 (List.map (transl env) args)], dbg)
   | Paddrarray | Pintarray ->
       make_alloc dbg 0 (List.map (transl env) args)
@@ -772,20 +773,32 @@ and transl_make_array dbg env kind args =
 and transl_ccall env prim args dbg =
   let transl_arg native_repr arg =
     match native_repr with
-    | Same_as_ocaml_repr -> transl env arg
-    | Unboxed_float -> transl_unbox_float dbg env arg
-    | Unboxed_integer bi -> transl_unbox_int dbg env bi arg
-    | Untagged_int -> untag_int (transl env arg) dbg
+    | Same_as_ocaml_repr ->
+        (XInt, transl env arg)
+    | Unboxed_float ->
+        (XFloat, transl_unbox_float dbg env arg)
+    | Unboxed_integer bi ->
+        let xty =
+          match bi with
+          | Pnativeint -> XInt
+          | Pint32 -> XInt32
+          | Pint64 -> XInt64 in
+        (xty, transl_unbox_int dbg env bi arg)
+    | Untagged_int ->
+        (XInt, untag_int (transl env arg) dbg)
   in
   let rec transl_args native_repr_args args =
     match native_repr_args, args with
     | [], args ->
         (* We don't require the two lists to be of the same length as
            [default_prim] always sets the arity to [0]. *)
-        List.map (transl env) args
-    | _, [] -> assert false
+        (List.map (fun _ -> XInt) args, List.map (transl env) args)
+    | _, [] ->
+        assert false
     | native_repr :: native_repr_args, arg :: args ->
-        transl_arg native_repr arg :: transl_args native_repr_args args
+        let (ty1, arg') = transl_arg native_repr arg in
+        let (tys, args') = transl_args native_repr_args args in
+        (ty1 :: tys, arg' :: args')
   in
   let typ_res, wrap_result =
     match prim.prim_native_repr_res with
@@ -796,10 +809,10 @@ and transl_ccall env prim args dbg =
     | Unboxed_integer bi -> (typ_int, box_int dbg bi)
     | Untagged_int -> (typ_int, (fun i -> tag_int i dbg))
   in
-  let args = transl_args prim.prim_native_repr_args args in
+  let typ_args, args = transl_args prim.prim_native_repr_args args in
   wrap_result
     (Cop(Cextcall { func = Primitive.native_name prim; ty = typ_res;
-                    alloc = prim.prim_alloc; label_after = None;
+                    alloc = prim.prim_alloc; ty_args = typ_args;
                     returns = true; }, args, dbg))
 
 and transl_prim_1 env p arg dbg =
@@ -844,8 +857,8 @@ and transl_prim_1 env p arg dbg =
   | Pnot ->
       transl_if env Then_false_else_true
         dbg arg
-        dbg (Cconst_pointer (1, dbg))
-        dbg (Cconst_pointer (3, dbg))
+        dbg (Cconst_int (1, dbg))
+        dbg (Cconst_int (3, dbg))
   (* Test integer/block *)
   | Pisint ->
       tag_int(Cop(Cand, [transl env arg; Cconst_int (1, dbg)], dbg)) dbg
@@ -904,8 +917,8 @@ and transl_prim_2 env p arg1 arg2 dbg =
       transl_sequand env Then_true_else_false
         dbg arg1
         dbg' arg2
-        dbg (Cconst_pointer (3, dbg))
-        dbg' (Cconst_pointer (1, dbg))
+        dbg (Cconst_int (3, dbg))
+        dbg' (Cconst_int (1, dbg))
       (* let id = V.create_local "res1" in
       Clet(id, transl env arg1,
            Cifthenelse(test_bool dbg (Cvar id), transl env arg2, Cvar id)) *)
@@ -914,8 +927,8 @@ and transl_prim_2 env p arg1 arg2 dbg =
       transl_sequor env Then_true_else_false
         dbg arg1
         dbg' arg2
-        dbg (Cconst_pointer (3, dbg))
-        dbg' (Cconst_pointer (1, dbg))
+        dbg (Cconst_int (3, dbg))
+        dbg' (Cconst_int (1, dbg))
   (* Integer operations *)
   | Paddint ->
       add_int_caml (transl env arg1) (transl env arg2) dbg
@@ -999,17 +1012,17 @@ and transl_prim_2 env p arg1 arg2 dbg =
 
   (* Boxed integers *)
   | Paddbint bi ->
-      box_int dbg bi (Cop(Caddi,
-                      [transl_unbox_int_low dbg env bi arg1;
-                       transl_unbox_int_low dbg env bi arg2], dbg))
+      box_int dbg bi (add_int
+                        (transl_unbox_int_low dbg env bi arg1)
+                        (transl_unbox_int_low dbg env bi arg2) dbg)
   | Psubbint bi ->
-      box_int dbg bi (Cop(Csubi,
-                      [transl_unbox_int_low dbg env bi arg1;
-                       transl_unbox_int_low dbg env bi arg2], dbg))
+      box_int dbg bi (sub_int
+                        (transl_unbox_int_low dbg env bi arg1)
+                        (transl_unbox_int_low dbg env bi arg2) dbg)
   | Pmulbint bi ->
-      box_int dbg bi (Cop(Cmuli,
-                      [transl_unbox_int_low dbg env bi arg1;
-                       transl_unbox_int_low dbg env bi arg2], dbg))
+      box_int dbg bi (mul_int
+                        (transl_unbox_int_low dbg env bi arg1)
+                        (transl_unbox_int_low dbg env bi arg2) dbg)
   | Pdivbint { size = bi; is_safe } ->
       box_int dbg bi (safe_div_bi is_safe
                       (transl_unbox_int dbg env bi arg1)
@@ -1033,18 +1046,18 @@ and transl_prim_2 env p arg1 arg2 dbg =
                      [transl_unbox_int_low dbg env bi arg1;
                       transl_unbox_int_low dbg env bi arg2], dbg))
   | Plslbint bi ->
-      box_int dbg bi (Cop(Clsl,
-                     [transl_unbox_int_low dbg env bi arg1;
-                      untag_int(transl env arg2) dbg], dbg))
+      box_int dbg bi (lsl_int
+                        (transl_unbox_int_low dbg env bi arg1)
+                        (untag_int(transl env arg2) dbg) dbg)
   | Plsrbint bi ->
-      box_int dbg bi (Cop(Clsr,
-                     [make_unsigned_int bi (transl_unbox_int dbg env bi arg1)
-                                        dbg;
-                      untag_int(transl env arg2) dbg], dbg))
+      box_int dbg bi (lsr_int
+                        (make_unsigned_int bi (transl_unbox_int dbg env bi arg1)
+                                        dbg)
+                        (untag_int(transl env arg2) dbg) dbg)
   | Pasrbint bi ->
-      box_int dbg bi (Cop(Casr,
-                     [transl_unbox_int dbg env bi arg1;
-                      untag_int(transl env arg2) dbg], dbg))
+      box_int dbg bi (asr_int
+                        (transl_unbox_int dbg env bi arg1)
+                        (untag_int(transl env arg2) dbg) dbg)
   | Pbintcomp(bi, cmp) ->
       tag_int (Cop(Ccmpi cmp,
                      [transl_unbox_int dbg env bi arg1;
@@ -1212,9 +1225,9 @@ and transl_if env (approx : then_else)
       (then_dbg : Debuginfo.t) then_
       (else_dbg : Debuginfo.t) else_ =
   match cond with
-  | Uconst (Uconst_ptr 0) -> else_
-  | Uconst (Uconst_ptr 1) -> then_
-  | Uifthenelse (arg1, arg2, Uconst (Uconst_ptr 0)) ->
+  | Uconst (Uconst_int 0) -> else_
+  | Uconst (Uconst_int 1) -> then_
+  | Uifthenelse (arg1, arg2, Uconst (Uconst_int 0)) ->
       (* CR mshinwell: These Debuginfos will flow through from Clambda *)
       let inner_dbg = Debuginfo.none in
       let ifso_dbg = Debuginfo.none in
@@ -1229,7 +1242,7 @@ and transl_if env (approx : then_else)
         inner_dbg arg2
         then_dbg then_
         else_dbg else_
-  | Uifthenelse (arg1, Uconst (Uconst_ptr 1), arg2) ->
+  | Uifthenelse (arg1, Uconst (Uconst_int 1), arg2) ->
       let inner_dbg = Debuginfo.none in
       let ifnot_dbg = Debuginfo.none in
       transl_sequor env approx
@@ -1248,13 +1261,13 @@ and transl_if env (approx : then_else)
         dbg arg
         else_dbg else_
         then_dbg then_
-  | Uifthenelse (Uconst (Uconst_ptr 1), ifso, _) ->
+  | Uifthenelse (Uconst (Uconst_int 1), ifso, _) ->
       let ifso_dbg = Debuginfo.none in
       transl_if env approx
         ifso_dbg ifso
         then_dbg then_
         else_dbg else_
-  | Uifthenelse (Uconst (Uconst_ptr 0), _, ifnot) ->
+  | Uifthenelse (Uconst (Uconst_int 0), _, ifnot) ->
       let ifnot_dbg = Debuginfo.none in
       transl_if env approx
         ifnot_dbg ifnot
@@ -1341,7 +1354,7 @@ and transl_letrec env bindings cont =
   in
   let op_alloc prim args =
     Cop(Cextcall { func = prim; ty = typ_val;
-                   alloc = true; label_after = None;
+                   alloc = true; ty_args = [];
                    returns = true; }, args, dbg) in
   let rec init_blocks = function
     | [] -> fill_nonrec bsz
@@ -1369,7 +1382,7 @@ and transl_letrec env bindings cont =
     | (id, exp, (RHS_block _ | RHS_infix _ | RHS_floatblock _)) :: rem ->
         let op =
           Cop(Cextcall { func = "caml_update_dummy"; ty = typ_void;
-                         alloc = false; label_after = None; returns = true; },
+                         alloc = false; ty_args = []; returns = true; },
               [Cvar (VP.var id); transl env exp], dbg) in
         Csequence(op, fill_blocks rem)
     | (_id, _exp, RHS_nonrec) :: rem ->

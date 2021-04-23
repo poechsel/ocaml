@@ -46,6 +46,7 @@ val of_list : elt list -> t = <fun>
 val get_singleton : t -> elt option = <fun>
 val to_seq_from : elt -> t -> elt Seq.t = <fun>
 val to_seq : t -> elt Seq.t = <fun>
+val to_rev_seq : t -> elt Seq.t = <fun>
 val add_seq : elt Seq.t -> t -> t = <fun>
 val of_seq : elt Seq.t -> t = <fun>
 |}]

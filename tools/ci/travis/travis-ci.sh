@@ -60,7 +60,8 @@ set -x
 
 PREFIX=~/local
 
-MAKE=make SHELL=dash
+MAKE="make $MAKE_ARG"
+SHELL=dash
 
 TRAVIS_CUR_HEAD=${TRAVIS_COMMIT_RANGE%%...*}
 TRAVIS_PR_HEAD=${TRAVIS_COMMIT_RANGE##*...}
@@ -76,6 +77,60 @@ case $TRAVIS_EVENT_TYPE in
      done
      TRAVIS_MERGE_BASE=$(git merge-base "$TRAVIS_CUR_HEAD" "$TRAVIS_PR_HEAD");;
 esac
+
+CheckSyncStdlibDocs () {
+  cat<<EOF
+------------------------------------------------------------------------
+This test checks that running tools/sync-stdlib-docs is a no-op in the current
+state, which means that the labelled/unlabelled .mli files are in sync.  If
+this check fails, it should be fixable by just running the script and reviewing
+the changes it makes.
+------------------------------------------------------------------------
+EOF
+  tools/sync_stdlib_docs
+  git diff --quiet --exit-code && result=pass || result=fail
+  case $result in
+      pass)
+          echo "CheckSyncStdlibDocs: success";;
+      fail)
+          echo "CheckSyncStdlibDocs: failure with the following differences:"
+          git --no-pager diff
+          exit 1;;
+  esac
+}
+
+CheckDepend () {
+  cat<<EOF
+------------------------------------------------------------------------
+This test checks that 'alldepend' target is a no-op in the current
+state, which means that dependencies are correctly stored in .depend
+files. It should only be run after the compiler has been built.
+If this check fails, it should be fixable by just running 'make alldepend'.
+------------------------------------------------------------------------
+EOF
+  ./configure --disable-dependency-generation \
+              --disable-debug-runtime \
+              --disable-instrumented-runtime
+  # Need a runtime
+  $MAKE -j coldstart
+  # And generated files (ocamllex compiles ocamlyacc)
+  $MAKE -j ocamllex
+  $MAKE alldepend
+  # note: we cannot use $? as (set -e) may be set globally,
+  # and disabling it locally is not worth the hassle.
+  # note: we ignore the whitespace in case different C dependency
+  # detectors use different indentation styles.
+  git diff --ignore-all-space --quiet --exit-code **.depend \
+      && result=pass || result=fail
+  case $result in
+      pass)
+          echo "CheckDepend: success";;
+      fail)
+          echo "CheckDepend: failure with the following differences:"
+          git --no-pager diff --ignore-all-space **.depend
+          exit 1;;
+  esac
+}
 
 BuildAndTest () {
   mkdir -p $PREFIX
@@ -106,12 +161,14 @@ EOF
       --disable-ocamldoc \
       --disable-native-compiler \
       --enable-ocamltest \
+      --disable-dependency-generation \
       $CONFIG_ARG"
   else
     configure_flags="\
       --prefix=$PREFIX \
       --enable-flambda-invariants \
       --enable-ocamltest \
+      --disable-dependency-generation \
       $CONFIG_ARG"
   fi
   case $XARCH in
@@ -119,8 +176,9 @@ EOF
     ./configure $configure_flags
     ;;
   i386)
-    ./configure --build=x86_64-pc-linux-gnu --host=i386-pc-linux-gnu \
-      AS='as' ASPP='gcc -c' \
+    ./configure --build=x86_64-pc-linux-gnu --host=i386-linux \
+      CC='gcc -m32' AS='as --32' ASPP='gcc -m32 -c' \
+      PARTIALLD='ld -r -melf_i386' \
       $configure_flags
     ;;
   *)
@@ -153,9 +211,15 @@ EOF
   cd ..
   if command -v pdflatex &>/dev/null  ; then
     echo Ensuring that all library documentation compiles
-    make -C ocamldoc html_doc pdf_doc texi_doc
+    $MAKE -C ocamldoc html_doc pdf_doc texi_doc
   fi
   $MAKE install
+  if command -v hevea &>/dev/null ; then
+    echo Ensuring that the manual compiles
+    # These steps rely on the compiler being installed and in PATH
+    $MAKE -C manual/manual/html_processing duniverse
+    $MAKE -C manual web
+  fi
   if fgrep 'SUPPORTS_SHARED_LIBRARIES=true' Makefile.config &>/dev/null ; then
     echo Check the code examples in the manual
     $MAKE manual-pregen
@@ -172,6 +236,7 @@ EOF
   $MAKE -C manual clean
   # check that the `distclean` target definitely cleans the tree
   $MAKE distclean
+  $MAKE -C manual distclean
   # Check the working tree is clean
   test -z "$(git status --porcelain)"
   # Check that there are no ignored files
@@ -352,6 +417,9 @@ tests)
 check-typo)
    set +x
    CheckTypo;;
+check-depend)
+    CheckSyncStdlibDocs
+    CheckDepend;;
 *) echo unknown CI kind
    exit 1
    ;;

@@ -26,7 +26,7 @@
 \begin{quote}
 \rule{}{}
 This manual is also available in
-\ahref{https://ocaml.org/releases/\ocamlversion/ocaml-\ocamlversion-refman.pdf}{PDF}.
+\ahref{https://ocaml.org/releases/\ocamlversion/ocaml-\ocamlversion-refman.pdf}{PDF},
 \ahref{https://ocaml.org/releases/\ocamlversion/ocaml-\ocamlversion-refman.txt}{plain text},
 as a
 \ahref{https://ocaml.org/releases/\ocamlversion/ocaml-\ocamlversion-refman-html.tar.gz}{bundle of HTML files},
@@ -63,15 +63,11 @@ and as a
 \input{native.tex}
 \input{lexyacc.tex}
 \input{ocamldep.tex}
-\input{browser.tex}
 \input{ocamldoc.tex}
 \input{debugger.tex}
 \input{profil.tex}
-\input{ocamlbuild.tex}
-% \input emacs.tex
 \input{intf-c.tex}
 \input{flambda.tex}
-\input{spacetime-chapter.tex}
 \input{afl-fuzz.tex}
 \input{instrumented-runtime.tex}
 
@@ -81,15 +77,13 @@ and as a
 \input{stdlib-blurb.tex}
 \input{compilerlibs.tex}
 \input{libunix.tex}
-\input{libnum.tex}
 \input{libstr.tex}
 \input{libthreads.tex}
-\input{libgraph.tex}
 \input{libdynlink.tex}
-\input{libbigarray.tex}
+\input{old.tex}
 
-\part{Appendix}
-\label{p:appendix}
+\part{Indexes}
+\label{p:indexes}
 
 \ifouthtml
 \begin{links}

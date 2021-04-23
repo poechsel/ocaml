@@ -30,14 +30,14 @@ COMPILER_LIBS_INTF = Asthelper.tex Astmapper.tex Asttypes.tex \
   $(COMPILER_LIBS_PLUGIN_HOOKS)
 
 OTHERLIB_INTF = Unix.tex UnixLabels.tex Str.tex \
-  Thread.tex Mutex.tex Condition.tex Event.tex ThreadUnix.tex \
+  Thread.tex Mutex.tex Condition.tex Semaphore.tex Event.tex \
   Dynlink.tex Bigarray.tex
 
 INTF = $(CORE_INTF) $(STDLIB_INTF) $(COMPILER_LIBS_INTF) $(OTHERLIB_INTF)
 
 BLURB = core.tex builtin.tex stdlib-blurb.tex compilerlibs.tex \
-  libunix.tex libstr.tex libnum.tex libgraph.tex \
-  libthreads.tex libdynlink.tex libbigarray.tex
+  libunix.tex libstr.tex old.tex \
+  libthreads.tex libdynlink.tex
 
 FILES = $(BLURB) $(INTF)
 

@@ -143,12 +143,14 @@ and apply_coercion_result loc strict funct params args cc_res =
                loc = loc;
                body = apply_coercion
                    loc Strict cc_res
-                   (Lapply{ap_should_be_tailcall=false;
-                           ap_loc=loc;
-                           ap_func=Lvar id;
-                           ap_args=List.rev args;
-                           ap_inlined=Default_inline;
-                           ap_specialised=Default_specialise})})
+                   (Lapply{
+                      ap_loc=loc;
+                      ap_func=Lvar id;
+                      ap_args=List.rev args;
+                      ap_tailcall=Default_tailcall;
+                      ap_inlined=Default_inline;
+                      ap_specialised=Default_specialise;
+                    })})
 
 and wrap_id_pos_list loc id_pos_list get_field lam =
   let fv = free_variables lam in
@@ -234,8 +236,8 @@ let undefined_location loc =
   let (fname, line, char) = Location.get_pos_info loc.Location.loc_start in
   Lconst(Const_block(0,
                      [Const_base(Const_string (fname, loc, None));
-                      Const_base(Const_int line);
-                      Const_base(Const_int char)]))
+                      const_int line;
+                      const_int char]))
 
 exception Initialization_failure of unsafe_info
 
@@ -260,9 +262,9 @@ let init_shape id modl =
         let init_v =
           match Ctype.expand_head env ty with
             {desc = Tarrow(_,_,_,_)} ->
-              Const_pointer 0 (* camlinternalMod.Function *)
+              const_int 0 (* camlinternalMod.Function *)
           | {desc = Tconstr(p, _, _)} when Path.same p Predef.path_lazy_t ->
-              Const_pointer 1 (* camlinternalMod.Lazy *)
+              const_int 1 (* camlinternalMod.Lazy *)
           | _ ->
               let not_a_function =
                 Unsafe {reason=Unsafe_non_function; loc; subid }
@@ -288,7 +290,7 @@ let init_shape id modl =
     | Sig_modtype(id, minfo, _) :: rem ->
         init_shape_struct (Env.add_modtype id minfo env) rem
     | Sig_class _ :: rem ->
-        Const_pointer 2 (* camlinternalMod.Class *)
+        const_int 2 (* camlinternalMod.Class *)
         :: init_shape_struct env rem
     | Sig_class_type _ :: rem ->
         init_shape_struct env rem
@@ -376,10 +378,11 @@ let eval_rec_bindings bindings cont =
       bind_inits rem
   | (Id id, Some(loc, shape), _rhs) :: rem ->
       Llet(Strict, Pgenval, id,
-           Lapply{ap_should_be_tailcall=false;
+           Lapply{
                   ap_loc=Loc_unknown;
                   ap_func=mod_prim "init_mod";
                   ap_args=[loc; shape];
+                  ap_tailcall=Default_tailcall;
                   ap_inlined=Default_inline;
                   ap_specialised=Default_specialise},
            bind_inits rem)
@@ -399,10 +402,11 @@ let eval_rec_bindings bindings cont =
   | (_, None, _rhs) :: rem ->
       patch_forwards rem
   | (Id id, Some(_loc, shape), rhs) :: rem ->
-      Lsequence(Lapply{ap_should_be_tailcall=false;
+      Lsequence(Lapply{
                        ap_loc=Loc_unknown;
                        ap_func=mod_prim "update_mod";
                        ap_args=[shape; Lvar id; rhs];
+                       ap_tailcall=Default_tailcall;
                        ap_inlined=Default_inline;
                        ap_specialised=Default_specialise},
                 patch_forwards rem)
@@ -532,10 +536,11 @@ and transl_module ~scopes cc rootpath mexp =
       in
       oo_wrap mexp.mod_env true
         (apply_coercion loc Strict cc)
-        (Lapply{ap_should_be_tailcall=false;
+        (Lapply{
                 ap_loc=loc;
                 ap_func=transl_module ~scopes Tcoerce_none None funct;
                 ap_args=[transl_module ~scopes ccarg None arg];
+                ap_tailcall=Default_tailcall;
                 ap_inlined=inlined_attribute;
                 ap_specialised=Default_specialise})
   | Tmod_constraint(arg, _, _, ccarg) ->
@@ -678,7 +683,11 @@ and transl_structure ~scopes loc fields cc rootpath final_env = function
               in
               Llet(pure_module mb.mb_expr, Pgenval, id, module_body, body), size
           end
-      | Tstr_module {mb_presence=Mp_absent} ->
+      | Tstr_module ({mb_presence=Mp_absent} as mb) ->
+          List.iter (Translattribute.check_attribute_on_module mb.mb_expr)
+            mb.mb_attributes;
+          List.iter (Translattribute.check_attribute_on_module mb.mb_expr)
+            mb.mb_expr.mod_attributes;
           transl_structure ~scopes loc fields cc rootpath final_env rem
       | Tstr_recmodule bindings ->
           let ext_fields =
@@ -816,7 +825,7 @@ let transl_implementation_flambda module_name (str, cc) =
   primitive_declarations := [];
   Translprim.clear_used_primitives ();
   let module_id = Ident.create_persistent module_name in
-  let scopes = [Sc_module_definition module_name] in
+  let scopes = enter_module_definition ~scopes:empty_scopes module_id in
   let body, size =
     Translobj.transl_label_init
       (fun () -> transl_struct ~scopes Loc_unknown [] cc
@@ -1135,7 +1144,11 @@ let transl_store_structure ~scopes glob map prims aliases str =
                            transl_store ~scopes rootpath
                              (add_ident true id subst)
                              cont rem))
-        | Tstr_module {mb_presence=Mp_absent} ->
+        | Tstr_module ({mb_presence=Mp_absent} as mb) ->
+            List.iter (Translattribute.check_attribute_on_module mb.mb_expr)
+              mb.mb_attributes;
+            List.iter (Translattribute.check_attribute_on_module mb.mb_expr)
+              mb.mb_expr.mod_attributes;
             transl_store ~scopes rootpath subst cont rem
         | Tstr_recmodule bindings ->
             let ids = List.filter_map (fun mb -> mb.mb_id) bindings in
@@ -1393,14 +1406,17 @@ let transl_store_gen ~scopes module_name ({ str_items = str }, restr) topl =
   (*size, transl_label_init (transl_store_structure module_id map prims str)*)
 
 let transl_store_phrases module_name str =
-  let scopes = [Sc_module_definition module_name] in
+  let scopes =
+    enter_module_definition ~scopes:empty_scopes
+      (Ident.create_persistent module_name)
+  in
   transl_store_gen ~scopes module_name (str,Tcoerce_none) true
 
 let transl_store_implementation module_name (str, restr) =
   let s = !transl_store_subst in
   transl_store_subst := Ident.Map.empty;
   let module_ident = Ident.create_persistent module_name in
-  let scopes = [Sc_module_definition module_name] in
+  let scopes = enter_module_definition ~scopes:empty_scopes module_ident in
   let (i, code) = transl_store_gen ~scopes module_name (str, restr) false in
   transl_store_subst := s;
   { Lambda.main_module_block_size = i;
@@ -1427,18 +1443,19 @@ let toplevel_name id =
   with Not_found -> Ident.name id
 
 let toploop_getvalue id =
-  Lapply{ap_should_be_tailcall=false;
+  Lapply{
          ap_loc=Loc_unknown;
          ap_func=Lprim(mod_field toploop_getvalue_pos,
                        [Lprim(Pgetglobal toploop_ident, [], Loc_unknown)],
                        Loc_unknown);
          ap_args=[Lconst(Const_base(
              Const_string (toplevel_name id, Location.none,None)))];
+             ap_tailcall=Default_tailcall;
          ap_inlined=Default_inline;
          ap_specialised=Default_specialise}
 
 let toploop_setvalue id lam =
-  Lapply{ap_should_be_tailcall=false;
+  Lapply{
          ap_loc=Loc_unknown;
          ap_func=Lprim(mod_field toploop_setvalue_pos,
                        [Lprim(Pgetglobal toploop_ident, [], Loc_unknown)],
@@ -1446,6 +1463,7 @@ let toploop_setvalue id lam =
          ap_args=[Lconst(Const_base(
              Const_string (toplevel_name id, Location.none, None)));
                   lam];
+         ap_tailcall=Default_tailcall;
          ap_inlined=Default_inline;
          ap_specialised=Default_specialise}
 
@@ -1554,8 +1572,13 @@ let transl_toplevel_item ~scopes item =
                transl_module ~scopes Tcoerce_none None od.open_expr,
                set_idents 0 ids)
       end
+  | Tstr_module ({mb_presence=Mp_absent} as mb) ->
+      List.iter (Translattribute.check_attribute_on_module mb.mb_expr)
+        mb.mb_attributes;
+      List.iter (Translattribute.check_attribute_on_module mb.mb_expr)
+        mb.mb_expr.mod_attributes;
+      lambda_unit
   | Tstr_modtype _
-  | Tstr_module {mb_presence=Mp_absent}
   | Tstr_type _
   | Tstr_class_type _
   | Tstr_attribute _ ->
@@ -1568,7 +1591,9 @@ let transl_toplevel_item_and_close ~scopes itm =
 let transl_toplevel_definition str =
   reset_labels ();
   Translprim.clear_used_primitives ();
-  make_sequence (transl_toplevel_item_and_close ~scopes:[]) str.str_items
+  make_sequence
+    (transl_toplevel_item_and_close ~scopes:empty_scopes)
+    str.str_items
 
 (* Compile the initialization code for a packed library *)
 
