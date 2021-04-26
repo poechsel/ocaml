@@ -52,10 +52,14 @@
    ;; UTILS
    config build_path_prefix_map misc identifiable numbers arg_helper clflags
    profile terminfo ccomp warnings consistbl strongly_connected_components
+<<<<<<< HEAD
    one_bit_fewer targetint load_path
    int_replace_polymorphic_compare printing_cache lmap
    ; manual update: mli only files
    targetint_intf
+=======
+   targetint load_path int_replace_polymorphic_compare binutils local_store
+>>>>>>> ocaml/4.12
 
    ;; PARSING
    location longident docstrings syntaxerr ast_helper camlinternalMenhirLib
@@ -69,7 +73,8 @@
    cmi_format persistent_env env type_immediacy
    typedtree printtyped ctype printtyp includeclass mtype envaux includecore
    tast_iterator tast_mapper cmt_format untypeast includemod
-   typetexp printpat parmatch stypes typedecl typeopt rec_check typecore
+   typetexp patterns printpat parmatch stypes typedecl typeopt rec_check
+   typecore
    typeclass typemod typedecl_variance typedecl_properties typedecl_immediacy
    typedecl_unboxed typedecl_separability cmt2annot
    ; manual update: mli only files
@@ -148,12 +153,22 @@
             flambda flambda_to_cmm)
  (modules
    ;; asmcomp/
+<<<<<<< HEAD
    afl_instrument asmgen asmlibrarian asmlink asmpackager branch_relaxation
    branch_relaxation_intf cmmgen coloring comballoc
    CSE CSEgen deadcode domainstate emit emitaux interf linear linearize linscan
    liveness printlinear reload reloadgen schedgen
    scheduling selectgen selection spacetime_profiling spill split
    x86_dsl x86_gas x86_masm
+=======
+   afl_instrument arch asmgen asmlibrarian asmlink asmpackager branch_relaxation
+   branch_relaxation_intf cmm_helpers cmm cmmgen cmmgen_state coloring comballoc
+   CSE CSEgen
+   deadcode domainstate emit emitaux interf interval linear linearize linscan
+   liveness mach printcmm printlinear printmach proc reg reload reloadgen
+   schedgen scheduling selectgen selection spill split
+   strmatch x86_ast x86_dsl x86_gas x86_masm x86_proc
+>>>>>>> ocaml/4.12
 
    ;; asmcomp/debug/
    compute_ranges_intf available_regs compute_ranges

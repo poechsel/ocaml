@@ -54,6 +54,7 @@ html: htmlman/libref/style.css htmlman/compilerlibref/style.css etex-files
 htmlman/libref/style.css: style.css $(STDLIB_MLIS) $(DOC_STDLIB_TEXT)
 	mkdir -p htmlman/libref
 	$(OCAMLDOC) -colorize-code -sort -html \
+	  -charset "UTF-8" \
 	  -d htmlman/libref \
 	  $(DOC_STDLIB_INCLUDES) \
           $(DOC_STDLIB_TEXT:%=-text %) \
@@ -71,6 +72,7 @@ htmlman/compilerlibref/style.css: library/compiler_libs.txt style.css \
   $(COMPILERLIBS_MLIS)
 	mkdir -p htmlman/compilerlibref
 	$(OCAMLDOC) -colorize-code -sort -html \
+	  -charset "UTF-8" \
 	  -d htmlman/compilerlibref \
 	  -I $(SRC)/stdlib \
 	  $(DOC_COMPILERLIBS_INCLUDES) \
@@ -118,6 +120,8 @@ release: all
 	cp textman/manual.txt $(RELEASE)refman.txt
 	tar cf - infoman/ocaml.info* | gzip > $(RELEASE)refman.info.tar.gz
 
+web: html
+	$(MAKE) -C html_processing all
 
 files: $(FILES)
 	$(MAKE) -C cmds      all
@@ -147,12 +151,13 @@ warnings-help.etex: $(SRC)/utils/warnings.ml $(SRC)/ocamlc
 	 echo "% when a new warning is documented.";\
 	 echo "%";\
 	 $(SET_LD_PATH) $(SRC)/boot/ocamlrun $(SRC)/ocamlc -warn-help \
-	 | sed -e 's/^ *\([0-9A-Z][0-9]*\)\(.*\)/\\item[\1] \2/'\
+	 | sed -e 's/^ *\([0-9][0-9]*\) *\[\([a-z][a-z-]*\)\]\(.*\)/\\item[\1 "\2"] \3/' \
+               -e 's/^ *\([0-9A-Z][0-9]*\) *\([^]].*\)/\\item[\1] \2/'\
 	) >$@
 #	sed --inplace is not portable, emulate
 	for i in 52 57; do\
 	  sed\
-	    s'/\\item\['$$i'\]/\\item\['$$i' (see \\ref{ss:warn'$$i'})\]/'\
+	    s'/\\item\[\('$$i'[^]]*\)\]/\\item\[\1 (see \\ref{ss:warn'$$i'})\]/'\
 	    $@ > $@.tmp;\
 	  mv $@.tmp $@;\
 	done
@@ -165,6 +170,7 @@ clean:
 	$(MAKE) -C library   clean
 	$(MAKE) -C refman    clean
 	$(MAKE) -C tutorials clean
+	$(MAKE) -C html_processing clean
 	-rm -f texstuff/*
 	cd htmlman; rm -rf libref compilerlibref index.html \
 	manual*.html *.haux *.hind *.svg

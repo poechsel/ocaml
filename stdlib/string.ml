@@ -197,11 +197,6 @@ let capitalize_ascii s =
 let uncapitalize_ascii s =
   B.uncapitalize_ascii (bos s) |> bts
 
-type t = string
-
-let compare (x: t) (y: t) = Stdlib.compare x y
-external equal : string -> string -> bool = "caml_string_equal" [@@noalloc]
-
 let split_on_char sep s =
   let r = ref [] in
   let j = ref (length s) in
@@ -223,6 +218,11 @@ let capitalize s =
   B.capitalize (bos s) |> bts
 let uncapitalize s =
   B.uncapitalize (bos s) |> bts
+
+type t = string
+
+let compare (x: t) (y: t) = Stdlib.compare x y
+external equal : string -> string -> bool = "caml_string_equal" [@@noalloc]
 
 (** {1 Iterators} *)
 

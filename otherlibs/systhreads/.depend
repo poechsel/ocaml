@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 st_stubs_b.$(O): st_stubs.c ../../runtime/caml/alloc.h \
  ../../runtime/caml/misc.h ../../runtime/caml/config.h \
  ../../runtime/caml/m.h ../../runtime/caml/s.h \
@@ -32,6 +33,8 @@ st_stubs_n.$(O): st_stubs.c ../../runtime/caml/alloc.h \
  ../../runtime/caml/signals.h ../../runtime/caml/stack.h \
  ../../runtime/caml/sys.h ../../runtime/caml/memprof.h \
  ../../runtime/caml/roots.h threads.h
+=======
+>>>>>>> ocaml/4.12
 condition.cmo : \
     mutex.cmi \
     condition.cmi
@@ -54,6 +57,15 @@ mutex.cmo : \
 mutex.cmx : \
     mutex.cmi
 mutex.cmi :
+semaphore.cmo : \
+    mutex.cmi \
+    condition.cmi \
+    semaphore.cmi
+semaphore.cmx : \
+    mutex.cmx \
+    condition.cmx \
+    semaphore.cmi
+semaphore.cmi :
 thread.cmo : \
     thread.cmi
 thread.cmx : \

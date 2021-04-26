@@ -21,6 +21,7 @@ open Mach
 
 (* Instruction selection *)
 
+<<<<<<< HEAD
 class selector = object (self)
 
 inherit Selectgen.selector_generic as super
@@ -32,6 +33,27 @@ method select_addressing _ = function
       (Iindexed n, arg)
   | Cop(Cadda, [arg1; Cop(Caddi, [arg2; Cconst_int (n, _)], _)], dbg)
     when self#is_immediate n ->
+=======
+class selector = object
+
+inherit Selectgen.selector_generic as super
+
+(* RISC-V does not support immediate operands for comparison operators *)
+method is_immediate_test _cmp _n = false
+
+method! is_immediate op n =
+  match op with
+  | Iadd | Iand | Ior | Ixor -> is_immediate n
+  (* sub immediate is turned into add immediate opposite *)
+  | Isub -> is_immediate (-n)
+  | _ -> super#is_immediate op n
+
+method select_addressing _ = function
+  | Cop(Cadda, [arg; Cconst_int (n, _)], _) when is_immediate n ->
+      (Iindexed n, arg)
+  | Cop(Cadda, [arg1; Cop(Caddi, [arg2; Cconst_int (n, _)], _)], dbg)
+    when is_immediate n ->
+>>>>>>> ocaml/4.12
       (Iindexed n, Cop(Caddi, [arg1; arg2], dbg))
   | arg ->
       (Iindexed 0, arg)
@@ -48,6 +70,7 @@ method! select_operation op args dbg =
       (Ispecific (Imultsubf true), [arg1; arg2; arg3])
   | (Cnegf, [Cop(Caddf, [Cop(Cmulf, [arg1; arg2], _); arg3], _)]) ->
       (Ispecific (Imultaddf true), [arg1; arg2; arg3])
+<<<<<<< HEAD
   (* RISC-V does not support immediate operands for comparison operators *)
   | (Ccmpi comp, args) -> (Iintop(Icomp (Isigned comp)), args)
   | (Ccmpa comp, args) -> (Iintop(Icomp (Iunsigned comp)), args)
@@ -70,6 +93,11 @@ method! select_condition = function
       (Ioddtest, arg)
   | arg ->
       (Itruetest, arg)
+=======
+  | _ ->
+      super#select_operation op args dbg
+
+>>>>>>> ocaml/4.12
 end
 
 let fundecl f = (new selector)#emit_fundecl f

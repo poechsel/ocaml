@@ -48,6 +48,7 @@ let transl_object =
 let prim_fresh_oo_id =
   Pccall (Primitive.simple ~name:"caml_fresh_oo_id" ~arity:1 ~alloc:false)
 
+<<<<<<< HEAD
 let record_field_info lbl =
   let size = Array.length lbl.lbl_all in
   let is_ext, tag =
@@ -63,6 +64,8 @@ let record_field_info lbl =
       { tag; size = Known (size + (if is_ext then 1 else 0)); };
   }
 
+=======
+>>>>>>> ocaml/4.12
 let transl_extension_constructor ~scopes env path ext =
   let path =
     Printtyp.wrap_printing_env env ~error:true (fun () ->
@@ -77,9 +80,15 @@ let transl_extension_constructor ~scopes env path ext =
   let loc = of_location ~scopes ext.ext_loc in
   match ext.ext_kind with
     Text_decl _ ->
+<<<<<<< HEAD
       Lprim (Pmakeblock (Obj.object_tag, Immutable_unique, None),
         [Lconst (Const_base (Const_string (name, ext.ext_loc, None)));
          Lprim (prim_fresh_oo_id, [Lconst (Const_base (Const_int 0))], loc)],
+=======
+      Lprim (Pmakeblock (Obj.object_tag, Immutable, None),
+        [Lconst (Const_base (Const_string (name, ext.ext_loc, None)));
+         Lprim (prim_fresh_oo_id, [Lconst (const_int 0)], loc)],
+>>>>>>> ocaml/4.12
         loc)
   | Text_rebind(path, _lid) ->
       transl_extension_path loc env path
@@ -234,6 +243,17 @@ let transl_ident loc env ty path desc =
   |  _ -> fatal_error "Translcore.transl_exp: bad Texp_ident"
 
 let rec transl_exp ~scopes e =
+<<<<<<< HEAD
+=======
+  transl_exp1 ~scopes ~in_new_scope:false e
+
+(* ~in_new_scope tracks whether we just opened a new scope.
+
+   We go to some trouble to avoid introducing many new anonymous function
+   scopes, as `let f a b = ...` is desugared to several Pexp_fun.
+*)
+and transl_exp1 ~scopes ~in_new_scope e =
+>>>>>>> ocaml/4.12
   List.iter (Translattribute.check_attribute e) e.exp_attributes;
   let eval_once =
     (* Whether classes for immediate objects must be cached *)
@@ -241,10 +261,17 @@ let rec transl_exp ~scopes e =
       Texp_function _ | Texp_for _ | Texp_while _ -> false
     | _ -> true
   in
+<<<<<<< HEAD
   if eval_once then transl_exp0 ~scopes e else
   Translobj.oo_wrap e.exp_env true (transl_exp0 ~scopes) e
 
 and transl_exp0 ~scopes e =
+=======
+  if eval_once then transl_exp0 ~scopes ~in_new_scope  e else
+  Translobj.oo_wrap e.exp_env true (transl_exp0 ~scopes ~in_new_scope) e
+
+and transl_exp0 ~in_new_scope ~scopes e =
+>>>>>>> ocaml/4.12
   match e.exp_desc with
   | Texp_ident(path, _, desc) ->
       transl_ident (of_location ~scopes e.exp_loc)
@@ -255,7 +282,14 @@ and transl_exp0 ~scopes e =
       transl_let ~scopes rec_flag pat_expr_list
         (event_before ~scopes body (transl_exp ~scopes body))
   | Texp_function { arg_label = _; param; cases; partial; } ->
+<<<<<<< HEAD
       let scopes = enter_anonymous_function ~scopes in
+=======
+      let scopes =
+        if in_new_scope then scopes
+        else enter_anonymous_function ~scopes
+      in
+>>>>>>> ocaml/4.12
       transl_function ~scopes e param cases partial
   | Texp_apply({ exp_desc = Texp_ident(path, _, {val_kind = Val_prim p});
                 exp_type = prim_type } as funct, oargs)
@@ -274,7 +308,7 @@ and transl_exp0 ~scopes e =
       in
       if extra_args = [] then lam
       else begin
-        let should_be_tailcall, funct =
+        let tailcall, funct =
           Translattribute.get_tailcall_attribute funct
         in
         let inlined, funct =
@@ -285,11 +319,15 @@ and transl_exp0 ~scopes e =
         in
         let e = { e with exp_desc = Texp_apply(funct, oargs) } in
         event_after ~scopes e
+<<<<<<< HEAD
           (transl_apply ~scopes ~should_be_tailcall ~inlined ~specialised
+=======
+          (transl_apply ~scopes ~tailcall ~inlined ~specialised
+>>>>>>> ocaml/4.12
              lam extra_args (of_location ~scopes e.exp_loc))
       end
   | Texp_apply(funct, oargs) ->
-      let should_be_tailcall, funct =
+      let tailcall, funct =
         Translattribute.get_tailcall_attribute funct
       in
       let inlined, funct =
@@ -300,14 +338,22 @@ and transl_exp0 ~scopes e =
       in
       let e = { e with exp_desc = Texp_apply(funct, oargs) } in
       event_after ~scopes e
+<<<<<<< HEAD
         (transl_apply ~scopes ~should_be_tailcall ~inlined ~specialised
+=======
+        (transl_apply ~scopes ~tailcall ~inlined ~specialised
+>>>>>>> ocaml/4.12
            (transl_exp ~scopes funct) oargs (of_location ~scopes e.exp_loc))
   | Texp_match(arg, pat_expr_list, partial) ->
       transl_match ~scopes e arg pat_expr_list partial
   | Texp_try(body, pat_expr_list) ->
       let id = Typecore.name_cases "exn" pat_expr_list in
       Ltrywith(transl_exp ~scopes body, id,
+<<<<<<< HEAD
                Matching.for_trywith ~scopes (Lvar id)
+=======
+               Matching.for_trywith ~scopes e.exp_loc (Lvar id)
+>>>>>>> ocaml/4.12
                  (transl_cases_try ~scopes pat_expr_list))
   | Texp_tuple el ->
       let ll, shape = transl_list_with_shape ~scopes el in
@@ -324,7 +370,7 @@ and transl_exp0 ~scopes e =
         | _ -> assert false
       end else begin match cstr.cstr_tag with
         Cstr_constant n ->
-          Lconst(Const_pointer n)
+          Lconst(const_int n)
       | Cstr_unboxed ->
           (match ll with [v] -> v | _ -> assert false)
       | Cstr_block { tag; size; } ->
@@ -332,7 +378,11 @@ and transl_exp0 ~scopes e =
           begin try
             Lconst(Const_block(tag, List.map extract_constant ll))
           with Not_constant ->
+<<<<<<< HEAD
             Lprim(Pmakeblock(tag, Immutable, Some shape), ll,
+=======
+            Lprim(Pmakeblock(n, Immutable, Some shape), ll,
+>>>>>>> ocaml/4.12
                   of_location ~scopes e.exp_loc)
           end
       | Cstr_extension(path, is_const) ->
@@ -348,15 +398,19 @@ and transl_exp0 ~scopes e =
   | Texp_variant(l, arg) ->
       let tag = Btype.hash_variant l in
       begin match arg with
-        None -> Lconst(Const_pointer tag)
+        None -> Lconst(const_int tag)
       | Some arg ->
           let lam = transl_exp ~scopes arg in
           try
-            Lconst(Const_block(0, [Const_base(Const_int tag);
+            Lconst(Const_block(0, [const_int tag;
                                    extract_constant lam]))
           with Not_constant ->
             Lprim(Pmakeblock(0, Immutable, None),
+<<<<<<< HEAD
                   [Lconst(Const_base(Const_int tag)); lam],
+=======
+                  [Lconst(const_int tag); lam],
+>>>>>>> ocaml/4.12
                   of_location ~scopes e.exp_loc)
       end
   | Texp_record {fields; representation; extended_expression} ->
@@ -364,6 +418,7 @@ and transl_exp0 ~scopes e =
         fields representation extended_expression
   | Texp_field(arg, _, lbl) ->
       let targ = transl_exp ~scopes arg in
+<<<<<<< HEAD
       let sem =
         match lbl.lbl_mut with
         | Immutable -> Reads_agree
@@ -379,6 +434,18 @@ and transl_exp0 ~scopes e =
                  of_location ~scopes e.exp_loc)
         | Record_extension _ ->
           Lprim (Pfield (record_field_info lbl, sem), [targ],
+=======
+      begin match lbl.lbl_repres with
+          Record_regular | Record_inlined _ ->
+          Lprim (Pfield lbl.lbl_pos, [targ],
+                 of_location ~scopes e.exp_loc)
+        | Record_unboxed _ -> targ
+        | Record_float ->
+          Lprim (Pfloatfield lbl.lbl_pos, [targ],
+                 of_location ~scopes e.exp_loc)
+        | Record_extension _ ->
+          Lprim (Pfield (lbl.lbl_pos + 1), [targ],
+>>>>>>> ocaml/4.12
                  of_location ~scopes e.exp_loc)
       end
   | Texp_setfield(arg, _, lbl, newval) ->
@@ -475,6 +542,7 @@ and transl_exp0 ~scopes e =
       event_after ~scopes e lam
   | Texp_new (cl, {Location.loc=loc}, _) ->
       let loc = of_location ~scopes loc in
+<<<<<<< HEAD
       let field_info = {
         index = 0;
         (* CR vlaviron: Maybe size should be Unknown
@@ -490,11 +558,26 @@ and transl_exp0 ~scopes e =
              ap_args=[lambda_unit];
              ap_inlined=Default_inline;
              ap_specialised=Default_specialise}
+=======
+      Lapply{
+        ap_loc=loc;
+        ap_func=
+          Lprim(Pfield 0, [transl_class_path loc e.exp_env cl], loc);
+        ap_args=[lambda_unit];
+        ap_tailcall=Default_tailcall;
+        ap_inlined=Default_inline;
+        ap_specialised=Default_specialise;
+      }
+>>>>>>> ocaml/4.12
   | Texp_instvar(path_self, path, _) ->
       let loc = of_location ~scopes e.exp_loc in
       let self = transl_value_path loc e.exp_env path_self in
       let var = transl_value_path loc e.exp_env path in
+<<<<<<< HEAD
       Lprim(Pfield_computed Reads_vary, [self; var], loc)
+=======
+      Lprim(Pfield_computed, [self; var], loc)
+>>>>>>> ocaml/4.12
   | Texp_setinstvar(path_self, path, _, expr) ->
       let loc = of_location ~scopes e.exp_loc in
       let self = transl_value_path loc e.exp_env path_self in
@@ -505,12 +588,23 @@ and transl_exp0 ~scopes e =
       let self = transl_value_path loc e.exp_env path_self in
       let cpy = Ident.create_local "copy" in
       Llet(Strict, Pgenval, cpy,
+<<<<<<< HEAD
            Lapply{ap_should_be_tailcall=false;
                   ap_loc=Loc_unknown;
                   ap_func=Translobj.oo_prim "copy";
                   ap_args=[self];
                   ap_inlined=Default_inline;
                   ap_specialised=Default_specialise},
+=======
+           Lapply{
+             ap_loc=Loc_unknown;
+             ap_func=Translobj.oo_prim "copy";
+             ap_args=[self];
+             ap_tailcall=Default_tailcall;
+             ap_inlined=Default_inline;
+             ap_specialised=Default_specialise;
+           },
+>>>>>>> ocaml/4.12
            List.fold_right
              (fun (path, _, expr) rem ->
                let var = transl_value_path loc e.exp_env path in
@@ -621,7 +715,11 @@ and transl_exp0 ~scopes e =
           let body, _ =
             List.fold_left (fun (body, pos) id ->
               Llet(Alias, Pgenval, id,
+<<<<<<< HEAD
                    Lprim(Pfield (field_info pos, Reads_agree), [Lvar oid],
+=======
+                   Lprim(Pfield pos, [Lvar oid],
+>>>>>>> ocaml/4.12
                          of_location ~scopes od.open_loc), body),
               pos + 1
             ) (transl_exp ~scopes e, 0)
@@ -682,8 +780,17 @@ and transl_tupled_cases ~scopes patl_expr_list =
   List.map (fun (patl, guard, expr) -> (patl, transl_guard ~scopes guard expr))
     patl_expr_list
 
+<<<<<<< HEAD
 and transl_apply ~scopes ?(should_be_tailcall=false) ?(inlined = Default_inline)
       ?(specialised = Default_specialise) lam sargs loc =
+=======
+and transl_apply ~scopes
+      ?(tailcall=Default_tailcall)
+      ?(inlined = Default_inline)
+      ?(specialised = Default_specialise)
+      lam sargs loc
+  =
+>>>>>>> ocaml/4.12
   let lapply funct args =
     match funct with
       Lsend(k, lmet, lobj, largs, _) ->
@@ -693,12 +800,14 @@ and transl_apply ~scopes ?(should_be_tailcall=false) ?(inlined = Default_inline)
     | Lapply ap ->
         Lapply {ap with ap_args = ap.ap_args @ args; ap_loc = loc}
     | lexp ->
-        Lapply {ap_should_be_tailcall=should_be_tailcall;
-                ap_loc=loc;
-                ap_func=lexp;
-                ap_args=args;
-                ap_inlined=inlined;
-                ap_specialised=specialised;}
+        Lapply {
+          ap_loc=loc;
+          ap_func=lexp;
+          ap_args=args;
+          ap_tailcall=tailcall;
+          ap_inlined=inlined;
+          ap_specialised=specialised;
+        }
   in
   let rec build_apply lam args = function
       (None, optional) :: l ->
@@ -757,6 +866,7 @@ and transl_apply ~scopes ?(should_be_tailcall=false) ?(inlined = Default_inline)
                                 sargs)
      : Lambda.lambda)
 
+<<<<<<< HEAD
 and transl_function0
       ~scopes loc return untuplify_fn repr partial (param:Ident.t) cases =
   match cases with
@@ -774,6 +884,55 @@ and transl_function0
        Matching.for_function ~scopes loc None (Lvar param)
          [pat, body] partial)
   | {c_lhs={pat_desc = Tpat_tuple pl}} :: _ when untuplify_fn ->
+=======
+and transl_curried_function
+      ~scopes loc return
+      repr partial (param:Ident.t) cases =
+  let max_arity = Lambda.max_arity () in
+  let rec loop ~scopes loc return ~arity partial (param:Ident.t) cases =
+    match cases with
+      [{c_lhs=pat; c_guard=None;
+        c_rhs={exp_desc =
+                 Texp_function
+                   { arg_label = _; param = param'; cases = cases';
+                     partial = partial'; }; exp_env; exp_type;exp_loc}}]
+      when arity <  max_arity ->
+      if  Parmatch.inactive ~partial pat
+      then
+        let kind = value_kind pat.pat_env pat.pat_type in
+        let return_kind = function_return_value_kind exp_env exp_type in
+        let ((_, params, return), body) =
+          loop ~scopes exp_loc return_kind ~arity:(arity + 1)
+            partial' param' cases'
+        in
+        ((Curried, (param, kind) :: params, return),
+         Matching.for_function ~scopes loc None (Lvar param)
+           [pat, body] partial)
+      else begin
+        begin match partial with
+        | Total ->
+          Location.prerr_warning pat.pat_loc
+            Match_on_mutable_state_prevent_uncurry
+        | Partial -> ()
+        end;
+        transl_tupled_function ~scopes ~arity
+          loc return repr partial param cases
+      end
+    | cases ->
+      transl_tupled_function ~scopes ~arity
+        loc return repr partial param cases
+  in
+  loop ~scopes loc return ~arity:1 partial param cases
+
+and transl_tupled_function
+      ~scopes ~arity loc return
+      repr partial (param:Ident.t) cases =
+  match cases with
+  | {c_lhs={pat_desc = Tpat_tuple pl}} :: _
+    when !Clflags.native_code
+      && arity = 1
+      && List.length pl <= (Lambda.max_arity ()) ->
+>>>>>>> ocaml/4.12
       begin try
         let size = List.length pl in
         let pats_expr_list =
@@ -805,19 +964,34 @@ and transl_function0
         ((Tupled, tparams, return),
          Matching.for_tupled_function ~scopes loc params
            (transl_tupled_cases ~scopes pats_expr_list) partial)
+<<<<<<< HEAD
       with Matching.Cannot_flatten ->
         ((Curried, [param, Pgenval], return),
          Matching.for_function ~scopes loc repr (Lvar param)
            (transl_cases ~scopes cases) partial)
+=======
+    with Matching.Cannot_flatten ->
+      transl_function0 ~scopes loc return repr partial param cases
+>>>>>>> ocaml/4.12
       end
-  | {c_lhs=pat} :: other_cases ->
-      let kind =
+  | _ -> transl_function0 ~scopes loc return repr partial param cases
+
+and transl_function0
+      ~scopes loc return
+      repr partial (param:Ident.t) cases =
+    let kind =
+      match cases with
+      | [] ->
+        (* With Camlp4, a pattern matching might be empty *)
+        Pgenval
+      | {c_lhs=pat} :: other_cases ->
         (* All the patterns might not share the same types. We must take the
            union of the patterns types *)
         List.fold_left (fun k {c_lhs=pat} ->
-            Typeopt.value_kind_union k
-              (value_kind pat.pat_env pat.pat_type))
+          Typeopt.value_kind_union k
+            (value_kind pat.pat_env pat.pat_type))
           (value_kind pat.pat_env pat.pat_type) other_cases
+<<<<<<< HEAD
       in
       ((Curried, [param, kind], return),
        Matching.for_function ~scopes loc repr (Lvar param)
@@ -827,6 +1001,12 @@ and transl_function0
       ((Curried, [param, Pgenval], return),
        Matching.for_function ~scopes loc repr (Lvar param)
          (transl_cases ~scopes cases) partial)
+=======
+    in
+    ((Curried, [param, kind], return),
+     Matching.for_function ~scopes loc repr (Lvar param)
+       (transl_cases ~scopes cases) partial)
+>>>>>>> ocaml/4.12
 
 and transl_function ~scopes e param cases partial =
   let ((kind, params, return), body) =
@@ -834,7 +1014,11 @@ and transl_function ~scopes e param cases partial =
       (function repr ->
          let pl = push_defaults e.exp_loc [] cases partial in
          let return_kind = function_return_value_kind e.exp_env e.exp_type in
+<<<<<<< HEAD
          transl_function0 ~scopes e.exp_loc return_kind !Clflags.native_code
+=======
+         transl_curried_function ~scopes e.exp_loc return_kind
+>>>>>>> ocaml/4.12
            repr partial param pl)
   in
   let attr = default_function_attribute in
@@ -842,6 +1026,7 @@ and transl_function ~scopes e param cases partial =
   let lam = Lfunction{kind; params; return; body; attr; loc} in
   Translattribute.add_function_attributes lam e.exp_loc e.exp_attributes
 
+<<<<<<< HEAD
 (* Like transl_exp, but used when introducing a new scope.
    Goes to some trouble to avoid introducing many new anonymous function
    scopes, as `let f a b = ...` is desugared to several Pexp_fun *)
@@ -854,6 +1039,13 @@ and transl_scoped_exp ~scopes expr =
 
 (* Calls transl_scoped_exp or transl_exp, according to whether a pattern
    binding should introduce a new scope *)
+=======
+(* Like transl_exp, but used when a new scope was just introduced. *)
+and transl_scoped_exp ~scopes expr =
+  transl_exp1 ~scopes ~in_new_scope:true expr
+
+(* Decides whether a pattern binding should introduce a new scope. *)
+>>>>>>> ocaml/4.12
 and transl_bound_exp ~scopes ~in_structure pat expr =
   let should_introduce_scope =
     match expr.exp_desc with
@@ -937,8 +1129,13 @@ and transl_record ~scopes loc env fields repres opt_init_expr =
                    Record_regular -> Pfield (field_info false 0 i, sem)
                  | Record_inlined tag -> Pfield (field_info false tag i, sem)
                  | Record_unboxed _ -> assert false
+<<<<<<< HEAD
                  | Record_extension _ -> Pfield (field_info true 0 i, sem)
                  | Record_float -> Pfloatfield (i, sem) in
+=======
+                 | Record_extension _ -> Pfield (i + 1)
+                 | Record_float -> Pfloatfield i in
+>>>>>>> ocaml/4.12
                Lprim(access, [Lvar init_id],
                      of_location ~scopes loc),
                field_kind
@@ -1068,7 +1265,11 @@ and transl_match ~scopes e arg pat_expr_list partial =
     let static_exception_id = next_raise_count () in
     Lstaticcatch
       (Ltrywith (Lstaticraise (static_exception_id, body), id,
+<<<<<<< HEAD
                  Matching.for_trywith ~scopes (Lvar id) exn_cases),
+=======
+                 Matching.for_trywith ~scopes e.exp_loc (Lvar id) exn_cases),
+>>>>>>> ocaml/4.12
        (static_exception_id, val_ids),
        handler)
   in
@@ -1119,12 +1320,23 @@ and transl_letop ~scopes loc env let_ ands param case partial =
         let exp = transl_exp ~scopes and_.bop_exp in
         let lam =
           bind Strict right_id exp
+<<<<<<< HEAD
             (Lapply{ap_should_be_tailcall = false;
                     ap_loc = of_location ~scopes and_.bop_loc;
                     ap_func = op;
                     ap_args=[Lvar left_id; Lvar right_id];
                     ap_inlined=Default_inline;
                     ap_specialised=Default_specialise})
+=======
+            (Lapply{
+               ap_loc = of_location ~scopes and_.bop_loc;
+               ap_func = op;
+               ap_args=[Lvar left_id; Lvar right_id];
+               ap_tailcall = Default_tailcall;
+               ap_inlined = Default_inline;
+               ap_specialised = Default_specialise;
+             })
+>>>>>>> ocaml/4.12
         in
         bind Strict left_id prev_lam (loop lam rest)
   in
@@ -1138,19 +1350,35 @@ and transl_letop ~scopes loc env let_ ands param case partial =
     let (kind, params, return), body =
       event_function ~scopes case.c_rhs
         (function repr ->
+<<<<<<< HEAD
            transl_function0 ~scopes case.c_rhs.exp_loc return_kind
              !Clflags.native_code repr partial param [case])
+=======
+           transl_curried_function ~scopes case.c_rhs.exp_loc return_kind
+             repr partial param [case])
+>>>>>>> ocaml/4.12
     in
     let attr = default_function_attribute in
     let loc = of_location ~scopes case.c_rhs.exp_loc in
     Lfunction{kind; params; return; body; attr; loc}
   in
+<<<<<<< HEAD
   Lapply{ap_should_be_tailcall = false;
          ap_loc = of_location ~scopes loc;
          ap_func = op;
          ap_args=[exp; func];
          ap_inlined=Default_inline;
          ap_specialised=Default_specialise}
+=======
+  Lapply{
+    ap_loc = of_location ~scopes loc;
+    ap_func = op;
+    ap_args=[exp; func];
+    ap_tailcall = Default_tailcall;
+    ap_inlined = Default_inline;
+    ap_specialised = Default_specialise;
+  }
+>>>>>>> ocaml/4.12
 
 (* Wrapper for class compilation *)
 

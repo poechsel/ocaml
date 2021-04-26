@@ -19,6 +19,9 @@ LIBNAME=unix
 
 EXTRACAMLFLAGS=-nolabels
 
+unixLabels.cmi: \
+  EXTRACAMLFLAGS += -pp "$(AWK) -f $(ROOTDIR)/stdlib/expand_module_aliases.awk"
+
 # dllunix.so particularly requires libm for modf symbols
 LDOPTS=$(NATIVECCLIBS)
 
@@ -36,7 +39,7 @@ COBJS=accept.o access.o addrofstr.o alarm.o bind.o channels.o chdir.o \
   readdir.o readlink.o rename.o rewinddir.o rmdir.o select.o sendrecv.o \
   setgid.o setgroups.o setsid.o setuid.o shutdown.o signals.o \
   sleep.o socket.o socketaddr.o \
-  socketpair.o sockopt.o stat.o strofaddr.o symlink.o termios.o \
+  socketpair.o sockopt.o spawn.o stat.o strofaddr.o symlink.o termios.o \
   time.o times.o truncate.o umask.o unixsupport.o unlink.o \
   utimes.o wait.o write.o
 
@@ -48,11 +51,6 @@ include ../Makefile.otherlibs.common
 
 .PHONY: depend
 depend:
-ifeq "$(TOOLCHAIN)" "msvc"
-	$(error Dependencies cannot be regenerated using the MSVC ports)
-else
-	$(CC) -MM $(OC_CPPFLAGS) *.c > .depend
-	$(CAMLRUN) $(ROOTDIR)/boot/ocamlc -depend -slash *.mli *.ml >> .depend
-endif
+	$(CAMLRUN) $(ROOTDIR)/boot/ocamlc -depend -slash *.mli *.ml > .depend
 
 include .depend

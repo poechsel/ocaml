@@ -15,6 +15,7 @@
 
 (* Representation of machine code by sequences of pseudoinstructions *)
 
+<<<<<<< HEAD
 type label = Cmm.label
 
 type trap_stack =
@@ -22,6 +23,8 @@ type trap_stack =
   | Generic_trap of trap_stack
   | Specific_trap of Cmm.trywith_shared_label * trap_stack
 
+=======
+>>>>>>> ocaml/4.12
 type integer_comparison =
     Isigned of Cmm.integer_comparison
   | Iunsigned of Cmm.integer_comparison
@@ -30,8 +33,7 @@ type integer_operation =
     Iadd | Isub | Imul | Imulh | Idiv | Imod
   | Iand | Ior | Ixor | Ilsl | Ilsr | Iasr
   | Icomp of integer_comparison
-  | Icheckbound of { label_after_error : label option;
-        spacetime_index : int; }
+  | Icheckbound
 
 type float_comparison = Cmm.float_comparison
 
@@ -51,17 +53,26 @@ type operation =
   | Iconst_int of nativeint
   | Iconst_float of int64
   | Iconst_symbol of string
+<<<<<<< HEAD
   | Icall_ind of { label_after : label; }
   | Icall_imm of { func : string; label_after : label; }
   | Itailcall_ind of { label_after : label; }
   | Itailcall_imm of { func : string; label_after : label; }
   | Iextcall of { func : string; alloc : bool;
                   label_after : label; returns: bool; }
+=======
+  | Icall_ind
+  | Icall_imm of { func : string; }
+  | Itailcall_ind
+  | Itailcall_imm of { func : string; }
+  | Iextcall of { func : string;
+                  ty_res : Cmm.machtype; ty_args : Cmm.exttype list;
+                  alloc : bool; }
+>>>>>>> ocaml/4.12
   | Istackoffset of int
   | Iload of Cmm.memory_chunk * Arch.addressing_mode
   | Istore of Cmm.memory_chunk * Arch.addressing_mode * bool
-  | Ialloc of { bytes : int; label_after_call_gc : label option;
-      dbginfo : Debuginfo.alloc_dbginfo; spacetime_index : int; }
+  | Ialloc of { bytes : int; dbginfo : Debuginfo.alloc_dbginfo; }
   | Iintop of integer_operation
   | Iintop_imm of integer_operation * int
   | Inegf | Iabsf | Iaddf | Isubf | Imulf | Idivf
@@ -92,20 +103,12 @@ and instruction_desc =
   | Itrywith of instruction * Cmm.trywith_kind * (trap_stack * instruction)
   | Iraise of Lambda.raise_kind
 
-type spacetime_part_of_shape =
-  | Direct_call_point of { callee : string; }
-  | Indirect_call_point
-  | Allocation_point
-
-type spacetime_shape = (spacetime_part_of_shape * Cmm.label) list
-
 type fundecl =
   { fun_name: string;
     fun_args: Reg.t array;
     fun_body: instruction;
     fun_codegen_options : Cmm.codegen_option list;
     fun_dbg : Debuginfo.t;
-    fun_spacetime_shape : spacetime_shape option;
     fun_num_stack_slots: int array;
     fun_contains_calls: bool;
   }
@@ -152,7 +155,11 @@ let rec instr_iter f i =
       f i;
       match i.desc with
         Iend -> ()
+<<<<<<< HEAD
       | Ireturn _ | Iop(Itailcall_ind _) | Iop(Itailcall_imm _) -> ()
+=======
+      | Ireturn | Iop Itailcall_ind | Iop(Itailcall_imm _) -> ()
+>>>>>>> ocaml/4.12
       | Iifthenelse(_tst, ifso, ifnot) ->
           instr_iter f ifso; instr_iter f ifnot; instr_iter f i.next
       | Iswitch(_index, cases) ->
@@ -171,6 +178,7 @@ let rec instr_iter f i =
       | _ ->
           instr_iter f i.next
 
+<<<<<<< HEAD
 let spacetime_node_hole_pointer_is_live_before insn =
   match insn.desc with
   | Iop op ->
@@ -205,10 +213,12 @@ let spacetime_node_hole_pointer_is_live_before insn =
   | Iend | Ireturn _ | Iifthenelse _ | Iswitch _ | Icatch _
   | Iexit _ | Itrywith _ | Iraise _ -> false
 
+=======
+>>>>>>> ocaml/4.12
 let operation_can_raise op =
   match op with
-  | Icall_ind _ | Icall_imm _ | Iextcall _
-  | Iintop (Icheckbound _) | Iintop_imm (Icheckbound _, _)
+  | Icall_ind | Icall_imm _ | Iextcall _
+  | Iintop (Icheckbound) | Iintop_imm (Icheckbound, _)
   | Ialloc _ -> true
   | _ -> false
 

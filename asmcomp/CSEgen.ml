@@ -222,15 +222,15 @@ method class_of_operation op =
   match op with
   | Imove | Ispill | Ireload -> assert false   (* treated specially *)
   | Iconst_int _ | Iconst_float _ | Iconst_symbol _ -> Op_pure
-  | Icall_ind _ | Icall_imm _ | Itailcall_ind _ | Itailcall_imm _
+  | Icall_ind | Icall_imm _ | Itailcall_ind | Itailcall_imm _
   | Iextcall _ -> assert false                 (* treated specially *)
   | Istackoffset _ -> Op_other
   | Iload(_,_) -> Op_load
   | Istore(_,_,asg) -> Op_store asg
   | Ialloc _ -> assert false                   (* treated specially *)
-  | Iintop(Icheckbound _) -> Op_checkbound
+  | Iintop(Icheckbound) -> Op_checkbound
   | Iintop _ -> Op_pure
-  | Iintop_imm(Icheckbound _, _) -> Op_checkbound
+  | Iintop_imm(Icheckbound, _) -> Op_checkbound
   | Iintop_imm(_, _) -> Op_pure
   | Inegf | Iabsf | Iaddf | Isubf | Imulf | Idivf
   | Ifloatofint | Iintoffloat -> Op_pure
@@ -255,15 +255,24 @@ method private kill_loads n =
 
 method private cse n i k =
   match i.desc with
+<<<<<<< HEAD
   | Iend | Ireturn _ | Iop(Itailcall_ind _) | Iop(Itailcall_imm _)
+=======
+  | Iend | Ireturn | Iop(Itailcall_ind) | Iop(Itailcall_imm _)
+>>>>>>> ocaml/4.12
   | Iexit _ | Iraise _ ->
       k i
   | Iop (Imove | Ispill | Ireload) ->
       (* For moves, we associate the same value number to the result reg
          as to the argument reg. *)
       let n1 = set_move n i.arg.(0) i.res.(0) in
+<<<<<<< HEAD
       self#cse n1 i.next (fun next -> k { i with next; })
   | Iop (Icall_ind _ | Icall_imm _ | Iextcall _) ->
+=======
+      {i with next = self#cse n1 i.next}
+  | Iop (Icall_ind | Icall_imm _ | Iextcall _) ->
+>>>>>>> ocaml/4.12
       (* For function calls, we should at least forget:
          - equations involving memory loads, since the callee can
            perform arbitrary memory stores;

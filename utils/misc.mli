@@ -61,6 +61,10 @@ val try_finally :
     for easier debugging.
 *)
 
+val reraise_preserving_backtrace : exn -> (unit -> unit) -> 'a
+(** [reraise_preserving_backtrace e f] is (f (); raise e) except that the
+    current backtrace is preserved, even if [f] uses exceptions internally. *)
+
 
 val map_end: ('a -> 'b) -> 'a list -> 'b list -> 'b list
         (* [map_end f l t] is [map f l @ t], just more efficient. *)
@@ -98,12 +102,8 @@ module Stdlib : sig
         There is no constraint on the relative lengths of the lists. *)
 
     val equal : ('a -> 'a -> bool) -> 'a t -> 'a t -> bool
-    (** Returns [true] iff the given lists have the same length and content
-        with respect to the given equality function. *)
-
-    val find_map : ('a -> 'b option) -> 'a t -> 'b option
-    (** [find_map f l] returns the first evaluation of [f] that returns [Some],
-       or returns None if there is no such element. *)
+    (** Returns [true] if and only if the given lists have the same length and
+        content with respect to the given equality function. *)
 
     val some_if_all_elements_are_some : 'a option t -> 'a t option
     (** If all elements of the given list are [Some _] then [Some xs]
@@ -125,8 +125,8 @@ module Stdlib : sig
       -> 'a list
       -> of_:'a list
       -> bool
-    (** Returns [true] iff the given list, with respect to the given equality
-        function on list members, is a prefix of the list [of_]. *)
+    (** Returns [true] if and only if the given list, with respect to the given
+        equality function on list members, is a prefix of the list [of_]. *)
 
     type 'a longest_common_prefix_result = private {
       longest_common_prefix : 'a list;

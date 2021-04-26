@@ -82,6 +82,7 @@ let close_phrase lam =
   Ident.Set.fold (fun id l ->
     let glb, pos = toplevel_value id in
     let glob =
+<<<<<<< HEAD
       Lprim (Pfield (
                { index = pos;
                  block_info = {
@@ -90,6 +91,9 @@ let close_phrase lam =
                  };
                },
                Reads_vary),
+=======
+      Lprim (Pfield pos,
+>>>>>>> ocaml/4.12
              [Lprim (Pgetglobal glb, [], Loc_unknown)],
              Loc_unknown)
     in

@@ -1,8 +1,15 @@
 opam-version: "2.0"
+<<<<<<< HEAD
 version: "4.11.1+trunk+flambda"
 synopsis: "OCaml development version"
 depends: [
   "ocaml" {= "4.11.1" & post}
+=======
+version: "4.12.1+trunk"
+synopsis: "OCaml 4.12 maintenance version"
+depends: [
+  "ocaml" {= "4.12.1" & post}
+>>>>>>> ocaml/4.12
   "base-unix" {post}
   "base-bigarray" {post}
   "base-threads" {post}

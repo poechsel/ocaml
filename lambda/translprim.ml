@@ -75,6 +75,7 @@ type loc_kind =
   | Loc_MODULE
   | Loc_LOC
   | Loc_POS
+  | Loc_FUNCTION
 
 type prim =
   | Primitive of Lambda.primitive * int
@@ -136,12 +137,19 @@ let primitives_table =
     "%loc_LINE", Loc Loc_LINE;
     "%loc_POS", Loc Loc_POS;
     "%loc_MODULE", Loc Loc_MODULE;
+<<<<<<< HEAD
     "%field0", Primitive ((Pfield (field_unknown 0, Reads_vary)), 1);
     "%field1", Primitive ((Pfield (field_unknown 1, Reads_vary)), 1);
     "%ref_field0", Primitive ((Pfield (field_ref, Reads_vary)), 1);
     "%pair_field0", Primitive ((Pfield (field_pair 0, Reads_agree)), 1);
     "%pair_field1", Primitive ((Pfield (field_pair 1, Reads_agree)), 1);
     "%setfield0", Primitive ((Psetfield(field_unknown 0, Pointer, Assignment)), 2);
+=======
+    "%loc_FUNCTION", Loc Loc_FUNCTION;
+    "%field0", Primitive ((Pfield 0), 1);
+    "%field1", Primitive ((Pfield 1), 1);
+    "%setfield0", Primitive ((Psetfield(0, Pointer, Assignment)), 2);
+>>>>>>> ocaml/4.12
     "%makeblock", Primitive ((Pmakeblock(0, Immutable, None)), 1);
     "%makemutable", Primitive ((Pmakeblock(0, Mutable, None)), 1);
     "%raise", Raise Raise_regular;
@@ -610,8 +618,13 @@ let comparison_primitive comparison comparison_kind =
   | Compare, Compare_int32s -> Pcompare_bints Pint32
   | Compare, Compare_int64s -> Pcompare_bints Pint64
 
+<<<<<<< HEAD
 let lambda_of_loc kind loc =
   let loc = to_location loc in
+=======
+let lambda_of_loc kind sloc =
+  let loc = to_location sloc in
+>>>>>>> ocaml/4.12
   let loc_start = loc.Location.loc_start in
   let (file, lnum, cnum) = Location.get_pos_info loc_start in
   let file =
@@ -640,6 +653,9 @@ let lambda_of_loc kind loc =
         file lnum cnum enum in
     Lconst (Const_immstring loc)
   | Loc_LINE -> Lconst (Const_base (Const_int lnum))
+  | Loc_FUNCTION ->
+    let scope_name = Debuginfo.Scoped_location.string_of_scoped_location sloc in
+    Lconst (Const_immstring scope_name)
 
 let caml_restore_raw_backtrace =
   Primitive.simple ~name:"caml_restore_raw_backtrace" ~arity:2 ~alloc:false
@@ -657,7 +673,7 @@ let lambda_of_prim prim_name prim loc args arg_exps =
   | Primitive (prim, arity), args when arity = List.length args ->
       Lprim(prim, args, loc)
   | External prim, args when prim = prim_sys_argv ->
-      Lprim(Pccall prim, Lconst (Const_pointer 0) :: args, loc)
+      Lprim(Pccall prim, Lconst (const_int 0) :: args, loc)
   | External prim, args ->
       Lprim(Pccall prim, args, loc)
   | Comparison(comp, knd), ([_;_] as args) ->
@@ -692,7 +708,11 @@ let lambda_of_prim prim_name prim loc args arg_exps =
                            loc),
                      Lprim(Praise Raise_reraise, [raise_arg], loc)))
   | Lazy_force, [arg] ->
+<<<<<<< HEAD
       Matching.inline_lazy_force arg Loc_unknown
+=======
+      Matching.inline_lazy_force arg loc
+>>>>>>> ocaml/4.12
   | Loc kind, [] ->
       lambda_of_loc kind loc
   | Loc kind, [arg] ->

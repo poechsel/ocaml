@@ -273,6 +273,12 @@ external __POS__ : string * int * int * int = "%loc_POS"
     @since 4.02.0
  *)
 
+external __FUNCTION__ : string = "%loc_FUNCTION"
+(** [__FUNCTION__] returns the name of the current function or method, including
+    any enclosing modules or classes.
+
+    @since 4.12.0 *)
+
 external __LOC_OF__ : 'a -> string * 'a = "%loc_LOC"
 (** [__LOC_OF__ expr] returns a pair [(loc, expr)] where [loc] is the
     location of [expr] in the file currently being parsed by the
@@ -438,8 +444,8 @@ external ( asr ) : int -> int -> int = "%asrint"
    [neg_infinity] for [-1.0 /. 0.0], and [nan] ('not a number')
    for [0.0 /. 0.0].  These special numbers then propagate through
    floating-point computations as expected: for instance,
-   [1.0 /. infinity] is [0.0], and any arithmetic operation with [nan]
-   as argument returns [nan] as result.
+    [1.0 /. infinity] is [0.0], basic arithmetic operations
+    ([+.], [-.], [*.], [/.]) with [nan] as an argument return [nan], ...
 *)
 
 external ( ~-. ) : float -> float = "%negfloat"
@@ -992,7 +998,13 @@ val seek_out : out_channel -> int -> unit
 val pos_out : out_channel -> int
 (** Return the current writing position for the given channel.  Does
     not work on channels opened with the [Open_append] flag (returns
-    unspecified results). *)
+    unspecified results).
+    For files opened in text mode under Windows, the returned position
+    is approximate (owing to end-of-line conversion); in particular,
+    saving the current position with [pos_out], then going back to
+    this position using [seek_out] will not work.  For this
+    programming idiom to work reliably and portably, the file must be
+    opened in binary mode. *)
 
 val out_channel_length : out_channel -> int
 (** Return the size (number of characters) of the regular file
@@ -1107,7 +1119,13 @@ val seek_in : in_channel -> int -> unit
    files of other kinds, the behavior is unspecified. *)
 
 val pos_in : in_channel -> int
-(** Return the current reading position for the given channel. *)
+(** Return the current reading position for the given channel.  For
+    files opened in text mode under Windows, the returned position is
+    approximate (owing to end-of-line conversion); in particular,
+    saving the current position with [pos_in], then going back to this
+    position using [seek_in] will not work.  For this programming
+    idiom to work reliably and portably, the file must be opened in
+    binary mode. *)
 
 val in_channel_length : in_channel -> int
 (** Return the size (number of characters) of the regular file
@@ -1331,6 +1349,7 @@ val do_at_exit : unit -> unit
 module Arg          = Arg
 module Array        = Array
 module ArrayLabels  = ArrayLabels
+module Atomic       = Atomic
 module Bigarray     = Bigarray
 module Bool         = Bool
 module Buffer       = Buffer
@@ -1340,6 +1359,7 @@ module Callback     = Callback
 module Char         = Char
 module Complex      = Complex
 module Digest       = Digest
+module Either       = Either
 module Ephemeron    = Ephemeron
 module Filename     = Filename
 module Float        = Float
@@ -1376,7 +1396,6 @@ module Result       = Result
 module Scanf        = Scanf
 module Seq          = Seq
 module Set          = Set
-module Spacetime    = Spacetime
 module Stack        = Stack
 module StdLabels    = StdLabels
 module Stream       = Stream
