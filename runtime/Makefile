@@ -15,6 +15,7 @@
 
 ROOTDIR = ..
 
+include $(ROOTDIR)/Makefile.config
 include $(ROOTDIR)/Makefile.common
 
 # Lists of source files
