@@ -292,7 +292,7 @@ let static_const0 env r ~updates ~params_and_body
       let name = symbol s in
       let tag = Tag.Scannable.to_int tag in
       let block_name = name, Cmmgen_state.Global in
-      let header = C.block_header tag (List.length fields) in
+      let header = C.black_block_header tag (List.length fields) in
       let env, static_fields =
         List.fold_right
           (fun v (env, static_fields) ->
@@ -434,7 +434,7 @@ let static_consts env r ~params_and_body bound_symbols static_consts =
        fully_static). *)
     let roots =
       if Static_const.Group.is_fully_static static_consts then []
-      else Symbol.Set.elements (Bound_symbols.being_defined bound_symbols)
+      else Bound_symbols.gc_roots bound_symbols
     in
     let r = R.add_gc_roots r roots in
     static_consts0 env r ~params_and_body bound_symbols static_consts
