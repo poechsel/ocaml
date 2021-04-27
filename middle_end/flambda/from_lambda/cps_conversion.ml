@@ -22,6 +22,7 @@
 
 module I = Ilambda
 module L = Lambda
+module C = Lambda_conversions
 
 type proto_switch = {
   numconsts : int;
@@ -111,6 +112,73 @@ let compile_staticfail ~(continuation : Continuation.t) ~args =
   in
   mk_poptraps (I.Apply_cont (continuation, None, args))
 
+let simplify_primitive (prim : L.primitive) args loc =
+  match prim, args with
+  | Psetfield (_, _, _), [L.Lprim (Pgetglobal _, [], _); _] ->
+    Misc.fatal_error "[Psetfield (Pgetglobal ...)] is \
+      forbidden upon entry to the middle end"
+  | Pfield ({ index; _ }, _), _ when index < 0 ->
+    Misc.fatal_error "Pfield with negative field index"
+  | Pfloatfield (i, _), _ when i < 0 ->
+    Misc.fatal_error "Pfloatfield with negative field index"
+  | Psetfield ({ index; _ }, _, _), _ when index < 0 ->
+    Misc.fatal_error "Psetfield with negative field index"
+  | Pmakeblock (tag, _, _), _
+      when tag < 0 || tag >= Obj.no_scan_tag ->
+    Misc.fatal_errorf "Pmakeblock with wrong or non-scannable block tag %d" tag
+  | Pmakefloatblock _mut, args when List.length args < 1 ->
+    Misc.fatal_errorf "Pmakefloatblock must have at least one argument"
+  | Pfloatcomp CFnlt, args ->
+    L.Pnot, [L.Lprim (Pfloatcomp CFlt, args, loc)], loc
+  | Pfloatcomp CFngt, args ->
+    L.Pnot, [L.Lprim (Pfloatcomp CFgt, args, loc)], loc
+  | Pfloatcomp CFnle, args ->
+    L.Pnot, [L.Lprim (Pfloatcomp CFle, args, loc)], loc
+  | Pfloatcomp CFnge, args ->
+    L.Pnot, [L.Lprim (Pfloatcomp CFge, args, loc)], loc
+  | Pbigarrayref (_unsafe, num_dimensions, kind, layout), args ->
+    begin match C.convert_bigarray_kind kind,
+                C.convert_bigarray_layout layout with
+    | Some _, Some _ ->
+      prim, args, loc
+    | None, None | None, Some _ | Some _, None ->
+      if 1 <= num_dimensions && num_dimensions <= 3 then begin
+        let arity = 1 + num_dimensions in
+        let name = "caml_ba_get_" ^ string_of_int num_dimensions in
+        let desc = Primitive.simple ~name ~arity ~alloc:true in
+        L.Pccall desc, args, loc
+      end else begin
+        Misc.fatal_errorf
+          "Cps_conversion.simplify_primitive: Pbigarrayref with unknown layout \
+           and elements should only have dimensions between 1 and 3 \
+           (see translprim)."
+      end
+    end
+  | Pbigarrayset (_unsafe, num_dimensions, kind, layout), args ->
+    begin match C.convert_bigarray_kind kind,
+                C.convert_bigarray_layout layout with
+    | Some _, Some _ ->
+      prim, args, loc
+    | None, None | None, Some _ | Some _, None ->
+      if 1 <= num_dimensions && num_dimensions <= 3 then begin
+        let arity = 2 + num_dimensions in
+        let name = "caml_ba_set_" ^ string_of_int num_dimensions in
+        let desc = Primitive.simple ~name ~arity ~alloc:true in
+        L.Pccall desc, args, loc
+      end else begin
+        Misc.fatal_errorf
+          "Cps_conversion.simplify_primimive: Pbigarrayset with unknown layout \
+           and elements should only have dimensions between 1 and 3 \
+           (see translprim)."
+      end
+    end
+  | (Psequor | Psequand | Pisint | Pidentity | Pbytes_to_string
+  | Pbytes_of_string | Pignore | Pdirapply | Prevapply), _ ->
+    Misc.fatal_errorf "Unexpected primitive, should have been handled \
+                       by prepare_lambda:@ %a"
+    Printlambda.lambda (L.Lprim(prim, args, loc))
+  | _, _ -> prim, args, loc
+
 let rec cps_non_tail (lam : L.lambda) (k : Ident.t -> Ilambda.t)
           (k_exn : Continuation.t) : Ilambda.t =
   match lam with
@@ -190,6 +258,7 @@ let rec cps_non_tail (lam : L.lambda) (k : Ident.t -> Ilambda.t)
     I.Let (id, User_visible, value_kind, Simple (Const const), body)
   | Llet (_let_kind, value_kind, id, Lprim (prim, args, loc), body) ->
     (* This case avoids extraneous continuations. *)
+    let prim, args, loc = simplify_primitive prim args loc in
     let exn_continuation : I.exn_continuation option =
       if L.primitive_can_raise prim then
         Some {
@@ -222,6 +291,7 @@ let rec cps_non_tail (lam : L.lambda) (k : Ident.t -> Ilambda.t)
     let body = cps_non_tail body k k_exn in
     Let_rec (List.combine idents bindings, body)
   | Lprim (prim, args, loc) ->
+    let prim, args, loc = simplify_primitive prim args loc in
     let name = Printlambda.name_of_primitive prim in
     let result_var = Ident.create_local name in
     let exn_continuation : I.exn_continuation option =
@@ -495,6 +565,7 @@ and cps_tail (lam : L.lambda) (k : Continuation.t) (k_exn : Continuation.t)
     I.Let (id, User_visible, value_kind, Simple (Const const), body)
   | Llet (_let_kind, value_kind, id, Lprim (prim, args, loc), body) ->
     (* This case avoids extraneous continuations. *)
+    let prim, args, loc = simplify_primitive prim args loc in
     let exn_continuation : I.exn_continuation option =
       if L.primitive_can_raise prim then
         Some {
@@ -538,6 +609,7 @@ and cps_tail (lam : L.lambda) (k : Continuation.t) (k_exn : Continuation.t)
     Let_rec (List.combine idents bindings, body)
   | Lprim (prim, args, loc) ->
     (* CR mshinwell: Arrange for "args" to be named. *)
+    let prim, args, loc = simplify_primitive prim args loc in
     let name = Printlambda.name_of_primitive prim in
     let result_var = Ident.create_local name in
     let exn_continuation : I.exn_continuation option =

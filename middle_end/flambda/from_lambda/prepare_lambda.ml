@@ -17,9 +17,8 @@
 [@@@ocaml.warning "+a-4-30-40-41-42"]
 
 module L = Lambda
-module C = Lambda_conversions
 
-let stub_hack_prim_name = "*stub*"
+let stub_hack_prim_name = "*stub*" (* seems unused *)
 
 module Env : sig
   type t
@@ -159,14 +158,6 @@ let simplify_primitive (prim : L.primitive) args loc =
       when not !Clflags.unsafe ->
     Misc.fatal_error "Pdivint / Pmodint must have exactly two arguments"
     *)
-  | Pfloatcomp CFnlt, args ->
-    L.Lprim (Pnot, [L.Lprim (Pfloatcomp CFlt, args, loc)], loc)
-  | Pfloatcomp CFngt, args ->
-    L.Lprim (Pnot, [L.Lprim (Pfloatcomp CFgt, args, loc)], loc)
-  | Pfloatcomp CFnle, args ->
-    L.Lprim (Pnot, [L.Lprim (Pfloatcomp CFle, args, loc)], loc)
-  | Pfloatcomp CFnge, args ->
-    L.Lprim (Pnot, [L.Lprim (Pfloatcomp CFge, args, loc)], loc)
   | Psequor, [arg1; arg2] ->
     let const_true = Ident.create_local "const_true" in
     let cond = Ident.create_local "cond_sequor" in
@@ -217,42 +208,6 @@ let simplify_primitive (prim : L.primitive) args loc =
       }
     in
     L.Lapply apply
-  | Pbigarrayref (_unsafe, num_dimensions, kind, layout), args ->
-    begin match C.convert_bigarray_kind kind,
-                C.convert_bigarray_layout layout with
-    | Some _, Some _ ->
-      L.Lprim (prim, args, loc)
-    | None, None | None, Some _ | Some _, None ->
-      if 1 <= num_dimensions && num_dimensions <= 3 then begin
-        let arity = 1 + num_dimensions in
-        let name = "caml_ba_get_" ^ string_of_int num_dimensions in
-        let desc = Primitive.simple ~name ~arity ~alloc:true in
-        L.Lprim (Pccall desc, args, loc)
-      end else begin
-        Misc.fatal_errorf
-          "Prepare_lambda.prepare_prim: Pbigarrayref with unknown layout \
-           and elements should only have dimensions between 1 and 3 \
-           (see translprim)."
-      end
-    end
-  | Pbigarrayset (_unsafe, num_dimensions, kind, layout), args ->
-    begin match C.convert_bigarray_kind kind,
-                C.convert_bigarray_layout layout with
-    | Some _, Some _ ->
-      L.Lprim (prim, args, loc)
-    | None, None | None, Some _ | Some _, None ->
-      if 1 <= num_dimensions && num_dimensions <= 3 then begin
-        let arity = 2 + num_dimensions in
-        let name = "caml_ba_set_" ^ string_of_int num_dimensions in
-        let desc = Primitive.simple ~name ~arity ~alloc:true in
-        L.Lprim (Pccall desc, args, loc)
-      end else begin
-        Misc.fatal_errorf
-          "Prepare_lambda.prepare_prim: Pbigarrayset with unknown layout \
-           and elements should only have dimensions between 1 and 3 \
-           (see translprim)."
-      end
-    end
   | _, _ -> L.Lprim (prim, args, loc)
 
 let rec prepare env (lam : L.lambda) (k : L.lambda -> L.lambda) =
@@ -326,20 +281,6 @@ let rec prepare env (lam : L.lambda) (k : L.lambda -> L.lambda) =
       when Ident.same id (Env.current_unit_id env) ->
     Misc.fatal_error "[Pfield (Pgetglobal ...)] for the current compilation \
       unit is forbidden upon entry to the middle end"
-  | Lprim (Psetfield (_, _, _), [Lprim (Pgetglobal _, [], _); _], _) ->
-    Misc.fatal_error "[Psetfield (Pgetglobal ...)] is \
-      forbidden upon entry to the middle end"
-  | Lprim (Pfield ({ index; _ }, _), _, _) when index < 0 ->
-    Misc.fatal_error "Pfield with negative field index"
-  | Lprim (Pfloatfield (i, _), _, _) when i < 0 ->
-    Misc.fatal_error "Pfloatfield with negative field index"
-  | Lprim (Psetfield ({ index; _ }, _, _), _, _) when index < 0 ->
-    Misc.fatal_error "Psetfield with negative field index"
-  | Lprim (Pmakeblock (tag, _, _), _, _)
-      when tag < 0 || tag >= Obj.no_scan_tag ->
-    Misc.fatal_errorf "Pmakeblock with wrong or non-scannable block tag %d" tag
-  | Lprim (Pmakefloatblock _mut, args, _) when List.length args < 1 ->
-    Misc.fatal_errorf "Pmakefloatblock must have at least one argument"
   | Lprim (prim, args, loc) ->
     prepare_list env args (fun args ->
       k (simplify_primitive prim args loc))
