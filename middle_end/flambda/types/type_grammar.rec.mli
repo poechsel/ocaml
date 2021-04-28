@@ -164,7 +164,7 @@ val create_inlinable_function_declaration
   -> dbg:Debuginfo.t
   -> rec_info:Rec_info.t
   -> is_tupled:bool
-  -> force_inline:bool
+  -> must_be_inlined:bool
   -> Function_declaration_type.t
 
 val create_non_inlinable_function_declaration

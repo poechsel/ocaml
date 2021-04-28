@@ -46,14 +46,14 @@ let function_decl_type ~pass ~cost_metrics_source denv function_decl ?code_id
       ~code_id
       ~dbg:(FD.dbg function_decl)
       ~is_tupled:(FD.is_tupled function_decl)
-      ~force_inline:true
+      ~must_be_inlined:true
       ~rec_info
   | Could_possibly_be_inlined ->
     T.create_inlinable_function_declaration
       ~code_id
       ~dbg:(FD.dbg function_decl)
       ~is_tupled:(FD.is_tupled function_decl)
-      ~force_inline:false
+      ~must_be_inlined:false
       ~rec_info
 
 module Context_for_multiple_sets_of_closures : sig

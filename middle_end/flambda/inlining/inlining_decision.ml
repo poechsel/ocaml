@@ -385,7 +385,7 @@ let might_inline dacc ~apply ~function_decl ~simplify_expr ~return_arity
   : Call_site_decision.t =
   let denv = DA.denv dacc in
   let env_prohibits_inlining = not (DE.can_inline denv) in
-  if I.force_inline function_decl then
+  if I.must_be_inlined function_decl then
     Definition_says_inline
   else if env_prohibits_inlining then
     Environment_says_never_inline
