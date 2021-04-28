@@ -49,12 +49,12 @@ module Function_declaration_decision = struct
         large_function_size: Code_size.t;
       }
 
-  type inlining_behavior =
+  type inlining_behaviour =
     | Can_not_be_inlined
     | Must_be_inlined
     | Could_possibly_be_inlined
 
-  let behavior t =
+  let behaviour t =
     match t with
     | Never_inline_attribute
     | Function_body_too_large _ -> Can_not_be_inlined
@@ -130,7 +130,7 @@ module Function_declaration_decision = struct
   let report fmt t =
     Format.fprintf fmt "@[<v>The function %s be inlined at its use-sites@ \
                         because @[<hov>%a@]@]"
-      (match behavior t with
+      (match behaviour t with
        | Can_not_be_inlined -> "cannot"
        | Could_possibly_be_inlined -> "could"
        | Must_be_inlined -> "must")
