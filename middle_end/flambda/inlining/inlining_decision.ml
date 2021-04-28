@@ -49,19 +49,19 @@ module Function_declaration_decision = struct
         large_function_size: Code_size.t;
       }
 
-  type result =
-    | Not_inlinable
-    | Always_inlinable
-    | Maybe_inlinable
+  type inlining_behavior =
+    | Can_not_be_inlined
+    | Must_be_inlined
+    | Could_possibly_be_inlined
 
-  let to_result t =
+  let behavior t =
     match t with
     | Never_inline_attribute
-    | Function_body_too_large _ -> Not_inlinable
+    | Function_body_too_large _ -> Can_not_be_inlined
     | Stub
     | Attribute_inline
-    | Small_function _ -> Always_inlinable
-    | Speculatively_inlinable _-> Maybe_inlinable
+    | Small_function _ -> Must_be_inlined
+    | Speculatively_inlinable _-> Could_possibly_be_inlined
 
   let print fmt = function
     | Never_inline_attribute ->
@@ -130,10 +130,10 @@ module Function_declaration_decision = struct
   let report fmt t =
     Format.fprintf fmt "@[<v>The function %s be inlined at its use-sites@ \
                         because @[<hov>%a@]@]"
-      (match to_result t with
-       | Always_inlinable -> "should always"
-       | Maybe_inlinable -> "maybe"
-       | Not_inlinable -> "cannot")
+      (match behavior t with
+       | Can_not_be_inlined -> "cannot"
+       | Could_possibly_be_inlined -> "could"
+       | Must_be_inlined -> "must")
       report_reason t
 
 end
@@ -283,7 +283,7 @@ module Call_site_decision = struct
       Format.fprintf fmt "the@ call@ has@ an@ [@@unroll %d]@ attribute" n
     | Definition_says_inline ->
       Format.fprintf fmt "this@ function@ was@ decided@ to@ be@ always@ \
-                          inlinable@ on@ its@ definition@ site (annotated@ by@ \
+                          inlined@ at@ its@ definition@ site (annotated@ by@ \
                           [@inlined always]@ or@ determined@ to@ be@ small@ \
                           enough)"
     | Speculatively_not_inline { cost_metrics; evaluated_to; threshold } ->

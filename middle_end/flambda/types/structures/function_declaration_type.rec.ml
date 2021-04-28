@@ -32,10 +32,10 @@ module Inlinable = struct
     Format.fprintf ppf
       "@[<hov 1>(Inlinable@ \
         @[<hov 1>(code_id@ %a)@]@ \
-        @[<hov 1>(dbg@ %a)@] \
-        @[<hov 1>(rec_info@ %a)@]\
-        @[<hov 1><is_tupled@ %b)@]\
-       @[<hov 1><force_inline@ %b)@]\
+        @[<hov 1>(dbg@ %a)@]@ \
+        @[<hov 1>(rec_info@ %a)@]@ \
+        @[<hov 1><is_tupled@ %b)@]@ \
+        @[<hov 1><force_inline@ %b)@]\
         )@]"
       Code_id.print code_id
       Debuginfo.print_compact dbg
@@ -115,7 +115,8 @@ let print ppf t =
 let free_names (t : t) =
   match t with
   | Bottom | Unknown -> Name_occurrences.empty
-  | Ok (Inlinable { code_id; dbg = _; rec_info = _; is_tupled = _; force_inline = _; })
+  | Ok (Inlinable { code_id; dbg = _; rec_info = _; is_tupled = _;
+                    force_inline = _; })
   | Ok (Non_inlinable { code_id; is_tupled = _; }) ->
     Name_occurrences.add_code_id Name_occurrences.empty code_id
       Name_mode.in_types
@@ -123,7 +124,8 @@ let free_names (t : t) =
 let all_ids_for_export (t : t) =
   match t with
   | Bottom | Unknown -> Ids_for_export.empty
-  | Ok (Inlinable { code_id; dbg = _; rec_info = _; is_tupled = _; force_inline = _; })
+  | Ok (Inlinable { code_id; dbg = _; rec_info = _; is_tupled = _;
+                    force_inline = _; })
   | Ok (Non_inlinable { code_id; is_tupled = _; }) ->
     Ids_for_export.add_code_id Ids_for_export.empty code_id
 

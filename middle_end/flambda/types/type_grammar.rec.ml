@@ -607,8 +607,8 @@ let any_boxed_nativeint () = box_nativeint (any_naked_nativeint ())
 let create_inlinable_function_declaration ~code_id ~dbg ~rec_info ~is_tupled
       ~force_inline : Function_declaration_type.t =
   Ok (Inlinable (
-    Function_declaration_type.Inlinable.create ~code_id ~dbg ~rec_info ~is_tupled
-      ~force_inline))
+    Function_declaration_type.Inlinable.create ~code_id ~dbg ~rec_info
+      ~is_tupled ~force_inline))
 
 let create_non_inlinable_function_declaration ~code_id ~is_tupled
       : Function_declaration_type.t =

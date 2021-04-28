@@ -36,19 +36,19 @@ let function_decl_type ~pass ~cost_metrics_source denv function_decl ?code_id
   Inlining_report.record_decision (
     At_function_declaration { code_id = Code_id.export code_id; pass; decision; })
     ~dbg:(DE.add_inlined_debuginfo' denv (FD.dbg function_decl));
-  match Inlining_decision.Function_declaration_decision.to_result decision with
-  | Not_inlinable ->
+  match Inlining_decision.Function_declaration_decision.behavior decision with
+  | Can_not_be_inlined ->
     T.create_non_inlinable_function_declaration
       ~code_id
       ~is_tupled:(FD.is_tupled function_decl)
-  | Always_inlinable ->
+  | Must_be_inlined ->
     T.create_inlinable_function_declaration
       ~code_id
       ~dbg:(FD.dbg function_decl)
       ~is_tupled:(FD.is_tupled function_decl)
       ~force_inline:true
       ~rec_info
-  | Maybe_inlinable ->
+  | Could_possibly_be_inlined ->
     T.create_inlinable_function_declaration
       ~code_id
       ~dbg:(FD.dbg function_decl)
