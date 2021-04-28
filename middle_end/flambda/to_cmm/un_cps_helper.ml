@@ -17,6 +17,9 @@
 open Cmm_helpers
 module P = Flambda_primitive
 
+let unsupported_32_bits () = 
+  Misc.fatal_errorf "32 bits is currently unsupported in Flambda." 
+
 (* Are we compiling on/for a 32-bit architecture ? *)
 let arch32 = Arch.size_int = 4
 let arch64 = Arch.size_int = 8
@@ -339,7 +342,7 @@ let array_set ?(dbg=Debuginfo.none) (kind : P.Array_kind.t)
    extcall must apply to the whole bigstring block (variable [block]),
    whereas the loads apply to the bigstring data pointer (variable [ptr]).
    For regular strings, [block = ptr]. *)
-let string_like_load_aux ~dbg kind width block ptr idx =
+let string_like_load_aux ~dbg _kind width _block ptr idx =
   match (width : Flambda_primitive.string_accessor_width) with
   | Eight ->
       let idx = untag_int idx dbg in
@@ -352,17 +355,7 @@ let string_like_load_aux ~dbg kind width block ptr idx =
       sign_extend_32 dbg (unaligned_load_32 ptr idx dbg)
   | Sixty_four ->
       if arch32 then
-        begin match (kind : Flambda_primitive.string_like_value) with
-        | String ->
-            extcall ~alloc:false ~returns:true
-              "caml_string_get_64" typ_int64 [block; idx]
-        | Bytes ->
-            extcall ~alloc:false ~returns:true
-              "caml_bytes_get_64" typ_int64 [block; idx]
-        | Bigstring ->
-            extcall ~alloc:false ~returns:true
-              "caml_ba_uint8_get64" typ_int64 [block; idx]
-        end
+        unsupported_32_bits ()
       else begin
         let idx = untag_int idx dbg in
         unaligned_load_64 ptr idx dbg
@@ -379,7 +372,7 @@ let string_like_load ?(dbg=Debuginfo.none) kind width block index =
           string_like_load_aux ~dbg kind width block ptr index)
 
 (* same as {string_like_load_aux} *)
-let bytes_like_set_aux ~dbg kind width block ptr idx value =
+let bytes_like_set_aux ~dbg _kind width _block ptr idx value =
   begin match (width : Flambda_primitive.string_accessor_width) with
   | Eight ->
       let idx = untag_int idx dbg in
@@ -392,14 +385,7 @@ let bytes_like_set_aux ~dbg kind width block ptr idx value =
       unaligned_set_32 ptr idx value dbg
   | Sixty_four ->
       if arch32 then
-        begin match (kind : Flambda_primitive.bytes_like_value) with
-        | Bytes ->
-            extcall ~alloc:false ~returns:true
-              "caml_bytes_set_64" typ_int64 [block; idx; value]
-        | Bigstring ->
-            extcall ~alloc:false ~returns:true
-              "caml_ba_uint8_set64" typ_int64 [block; idx; value]
-        end
+        unsupported_32_bits ()
       else begin
         let idx = untag_int idx dbg in
         unaligned_set_64 ptr idx value dbg

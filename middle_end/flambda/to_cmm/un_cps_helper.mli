@@ -16,6 +16,8 @@
 
 (** {2 Useful misc values} *)
 
+val unsupported_32_bits : unit -> 'a
+
 val arch32 : bool
 (** [arch32] is [true] iff we are compiling for a 32-bit target. *)
 
