@@ -25,35 +25,41 @@ module Inlinable = struct
     dbg : Debuginfo.t;
     rec_info : Rec_info.t;
     is_tupled : bool;
+    force_inline : bool;
   }
 
-  let print ppf { code_id; dbg; rec_info; is_tupled; } =
+  let print ppf { code_id; dbg; rec_info; is_tupled; force_inline } =
     Format.fprintf ppf
       "@[<hov 1>(Inlinable@ \
         @[<hov 1>(code_id@ %a)@]@ \
         @[<hov 1>(dbg@ %a)@] \
         @[<hov 1>(rec_info@ %a)@]\
         @[<hov 1><is_tupled@ %b)@]\
+       @[<hov 1><force_inline@ %b)@]\
         )@]"
       Code_id.print code_id
       Debuginfo.print_compact dbg
       Rec_info.print rec_info
       is_tupled
+      force_inline
 
-  let create ~code_id ~dbg ~rec_info ~is_tupled =
+  let create ~code_id ~dbg ~rec_info ~is_tupled ~force_inline =
     { code_id;
       dbg;
       rec_info;
       is_tupled;
+      force_inline;
     }
 
   let code_id t = t.code_id
   let dbg t = t.dbg
   let rec_info t = t.rec_info
   let is_tupled t = t.is_tupled
+  let force_inline t = t.force_inline
 
   let apply_renaming
-        ({ code_id; dbg = _; rec_info = _; is_tupled = _; } as t) renaming =
+        ({ code_id; dbg = _; rec_info = _; is_tupled = _;
+           force_inline = _ } as t) renaming =
     let code_id' = Renaming.apply_code_id renaming code_id in
     if code_id == code_id' then t
     else { t with code_id = code_id'; }
@@ -109,7 +115,7 @@ let print ppf t =
 let free_names (t : t) =
   match t with
   | Bottom | Unknown -> Name_occurrences.empty
-  | Ok (Inlinable { code_id; dbg = _; rec_info = _; is_tupled = _; })
+  | Ok (Inlinable { code_id; dbg = _; rec_info = _; is_tupled = _; force_inline = _; })
   | Ok (Non_inlinable { code_id; is_tupled = _; }) ->
     Name_occurrences.add_code_id Name_occurrences.empty code_id
       Name_mode.in_types
@@ -117,7 +123,7 @@ let free_names (t : t) =
 let all_ids_for_export (t : t) =
   match t with
   | Bottom | Unknown -> Ids_for_export.empty
-  | Ok (Inlinable { code_id; dbg = _; rec_info = _; is_tupled = _; })
+  | Ok (Inlinable { code_id; dbg = _; rec_info = _; is_tupled = _; force_inline = _; })
   | Ok (Non_inlinable { code_id; is_tupled = _; }) ->
     Ids_for_export.add_code_id Ids_for_export.empty code_id
 
@@ -171,12 +177,14 @@ let meet (env : Meet_env.t) (t1 : t) (t2 : t)
       dbg = dbg1;
       rec_info = _rec_info1;
       is_tupled = is_tupled1;
+      force_inline = force_inline1;
     }),
     Ok (Inlinable {
       code_id = code_id2;
       dbg = dbg2;
       rec_info = _rec_info2;
       is_tupled = is_tupled2;
+      force_inline = force_inline2;
     }) ->
     let typing_env = Meet_env.env env in
     let target_code_age_rel = TE.code_age_relation typing_env in
@@ -184,11 +192,13 @@ let meet (env : Meet_env.t) (t1 : t) (t2 : t)
     let check_other_things_and_return code_id : (t * TEE.t) Or_bottom.t =
       assert (Int.equal (Debuginfo.compare dbg1 dbg2) 0);
       assert (Bool.equal is_tupled1 is_tupled2);
+      assert (Bool.equal force_inline1 force_inline2);
       Ok (Ok (Inlinable {
           code_id;
           dbg = dbg1;
           rec_info = _rec_info1;
           is_tupled = is_tupled1;
+          force_inline = force_inline1;
         }),
         TEE.empty ())
     in
@@ -243,12 +253,14 @@ let join (env : Join_env.t) (t1 : t) (t2 : t) : t =
       dbg = dbg1;
       rec_info = _rec_info1;
       is_tupled = is_tupled1;
+      force_inline = force_inline1;
     }),
     Ok (Inlinable {
       code_id = code_id2;
       dbg = dbg2;
       rec_info = _rec_info2;
       is_tupled = is_tupled2;
+      force_inline = force_inline2;
     }) ->
     let typing_env = Join_env.target_join_env env in
     let target_code_age_rel = TE.code_age_relation typing_env in
@@ -256,11 +268,13 @@ let join (env : Join_env.t) (t1 : t) (t2 : t) : t =
     let check_other_things_and_return code_id : t =
       assert (Int.equal (Debuginfo.compare dbg1 dbg2) 0);
       assert (Bool.equal is_tupled1 is_tupled2);
+      assert (Bool.equal force_inline1 force_inline2);
       Ok (Inlinable {
         code_id;
         dbg = dbg1;
         rec_info = _rec_info1;
         is_tupled = is_tupled1;
+        force_inline = force_inline1;
       })
     in
     (* CR mshinwell: What about [rec_info]? *)
@@ -280,12 +294,14 @@ let join (env : Join_env.t) (t1 : t) (t2 : t) : t =
 
 let apply_rec_info (t : t) rec_info : t Or_bottom.t =
   match t with
-  | Ok (Inlinable { code_id; dbg; rec_info = rec_info'; is_tupled; }) ->
+  | Ok (Inlinable { code_id; dbg; rec_info = rec_info'; is_tupled;
+                    force_inline }) ->
     let rec_info = Rec_info.merge rec_info' ~newer:rec_info in
     Ok (Ok (Inlinable { code_id;
       dbg;
       rec_info;
       is_tupled;
+      force_inline;
     }))
   | Ok (Non_inlinable { code_id = _; is_tupled = _; }) -> Ok t
   | Unknown | Bottom -> Ok t

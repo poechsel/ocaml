@@ -38,7 +38,12 @@ module Function_declaration_decision : sig
 
   val report : Format.formatter -> t -> unit
 
-  val can_inline : t -> bool
+  type result =
+    | Not_inlinable
+    | Always_inlinable
+    | Maybe_inlinable
+
+  val to_result : t -> result
 end
 
 
@@ -70,14 +75,11 @@ module Call_site_decision : sig
       }
     | Attribute_always
     | Attribute_unroll of int
+    | Definition_says_inline
     | Speculatively_inline of {
         cost_metrics: Cost_metrics.t;
         evaluated_to: float;
         threshold: float;
-      }
-    | Small_function of {
-        size: Code_size.t;
-        small_function_size: Code_size.t;
       }
 
 
