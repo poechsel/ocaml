@@ -55,7 +55,9 @@ let continuation_annotation () = (C.fg_256 202) ^ (C.bg_256 237)
 
 let name_abstraction () = C.fg_256 172
 
-let rec_info () = C.fg_256 243
+let rec_info () = C.fg_256 249
+
+let coercion () = C.fg_256 249
 
 let error () = C.fg_256 160
 
