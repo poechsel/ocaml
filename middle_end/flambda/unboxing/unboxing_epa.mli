@@ -14,28 +14,26 @@
 (*                                                                        *)
 (**************************************************************************)
 
+(** Handling of the extra params and args required for the unboxing of a
+    continuation's parameter(s). *)
+
 [@@@ocaml.warning "+a-30-40-41-42"]
 
-open! Simplify_import
+type unboxed_arg =
+  | Poison (* used for recursive calls *)
+  | Available of Simple.t
+  | Generated of Variable.t
+  | Added_by_wrapper_at_rewrite_use of { nth_arg : int; }
 
-module Decisions : sig
-  type t
-end
+val compute_extra_args_for_one_decision_and_use
+   : pass:Unboxing_types.pass
+  -> Apply_cont_rewrite_id.t
+  -> typing_env_at_use:Flambda_type.Typing_env.t
+  -> unboxed_arg
+  -> Unboxing_types.decision
+  -> Unboxing_types.decision
 
-val make_decisions
-   : continuation_is_recursive:bool
-  -> arg_types_by_use_id:
-       Continuation_env_and_param_types.arg_at_use
-         Apply_cont_rewrite_id.Map.t list
-  -> DE.t
-  -> KP.t list
-  -> T.t list
-  -> DE.t * Decisions.t
-
-val compute_extra_params_and_args
-   : Decisions.t
-  -> arg_types_by_use_id:
-       Continuation_env_and_param_types.arg_at_use
-         Apply_cont_rewrite_id.Map.t list
-  -> EPA.t
-  -> EPA.t
+val add_extra_params_and_args
+   : Continuation_extra_params_and_args.t
+  -> Unboxing_types.decision
+  -> Continuation_extra_params_and_args.t
