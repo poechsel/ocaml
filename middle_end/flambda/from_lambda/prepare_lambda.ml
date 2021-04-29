@@ -18,8 +18,6 @@
 
 module L = Lambda
 
-let stub_hack_prim_name = "*stub*" (* seems unused *)
-
 module Env : sig
   type t
 
@@ -89,6 +87,7 @@ let switch_for_if_then_else ~cond ~ifso ~ifnot k =
   in
   k (L.Lswitch (cond, switch, Loc_unknown))
 
+(*
 let simplify_primitive (prim : L.primitive) args loc =
   match prim, args with
   (* CR mshinwell: What is happening to this?
@@ -157,58 +156,8 @@ let simplify_primitive (prim : L.primitive) args loc =
       | Pmodbint { is_safe = Safe; size = _; }), _
       when not !Clflags.unsafe ->
     Misc.fatal_error "Pdivint / Pmodint must have exactly two arguments"
-    *)
-  | Psequor, [arg1; arg2] ->
-    let const_true = Ident.create_local "const_true" in
-    let cond = Ident.create_local "cond_sequor" in
-    L.Llet (Strict, Pgenval, const_true, Lconst (Const_base (Const_int 1)),
-      (L.Llet (Strict, Pgenval, cond, arg1,
-        switch_for_if_then_else
-          ~cond:(L.Lvar cond)
-          ~ifso:(L.Lvar const_true)
-          ~ifnot:arg2
-          (fun lam -> lam))))
-  | Psequand, [arg1; arg2] ->
-    let const_false = Ident.create_local "const_false" in
-    let cond = Ident.create_local "cond_sequand" in
-    L.Llet (Strict, Pgenval, const_false, Lconst (Const_base (Const_int 0)),
-      (L.Llet (Strict, Pgenval, cond, arg1,
-        switch_for_if_then_else
-          ~cond:(L.Lvar cond)
-          ~ifso:arg2
-          ~ifnot:(L.Lvar const_false)
-          (fun lam -> lam))))
-  | (Psequand | Psequor), _ ->
-    Misc.fatal_error "Psequand / Psequor must have exactly two arguments"
-  | Pflambda_isint, _ ->
-    Misc.fatal_error "[Pflambda_isint] should not exist at this stage"
-  | Pisint, [arg] ->
-    switch_for_if_then_else
-      ~cond:(Lprim (Pflambda_isint, [arg], loc))
-      ~ifso:(L.Lconst (Const_base (Const_int 1)))
-      ~ifnot:(L.Lconst (Const_base (Const_int 0)))
-      (fun lam -> lam)
-  | (Pidentity | Pbytes_to_string | Pbytes_of_string), [arg] -> arg
-  | Pignore, [arg] ->
-    let ident = Ident.create_local "ignore" in
-    let result = L.Lconst (Const_base (Const_int 0)) in
-    L.Llet (Strict, Pgenval, ident, arg, result)
-  | Pdirapply, [funct; arg]
-  | Prevapply, [arg; funct] ->
-    let apply : L.lambda_apply =
-      { ap_func = funct;
-        ap_args = [arg];
-        ap_loc = loc;
-        ap_should_be_tailcall = false;
-        (* CR-someday lwhite: it would be nice to be able to give
-           inlined attributes to functions applied with the application
-           operators. *)
-        ap_inlined = Default_inline;
-        ap_specialised = Default_specialise;
-      }
-    in
-    L.Lapply apply
-  | _, _ -> L.Lprim (prim, args, loc)
+   *)
+*)
 
 let rec prepare env (lam : L.lambda) (k : L.lambda -> L.lambda) =
   match lam with
@@ -283,7 +232,7 @@ let rec prepare env (lam : L.lambda) (k : L.lambda -> L.lambda) =
       unit is forbidden upon entry to the middle end"
   | Lprim (prim, args, loc) ->
     prepare_list env args (fun args ->
-      k (simplify_primitive prim args loc))
+      k (Lprim (prim, args, loc)))
   | Lswitch (scrutinee, switch, loc) ->
     prepare env scrutinee (fun scrutinee ->
       let const_nums, sw_consts = List.split switch.sw_consts in

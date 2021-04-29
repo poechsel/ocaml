@@ -23,5 +23,3 @@
 val run
    : Lambda.lambda
   -> Lambda.lambda * Numbers.Int.Set.t
-
-val stub_hack_prim_name : string
