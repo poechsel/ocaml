@@ -39,7 +39,7 @@ val kind : t -> Flambda_kind.t
 
 val alias_type_of : Flambda_kind.t -> Simple.t -> t
 
-val apply_rec_info : t -> Rec_info.t -> t Or_bottom.t
+val apply_coercion : t -> Rec_info.t -> t Or_bottom.t
 
 val eviscerate : t -> Typing_env.t -> t
 

@@ -294,11 +294,11 @@ let join (env : Join_env.t) (t1 : t) (t2 : t) : t =
     | Unknown -> Unknown
     end
 
-let apply_rec_info (t : t) rec_info : t Or_bottom.t =
+let apply_coercion (t : t) coercion : t Or_bottom.t =
   match t with
   | Ok (Inlinable { code_id; dbg; rec_info = rec_info'; is_tupled;
                     must_be_inlined }) ->
-    let rec_info = Rec_info.merge rec_info' ~newer:rec_info in
+    let rec_info = Rec_info.merge rec_info' ~newer:coercion in
     Ok (Ok (Inlinable { code_id;
       dbg;
       rec_info;

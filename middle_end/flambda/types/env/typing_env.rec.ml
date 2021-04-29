@@ -996,7 +996,7 @@ and add_equation t name ty =
       let canonical = Aliases.get_canonical_ignoring_name_mode aliases name in
       aliases, canonical, t, ty
     | alias_of ->
-      let alias_of = Simple.without_rec_info alias_of in
+      let alias_of = Simple.without_coercion alias_of in
       let alias = Simple.name name in
       let kind = Type_grammar.kind ty in
       let binding_time_and_mode_alias = binding_time_and_mode t name in
@@ -1325,7 +1325,7 @@ let get_canonical_simple_exn t ?min_name_mode ?name_mode_of_existing_simple
 let get_alias_then_canonical_simple_exn t ?min_name_mode
       ?name_mode_of_existing_simple typ =
   let simple = Type_grammar.get_alias_exn typ in
-  let simple = Simple.without_rec_info simple in
+  let simple = Simple.without_coercion simple in
   get_canonical_simple_exn t ?min_name_mode ?name_mode_of_existing_simple
     simple
 

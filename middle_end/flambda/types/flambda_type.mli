@@ -289,7 +289,7 @@ val make_suitable_for_environment
   -> bind_to:Name.t
   -> Typing_env_extension.With_extra_variables.t
 
-val apply_rec_info : flambda_type -> Rec_info.t -> flambda_type Or_bottom.t
+val apply_coercion : flambda_type -> Rec_info.t -> flambda_type Or_bottom.t
 
 (* Remove any information from the inside of the type, leaving only its
    outer structure, and in some cases leaving only "Unknown".  Alias types

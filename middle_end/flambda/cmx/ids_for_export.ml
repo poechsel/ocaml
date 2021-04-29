@@ -75,7 +75,7 @@ let add_name t name =
 
 let add_simple t simple =
   let simples =
-    match Simple.rec_info simple with
+    match Simple.coercion simple with
     | None -> t.simples
     | Some _ -> Simple.Set.add simple t.simples
   in
@@ -93,7 +93,7 @@ let add_continuation t continuation =
 
 let from_simple simple =
   let simples =
-    match Simple.rec_info simple with
+    match Simple.coercion simple with
     | None ->
       (* This simple will not be in the grand_table_of_simples *)
       Simple.Set.empty

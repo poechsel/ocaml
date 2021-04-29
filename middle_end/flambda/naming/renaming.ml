@@ -330,15 +330,15 @@ let apply_simple t simple =
     let new_name = apply_name t old_name in
     if old_name == new_name then simple
     else
-      match Simple.rec_info simple with
+      match Simple.coercion simple with
       | None -> Simple.name new_name
-      | Some rec_info -> Simple.with_rec_info (Simple.name new_name) rec_info
+      | Some coercion -> Simple.with_coercion (Simple.name new_name) coercion
   in
   (* Constants are never permuted, only freshened upon import. *)
   Simple.pattern_match simple
     ~name
     ~const:(fun cst ->
-      assert (not (Simple.has_rec_info simple));
+      assert (not (Simple.has_coercion simple));
       Simple.const (apply_const t cst))
 
 let closure_var_is_used t closure_var =

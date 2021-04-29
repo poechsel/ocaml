@@ -21,7 +21,7 @@ type t = {
   depth: int
 }
 
-let increment_depth t = { t with depth = t.depth + 1 } 
+let increment_depth t = { t with depth = t.depth + 1 }
 
 let default = {
     arguments = Inlining_arguments.unknown;
