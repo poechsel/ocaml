@@ -36,16 +36,25 @@ let function_decl_type ~pass ~cost_metrics_source denv function_decl ?code_id
   Inlining_report.record_decision (
     At_function_declaration { code_id = Code_id.export code_id; pass; decision; })
     ~dbg:(DE.add_inlined_debuginfo' denv (FD.dbg function_decl));
-  if Inlining_decision.Function_declaration_decision.can_inline decision then
+  match Inlining_decision.Function_declaration_decision.behaviour decision with
+  | Cannot_be_inlined ->
+    T.create_non_inlinable_function_declaration
+      ~code_id
+      ~is_tupled:(FD.is_tupled function_decl)
+  | Must_be_inlined ->
     T.create_inlinable_function_declaration
       ~code_id
       ~dbg:(FD.dbg function_decl)
       ~is_tupled:(FD.is_tupled function_decl)
+      ~must_be_inlined:true
       ~rec_info
-  else
-    T.create_non_inlinable_function_declaration
+  | Could_possibly_be_inlined ->
+    T.create_inlinable_function_declaration
       ~code_id
+      ~dbg:(FD.dbg function_decl)
       ~is_tupled:(FD.is_tupled function_decl)
+      ~must_be_inlined:false
+      ~rec_info
 
 module Context_for_multiple_sets_of_closures : sig
   (* This module deals with a sub-problem of the problem of simplifying multiple

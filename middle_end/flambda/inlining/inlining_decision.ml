@@ -49,14 +49,19 @@ module Function_declaration_decision = struct
         large_function_size: Code_size.t;
       }
 
-  let can_inline t =
+  type inlining_behaviour =
+    | Cannot_be_inlined
+    | Must_be_inlined
+    | Could_possibly_be_inlined
+
+  let behaviour t =
     match t with
     | Never_inline_attribute
-    | Function_body_too_large _ -> false
+    | Function_body_too_large _ -> Cannot_be_inlined
     | Stub
     | Attribute_inline
-    | Small_function _
-    | Speculatively_inlinable _-> true
+    | Small_function _ -> Must_be_inlined
+    | Speculatively_inlinable _-> Could_possibly_be_inlined
 
   let print fmt = function
     | Never_inline_attribute ->
@@ -125,7 +130,11 @@ module Function_declaration_decision = struct
   let report fmt t =
     Format.fprintf fmt "@[<v>The function %s be inlined at its use-sites@ \
                         because @[<hov>%a@]@]"
-      (if can_inline t then "can" else "cannot") report_reason t
+      (match behaviour t with
+       | Cannot_be_inlined -> "cannot"
+       | Could_possibly_be_inlined -> "could"
+       | Must_be_inlined -> "must")
+      report_reason t
 
 end
 
@@ -189,14 +198,11 @@ module Call_site_decision = struct
       }
     | Attribute_always
     | Attribute_unroll of int
+    | Definition_says_inline
     | Speculatively_inline of {
         cost_metrics: Cost_metrics.t;
         evaluated_to: float;
         threshold: float;
-      }
-    | Small_function of {
-        size: Code_size.t;
-        small_function_size: Code_size.t;
       }
 
   let print ppf t =
@@ -213,6 +219,8 @@ module Call_site_decision = struct
       Format.fprintf ppf "Never_inline_attribute"
     | Attribute_always ->
       Format.fprintf ppf "Attribute_unroll"
+    | Definition_says_inline ->
+      Format.fprintf ppf "Definition_says_inline"
     | Attribute_unroll unroll_to ->
       Format.fprintf ppf
         "@[<hov 1>(Attribute_unroll@ \
@@ -239,14 +247,6 @@ module Call_site_decision = struct
         Cost_metrics.print cost_metrics
         evaluated_to
         threshold
-    | Small_function { size; small_function_size; } ->
-      Format.fprintf ppf
-        "@[<hov 1>(Small_function@ \
-          @[<hov 1>(size@ %a)@]@ \
-          @[<hov 1>(small_function_size@ %a)@]\
-          )@]"
-        Code_size.print size
-        Code_size.print small_function_size
 
   type can_inline =
     | Do_not_inline
@@ -261,8 +261,8 @@ module Call_site_decision = struct
     | Speculatively_not_inline _
     | Never_inline_attribute -> Do_not_inline
     | Attribute_unroll unroll_to -> Inline { unroll_to = Some unroll_to; }
+    | Definition_says_inline
     | Speculatively_inline _
-    | Small_function _
     | Attribute_always -> Inline { unroll_to = None; }
 
   let report_reason fmt t =
@@ -281,6 +281,11 @@ module Call_site_decision = struct
       Format.fprintf fmt "the@ call@ has@ an@ [@@inline always]@ attribute"
     | Attribute_unroll n ->
       Format.fprintf fmt "the@ call@ has@ an@ [@@unroll %d]@ attribute" n
+    | Definition_says_inline ->
+      Format.fprintf fmt "this@ function@ was@ decided@ to@ be@ always@ \
+                          inlined@ at@ its@ definition@ site (annotated@ by@ \
+                          [@inlined always]@ or@ determined@ to@ be@ small@ \
+                          enough)"
     | Speculatively_not_inline { cost_metrics; evaluated_to; threshold } ->
       Format.fprintf fmt
         "the@ function@ was@ not@ inlined@ after@ speculation@ as@ \
@@ -297,13 +302,6 @@ module Call_site_decision = struct
         Cost_metrics.print cost_metrics
         evaluated_to
         threshold
-    | Small_function { size; small_function_size; } ->
-      Format.fprintf fmt
-        "the@ function@ was@ classified@ as@ a@ small@ \
-          function@ and@ was@ therefore@ inlined:@ \
-          size=%a <= small function size=%a"
-        Code_size.print size
-        Code_size.print small_function_size
 
   let report fmt t =
     Format.fprintf fmt
@@ -386,27 +384,19 @@ let speculative_inlining dacc ~apply ~function_decl ~simplify_expr
 let might_inline dacc ~apply ~function_decl ~simplify_expr ~return_arity
   : Call_site_decision.t =
   let denv = DA.denv dacc in
-  let code_id = I.code_id function_decl in
-  let code = DE.find_code denv code_id in
-  let cost_metrics = Code.cost_metrics code in
-  let args =
-    Apply.inlining_arguments apply
-    |> Inlining_arguments.meet (DA.denv dacc |> DE.inlining_arguments)
-  in
-  let size = Cost_metrics.size cost_metrics in
-  let small_function_size =
-    Inlining_arguments.small_function_size args |> Code_size.of_int
-  in
-  let is_a_small_function = Code_size.(<=) size small_function_size in
   let env_prohibits_inlining = not (DE.can_inline denv) in
-  if is_a_small_function then
-    Small_function { size; small_function_size }
+  if I.must_be_inlined function_decl then
+    Definition_says_inline
   else if env_prohibits_inlining then
     Environment_says_never_inline
   else
     let cost_metrics =
       speculative_inlining ~apply dacc ~simplify_expr ~return_arity
         ~function_decl
+    in
+    let args =
+      Apply.inlining_arguments apply
+      |> Inlining_arguments.meet (DA.denv dacc |> DE.inlining_arguments)
     in
     let evaluated_to = Cost_metrics.evaluate ~args cost_metrics in
     let threshold = Inlining_arguments.threshold args in
