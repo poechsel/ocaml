@@ -76,7 +76,7 @@ let apply_coercion_exn t applied_coercion =
 
 (* CR mshinwell: Make naming consistent with [Name] re. the option type *)
 
-(* CR mshinwell: Careful that Coercion don't get dropped using the
+(* CR mshinwell: Careful that coercions don't get dropped using the
    following *)
 
 let [@inline always] must_be_var t =

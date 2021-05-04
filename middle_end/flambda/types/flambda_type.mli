@@ -243,7 +243,6 @@ module Function_declaration_type : sig
 
     val code_id : t -> Code_id.t
     val dbg : t -> Debuginfo.t
-    val rec_info : t -> Rec_info.t
     val is_tupled : t -> bool
     val must_be_inlined : t -> bool
   end

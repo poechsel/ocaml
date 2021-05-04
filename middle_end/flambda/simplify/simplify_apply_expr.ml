@@ -114,13 +114,13 @@ let simplify_direct_full_application ~simplify_expr dacc apply function_decl_opt
           definition)"
       end;
       None
-    | Some (function_decl, function_decl_rec_info) ->
+    | Some function_decl ->
       let decision =
         Inlining_decision.make_decision_for_call_site dacc
           ~simplify_expr
           ~apply
           ~function_decl
-          ~function_decl_rec_info
+          ~function_decl_rec_info:Rec_info.unknown
           ~return_arity:result_arity
       in
       let code_id = T.Function_declaration_type.Inlinable.code_id function_decl in
@@ -641,14 +641,6 @@ let simplify_function_call ~simplify_expr dacc apply ~callee_ty
         | Indirect_unknown_arity
         | Indirect_known_arity _ -> None
       in
-      (* CR mshinwell: This should go in Typing_env (ditto logic for Rec_info
-         in Simplify_simple *)
-      let function_decl_coercion =
-        let rec_info = I.rec_info inlinable in
-        match Simple.coercion (Apply.callee apply) with
-        | Id -> rec_info
-        | Non_id _ as newer -> Coercion.apply_to_rec_info newer rec_info
-      in
       let callee's_code_id_from_type = I.code_id inlinable in
       let callee's_code = DE.find_code denv callee's_code_id_from_type in
       let must_be_detupled = call_must_be_detupled (I.is_tupled inlinable) in
@@ -658,7 +650,7 @@ let simplify_function_call ~simplify_expr dacc apply ~callee_ty
         ~result_arity:(Code.result_arity callee's_code)
         ~recursive:(Code.recursive callee's_code)
         ~must_be_detupled
-        (Some (inlinable, function_decl_coercion))
+        (Some inlinable)
         ~down_to_up
     | Ok (Non_inlinable non_inlinable) ->
       let module N = T.Function_declaration_type.Non_inlinable in
