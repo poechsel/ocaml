@@ -76,8 +76,8 @@ let add_name t name =
 let add_simple t simple =
   let simples =
     match Simple.coercion simple with
-    | None -> t.simples
-    | Some _ -> Simple.Set.add simple t.simples
+    | Id -> t.simples
+    | Non_id _ -> Simple.Set.add simple t.simples
   in
   let t = { t with simples; } in
   Simple.pattern_match simple
@@ -94,10 +94,10 @@ let add_continuation t continuation =
 let from_simple simple =
   let simples =
     match Simple.coercion simple with
-    | None ->
+    | Id ->
       (* This simple will not be in the grand_table_of_simples *)
       Simple.Set.empty
-    | Some _ -> Simple.Set.singleton simple
+    | Non_id _ -> Simple.Set.singleton simple
   in
   Simple.pattern_match simple
     ~const:(fun const ->

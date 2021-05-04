@@ -62,7 +62,7 @@ let all_ids_for_export t =
   | Is_int ty | Get_tag ty -> T.all_ids_for_export ty
 
 let apply_coercion t coercion : _ Or_bottom.t =
-  if Rec_info.is_initial coercion then Ok t
+  if Coercion.is_id coercion then Ok t
   else Bottom
 
 let eviscerate _ : _ Or_unknown.t = Unknown

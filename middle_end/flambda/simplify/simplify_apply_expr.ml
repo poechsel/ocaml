@@ -644,10 +644,10 @@ let simplify_function_call ~simplify_expr dacc apply ~callee_ty
       (* CR mshinwell: This should go in Typing_env (ditto logic for Rec_info
          in Simplify_simple *)
       let function_decl_coercion =
-        let coercion = I.rec_info inlinable in
+        let rec_info = I.rec_info inlinable in
         match Simple.coercion (Apply.callee apply) with
-        | None -> coercion
-        | Some newer -> Rec_info.merge coercion ~newer
+        | Id -> rec_info
+        | Non_id _ as newer -> Coercion.apply_to_rec_info newer rec_info
       in
       let callee's_code_id_from_type = I.code_id inlinable in
       let callee's_code = DE.find_code denv callee's_code_id_from_type in

@@ -125,7 +125,7 @@ end = struct
     | exception Not_found -> orig
 
   let simple t simple =
-    (* [t.simples] only holds those [Simple]s with [Rec_info] (analogously
+    (* [t.simples] only holds those [Simple]s with [Coercion] (analogously
        to the grand table of [Simple]s, see reg_width_things.ml). *)
     match Simple.Map.find simple t.simples with
     | simple -> simple
@@ -331,8 +331,8 @@ let apply_simple t simple =
     if old_name == new_name then simple
     else
       match Simple.coercion simple with
-      | None -> Simple.name new_name
-      | Some coercion -> Simple.with_coercion (Simple.name new_name) coercion
+      | Id -> Simple.name new_name
+      | Non_id _ as coercion -> Simple.with_coercion (Simple.name new_name) coercion
   in
   (* Constants are never permuted, only freshened upon import. *)
   Simple.pattern_match simple

@@ -224,8 +224,8 @@ end
 
 module Simple_data = struct
   type t = {
-    simple : Id.t;  (* always without [Rec_info] *)
-    coercion : Rec_info.t;
+    simple : Id.t;  (* always without [Coercion] *)
+    coercion : Coercion.t;
   }
 
   let flags = simple_flags
@@ -234,10 +234,10 @@ module Simple_data = struct
     Format.fprintf ppf "@[<hov 1>\
         @[<hov 1>(coercion@ %a)@]\
         @]"
-      Rec_info.print coercion
+      Coercion.print coercion
 
   let hash { simple; coercion; } =
-    Hashtbl.hash (Id.hash simple, Rec_info.hash coercion)
+    Hashtbl.hash (Id.hash simple, Coercion.hash coercion)
 
   let equal t1 t2 =
     if t1 == t2 then true
@@ -245,7 +245,7 @@ module Simple_data = struct
       let { simple = simple1; coercion = coercion1; } = t1 in
       let { simple = simple2; coercion = coercion2; } = t2 in
       Id.equal simple1 simple2
-        && Rec_info.equal coercion1 coercion2
+        && Coercion.equal coercion1 coercion2
 end
 
 module Const = struct
@@ -555,8 +555,8 @@ module Simple = struct
 
   let [@inline always] coercion t =
     let flags = Id.flags t in
-    if flags = simple_flags then Some ((find_data t).coercion)
-    else None
+    if flags = simple_flags then (find_data t).coercion
+    else Coercion.id
 
   module T0 = struct
     let compare = Id.compare
@@ -570,14 +570,11 @@ module Simple = struct
           ~const:(fun cst -> Const.print ppf cst)
       in
       match coercion t with
-      | None -> print ppf t
-      | Some coercion ->
-       Format.fprintf ppf "@[<hov 1>\
-            @[<hov 1>(simple@ %a)@] \
-            @[<hov 1>(coercion@ %a)@]\
-            @]"
+      | Id -> print ppf t
+      | Non_id _ as coercion ->
+        Format.fprintf ppf "@[<hov 1>(coerce@ %a@ %a)@]"
           print t
-          Rec_info.print coercion
+          Coercion.print coercion
 
     let output chan t =
       print (Format.formatter_of_out_channel chan) t
@@ -590,15 +587,15 @@ module Simple = struct
   end
 
   let with_coercion t new_coercion =
-    if Rec_info.is_initial new_coercion then t
+    if Coercion.is_id new_coercion then t
     else
       match coercion t with
-      | None ->
+      | Id ->
         let data : Simple_data.t = { simple = t; coercion = new_coercion; } in
         Table.add !grand_table_of_simples data
-      | Some _ ->
-        Misc.fatal_errorf "Cannot add [Rec_info] to [Simple] %a that already \
-            has [Rec_info]"
+      | Non_id _ ->
+        Misc.fatal_errorf "Cannot add [Coercion] to [Simple] %a that already \
+            has non-identity [Coercion]"
           print t
 
   module Set = Patricia_tree.Make_set (struct let print = print end)
