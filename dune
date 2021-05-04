@@ -150,12 +150,12 @@
             flambda flambda_to_cmm)
  (modules
    ;; asmcomp/
-   afl_instrument arch asmgen asmlibrarian asmlink asmpackager branch_relaxation
-   branch_relaxation_intf cmm_helpers cmm cmmgen cmmgen_state coloring comballoc
-   CSE CSEgen deadcode domainstate emit emitaux interf interval linear linearize 
-   linscan liveness mach printcmm printlinear printmach proc reg reload 
-   reloadgen schedgen scheduling selectgen selection spill split strmatch x86_ast
-   x86_dsl x86_gas x86_masm x86_proc
+   afl_instrument asmgen asmlibrarian asmlink asmpackager branch_relaxation
+   branch_relaxation_intf cmmgen coloring comballoc
+   CSE CSEgen deadcode domainstate emit emitaux interf linear linearize linscan
+   linear_format liveness printlinear reload reloadgen schedgen
+   scheduling selectgen selection spill split
+   x86_dsl x86_gas x86_masm
 
    ;; asmcomp/debug/
    compute_ranges_intf available_regs compute_ranges
