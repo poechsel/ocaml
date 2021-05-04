@@ -896,7 +896,10 @@ let rec add_equation0 t aliases name ty =
       | _ -> false
     in
     if is_concrete then begin
-      let canonical = Aliases.get_canonical_ignoring_name_mode aliases name in
+      let canonical =
+        Aliases.get_canonical_ignoring_name_mode aliases name
+        |> Simple.without_coercion
+      in
       if not (Simple.equal canonical (Simple.name name)) then begin
         Misc.fatal_errorf "Trying to add equation giving concrete type on %a \
             which is not canonical (its canonical is %a): %a"
@@ -997,6 +1000,14 @@ and add_equation t name ty =
       aliases, canonical, t, ty
     | alias_of ->
       let alias_of = Simple.without_coercion alias_of in
+      (* Forget where [name] and [alias_of] came from---our job is now to
+         record that they're equal. In general, they have canonical expressions
+         [c_n] and [c_a], respectively, so what we ultimately need to record is
+         that [c_n] = [c_a]. Clearly, only one of them can remain canonical, so
+         we pick whichever was bound earlier. If [c_a] was bound earlier, then
+         we demote [c_n] and give [name] the type "= c_a" (which will always be
+         valid since [c_a] was bound earlier). Otherwise, we demote [c_a] and
+         give [alias_of] the type "= c_n". *)
       let alias = Simple.name name in
       let kind = Type_grammar.kind ty in
       let binding_time_and_mode_alias = binding_time_and_mode t name in
@@ -1005,9 +1016,15 @@ and add_equation t name ty =
       in
       let ({ canonical_element; alias_of_demoted_element; t = aliases; }
             : Aliases.add_result) =
-        Aliases.add aliases alias binding_time_and_mode_alias
-          alias_of binding_time_and_mode_alias_of
+        Aliases.add 
+          aliases
+          ~element1:alias
+          ~binding_time_and_mode1:binding_time_and_mode_alias
+          ~element2:alias_of
+          ~binding_time_and_mode2:binding_time_and_mode_alias_of
       in
+      (* We need to change the demoted alias's type to point to the new
+         canonical element. *)
       let ty =
         Type_grammar.alias_type_of kind canonical_element
       in
@@ -1039,8 +1056,20 @@ and add_equation t name ty =
     in
     Simple.pattern_match simple ~name ~const:(fun _ -> ty, t)
   in
+  (* We have [(coerce <bare_lhs> <coercion>) : <ty>].
+     Thus [<bare_lhs> : (coerce <ty> <coercion>^-1)]. *)
+  let bare_lhs = Simple.without_coercion simple in
+  let coercion_from_bare_lhs_to_ty = Simple.coercion simple in
+  let coercion_from_ty_to_bare_lhs =
+    Coercion.inverse coercion_from_bare_lhs_to_ty
+  in
+  let ty =
+    match Type_grammar.apply_coercion ty coercion_from_ty_to_bare_lhs with
+    | Bottom -> Type_grammar.bottom (Type_grammar.kind ty)
+    | Ok ty -> ty
+  in
   let [@inline always] name name = add_equation0 t aliases name ty in
-  Simple.pattern_match simple ~name ~const:(fun _ -> t)
+  Simple.pattern_match bare_lhs ~name ~const:(fun _ -> t)
 
 and add_env_extension t (env_extension : Typing_env_extension.t) =
   Typing_env_extension.fold
