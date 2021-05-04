@@ -18,7 +18,4 @@
 
 [@@@ocaml.warning "+a-4-30-40-41-42"]
 
-val lambda_to_ilambda
-   : Lambda.lambda
-  -> recursive_static_catches:Numbers.Int.Set.t
-  -> Ilambda.program
+val lambda_to_ilambda : Lambda.lambda -> Ilambda.program

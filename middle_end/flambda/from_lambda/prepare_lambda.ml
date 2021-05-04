@@ -62,31 +62,6 @@ end = struct
     }
 end
 
-(* CR-soon mshinwell: Remove mutable state *)
-let recursive_static_catches = ref Numbers.Int.Set.empty
-
-let mark_as_recursive_static_catch cont =
-  if Numbers.Int.Set.mem cont !recursive_static_catches then begin
-    Misc.fatal_errorf "Static catch with continuation %d already marked as \
-        recursive -- is it being redefined?"
-      cont
-  end;
-  recursive_static_catches := Numbers.Int.Set.add cont !recursive_static_catches
-
-let switch_for_if_then_else ~cond ~ifso ~ifnot k =
-  (* CR mshinwell: We need to make sure that [cond] is {0, 1}-valued.
-     The frontend should have been fixed on this branch for this. *)
-  let switch : Lambda.lambda_switch =
-    { sw_numconsts = 2;
-      sw_consts = [0, ifnot; 1, ifso];
-      sw_numblocks = 0;
-      sw_blocks = [];
-      sw_failaction = None;
-      sw_tags_to_sizes = Tag.Scannable.Map.empty;
-    }
-  in
-  k (L.Lswitch (cond, switch, Loc_unknown))
-
 (*
 let simplify_primitive (prim : L.primitive) args loc =
   match prim, args with
@@ -349,65 +324,20 @@ let rec prepare env (lam : L.lambda) (k : L.lambda -> L.lambda) =
     prepare env cond (fun cond ->
       prepare env ifso (fun ifso ->
         prepare env ifnot (fun ifnot ->
-          switch_for_if_then_else ~cond ~ifso ~ifnot k)))
+          k (L.Lifthenelse(cond, ifso, ifnot)))))
   | Lsequence (lam1, lam2) ->
-    let ident = Ident.create_local "sequence" in
-    prepare env (L.Llet (Strict, Pgenval, ident, lam1, lam2)) k
+    prepare env lam1 (fun lam1 ->
+      prepare env lam2 (fun lam2 ->
+        k (L.Lsequence(lam1, lam2))))
   | Lwhile (cond, body) ->
-    let cont = L.next_raise_count () in
-    mark_as_recursive_static_catch cont;
-    let cond_result = Ident.create_local "cond_result" in
-    let lam : L.lambda =
-      Lstaticcatch (
-        Lstaticraise (cont, []),
-        (cont, []),
-        Llet (Strict, Pgenval, cond_result, cond,
-          Lifthenelse (Lvar cond_result,
-            Lsequence (
-              body,
-              Lstaticraise (cont, [])),
-            Lconst (Const_base (Const_int 0)))))
-    in
-    prepare env lam k
+    prepare env cond (fun cond ->
+      prepare env body (fun body ->
+        k (Lwhile (cond, body))))
   | Lfor (ident, start, stop, dir, body) ->
-    let cont = L.next_raise_count () in
-    mark_as_recursive_static_catch cont;
-    let start_ident = Ident.create_local "start" in
-    let stop_ident = Ident.create_local "stop" in
-    let first_test : L.lambda =
-      match dir with
-      | Upto ->
-        Lprim (Pintcomp Cle, [L.Lvar start_ident; L.Lvar stop_ident], Loc_unknown)
-      | Downto ->
-        Lprim (Pintcomp Cge, [L.Lvar start_ident; L.Lvar stop_ident], Loc_unknown)
-    in
-    let subsequent_test : L.lambda =
-      Lprim (Pintcomp Cne, [L.Lvar ident; L.Lvar stop_ident], Loc_unknown)
-    in
-    let one : L.lambda = Lconst (Const_base (Const_int 1)) in
-    let next_value_of_counter =
-      match dir with
-      | Upto -> L.Lprim (Paddint, [L.Lvar ident; one], Loc_unknown)
-      | Downto -> L.Lprim (Psubint, [L.Lvar ident; one], Loc_unknown)
-    in
-    let lam : L.lambda =
-      (* Care needs to be taken here not to cause overflow if, for an
-         incrementing for-loop, the upper bound is [max_int]; likewise, for
-         a decrementing for-loop, if the lower bound is [min_int]. *)
-      Llet (Strict, Pgenval, start_ident, start,
-        Llet (Strict, Pgenval, stop_ident, stop,
-          Lifthenelse (first_test,
-            Lstaticcatch (
-              Lstaticraise (cont, [start]),
-              (cont, [ident, Pgenval]),
-              Lsequence (
-                body,
-                Lifthenelse (subsequent_test,
-                  Lstaticraise (cont, [next_value_of_counter]),
-                  L.lambda_unit))),
-            L.lambda_unit)))
-    in
-    prepare env lam k
+    prepare env start (fun start ->
+      prepare env stop (fun stop ->
+        prepare env body (fun body ->
+          k (L.Lfor (ident, start, stop, dir, body)))))
   | Lassign (ident, lam) ->
     if not (Env.is_mutable env ident) then begin
       Misc.fatal_errorf "Lassign on non-mutable variable %a"
@@ -456,11 +386,9 @@ and prepare_option env lam_opt k =
   | Some lam -> prepare env lam (fun lam -> k (Some lam))
 
 let run lam =
-  recursive_static_catches := Numbers.Int.Set.empty;
   let current_unit_id =
     Compilation_unit.get_persistent_ident
       (Compilation_unit.get_current_exn ())
   in
   let env = Env.create ~current_unit_id in
-  let lam = prepare env lam (fun lam -> lam) in
-  lam, !recursive_static_catches
+  prepare env lam (fun lam -> lam)

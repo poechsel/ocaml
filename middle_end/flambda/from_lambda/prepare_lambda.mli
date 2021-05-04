@@ -16,10 +16,4 @@
 
 (** Preparation of [Lambda] code before CPS and closure conversion. *)
 
-(** The set of integers returned by [run] identifies all those [Lstaticcatch]
-    handlers which are to be treated as recursive.  (This is rather more
-    straightforward than changing the type in [Lambda] to accommodate
-    this). *)
-val run
-   : Lambda.lambda
-  -> Lambda.lambda * Numbers.Int.Set.t
+val run : Lambda.lambda -> Lambda.lambda

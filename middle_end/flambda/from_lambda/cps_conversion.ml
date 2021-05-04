@@ -58,6 +58,14 @@ let try_stack_at_handler = ref Continuation.Map.empty
 let recursive_static_catches = ref Numbers.Int.Set.empty
 let mutable_variables = ref Ident.Set.empty
 
+let mark_as_recursive_static_catch cont =
+  if Numbers.Int.Set.mem cont !recursive_static_catches then begin
+    Misc.fatal_errorf "Static catch with continuation %d already marked as \
+        recursive -- is it being redefined?"
+      cont
+  end;
+  recursive_static_catches := Numbers.Int.Set.add cont !recursive_static_catches
+
 let _print_stack ppf stack =
   Format.fprintf ppf "%a"
     (Format.pp_print_list ~pp_sep:(fun ppf () -> Format.fprintf ppf "; ")
@@ -116,7 +124,7 @@ let compile_staticfail ~(continuation : Continuation.t) ~args =
   in
   mk_poptraps (I.Apply_cont (continuation, None, args))
 
-let switch_for_if_then_else ~cond ~ifso ~ifnot k =
+let switch_for_if_then_else ~cond ~ifso ~ifnot =
   (* CR mshinwell: We need to make sure that [cond] is {0, 1}-valued.
      The frontend should have been fixed on this branch for this. *)
   let switch : Lambda.lambda_switch =
@@ -128,7 +136,7 @@ let switch_for_if_then_else ~cond ~ifso ~ifnot k =
       sw_tags_to_sizes = Tag.Scannable.Map.empty;
     }
   in
-  k (L.Lswitch (cond, switch, Loc_unknown))
+  L.Lswitch (cond, switch, Loc_unknown)
 
 let transform_primitive (prim : L.primitive) args loc =
   match prim, args with
@@ -141,8 +149,7 @@ let transform_primitive (prim : L.primitive) args loc =
           switch_for_if_then_else
             ~cond:(L.Lvar cond)
             ~ifso:(L.Lvar const_true)
-            ~ifnot:arg2
-            (fun lam -> lam)))))
+            ~ifnot:arg2))))
   | Psequand, [arg1; arg2] ->
     let const_false = Ident.create_local "const_false" in
     let cond = Ident.create_local "cond_sequand" in
@@ -152,8 +159,7 @@ let transform_primitive (prim : L.primitive) args loc =
           switch_for_if_then_else
             ~cond:(L.Lvar cond)
             ~ifso:arg2
-            ~ifnot:(L.Lvar const_false)
-            (fun lam -> lam)))))
+            ~ifnot:(L.Lvar const_false)))))
   | (Psequand | Psequor), _ ->
     Misc.fatal_error "Psequand / Psequor must have exactly two arguments"
   (* Removed. Should be safe, but will no longer catch misuses.
@@ -165,8 +171,7 @@ let transform_primitive (prim : L.primitive) args loc =
       (switch_for_if_then_else
         ~cond:(L.Lprim (Pflambda_isint, [arg], loc))
         ~ifso:(L.Lconst (Const_base (Const_int 1)))
-        ~ifnot:(L.Lconst (Const_base (Const_int 0)))
-        (fun lam -> lam))
+        ~ifnot:(L.Lconst (Const_base (Const_int 0))))
   | (Pidentity | Pbytes_to_string | Pbytes_of_string), [arg] -> Transformed arg
   | Pignore, [arg] ->
     let ident = Ident.create_local "ignore" in
@@ -246,6 +251,66 @@ let transform_primitive (prim : L.primitive) args loc =
       end
     end
   | _, _ -> Primitive (prim, args, loc)
+
+let rec_catch_for_while_loop cond body =
+  let cont = L.next_raise_count () in
+  mark_as_recursive_static_catch cont;
+  let cond_result = Ident.create_local "while_cond_result" in
+  let lam : L.lambda =
+    Lstaticcatch (
+      Lstaticraise (cont, []),
+      (cont, []),
+      Llet (Strict, Pgenval, cond_result, cond,
+        Lifthenelse (Lvar cond_result,
+          Lsequence (
+            body,
+            Lstaticraise (cont, [])),
+          Lconst (Const_base (Const_int 0)))))
+  in lam
+
+let rec_catch_for_for_loop
+      ident start stop (dir : Asttypes.direction_flag) body =
+  let cont = L.next_raise_count () in
+  mark_as_recursive_static_catch cont;
+  let start_ident = Ident.create_local "for_start" in
+  let stop_ident = Ident.create_local "for_stop" in
+  let first_test : L.lambda =
+    match dir with
+    | Upto ->
+       Lprim (Pintcomp Cle,
+         [L.Lvar start_ident; L.Lvar stop_ident],
+         Loc_unknown)
+    | Downto ->
+       Lprim (Pintcomp Cge,
+         [L.Lvar start_ident; L.Lvar stop_ident],
+         Loc_unknown)
+  in
+  let subsequent_test : L.lambda =
+    Lprim (Pintcomp Cne, [L.Lvar ident; L.Lvar stop_ident], Loc_unknown)
+  in
+  let one : L.lambda = Lconst (Const_base (Const_int 1)) in
+  let next_value_of_counter =
+    match dir with
+    | Upto -> L.Lprim (Paddint, [L.Lvar ident; one], Loc_unknown)
+    | Downto -> L.Lprim (Psubint, [L.Lvar ident; one], Loc_unknown)
+  in
+  let lam : L.lambda =
+    (* Care needs to be taken here not to cause overflow if, for an
+       incrementing for-loop, the upper bound is [max_int]; likewise, for
+       a decrementing for-loop, if the lower bound is [min_int]. *)
+    Llet (Strict, Pgenval, start_ident, start,
+      Llet (Strict, Pgenval, stop_ident, stop,
+        Lifthenelse (first_test,
+          Lstaticcatch (
+            Lstaticraise (cont, [L.Lvar start_ident]),
+            (cont, [ident, Pgenval]),
+            Lsequence (
+              body,
+              Lifthenelse (subsequent_test,
+                Lstaticraise (cont, [next_value_of_counter]),
+                L.lambda_unit))),
+          L.lambda_unit)))
+  in lam
 
 let rec cps_non_tail (lam : L.lambda) (k : Ident.t -> Ilambda.t)
           (k_exn : Continuation.t) : Ilambda.t =
@@ -536,13 +601,25 @@ let rec cps_non_tail (lam : L.lambda) (k : Ident.t -> Ilambda.t)
         };
       handler = k result_var;
     }
+  | Lifthenelse (cond, ifso, ifnot) ->
+    let lam = switch_for_if_then_else ~cond ~ifso ~ifnot in
+    cps_non_tail lam k k_exn
+  | Lsequence (lam1, lam2) ->
+    let ident = Ident.create_local "sequence" in
+    cps_non_tail (L.Llet (Strict, Pgenval, ident, lam1, lam2)) k k_exn
+  | Lwhile (cond, body) ->
+    let loop = rec_catch_for_while_loop cond body in
+    cps_non_tail loop k k_exn
+  | Lfor (ident, start, stop, dir, body) ->
+    let loop = rec_catch_for_for_loop ident start stop dir body in
+    cps_non_tail loop k k_exn
   | Lassign (being_assigned, new_value) ->
     cps_non_tail_simple new_value (fun new_value ->
         name_then_cps_non_tail "assign"
           (I.Assign { being_assigned; new_value; })
           k k_exn)
       k_exn
-  | Lsequence _ | Lifthenelse _ | Lwhile _ | Lfor _ | Lifused _ | Levent _ ->
+  | Lifused _ | Levent _ ->
     Misc.fatal_errorf "Term should have been eliminated by [Prepare_lambda]: %a"
       Printlambda.lambda lam
 
@@ -818,7 +895,19 @@ and cps_tail (lam : L.lambda) (k : Continuation.t) (k_exn : Continuation.t)
         };
       handler;
     }
-  | Lsequence _ | Lifthenelse _ | Lwhile _ | Lfor _ | Lifused _ | Levent _ ->
+  | Lifthenelse (cond, ifso, ifnot) ->
+    let lam = switch_for_if_then_else ~cond ~ifso ~ifnot in
+    cps_tail lam k k_exn
+  | Lsequence (lam1, lam2) ->
+    let ident = Ident.create_local "sequence" in
+    cps_tail (L.Llet (Strict, Pgenval, ident, lam1, lam2)) k k_exn
+  | Lwhile (cond, body) ->
+    let loop = rec_catch_for_while_loop cond body in
+    cps_tail loop k k_exn
+  | Lfor (ident, start, stop, dir, body) ->
+    let loop = rec_catch_for_for_loop ident start stop dir body in
+    cps_tail loop k k_exn
+  | Lifused _ | Levent _ ->
     Misc.fatal_errorf "Term should have been eliminated by [Prepare_lambda]: %a"
       Printlambda.lambda lam
 
@@ -943,12 +1032,11 @@ and cps_switch (switch : proto_switch) ~scrutinee (k : Continuation.t)
         wrappers)
     k_exn
 
-let lambda_to_ilambda lam ~recursive_static_catches:recursive_static_catches'
-      : Ilambda.program =
+let lambda_to_ilambda lam : Ilambda.program =
   static_exn_env := Numbers.Int.Map.empty;
   try_stack := [];
   try_stack_at_handler := Continuation.Map.empty;
-  recursive_static_catches := recursive_static_catches';
+  recursive_static_catches := Numbers.Int.Set.empty;
   mutable_variables := Ident.Set.empty;
   let the_end = Continuation.create ~sort:Define_root_symbol () in
   let the_end_exn = Continuation.create ~sort:Exn () in
