@@ -9,10 +9,10 @@ name: main
 on:
   push:
     branches:
-      - flambda2.0-stable
+      - 4.12-rebase
   pull_request:
     branches:
-      - flambda2.0-stable
+      - 4.12-rebase
 
 jobs:
   # Makefile-based: compile & run the testsuite
