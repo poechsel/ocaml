@@ -1,9 +1,9 @@
 diff --git a/testsuite/Makefile b/testsuite/Makefile
-index 5abbc8356b..fa3c3805b1 100644
+index b27c66990..e9e6870dc 100644
 --- a/testsuite/Makefile
 +++ b/testsuite/Makefile
-@@ -173,7 +173,7 @@ list: lib tools
- 	@$(MAKE) report
+@@ -196,7 +196,7 @@ list: lib tools
+ 	@$(MAKE) --no-print-directory one LIST="$(FILE)"
  
  .PHONY: list-parallel
 -list-parallel: lib tools
