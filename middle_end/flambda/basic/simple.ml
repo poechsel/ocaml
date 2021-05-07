@@ -158,14 +158,6 @@ module List = struct
     else result
 end
 
-module Pair = struct
-  include Identifiable.Make_pair
-    (Reg_width_things.Simple)
-    (Reg_width_things.Simple)
-
-  type nonrec t = t * t
-end
-
 module With_kind = struct
   type nonrec t = t * Flambda_kind.t
 

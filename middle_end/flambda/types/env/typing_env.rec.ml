@@ -1003,14 +1003,15 @@ and add_equation t name ty =
       let binding_time_and_mode_alias_of =
         binding_time_and_mode_of_simple t alias_of
       in
-      let ({ canonical_element; alias_of; t = aliases; } : Aliases.add_result) =
+      let ({ canonical_element; alias_of_demoted_element; t = aliases; }
+            : Aliases.add_result) =
         Aliases.add aliases alias binding_time_and_mode_alias
           alias_of binding_time_and_mode_alias_of
       in
       let ty =
         Type_grammar.alias_type_of kind canonical_element
       in
-      aliases, alias_of, t, ty
+      aliases, alias_of_demoted_element, t, ty
   in
   (* Beware: if we're about to add the equation on a name which is different
      from the one that the caller passed in, then we need to make sure that the
@@ -1330,7 +1331,7 @@ let get_alias_then_canonical_simple_exn t ?min_name_mode
 
 let aliases_of_simple t ~min_name_mode simple =
   Aliases.get_aliases (aliases t) simple
-  |> Simple.Set.filter (fun alias ->
+  |> Aliases.Alias_set.filter ~f:(fun alias ->
     let name_mode =
       Binding_time.With_name_mode.name_mode
         (binding_time_and_mode_of_simple t alias)

@@ -55,3 +55,10 @@ val must_be_var_opt : t -> Variable.t option
 val must_be_symbol_opt : t -> Symbol.t option
 
 val rename : t -> t
+
+module Pair : sig
+  type nonrec t = t * t
+
+  include Identifiable.S with type t := t
+end
+

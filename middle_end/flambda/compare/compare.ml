@@ -766,6 +766,35 @@ let function_decls env decl1 decl2 : unit Comparison.t =
   else Different { approximant = () }
 ;;
 
+(** Match up equal elements in two lists and iterate through both of them,
+    using [f] analogously to [Map.S.merge] *)
+let iter2_merged l1 l2 ~compare ~f =
+  let l1 = List.sort compare l1 in
+  let l2 = List.sort compare l2 in
+  let rec go l1 l2 =
+    match l1, l2 with
+    | [], [] -> ()
+    | a1 :: l1, [] ->
+      f (Some a1) None;
+      go l1 []
+    | [], a2 :: l2 ->
+      f None (Some a2);
+      go [] l2
+    | a1 :: l1, a2 :: l2 ->
+      begin match compare a1 a2 with
+      | 0 ->
+        f (Some a1) (Some a2);
+        go l1 l2
+      | c when c < 0 ->
+        f (Some a1) None;
+        go l1 (a2 :: l2)
+      | _ ->
+        f None (Some a2);
+        go (a1 :: l1) l2
+      end
+  in
+  go l1 l2
+
 let sets_of_closures env set1 set2 : Set_of_closures.t Comparison.t =
   (* Need to do unification on closure vars and closure ids, we we're going to
    * invert both maps, figuring the closure vars with the same value should be
@@ -777,28 +806,28 @@ let sets_of_closures env set1 set2 : Set_of_closures.t Comparison.t =
     |> List.map (fun (var, value) ->
          subst_simple env value, var
        )
-    |> Simple.Map.of_list
   in
   (* We want to process the whole map to find new correspondences between
    * closure vars, so we need to remember whether we've found any mismatches *)
   let ok = ref true in
-  (* Using merge here as a map version of [List.iter2]; always returning None
-   * means the returned map is always empty, so this shouldn't waste much *)
-  let _ : unit Simple.Map.t =
-    Simple.Map.merge (fun _value var1 var2 ->
-      begin
-        match var1, var2 with
-        | None, None -> ()
-        | Some _, None | None, Some _ -> ok := false
-        | Some var1, Some var2 ->
-          begin
-            match closure_vars env var1 var2 with
-            | Equivalent -> ()
-            | Different { approximant = _ } -> ok := false
-          end
-      end;
-      None
-    ) (closure_vars_by_value set1) (closure_vars_by_value set2)
+  let () =
+    let compare (value1, _var1) (value2, _var2) =
+      Simple.compare value1 value2
+    in
+    iter2_merged (closure_vars_by_value set1) (closure_vars_by_value set2)
+      ~compare
+      ~f:(fun elt1 elt2 ->
+        begin
+          match elt1, elt2 with
+          | None, None -> ()
+          | Some _, None | None, Some _ -> ok := false
+          | Some (_value1, var1), Some (_value2, var2) ->
+            begin
+              match closure_vars env var1 var2 with
+              | Equivalent -> ()
+              | Different { approximant = _ } -> ok := false
+            end
+        end)
   in
   let closure_ids_and_fun_decls_by_code_id set =
     let map = Function_declarations.funs (Set_of_closures.function_decls set) in
@@ -809,6 +838,8 @@ let sets_of_closures env set1 set2 : Set_of_closures.t Comparison.t =
        )
     |> Code_id.Map.of_list
   in
+  (* Using merge here as a map version of [List.iter2]; always returning None
+   * means the returned map is always empty, so this shouldn't waste much *)
   let _ : unit Code_id.Map.t =
     Code_id.Map.merge (fun _code_id value1 value2 ->
       begin

@@ -189,7 +189,7 @@ module Typing_env : sig
      : t
     -> min_name_mode:Name_mode.t
     -> Simple.t
-    -> Simple.Set.t
+    -> Aliases.Alias_set.t
 
   val clean_for_export : t -> reachable_names:Name_occurrences.t -> t
 

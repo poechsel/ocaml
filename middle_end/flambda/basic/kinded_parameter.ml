@@ -111,8 +111,6 @@ module List = struct
 
   let name_set t = Name.Set.of_list (List.map Name.var (vars t))
 
-  let simple_set t = Simple.Set.of_list (simples t)
-
   let rename t = List.map (fun t -> rename t) t
 
   let arity t = List.map (fun t -> Flambda_kind.With_subkind.kind (kind t)) t

@@ -62,7 +62,7 @@ let create ~final_typing_env ~all_code ~exported_offsets ~used_closure_vars =
       Variable.Map.empty
   in
   let simples =
-    Simple.Set.fold (fun simple simples ->
+    Reg_width_things.Simple.Set.fold (fun simple simples ->
         Simple.Map.add simple (Simple.export simple) simples)
       exported_ids.simples
       Simple.Map.empty

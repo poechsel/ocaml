@@ -18,7 +18,7 @@
 
 type t = {
   env : Typing_env.t;
-  already_meeting : Simple.Pair.Set.t;
+  already_meeting : Name.Pair.Set.t;
 }
 
 let print ppf { env; already_meeting; } =
@@ -27,32 +27,44 @@ let print ppf { env; already_meeting; } =
       @[<hov 1>(env@ %a)@]@ \
       @[<hov 1>(already_meeting@ %a)@])@]"
     Typing_env.print env
-    Simple.Pair.Set.print already_meeting
+    Name.Pair.Set.print already_meeting
 
 let create env =
   { env;
-    already_meeting = Simple.Pair.Set.empty;
+    already_meeting = Name.Pair.Set.empty;
   }
 
 let env t = t.env
+      
+let already_meeting_names t name1 name2 =
+  Name.Pair.Set.mem (name1, name2) t.already_meeting
+    || Name.Pair.Set.mem (name2, name1) t.already_meeting
 
 let already_meeting t simple1 simple2 =
-  Simple.Pair.Set.mem (simple1, simple2) t.already_meeting
-    || Simple.Pair.Set.mem (simple2, simple1) t.already_meeting
+  let const _const = false in
+  Simple.pattern_match simple1 ~const ~name:(fun name1 ->
+    Simple.pattern_match simple2 ~const ~name:(fun name2 ->
+      already_meeting_names t name1 name2))
 
-let now_meeting t simple1 simple2 =
-  if already_meeting t simple1 simple2 then begin
+let now_meeting_names t name1 name2 =
+  if already_meeting_names t name1 name2 then begin
     Misc.fatal_errorf "Already meeting %a and %a:@ %a"
-      Simple.print simple1
-      Simple.print simple2
+      Name.print name1
+      Name.print name2
       print t
   end;
   let already_meeting =
-    Simple.Pair.Set.add (simple1, simple2) t.already_meeting
+    Name.Pair.Set.add (name1, name2) t.already_meeting
   in
   { t with
     already_meeting;
   }
+
+let now_meeting t simple1 simple2 =
+  let const _const = t in
+  Simple.pattern_match simple1 ~const ~name:(fun name1 ->
+    Simple.pattern_match simple2 ~const ~name:(fun name2 ->
+      now_meeting_names t name1 name2))
 
 (* let with_typing_env t typing_env =
  *   { t with

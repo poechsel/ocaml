@@ -104,3 +104,11 @@ let must_be_symbol_opt t =
   pattern_match t
     ~var:(fun _ -> None)
     ~symbol:(fun sym -> Some sym)
+
+module Pair = struct
+  include Identifiable.Make_pair
+    (Reg_width_things.Name)
+    (Reg_width_things.Name)
+
+  type nonrec t = t * t
+end
