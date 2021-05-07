@@ -213,7 +213,6 @@ list-parallel: lib tools
 	 | parallel --gnu --no-notice --keep-order \
 	   "$(MAKE) $(NO_PRINT) exec-one DIR={} 2>&1" \
 	 | tee $(TESTLOG)
-	@$(MAKE) $(NO_PRINT) retries
 	@$(MAKE) report
 
 .PHONY: one
@@ -305,6 +304,14 @@ lib:
 .PHONY: tools
 tools:
 	@cd tools && $(MAKE) -s BASEDIR=$(BASEDIR)
+
+.PHONY:logs
+logs:
+	@if [ ! -f $(TESTLOG) ]; then echo "No $(TESTLOG) file."; exit 1; fi
+	@awk -f summarize.awk < $(TESTLOG) | \
+		../runtime/ocamlrun ../ocaml -nostdlib -I ../stdlib/ \
+		-I ../otherlibs/unix/ ../otherlibs/unix/unix.cma \
+		ocamltest_logs.ml
 
 .PHONY: clean
 clean:
