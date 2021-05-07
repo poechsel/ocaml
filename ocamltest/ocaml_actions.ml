@@ -864,25 +864,7 @@ let compare_programs backend comparison_tool log env =
     (Result.pass_with_reason reason, env)
   end else really_compare_programs backend comparison_tool log env
 
-let make_bytecode_programs_comparison_tool =
-  let ocamlrun = Ocaml_files.ocamlrun in
-  let cmpbyt = Ocaml_files.cmpbyt in
-  let tool_name = ocamlrun ^ " " ^ cmpbyt in
-  Filecompare.make_comparison_tool tool_name ""
-
 let native_programs_comparison_tool = Filecompare.default_comparison_tool
-
-let compare_bytecode_programs_code log env =
-  let bytecode_programs_comparison_tool =
-    make_bytecode_programs_comparison_tool in
-  compare_programs
-    Ocaml_backends.Bytecode bytecode_programs_comparison_tool log env
-
-let compare_bytecode_programs =
-  native_action
-    (Actions.make
-      "compare-bytecode-programs"
-      compare_bytecode_programs_code)
 
 let compare_binary_files =
   native_action
@@ -1350,7 +1332,6 @@ let _ =
     ocamlopt_opt;
     check_ocamlopt_opt_output;
     run_expect;
-    compare_bytecode_programs;
     compare_binary_files;
     setup_ocaml_build_env;
     ocaml;
