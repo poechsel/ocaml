@@ -57,7 +57,7 @@ jobs:
       id: cache
       with:
         path: ${{ github.workspace }}/install
-        key: ${{ matrix.os }}-cache-install-ocaml4111-flambda-dune213
+        key: ${{ matrix.os }}-cache-install-ocaml4120-flambda-dune213
 
     # ### STEP 1 ###
     # Get a working 4.10 statmemprof ocaml install, with dune
@@ -79,7 +79,7 @@ jobs:
       with:
         repository: 'ocaml/ocaml'
         path: 'base'
-        ref: '4.11'
+        ref: '4.12'
     # Apply ocamltest patch to 4.10 repo
     - name: Apply ocamltest patch
       if: steps.cache.outputs.cache-hit != 'true'
