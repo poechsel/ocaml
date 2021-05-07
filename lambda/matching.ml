@@ -1999,7 +1999,6 @@ let inline_lazy_force_switch arg loc =
                         } )
                   ];
                 sw_failaction = Some varg;
-                sw_tags_to_sizes = Tag.Scannable.Map.empty;
               },
               loc ) ) )
 
@@ -2457,7 +2456,6 @@ module SArg = struct
           sw_numblocks = 0;
           sw_blocks = [];
           sw_failaction = None;
-          sw_tags_to_sizes = Tag.Scannable.Map.empty;
         },
         loc )
 
@@ -2959,7 +2957,6 @@ let combine_constructor loc arg pat_env cstr partial ctx def
                         sw_numblocks = cstr.cstr_nonconsts;
                         sw_blocks = nonconsts;
                         sw_failaction = fail_opt;
-                        sw_tags_to_sizes = Tag.Scannable.Map.empty;
                       }
                     in
                     let hs, sw = share_actions_sw sw in

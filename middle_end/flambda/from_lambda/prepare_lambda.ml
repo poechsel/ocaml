@@ -215,99 +215,22 @@ let rec prepare env (lam : L.lambda) (k : L.lambda -> L.lambda) =
       prepare_option env switch.sw_failaction (fun sw_failaction ->
         prepare_list env sw_consts (fun sw_consts ->
           prepare_list env sw_blocks (fun sw_blocks ->
-            let sw_failaction, wrap_switch =
-              match sw_failaction with
-              | None -> None, (fun lam -> lam)
-              | Some failaction ->
-                let failaction_cont = L.next_raise_count () in
-                let wrap_switch lam : L.lambda =
-                  Lstaticcatch (lam, (failaction_cont, []), failaction)
-                in
-                Some (L.Lstaticraise (failaction_cont, [])), wrap_switch
-            in
-            let consts_switch : L.lambda_switch =
+            let switch : L.lambda_switch =
               { sw_numconsts = switch.sw_numconsts;
                 sw_consts = List.combine const_nums sw_consts;
-                sw_numblocks = 0;
-                sw_blocks = [];
+                sw_numblocks = switch.sw_numblocks;
+                sw_blocks = List.combine block_nums sw_blocks;
                 sw_failaction;
-                sw_tags_to_sizes = Tag.Scannable.Map.empty;
               }
             in
-            (* CR mshinwell: Merge this file into Cps_conversion then delete
-               [sw_tags_to_sizes]. *)
-            let tags_to_sizes =
-              List.fold_left (fun tags_to_sizes
-                        ({ sw_tag; sw_size; } : L.lambda_switch_block_key) ->
-                  match Tag.Scannable.create sw_tag with
-                  | Some tag ->
-                    let tag' = Tag.Scannable.to_tag tag in
-                    if Tag.is_structured_block_but_not_a_variant tag' then begin
-                      Misc.fatal_errorf "Bad tag %a in [Lswitch] (tag is that \
-                          of a scannable block, but not one treated like a \
-                          variant; [Lswitch] can only be used for variant \
-                          matching)"
-                        Tag.print tag'
-                    end;
-                    let size = Targetint.OCaml.of_int sw_size in
-                    Tag.Scannable.Map.add tag size tags_to_sizes
-                  | None ->
-                    Misc.fatal_errorf "Bad tag %d in [Lswitch] (not the tag \
-                        of a GC-scannable block)"
-                      sw_tag)
-                Tag.Scannable.Map.empty
-                block_nums
-            in
-            let block_nums =
-              List.map (fun ({ sw_tag; _} : L.lambda_switch_block_key) ->
-                  sw_tag)
-                block_nums
-            in
-            if switch.sw_numblocks > Obj.last_non_constant_constructor_tag + 1
-            then begin
-              Misc.fatal_errorf "Too many blocks (%d) in [Lswitch], would \
-                  overlap into tag space for blocks that are not treated \
-                  like variants; [Lswitch] can only be used for variant \
-                  matching"
-                switch.sw_numblocks
-            end;
-            let blocks_switch : L.lambda_switch =
-              { sw_numconsts = switch.sw_numblocks;
-                sw_consts = List.combine block_nums sw_blocks;
-                sw_numblocks = 0;
-                sw_blocks = [];
-                sw_failaction;
-                (* XXX What about the size for the failaction? ... *)
-                sw_tags_to_sizes = tags_to_sizes;
-              }
-            in
-            let consts_switch : L.lambda =
-              L.Lswitch (scrutinee, consts_switch, loc)
-            in
-            let blocks_switch : L.lambda =
-              L.Lswitch (
-               Lprim (Pgettag, [scrutinee], Loc_unknown),
-               blocks_switch, loc)
-            in
-            let isint_switch : L.lambda_switch =
-              { sw_numconsts = 2;
-                sw_consts = [0, blocks_switch; 1, consts_switch];
-                sw_numblocks = 0;
-                sw_blocks = [];
-                sw_failaction = None;
-                sw_tags_to_sizes = Tag.Scannable.Map.empty;
-              }
-            in
-            let switch =
-              if switch.sw_numconsts = 0 then blocks_switch
-              else if switch.sw_numblocks = 0 then consts_switch
-              else
-                L.Lswitch (L.Lprim (Pflambda_isint, [scrutinee], Loc_unknown),
-                  isint_switch, loc)
-            in
-            k (wrap_switch switch)))))
+            k (Lswitch (scrutinee, switch, loc))))))
   | Lstringswitch (scrutinee, cases, default, loc) ->
-    prepare env (Matching.expand_stringswitch loc scrutinee cases default) k
+    prepare env scrutinee (fun scrutinee ->
+      let patterns, actions = List.split cases in
+      prepare_list env actions (fun actions ->
+        prepare_option env default (fun default ->
+          let cases = List.combine patterns actions in
+          k (L.Lstringswitch (scrutinee, cases, default, loc)))))
   | Lstaticraise (cont, args) ->
     prepare_list env args (fun args ->
       k (L.Lstaticraise (cont, args)))

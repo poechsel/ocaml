@@ -24,12 +24,6 @@ module I = Ilambda
 module L = Lambda
 module C = Lambda_conversions
 
-type proto_switch = {
-  numconsts : int;
-  consts : (int * L.lambda) list;
-  failaction : L.lambda option;
-}
-
 type primitive_transform_result =
   | Primitive of L.primitive * L.lambda list * L.scoped_location
   | Transformed of L.lambda
@@ -133,7 +127,6 @@ let switch_for_if_then_else ~cond ~ifso ~ifnot =
       sw_numblocks = 0;
       sw_blocks = [];
       sw_failaction = None;
-      sw_tags_to_sizes = Tag.Scannable.Map.empty;
     }
   in
   L.Lswitch (cond, switch, Loc_unknown)
@@ -449,23 +442,11 @@ let rec cps_non_tail (lam : L.lambda) (k : Ident.t -> Ilambda.t)
         k_exn
     | Transformed lam -> cps_non_tail lam k k_exn
     end
-  | Lswitch (scrutinee,
-      { sw_numconsts; sw_consts; sw_numblocks = _; sw_blocks; sw_failaction;
-        sw_tags_to_sizes = _; }, _loc) ->
-    begin match sw_blocks with
-    | [] -> ()
-    | _ -> Misc.fatal_error "Lswitch `block' cases are forbidden"
-    end;
+  | Lswitch (scrutinee, switch, _loc) ->
     let after_switch = Continuation.create () in
     let result_var = Ident.create_local "switch_result" in
     let after = k result_var in
-    let proto_switch : proto_switch =
-      { numconsts = sw_numconsts;
-        consts = sw_consts;
-        failaction = sw_failaction;
-      }
-    in
-    let body = cps_switch proto_switch ~scrutinee after_switch k_exn in
+    let body = cps_switch switch ~scrutinee after_switch k_exn in
     Let_cont {
       name = after_switch;
       is_exn_handler = false;
@@ -474,8 +455,9 @@ let rec cps_non_tail (lam : L.lambda) (k : Ident.t -> Ilambda.t)
       body;
       handler = after;
     }
-  | Lstringswitch _ ->
-    Misc.fatal_error "Lstringswitch must be expanded prior to CPS conversion"
+  | Lstringswitch (scrutinee, cases, default, loc) ->
+    cps_non_tail (Matching.expand_stringswitch loc scrutinee cases default)
+      k k_exn
   | Lstaticraise (static_exn, args) ->
     let continuation =
       match Numbers.Int.Map.find static_exn !static_exn_env with
@@ -783,22 +765,10 @@ and cps_tail (lam : L.lambda) (k : Continuation.t) (k_exn : Continuation.t)
             Apply_cont (k, None, [Ilambda.Var result_var]))) k_exn
     | Transformed lam -> cps_tail lam k k_exn
     end
-  | Lswitch (scrutinee,
-      { sw_numconsts; sw_consts; sw_numblocks = _; sw_blocks; sw_failaction;
-        sw_tags_to_sizes = _; }, _loc) ->
-    begin match sw_blocks with
-    | [] -> ()
-    | _ -> Misc.fatal_error "Lswitch `block' cases are forbidden"
-    end;
-    let proto_switch : proto_switch =
-      { numconsts = sw_numconsts;
-        consts = sw_consts;
-        failaction = sw_failaction;
-      }
-    in
-    cps_switch proto_switch ~scrutinee k k_exn
-  | Lstringswitch _ ->
-    Misc.fatal_error "Lstringswitch must be expanded prior to CPS conversion"
+  | Lswitch (scrutinee,switch, _loc) ->
+    cps_switch switch ~scrutinee k k_exn
+  | Lstringswitch (scrutinee, cases, default, loc) ->
+    cps_tail (Matching.expand_stringswitch loc scrutinee cases default) k k_exn
   | Lstaticraise (static_exn, args) ->
     let continuation =
       match Numbers.Int.Map.find static_exn !static_exn_env with
@@ -958,9 +928,35 @@ and cps_function ({ kind; params; return; body; attr; loc; } : L.lfunction)
     stub = false;
   }
 
-and cps_switch (switch : proto_switch) ~scrutinee (k : Continuation.t)
+and cps_switch (switch : L.lambda_switch) ~scrutinee (k : Continuation.t)
       (k_exn : Continuation.t) : Ilambda.t =
-  let consts_rev, wrappers =
+  let block_nums, sw_blocks = List.split switch.sw_blocks in
+  let block_nums =
+    List.map (fun ({ sw_tag; _ } : L.lambda_switch_block_key) ->
+        begin match Tag.Scannable.create sw_tag with
+        | Some tag ->
+          let tag' = Tag.Scannable.to_tag tag in
+          if Tag.is_structured_block_but_not_a_variant tag' then
+            Misc.fatal_errorf "Bad tag %a in [Lswitch] (tag is that of a \
+              scannable block, but not one treated like a variant; \
+              [Lswitch] can only be used for variant matching)"
+              Tag.print tag'
+        | None ->
+           Misc.fatal_errorf "Bad tag %d in [Lswitch] (not the tag \
+             of a GC-scannable block)"
+             sw_tag
+        end;
+        sw_tag)
+      block_nums
+  in
+  if switch.sw_numblocks > Obj.last_non_constant_constructor_tag + 1
+  then begin
+      Misc.fatal_errorf "Too many blocks (%d) in [Lswitch], would \
+        overlap into tag space for blocks that are not treated like variants; \
+        [Lswitch] can only be used for variant matching"
+        switch.sw_numblocks
+    end;
+  let convert_arms_rev cases wrappers =
     List.fold_left (fun (consts_rev, wrappers) (arm, (action : L.lambda)) ->
         match action with
         | Lvar var when not (Ident.Set.mem var !mutable_variables) ->
@@ -999,12 +995,17 @@ and cps_switch (switch : proto_switch) ~scrutinee (k : Continuation.t)
             let consts_rev = (arm, cont, None, []) :: consts_rev in
             let wrappers = (cont, action) :: wrappers in
             consts_rev, wrappers)
-      ([], [])
-      switch.consts
+      ([], wrappers)
+      cases
+  in
+  let consts_rev, wrappers = convert_arms_rev switch.sw_consts [] in
+  let blocks_rev, wrappers =
+    convert_arms_rev (List.combine block_nums sw_blocks) wrappers
   in
   let consts = List.rev consts_rev in
+  let blocks = List.rev blocks_rev in
   let failaction, wrappers =
-    match switch.failaction with
+    match switch.sw_failaction with
     | None -> None, wrappers
     | Some action ->
       let cont = Continuation.create () in
@@ -1012,13 +1013,58 @@ and cps_switch (switch : proto_switch) ~scrutinee (k : Continuation.t)
       let wrappers = (cont, action) :: wrappers in
       Some (cont, None, []), wrappers
   in
-  let switch : I.switch =
-    { numconsts = switch.numconsts;
+  let const_switch : I.switch =
+    { numconsts = switch.sw_numconsts;
       consts;
       failaction;
     }
   in
+  let block_switch : I.switch =
+    { numconsts = switch.sw_numblocks;
+      consts = blocks;
+      failaction;
+    }
+  in
+  let build_switch scrutinee wrappers =
+    let const_switch = I.Switch (scrutinee, const_switch) in
+    let scrutinee_tag = Ident.create_local "scrutinee_tag" in
+    let block_switch =
+      I.Let (scrutinee_tag,
+        Not_user_visible,
+        Pintval,
+        Prim { prim = Pgettag;
+          args = [Var scrutinee];
+          loc = Loc_unknown;
+          exn_continuation = None; },
+        I.Switch(scrutinee_tag, block_switch))
+    in
+    if switch.sw_numblocks = 0 then const_switch, wrappers
+    else if switch.sw_numconsts = 0 then block_switch, wrappers
+    else
+      let const_cont = Continuation.create () in
+      let block_cont = Continuation.create () in
+      let isint_switch : I.switch =
+        { numconsts = 2;
+          consts = [ (0, block_cont, None, []); (1, const_cont, None, []) ];
+          failaction = None;
+        }
+      in
+      let is_scrutinee_int = Ident.create_local "is_scrutinee_int" in
+      let isint_switch =
+        I.Let (is_scrutinee_int,
+          Not_user_visible,
+          Pintval,
+          Prim { prim = Pflambda_isint;
+            args = [Var scrutinee];
+            loc = Loc_unknown;
+            exn_continuation = None; },
+          I.Switch(is_scrutinee_int, isint_switch))
+      in
+      isint_switch,
+      ((const_cont, const_switch)::(block_cont, block_switch)::wrappers)
+  in
   cps_non_tail scrutinee (fun scrutinee ->
+      let switch, wrappers = build_switch scrutinee wrappers in
       List.fold_left (fun body (cont, action) ->
           I.Let_cont {
             name = cont;
@@ -1028,8 +1074,7 @@ and cps_switch (switch : proto_switch) ~scrutinee (k : Continuation.t)
             body;
             handler = action;
           })
-        (I.Switch (scrutinee, switch))
-        wrappers)
+        switch wrappers)
     k_exn
 
 let lambda_to_ilambda lam : Ilambda.program =

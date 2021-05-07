@@ -467,7 +467,6 @@ and lambda_switch =
     sw_numblocks: int;
     sw_blocks: (lambda_switch_block_key * lambda) list;
     sw_failaction : lambda option;
-    sw_tags_to_sizes : Targetint.OCaml.t Tag.Scannable.Map.t;
   }
 
 and lambda_switch_block_key =
@@ -948,7 +947,6 @@ let shallow_map f = function
                  sw_numblocks = sw.sw_numblocks;
                  sw_blocks = List.map (fun (n, e) -> (n, f e)) sw.sw_blocks;
                  sw_failaction = Option.map f sw.sw_failaction;
-                 sw_tags_to_sizes = sw.sw_tags_to_sizes;
                },
                loc)
   | Lstringswitch (e, sw, default, loc) ->

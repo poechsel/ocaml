@@ -339,7 +339,6 @@ and lambda_switch =
     sw_numblocks: int;                  (* Number of tag block cases *)
     sw_blocks: (lambda_switch_block_key * lambda) list;  (* Tag block cases *)
     sw_failaction : lambda option;      (* Action to take if failure *)
-    sw_tags_to_sizes : Targetint.OCaml.t Tag.Scannable.Map.t;
   }
 
 and lambda_switch_block_key =
