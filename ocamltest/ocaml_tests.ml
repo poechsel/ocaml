@@ -25,7 +25,6 @@ let bytecode =
     setup_ocamlc_opt_build_env;
     ocamlc_opt;
     check_ocamlc_opt_output;
-    compare_bytecode_programs
   ] in
 {
   test_name = "bytecode";
