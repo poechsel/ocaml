@@ -154,12 +154,12 @@ module Simple : sig
 
   val const : Const.t -> t
 
-  val rec_info : t -> Rec_info.t option
+  val coercion : t -> Rec_info.t option
 
-  val with_rec_info : t -> Rec_info.t -> t
+  val with_coercion : t -> Rec_info.t -> t
 
   (* This does not consult the grand table of [Simple]s. *)
-  val has_rec_info : t -> bool
+  val has_coercion : t -> bool
 
   val pattern_match
      : t
@@ -168,7 +168,7 @@ module Simple : sig
     -> 'a
 
   (* [same s1 s2] returns true iff they represent the same name or const
-     i.e. [same s (with_rec_info s rec_info)] returns true *)
+     i.e. [same s (with_coercion s coercion)] returns true *)
   val same : t -> t -> bool
 
   val export : t -> exported

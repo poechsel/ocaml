@@ -582,8 +582,8 @@ let add t element1 binding_time_and_mode1
           ));
   end;
   let original_t = t in
-  let element1 = Simple.without_rec_info element1 in
-  let element2 = Simple.without_rec_info element2 in
+  let element1 = Simple.without_coercion element1 in
+  let element2 = Simple.without_coercion element2 in
   let add_if_name simple data map =
     Simple.pattern_match simple
       ~const:(fun _ -> map)

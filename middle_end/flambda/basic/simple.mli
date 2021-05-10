@@ -23,11 +23,11 @@ include module type of struct include Reg_width_things.Simple end
 
 include Contains_names.S with type t := t
 
-val has_rec_info : t -> bool
+val has_coercion : t -> bool
 
-val merge_rec_info : t -> newer_rec_info:Rec_info.t option -> t option
+val merge_coercion : t -> newer_coercion:Rec_info.t option -> t option
 
-val without_rec_info : t -> t
+val without_coercion : t -> t
 
 val must_be_var : t -> Variable.t option
 

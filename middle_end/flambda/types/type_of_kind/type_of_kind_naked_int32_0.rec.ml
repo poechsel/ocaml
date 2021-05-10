@@ -32,8 +32,8 @@ let free_names _t = Name_occurrences.empty
 
 let all_ids_for_export _t = Ids_for_export.empty
 
-let apply_rec_info t rec_info : _ Or_bottom.t =
-  if Rec_info.is_initial rec_info then Ok t
+let apply_coercion t coercion : _ Or_bottom.t =
+  if Rec_info.is_initial coercion then Ok t
   else Bottom
 
 let eviscerate _ : _ Or_unknown.t = Unknown
