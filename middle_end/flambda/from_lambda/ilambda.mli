@@ -55,7 +55,6 @@ type t =
   | Let of Ident.t * user_visible * Lambda.value_kind * named * t
   | Let_mutable of let_mutable
   | Let_rec of function_declarations * t
-    (** Value "let rec" has already been expanded by [Prepare_lambda]. *)
   | Let_cont of let_cont
   | Apply of apply
   | Apply_cont of Continuation.t * trap_action option * simple list

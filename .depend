@@ -3771,7 +3771,6 @@ middle_end/flambda/flambda_middle_end.cmo : \
     utils/profile.cmi \
     lambda/printlambda.cmi \
     middle_end/flambda/parser/print_fexpr.cmi \
-    middle_end/flambda/from_lambda/prepare_lambda.cmi \
     utils/misc.cmi \
     middle_end/flambda/inlining/inlining_report.cmi \
     middle_end/flambda/from_lambda/ilambda.cmi \
@@ -3794,7 +3793,6 @@ middle_end/flambda/flambda_middle_end.cmx : \
     utils/profile.cmx \
     lambda/printlambda.cmx \
     middle_end/flambda/parser/print_fexpr.cmx \
-    middle_end/flambda/from_lambda/prepare_lambda.cmx \
     utils/misc.cmx \
     middle_end/flambda/inlining/inlining_report.cmx \
     middle_end/flambda/from_lambda/ilambda.cmx \
@@ -4060,7 +4058,6 @@ middle_end/flambda/flambda_middle_end.cmo : \
     utils/profile.cmi \
     lambda/printlambda.cmi \
     middle_end/flambda/parser/print_fexpr.cmi \
-    middle_end/flambda/from_lambda/prepare_lambda.cmi \
     utils/misc.cmi \
     middle_end/flambda/inlining/inlining_report.cmi \
     middle_end/flambda/from_lambda/ilambda.cmi \
@@ -4083,7 +4080,6 @@ middle_end/flambda/flambda_middle_end.cmx : \
     utils/profile.cmx \
     lambda/printlambda.cmx \
     middle_end/flambda/parser/print_fexpr.cmx \
-    middle_end/flambda/from_lambda/prepare_lambda.cmx \
     utils/misc.cmx \
     middle_end/flambda/inlining/inlining_report.cmx \
     middle_end/flambda/from_lambda/ilambda.cmx \
@@ -5188,33 +5184,6 @@ middle_end/flambda/from_lambda/lambda_to_flambda_primitives_helpers.cmi : \
     middle_end/flambda/basic/exn_continuation.cmi \
     lambda/debuginfo.cmi \
     middle_end/flambda/from_lambda/closure_conversion_aux.cmi
-middle_end/flambda/from_lambda/prepare_lambda.cmo : \
-    utils/targetint.cmi \
-    lambda/tag.cmi \
-    lambda/simplif.cmi \
-    lambda/printlambda.cmi \
-    utils/numbers.cmi \
-    utils/misc.cmi \
-    lambda/matching.cmi \
-    lambda/lambda.cmi \
-    typing/ident.cmi \
-    middle_end/flambda/compilenv_deps/compilation_unit.cmi \
-    middle_end/flambda/from_lambda/prepare_lambda.cmi
-middle_end/flambda/from_lambda/prepare_lambda.cmx : \
-    utils/targetint.cmx \
-    lambda/tag.cmx \
-    lambda/simplif.cmx \
-    lambda/printlambda.cmx \
-    utils/numbers.cmx \
-    utils/misc.cmx \
-    lambda/matching.cmx \
-    lambda/lambda.cmx \
-    typing/ident.cmx \
-    middle_end/flambda/compilenv_deps/compilation_unit.cmx \
-    middle_end/flambda/from_lambda/prepare_lambda.cmi
-middle_end/flambda/from_lambda/prepare_lambda.cmi : \
-    utils/numbers.cmi \
-    lambda/lambda.cmi
 middle_end/flambda/inlining/inlining_arguments.cmo : \
     middle_end/flambda/types/basic/or_unknown.cmi \
     utils/misc.cmi \

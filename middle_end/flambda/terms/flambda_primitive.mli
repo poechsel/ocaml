@@ -130,7 +130,7 @@ end
     is disabled.
 
   * Another note: the "bit test" primitive now needs to be compiled out in
-    Prepare_lambda.  It indexes into a string using a number of bits.
+    Cps_conversion.  It indexes into a string using a number of bits.
     (See cmmgen.ml)  Something that is odd about this primitive is that it
     does not appear to have a bounds check.  Maybe it should?
 *)

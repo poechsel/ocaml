@@ -24,19 +24,48 @@ module I = Ilambda
 module L = Lambda
 module C = Lambda_conversions
 
+module Env : sig
+  type t
+
+  val create : current_unit_id:Ident.t -> t
+
+  val current_unit_id : t -> Ident.t
+
+  val add_mutable : t -> Ident.t -> t
+  val is_mutable : t -> Ident.t -> bool
+  val has_mutables : t -> bool
+
+  (* val add_continuation : t -> int -> t *)
+end = struct
+  type t = {
+    current_unit_id : Ident.t;
+    mutables : Ident.Set.t;
+    has_mutables : bool ref; (* for now *)
+  }
+
+  let create ~current_unit_id =
+    { current_unit_id;
+      mutables = Ident.Set.empty;
+      has_mutables = ref false;
+    }
+
+  let current_unit_id t = t.current_unit_id
+
+  let add_mutable t id =
+    assert (not (Ident.Set.mem id t.mutables));
+    t.has_mutables := true;
+    { t with mutables = Ident.Set.add id t.mutables; }
+
+  let is_mutable t id =
+    Ident.Set.mem id t.mutables
+
+  let has_mutables t =
+    !(t.has_mutables)
+end
+
 type primitive_transform_result =
   | Primitive of L.primitive * L.lambda list * L.scoped_location
   | Transformed of L.lambda
-
-let check_let_rec_bindings bindings =
-  List.map (fun (binding : Lambda.lambda) ->
-      match binding with
-      | Lfunction func -> func
-      | _ ->
-        Misc.fatal_errorf "Only [Lfunction] expressions are permitted in \
-            [Lletrec] bindings upon entry to CPS conversion: %a"
-          Printlambda.lambda binding)
-    bindings
 
 let name_for_function (func : Lambda.lfunction) =
   (* Name anonymous functions by their source location, if known. *)
@@ -50,7 +79,6 @@ let static_exn_env = ref Numbers.Int.Map.empty
 let try_stack = ref []
 let try_stack_at_handler = ref Continuation.Map.empty
 let recursive_static_catches = ref Numbers.Int.Set.empty
-let mutable_variables = ref Ident.Set.empty
 
 let mark_as_recursive_static_catch cont =
   if Numbers.Int.Set.mem cont !recursive_static_catches then begin
@@ -131,7 +159,7 @@ let switch_for_if_then_else ~cond ~ifso ~ifnot =
   in
   L.Lswitch (cond, switch, Loc_unknown)
 
-let transform_primitive (prim : L.primitive) args loc =
+let transform_primitive env (prim : L.primitive) args loc =
   match prim, args with
   | Psequor, [arg1; arg2] ->
     let const_true = Ident.create_local "const_true" in
@@ -185,6 +213,10 @@ let transform_primitive (prim : L.primitive) args loc =
       }
     in
     Transformed (L.Lapply apply)
+  | Pfield _, [L.Lprim (Pgetglobal id, [],_)]
+      when Ident.same id (Env.current_unit_id env) ->
+    Misc.fatal_error "[Pfield (Pgetglobal ...)] for the current compilation \
+      unit is forbidden upon entry to the middle end"
   | Psetfield (_, _, _), [L.Lprim (Pgetglobal _, [], _); _] ->
     Misc.fatal_error "[Psetfield (Pgetglobal ...)] is \
       forbidden upon entry to the middle end"
@@ -305,11 +337,11 @@ let rec_catch_for_for_loop
           L.lambda_unit)))
   in lam
 
-let rec cps_non_tail (lam : L.lambda) (k : Ident.t -> Ilambda.t)
+let rec cps_non_tail env (lam : L.lambda) (k : Ident.t -> Ilambda.t)
           (k_exn : Continuation.t) : Ilambda.t =
   match lam with
   | Lvar id ->
-    if Ident.Set.mem id !mutable_variables then
+    if Env.is_mutable env id then
       name_then_cps_non_tail "mutable_read" (I.Mutable_read id) k k_exn
     else
       k id
@@ -317,8 +349,8 @@ let rec cps_non_tail (lam : L.lambda) (k : Ident.t -> Ilambda.t)
     name_then_cps_non_tail "const" (I.Simple (Const const)) k k_exn
   | Lapply { ap_func; ap_args; ap_loc; ap_should_be_tailcall; ap_inlined;
       ap_specialised; } ->
-    cps_non_tail_list ap_args (fun args ->
-      cps_non_tail ap_func (fun func ->
+    cps_non_tail_list env ap_args (fun args ->
+      cps_non_tail env ap_func (fun func ->
         let continuation = Continuation.create () in
         let result_var = Ident.create_local "apply_result" in
         let after = k result_var in
@@ -349,15 +381,15 @@ let rec cps_non_tail (lam : L.lambda) (k : Ident.t -> Ilambda.t)
       k_exn
   | Lfunction func ->
     let id = Ident.create_local (name_for_function func) in
-    let func = cps_function func in
+    let func = cps_function env ~stub:false func in
     let body = k id in
     Let_rec ([id, func], body)
   | Llet (Variable, value_kind, id, defining_expr, body) ->
-    mutable_variables := Ident.Set.add id !mutable_variables;
+    let env = Env.add_mutable env id in
     let temp_id = Ident.create_local "let_mutable" in
-    let body = cps_non_tail body k k_exn in
+    let body = cps_non_tail env body k k_exn in
     let after_defining_expr = Continuation.create () in
-    let defining_expr = cps_tail defining_expr after_defining_expr k_exn in
+    let defining_expr = cps_tail env defining_expr after_defining_expr k_exn in
     let let_mutable : I.let_mutable =
       { id;
         initial_value = Var temp_id;
@@ -373,17 +405,20 @@ let rec cps_non_tail (lam : L.lambda) (k : Ident.t -> Ilambda.t)
       body = defining_expr;
       handler = Let_mutable let_mutable;
     }
-  | Llet (Alias, Pgenval, id, Lfunction func, body) ->
+  | Llet ((Strict | Alias | StrictOpt), Pgenval, fun_id,
+      Lfunction func, body) ->
     (* This case is here to get function names right. *)
-    let func = cps_function func in
-    let body = cps_non_tail body k k_exn in
-    Let_rec ([id, func], body)
+    let bindings = cps_function_bindings env [fun_id, L.Lfunction func] in
+    let body = cps_non_tail env body k k_exn in
+    List.fold_left (fun body (fun_id, func) ->
+        I.Let_rec ([fun_id, func], body))
+      body bindings
   | Llet (_, value_kind, id, Lconst const, body) ->
     (* This case avoids extraneous continuations. *)
-    let body = cps_non_tail body k k_exn in
+    let body = cps_non_tail env body k k_exn in
     I.Let (id, User_visible, value_kind, Simple (Const const), body)
   | Llet (let_kind, value_kind, id, Lprim (prim, args, loc), body) ->
-    begin match transform_primitive prim args loc with
+    begin match transform_primitive env prim args loc with
     | Primitive (prim, args, loc) ->
       (* This case avoids extraneous continuations. *)
       let exn_continuation : I.exn_continuation option =
@@ -394,19 +429,19 @@ let rec cps_non_tail (lam : L.lambda) (k : Ident.t -> Ilambda.t)
           }
         else None
       in
-      cps_non_tail_list args (fun args ->
-          let body = cps_non_tail body k k_exn in
+      cps_non_tail_list env args (fun args ->
+          let body = cps_non_tail env body k k_exn in
           I.Let (id, User_visible, value_kind,
             Prim { prim; args; loc; exn_continuation; },
             body))
         k_exn
     | Transformed lam ->
-      cps_non_tail (L.Llet (let_kind, value_kind, id, lam, body)) k k_exn
+      cps_non_tail env (L.Llet (let_kind, value_kind, id, lam, body)) k k_exn
     end
   | Llet (_let_kind, value_kind, id, defining_expr, body) ->
-    let body = cps_non_tail body k k_exn in
+    let body = cps_non_tail env body k k_exn in
     let after_defining_expr = Continuation.create () in
-    let defining_expr = cps_tail defining_expr after_defining_expr k_exn in
+    let defining_expr = cps_tail env defining_expr after_defining_expr k_exn in
     Let_cont {
       name = after_defining_expr;
       is_exn_handler = false;
@@ -416,12 +451,11 @@ let rec cps_non_tail (lam : L.lambda) (k : Ident.t -> Ilambda.t)
       handler = body;
     }
   | Lletrec (bindings, body) ->
-    let idents, bindings = List.split bindings in
-    let bindings = List.map cps_function (check_let_rec_bindings bindings) in
-    let body = cps_non_tail body k k_exn in
-    Let_rec (List.combine idents bindings, body)
+    let bindings = cps_function_bindings env bindings in
+    let body = cps_non_tail env body k k_exn in
+    Let_rec (bindings, body)
   | Lprim (prim, args, loc) ->
-    begin match transform_primitive prim args loc with
+    begin match transform_primitive env prim args loc with
     | Primitive (prim, args, loc) ->
       let name = Printlambda.name_of_primitive prim in
       let result_var = Ident.create_local name in
@@ -433,20 +467,20 @@ let rec cps_non_tail (lam : L.lambda) (k : Ident.t -> Ilambda.t)
           }
         else None
       in
-      cps_non_tail_list args (fun args ->
+      cps_non_tail_list env args (fun args ->
           I.Let (result_var,
             Not_user_visible,
             Pgenval,
             Prim { prim; args; loc; exn_continuation; },
             k result_var))
         k_exn
-    | Transformed lam -> cps_non_tail lam k k_exn
+    | Transformed lam -> cps_non_tail env lam k k_exn
     end
   | Lswitch (scrutinee, switch, _loc) ->
     let after_switch = Continuation.create () in
     let result_var = Ident.create_local "switch_result" in
     let after = k result_var in
-    let body = cps_switch switch ~scrutinee after_switch k_exn in
+    let body = cps_switch env switch ~scrutinee after_switch k_exn in
     Let_cont {
       name = after_switch;
       is_exn_handler = false;
@@ -456,7 +490,7 @@ let rec cps_non_tail (lam : L.lambda) (k : Ident.t -> Ilambda.t)
       handler = after;
     }
   | Lstringswitch (scrutinee, cases, default, loc) ->
-    cps_non_tail (Matching.expand_stringswitch loc scrutinee cases default)
+    cps_non_tail env (Matching.expand_stringswitch loc scrutinee cases default)
       k k_exn
   | Lstaticraise (static_exn, args) ->
     let continuation =
@@ -465,7 +499,7 @@ let rec cps_non_tail (lam : L.lambda) (k : Ident.t -> Ilambda.t)
         Misc.fatal_errorf "Unbound static exception %d" static_exn
       | continuation -> continuation
     in
-    cps_non_tail_list args
+    cps_non_tail_list env args
       (fun args -> compile_staticfail ~continuation ~args) k_exn
   | Lstaticcatch (body, (static_exn, args), handler) ->
     let continuation = Continuation.create () in
@@ -475,8 +509,8 @@ let rec cps_non_tail (lam : L.lambda) (k : Ident.t -> Ilambda.t)
       !try_stack_at_handler;
     let after_continuation = Continuation.create () in
     let result_var = Ident.create_local "staticcatch_result" in
-    let body = cps_tail body after_continuation k_exn in
-    let handler = cps_tail handler after_continuation k_exn in
+    let body = cps_tail env body after_continuation k_exn in
+    let handler = cps_tail env handler after_continuation k_exn in
     let recursive : Asttypes.rec_flag =
       if Numbers.Int.Set.mem static_exn !recursive_static_catches then
         Recursive
@@ -500,9 +534,9 @@ let rec cps_non_tail (lam : L.lambda) (k : Ident.t -> Ilambda.t)
       handler = k result_var;
     };
   | Lsend (meth_kind, meth, obj, args, loc) ->
-    cps_non_tail_simple obj (fun obj ->
-      cps_non_tail meth (fun meth ->
-        cps_non_tail_list args (fun args ->
+    cps_non_tail_simple env obj (fun obj ->
+      cps_non_tail env meth (fun meth ->
+        cps_non_tail_list env args (fun args ->
           let continuation = Continuation.create () in
           let result_var = Ident.create_local "send_result" in
           let after = k result_var in
@@ -540,10 +574,10 @@ let rec cps_non_tail (lam : L.lambda) (k : Ident.t -> Ilambda.t)
     let old_try_stack = !try_stack in
     try_stack := handler_continuation :: old_try_stack;
     let body =
-      cps_tail body poptrap_continuation handler_continuation
+      cps_tail env body poptrap_continuation handler_continuation
     in
     try_stack := old_try_stack;
-    let handler = cps_tail handler after_continuation k_exn in
+    let handler = cps_tail env handler after_continuation k_exn in
     Let_cont {
       name = after_continuation;
       is_exn_handler = false;
@@ -585,30 +619,39 @@ let rec cps_non_tail (lam : L.lambda) (k : Ident.t -> Ilambda.t)
     }
   | Lifthenelse (cond, ifso, ifnot) ->
     let lam = switch_for_if_then_else ~cond ~ifso ~ifnot in
-    cps_non_tail lam k k_exn
+    cps_non_tail env lam k k_exn
   | Lsequence (lam1, lam2) ->
     let ident = Ident.create_local "sequence" in
-    cps_non_tail (L.Llet (Strict, Pgenval, ident, lam1, lam2)) k k_exn
+    cps_non_tail env (L.Llet (Strict, Pgenval, ident, lam1, lam2)) k k_exn
   | Lwhile (cond, body) ->
     let loop = rec_catch_for_while_loop cond body in
-    cps_non_tail loop k k_exn
+    cps_non_tail env loop k k_exn
   | Lfor (ident, start, stop, dir, body) ->
     let loop = rec_catch_for_for_loop ident start stop dir body in
-    cps_non_tail loop k k_exn
+    cps_non_tail env loop k k_exn
   | Lassign (being_assigned, new_value) ->
-    cps_non_tail_simple new_value (fun new_value ->
+    if not (Env.is_mutable env being_assigned) then begin
+      Misc.fatal_errorf "Lassign on non-mutable variable %a"
+        Ident.print being_assigned
+    end;
+    cps_non_tail_simple env new_value (fun new_value ->
         name_then_cps_non_tail "assign"
           (I.Assign { being_assigned; new_value; })
           k k_exn)
       k_exn
-  | Lifused _ | Levent _ ->
-    Misc.fatal_errorf "Term should have been eliminated by [Prepare_lambda]: %a"
-      Printlambda.lambda lam
+  | Levent (body, _event) -> cps_non_tail env body k k_exn
+  | Lifused _ ->
+    (* [Lifused] is used to mark that this expression should be alive only if
+       an identifier is.  Every use should have been removed by
+       [Simplif.simplify_lets], either by replacing by the inner expression,
+       or by completely removing it (replacing by unit). *)
+    Misc.fatal_error "[Lifused] should have been removed by \
+        [Simplif.simplify_lets]"
 
-and cps_non_tail_simple (lam : L.lambda) (k : Ilambda.simple -> Ilambda.t)
+and cps_non_tail_simple env (lam : L.lambda) (k : Ilambda.simple -> Ilambda.t)
       (k_exn : Continuation.t) : Ilambda.t =
   match lam with
-  | Lvar id when not (Ident.Set.mem id !mutable_variables) -> k (Ilambda.Var id)
+  | Lvar id when not (Env.is_mutable env id) -> k (Ilambda.Var id)
   | Lconst const -> k (Ilambda.Const const)
   | Lvar _ (* mutable read *)
   | Lapply _
@@ -628,21 +671,21 @@ and cps_non_tail_simple (lam : L.lambda) (k : Ilambda.simple -> Ilambda.t)
   | Lassign _
   | Lsend _
   | Levent _
-  | Lifused _ -> cps_non_tail lam (fun id -> k (Ilambda.Var id)) k_exn
+  | Lifused _ -> cps_non_tail env lam (fun id -> k (Ilambda.Var id)) k_exn
 
-and cps_tail (lam : L.lambda) (k : Continuation.t) (k_exn : Continuation.t)
+and cps_tail env (lam : L.lambda) (k : Continuation.t) (k_exn : Continuation.t)
       : Ilambda.t =
   match lam with
   | Lvar id ->
-    if Ident.Set.mem id !mutable_variables then
+    if Env.is_mutable env id then
       name_then_cps_tail "mutable_read" (I.Mutable_read id) k k_exn
     else
       Apply_cont (k, None, [Ilambda.Var id])
   | Lconst const ->
     name_then_cps_tail "const" (I.Simple (Const const)) k k_exn
   | Lapply apply ->
-    cps_non_tail_list apply.ap_args (fun args ->
-      cps_non_tail apply.ap_func (fun func ->
+    cps_non_tail_list env apply.ap_args (fun args ->
+      cps_non_tail env apply.ap_func (fun func ->
         let exn_continuation : I.exn_continuation =
           { exn_handler = k_exn;
             extra_args = [];
@@ -662,15 +705,15 @@ and cps_tail (lam : L.lambda) (k : Continuation.t) (k_exn : Continuation.t)
         I.Apply apply) k_exn) k_exn
   | Lfunction func ->
     let id = Ident.create_local (name_for_function func) in
-    let func = cps_function func in
+    let func = cps_function env ~stub:false func in
     Let_rec ([id, func], Apply_cont (k, None, [Ilambda.Var id]))
   | Llet (Variable, value_kind, id, defining_expr, body) ->
-    mutable_variables := Ident.Set.add id !mutable_variables;
+    let env = Env.add_mutable env id in
     let temp_id = Ident.create_local "let_mutable" in
-    let body = cps_tail body k k_exn in
+    let body = cps_tail env body k k_exn in
     let after_defining_expr = Continuation.create () in
     let defining_expr =
-      cps_tail defining_expr after_defining_expr k_exn
+      cps_tail env defining_expr after_defining_expr k_exn
     in
     let let_mutable : I.let_mutable =
       { id;
@@ -687,18 +730,20 @@ and cps_tail (lam : L.lambda) (k : Continuation.t) (k_exn : Continuation.t)
       body = defining_expr;
       handler = Let_mutable let_mutable;
     }
-  | Llet (Alias, Pgenval, id, Lfunction func, body) ->
-    (* CR mshinwell: Why is this case restricted to [Alias]? *)
+  | Llet ((Strict | Alias | StrictOpt), Pgenval, fun_id,
+      Lfunction func, body) ->
     (* This case is here to get function names right. *)
-    let func = cps_function func in
-    let body = cps_tail body k k_exn in
-    Let_rec ([id, func], body)
+    let bindings = cps_function_bindings env [fun_id, L.Lfunction func] in
+    let body = cps_tail env body k k_exn in
+    List.fold_left (fun body (fun_id, func) ->
+        I.Let_rec ([fun_id, func], body))
+      body bindings
   | Llet (_, value_kind, id, Lconst const, body) ->
     (* This case avoids extraneous continuations. *)
-    let body = cps_tail body k k_exn in
+    let body = cps_tail env body k k_exn in
     I.Let (id, User_visible, value_kind, Simple (Const const), body)
   | Llet (let_kind, value_kind, id, Lprim (prim, args, loc), body) ->
-    begin match transform_primitive prim args loc with
+    begin match transform_primitive env prim args loc with
     | Primitive (prim, args, loc) ->
       (* This case avoids extraneous continuations. *)
       let exn_continuation : I.exn_continuation option =
@@ -709,29 +754,33 @@ and cps_tail (lam : L.lambda) (k : Continuation.t) (k_exn : Continuation.t)
           }
         else None
       in
-      cps_non_tail_list args (fun args ->
-          let body = cps_tail body k k_exn in
+      cps_non_tail_list env args (fun args ->
+          let body = cps_tail env body k k_exn in
           I.Let (id, User_visible, value_kind,
             Prim { prim; args; loc; exn_continuation; },
             body))
         k_exn
     | Transformed lam ->
-       cps_tail (L.Llet (let_kind, value_kind, id, lam, body)) k k_exn
+       cps_tail env (L.Llet (let_kind, value_kind, id, lam, body)) k k_exn
     end
   | Llet (_let_kind, _value_kind, id, Lassign (being_assigned, new_value),
       body) ->
     (* This case is also to avoid extraneous continuations in code that
        relies on the ref-conversion optimisation. *)
-    cps_non_tail_simple new_value (fun new_value ->
-        let body = cps_tail body k k_exn in
+    if not (Env.is_mutable env being_assigned) then begin
+      Misc.fatal_errorf "Lassign on non-mutable variable %a"
+        Ident.print being_assigned
+    end;
+    cps_non_tail_simple env new_value (fun new_value ->
+        let body = cps_tail env body k k_exn in
         I.Let (id, User_visible, Pgenval,
           I.Assign { being_assigned; new_value; },
           body))
       k_exn
   | Llet (_let_kind, value_kind, id, defining_expr, body) ->
-    let body = cps_tail body k k_exn in
+    let body = cps_tail env body k k_exn in
     let after_defining_expr = Continuation.create () in
-    let defining_expr = cps_tail defining_expr after_defining_expr k_exn in
+    let defining_expr = cps_tail env defining_expr after_defining_expr k_exn in
     Let_cont {
       name = after_defining_expr;
       is_exn_handler = false;
@@ -741,12 +790,11 @@ and cps_tail (lam : L.lambda) (k : Continuation.t) (k_exn : Continuation.t)
       handler = body;
     }
   | Lletrec (bindings, body) ->
-    let idents, bindings = List.split bindings in
-    let bindings = List.map cps_function (check_let_rec_bindings bindings) in
-    let body = cps_tail body k k_exn in
-    Let_rec (List.combine idents bindings, body)
+    let bindings = cps_function_bindings env bindings in
+    let body = cps_tail env body k k_exn in
+    Let_rec (bindings, body)
   | Lprim (prim, args, loc) ->
-    begin match transform_primitive prim args loc with
+    begin match transform_primitive env prim args loc with
     | Primitive (prim, args, loc) ->
       (* CR mshinwell: Arrange for "args" to be named. *)
       let name = Printlambda.name_of_primitive prim in
@@ -759,16 +807,17 @@ and cps_tail (lam : L.lambda) (k : Continuation.t) (k_exn : Continuation.t)
           }
         else None
       in
-      cps_non_tail_list args (fun args ->
+      cps_non_tail_list env args (fun args ->
           I.Let (result_var, Not_user_visible, Pgenval,
             Prim { prim; args; loc; exn_continuation; },
             Apply_cont (k, None, [Ilambda.Var result_var]))) k_exn
-    | Transformed lam -> cps_tail lam k k_exn
+    | Transformed lam -> cps_tail env lam k k_exn
     end
   | Lswitch (scrutinee,switch, _loc) ->
-    cps_switch switch ~scrutinee k k_exn
+    cps_switch env switch ~scrutinee k k_exn
   | Lstringswitch (scrutinee, cases, default, loc) ->
-    cps_tail (Matching.expand_stringswitch loc scrutinee cases default) k k_exn
+    cps_tail env (Matching.expand_stringswitch loc scrutinee cases default)
+      k k_exn
   | Lstaticraise (static_exn, args) ->
     let continuation =
       match Numbers.Int.Map.find static_exn !static_exn_env with
@@ -776,7 +825,7 @@ and cps_tail (lam : L.lambda) (k : Continuation.t) (k_exn : Continuation.t)
         Misc.fatal_errorf "Unbound static exception %d" static_exn
       | continuation -> continuation
     in
-    cps_non_tail_list args
+    cps_non_tail_list env args
       (fun args -> compile_staticfail ~continuation ~args) k_exn
   | Lstaticcatch (body, (static_exn, args), handler) ->
     let continuation = Continuation.create () in
@@ -784,8 +833,8 @@ and cps_tail (lam : L.lambda) (k : Continuation.t) (k_exn : Continuation.t)
       !static_exn_env;
     try_stack_at_handler := Continuation.Map.add continuation !try_stack
       !try_stack_at_handler;
-    let body = cps_tail body k k_exn in
-    let handler = cps_tail handler k k_exn in
+    let body = cps_tail env body k k_exn in
+    let handler = cps_tail env handler k k_exn in
     let recursive : Asttypes.rec_flag =
       if Numbers.Int.Set.mem static_exn !recursive_static_catches then
         Recursive
@@ -801,9 +850,9 @@ and cps_tail (lam : L.lambda) (k : Continuation.t) (k_exn : Continuation.t)
       handler;
     }
   | Lsend (meth_kind, meth, obj, args, loc) ->
-    cps_non_tail_simple obj (fun obj ->
-      cps_non_tail meth (fun meth ->
-        cps_non_tail_list args (fun args ->
+    cps_non_tail_simple env obj (fun obj ->
+      cps_non_tail env meth (fun meth ->
+        cps_non_tail_list env args (fun args ->
           let exn_continuation : I.exn_continuation =
             { exn_handler = k_exn;
               extra_args = [];
@@ -822,7 +871,11 @@ and cps_tail (lam : L.lambda) (k : Continuation.t) (k_exn : Continuation.t)
           } in
           I.Apply apply) k_exn) k_exn) k_exn
   | Lassign (being_assigned, new_value) ->
-    cps_non_tail_simple new_value (fun new_value ->
+    if not (Env.is_mutable env being_assigned) then begin
+      Misc.fatal_errorf "Lassign on non-mutable variable %a"
+        Ident.print being_assigned
+    end;
+    cps_non_tail_simple env new_value (fun new_value ->
         name_then_cps_tail "assign" (I.Assign { being_assigned; new_value; })
         k k_exn)
       k_exn
@@ -833,9 +886,9 @@ and cps_tail (lam : L.lambda) (k : Continuation.t) (k_exn : Continuation.t)
     let poptrap_continuation = Continuation.create () in
     let old_try_stack = !try_stack in
     try_stack := handler_continuation :: old_try_stack;
-    let body = cps_tail body poptrap_continuation handler_continuation in
+    let body = cps_tail env body poptrap_continuation handler_continuation in
     try_stack := old_try_stack;
-    let handler = cps_tail handler k k_exn in
+    let handler = cps_tail env handler k k_exn in
     Let_cont {
       name = handler_continuation;
       is_exn_handler = true;
@@ -867,19 +920,24 @@ and cps_tail (lam : L.lambda) (k : Continuation.t) (k_exn : Continuation.t)
     }
   | Lifthenelse (cond, ifso, ifnot) ->
     let lam = switch_for_if_then_else ~cond ~ifso ~ifnot in
-    cps_tail lam k k_exn
+    cps_tail env lam k k_exn
   | Lsequence (lam1, lam2) ->
     let ident = Ident.create_local "sequence" in
-    cps_tail (L.Llet (Strict, Pgenval, ident, lam1, lam2)) k k_exn
+    cps_tail env (L.Llet (Strict, Pgenval, ident, lam1, lam2)) k k_exn
   | Lwhile (cond, body) ->
     let loop = rec_catch_for_while_loop cond body in
-    cps_tail loop k k_exn
+    cps_tail env loop k k_exn
   | Lfor (ident, start, stop, dir, body) ->
     let loop = rec_catch_for_for_loop ident start stop dir body in
-    cps_tail loop k k_exn
-  | Lifused _ | Levent _ ->
-    Misc.fatal_errorf "Term should have been eliminated by [Prepare_lambda]: %a"
-      Printlambda.lambda lam
+    cps_tail env loop k k_exn
+  | Levent (body, _event) -> cps_tail env body k k_exn
+  | Lifused _ ->
+    (* [Lifused] is used to mark that this expression should be alive only if
+       an identifier is.  Every use should have been removed by
+       [Simplif.simplify_lets], either by replacing by the inner expression,
+       or by completely removing it (replacing by unit). *)
+    Misc.fatal_error "[Lifused] should have been removed by \
+        [Simplif.simplify_lets]"
 
 and name_then_cps_non_tail name defining_expr k _k_exn : I.t =
   let id = Ident.create_local name in
@@ -891,26 +949,56 @@ and name_then_cps_tail name defining_expr k _k_exn : I.t =
   Let (id, Not_user_visible, Pgenval, defining_expr,
     Apply_cont (k, None, [Ilambda.Var id]))
 
-and cps_non_tail_list lams k k_exn =
+and cps_non_tail_list env lams k k_exn =
   let lams = List.rev lams in  (* Always evaluate right-to-left. *)
-  cps_non_tail_list_core lams (fun ids -> k (List.rev ids)) k_exn
+  cps_non_tail_list_core env lams (fun ids -> k (List.rev ids)) k_exn
 
-and cps_non_tail_list_core (lams : L.lambda list)
+and cps_non_tail_list_core env (lams : L.lambda list)
       (k : Ilambda.simple list -> Ilambda.t)
       (k_exn : Continuation.t) =
   match lams with
   | [] -> k []
   | lam::lams ->
-    cps_non_tail_simple lam (fun simple ->
-      cps_non_tail_list_core lams (fun simples -> k (simple :: simples)) k_exn)
+    cps_non_tail_simple env lam (fun simple ->
+      cps_non_tail_list_core env lams
+        (fun simples -> k (simple :: simples)) k_exn)
       k_exn
 
-and cps_function ({ kind; params; return; body; attr; loc; } : L.lfunction)
+and cps_function_bindings env (bindings : (Ident.t * L.lambda) list) =
+  List.concat_map (fun (fun_id, binding) ->
+      match binding with
+      | L.Lfunction { kind; params; body = fbody; attr; loc; return; _ } ->
+        begin match
+          Simplif.split_default_wrapper ~id:fun_id ~kind ~params
+            ~body:fbody ~return ~attr ~loc
+        with
+        | [fun_id, L.Lfunction def] ->
+          [fun_id, cps_function env ~stub:false def]
+        | [fun_id, L.Lfunction def; inner_id, L.Lfunction inner_def] ->
+          [fun_id, cps_function env ~stub:false def;
+           inner_id, cps_function env ~stub:true inner_def]
+        | [_, _] | [_, _; _, _] ->
+          Misc.fatal_errorf "Expected `Lfunction` terms from \
+              [split_default_wrapper] when translating:@ %a"
+            Printlambda.lambda binding
+        | _ ->
+          Misc.fatal_errorf "Unexpected return value from \
+              [split_default_wrapper] when translating:@ %a"
+            Printlambda.lambda binding
+        end
+      | _ ->
+        Misc.fatal_errorf "Only [Lfunction] expressions are permitted in \
+            function bindings upon entry to CPS conversion: %a"
+          Printlambda.lambda binding)
+    bindings
+
+and cps_function env ~stub
+      ({ kind; params; return; body; attr; loc; } : L.lfunction)
       : Ilambda.function_declaration =
   let body_cont = Continuation.create ~sort:Return () in
   let body_exn_cont = Continuation.create ~sort:Exn () in
   let free_idents_of_body = Lambda.free_variables body in
-  let body = cps_tail body body_cont body_exn_cont in
+  let body = cps_tail env body body_cont body_exn_cont in
   let exn_continuation : I.exn_continuation =
     { exn_handler = body_exn_cont;
       extra_args = [];
@@ -925,10 +1013,10 @@ and cps_function ({ kind; params; return; body; attr; loc; } : L.lfunction)
     free_idents_of_body;
     attr = attr;
     loc = loc;
-    stub = false;
+    stub;
   }
 
-and cps_switch (switch : L.lambda_switch) ~scrutinee (k : Continuation.t)
+and cps_switch env (switch : L.lambda_switch) ~scrutinee (k : Continuation.t)
       (k_exn : Continuation.t) : Ilambda.t =
   let block_nums, sw_blocks = List.split switch.sw_blocks in
   let block_nums =
@@ -959,7 +1047,7 @@ and cps_switch (switch : L.lambda_switch) ~scrutinee (k : Continuation.t)
   let convert_arms_rev cases wrappers =
     List.fold_left (fun (consts_rev, wrappers) (arm, (action : L.lambda)) ->
         match action with
-        | Lvar var when not (Ident.Set.mem var !mutable_variables) ->
+        | Lvar var when not (Env.is_mutable env var) ->
           let consts_rev = (arm, k, None, [Ilambda.Var var]) :: consts_rev in
           consts_rev, wrappers
         | Lconst cst ->
@@ -984,7 +1072,7 @@ and cps_switch (switch : L.lambda_switch) ~scrutinee (k : Continuation.t)
         | Lsend _
         | Levent _
         | Lifused _ ->
-          let action = cps_tail action k k_exn in
+          let action = cps_tail env action k k_exn in
           match action with
           | Apply_cont (cont, trap, args) ->
             let consts_rev = (arm, cont, trap, args) :: consts_rev in
@@ -1009,7 +1097,7 @@ and cps_switch (switch : L.lambda_switch) ~scrutinee (k : Continuation.t)
     | None -> None, wrappers
     | Some action ->
       let cont = Continuation.create () in
-      let action = cps_tail action k k_exn in
+      let action = cps_tail env action k k_exn in
       let wrappers = (cont, action) :: wrappers in
       Some (cont, None, []), wrappers
   in
@@ -1063,7 +1151,7 @@ and cps_switch (switch : L.lambda_switch) ~scrutinee (k : Continuation.t)
       isint_switch,
       ((const_cont, const_switch)::(block_cont, block_switch)::wrappers)
   in
-  cps_non_tail scrutinee (fun scrutinee ->
+  cps_non_tail env scrutinee (fun scrutinee ->
       let switch, wrappers = build_switch scrutinee wrappers in
       List.fold_left (fun body (cont, action) ->
           I.Let_cont {
@@ -1082,10 +1170,14 @@ let lambda_to_ilambda lam : Ilambda.program =
   try_stack := [];
   try_stack_at_handler := Continuation.Map.empty;
   recursive_static_catches := Numbers.Int.Set.empty;
-  mutable_variables := Ident.Set.empty;
+  let current_unit_id =
+    Compilation_unit.get_persistent_ident
+      (Compilation_unit.get_current_exn ())
+  in
+  let env = Env.create ~current_unit_id in
   let the_end = Continuation.create ~sort:Define_root_symbol () in
   let the_end_exn = Continuation.create ~sort:Exn () in
-  let ilam = cps_tail lam the_end the_end_exn in
+  let ilam = cps_tail env lam the_end the_end_exn in
   let exn_continuation : I.exn_continuation =
     { exn_handler = the_end_exn;
       extra_args = [];
@@ -1094,5 +1186,5 @@ let lambda_to_ilambda lam : Ilambda.program =
   { expr = ilam;
     return_continuation = the_end;
     exn_continuation;
-    uses_mutable_variables = not (Ident.Set.is_empty !mutable_variables);
+    uses_mutable_variables = Env.has_mutables env;
   }

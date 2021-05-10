@@ -31,14 +31,6 @@ let check_invariants unit =
     raise exn
   end
 
-let print_prepared_lambda ppf lam =
-  if !Clflags.dump_prepared_lambda then begin
-    Format.fprintf ppf "%sAfter Prepare_lambda:%s@ %a@."
-      (Flambda_colours.each_file ())
-      (Flambda_colours.normal ())
-      Printlambda.lambda lam
-  end
-
 let print_ilambda ppf (ilam : Ilambda.program) =
   if !Clflags.dump_ilambda then begin
     Format.fprintf ppf
@@ -113,14 +105,9 @@ let middle_end0 ppf ~prefixname ~backend ~filename ~module_ident
       ~module_block_size_in_words ~module_initializer =
   Misc.Color.setup !Clflags.color;
   Profile.record_call "flambda.0" (fun () ->
-    let prepared_lambda =
-      Profile.record_call "prepare_lambda" (fun () ->
-        Prepare_lambda.run module_initializer)
-    in
-    print_prepared_lambda ppf prepared_lambda;
     let ilambda =
       Profile.record_call "cps_conversion" (fun () ->
-        Cps_conversion.lambda_to_ilambda prepared_lambda)
+        Cps_conversion.lambda_to_ilambda module_initializer)
     in
     print_ilambda ppf ilambda;
     let ilambda =

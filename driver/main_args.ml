@@ -764,10 +764,6 @@ let mk_dclambda f =
   "-dclambda", Arg.Unit f, " (undocumented)"
 ;;
 
-let mk_dprepared_lambda f =
-  "-dprepared-lambda", Arg.Unit f, " Print terms after [Prepare_lambda]"
-;;
-
 let mk_dilambda f =
   "-dilambda", Arg.Unit f, " Print Ilambda terms"
 ;;
@@ -1707,7 +1703,6 @@ struct
     mk_dump_into_file F._dump_into_file;
     mk_dump_pass F._dump_pass;
 
-    mk_dprepared_lambda F._dprepared_lambda;
     mk_dilambda F._dilambda;
 
     mk_args F._args;
@@ -1863,7 +1858,6 @@ module Make_opttop_options (F : Opttop_options) = struct
     mk_dstartup F._dstartup;
     mk_dump_pass F._dump_pass;
 
-    mk_dprepared_lambda F._dprepared_lambda;
     mk_dilambda F._dilambda;
   ]
 end;;
