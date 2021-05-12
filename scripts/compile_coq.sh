@@ -1,9 +1,10 @@
 #!/bin/sh -e
 
 help() {
-  echo "./compile-coq <compiler path> <path to directory> [--opam opam] [-c|--compile-opam] [-r|--remove]"
-  echo "[compiler path]     is the path to the ocaml compiler"
-  echo "[path to directory] is the path to the drectory where eveything will be build." 
+  echo "./compile-coq <compiler_path> <path_to_directory> [--opam opam] [-c|--compile-opam] [-r|--remove]"
+  echo "[compiler_path]     is the path to the repository to test. It uses the files
+                            as in and does not the head of the git branch."
+  echo "[path_to_directory] is the path to the drectory where eveything will be build."
   echo "                    This script considers that it is free to do anything from"
   echo "                    this directory, including deleting it."
   echo "                    Omitting this entry will result in using a temp dir."
@@ -31,6 +32,10 @@ case $key in
     OPAM="$2"
     shift # past argument
     shift # past value
+    ;;
+  -h|--help)
+    help
+    exit 1
     ;;
   -r|--remove)
     REMOVE=true
@@ -101,6 +106,9 @@ cp -r $COMPILER_TO_TEST $OCAML_PATH
 $OPAM init -n --disable-sandboxing --bare
 
 pushd $OCAML_PATH
+# Remove pre-existing compilation artifacts
+make clean
+
 $OPAM switch create . --empty --repositories=default,beta=git+https://github.com/ocaml/ocaml-beta-repository.git
 
 # Once the switch is set try to compile coq. On failure remove the switch.
