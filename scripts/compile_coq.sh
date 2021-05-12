@@ -1,13 +1,48 @@
 #!/bin/sh -e
 
 help() {
-  echo "./compile-coq [compiler path] [path to directory]"
-  echo "[compiler path] is the path to the ocaml compiler"
+  echo "./compile-coq <compiler path> <path to directory> [--opam opam] [-c|--compile-opam] [-r|--remove]"
+  echo "[compiler path]     is the path to the ocaml compiler"
   echo "[path to directory] is the path to the drectory where eveything will be build." 
   echo "                    This script considers that it is free to do anything from"
   echo "                    this directory, including deleting it."
   echo "                    Omitting this entry will result in using a temp dir."
+  echo "[-c|--compile-opam] Compile and use the latest version of opam."
+  echo "[--opam opam]       Use a specific version of opam."
+  echo "[-r|--remove]       Remove the destination directory after coq is compiled."
 }
+
+#
+# Argument parsing
+#
+
+POSITIONAL=()
+while [[ $# -gt 0 ]]
+do
+key="$1"
+
+case $key in
+  -c|--compile-opam)
+    COMPILE_OPAM=true
+    shift # past argument
+    ;;
+  --opam)
+    COMPILE_OPAM=false
+    OPAM="$2"
+    shift # past argument
+    shift # past value
+    ;;
+  -r|--remove)
+    REMOVE=true
+    shift # past argument
+    ;;
+  *)    # unknown option
+    POSITIONAL+=("$1") # save it in an array for later
+    shift # past argument
+    ;;
+esac
+done
+set -- "${POSITIONAL[@]}" # restore positional parameters
 
 if [ "$#" -le 0 ]
 then
@@ -15,38 +50,34 @@ then
   exit 0
 elif [ "$#" -le 1 ]
 then
-  echo "1"
   COMPILER_TO_TEST=$(realpath $1)
   CWD=$(mktemp -d)
 else
-  echo "2"
   COMPILER_TO_TEST=$(realpath $1)
   CWD=$(realpath $2)
 fi
-echo $COMPILER_TO_TEST
-echo $CWD
 
+# Setup the working environment
 mkdir -p $CWD
-
 OCAML_PATH=$CWD/ocaml
-OPAM_PATH=$CWD/opam
-OPAM_INSTALL=$OPAM_PATH/_install
-OPAM_ROOT=$OPAM_PATH/.opam
-OPAM_EXE=$OPAM_INSTALL/bin/opam
+export OPAMROOT=$CWD/.opam
+rm -rdf $OPAMROOT
 
-echo $OCAML_PATH
-echo $OPAM_PATH
-echo $OPAM_INSTALL
-echo $OPAM_ROOT
-echo $OPAM_EXE
-
-
-install_compiler () {
-  rm -rdf $OCAML_PATH
-  cp -r $COMPILER_TO_TEST $OCAML_PATH
+# If requested remove the working dir on the exit
+remove_dir_trap() {
+  if [ "$REMOVE" = true ] ; then
+    rm -rfd $CWD
+  fi
 }
 
-install_and_build_opam () {
+trap "remove_dir_trap" EXIT
+
+# Compile opam if needed
+if [ "$COMPILE_OPAM" = true ] ; then
+  OPAM_PATH=$CWD/opam
+  OPAM_INSTALL=$OPAM_PATH/_install
+  OPAM=$OPAM_INSTALL/bin/opam
+
   git clone https://github.com/ocaml/opam $OPAM_PATH
   pushd $OPAM_PATH
 
@@ -55,17 +86,24 @@ install_and_build_opam () {
   make
   make install
   popd
+elif [ -z "${OPAM}" ] ; then
+  OPAM=opam
+else
+  true
+fi
 
-  rm -rdf $OPAM_ROOT
-  $OPAM_EXE init --root=$OPAM_ROOT -n --disable-sandboxing --bare
-}
+echo "Using opam $OPAM"
 
+# Copy the compiler to the working directory
+rm -rdf $OCAML_PATH
+cp -r $COMPILER_TO_TEST $OCAML_PATH
 
-install_compiler
-install_and_build_opam
+$OPAM init -n --disable-sandboxing --bare
 
 pushd $OCAML_PATH
-$OPAM_EXE switch --root=$OPAM_ROOT create . --empty --repositories=default,beta=git+https://github.com/ocaml/ocaml-beta-repository.git
-$OPAM_EXE install --root=$OPAM_ROOT  . --inplace-build -y
-$OPAM_EXE pin add --root=$OPAM_ROOT  coq git+https://github.com/ocaml-flambda/coq.git#flambda2-patches -y
+$OPAM switch create . --empty --repositories=default,beta=git+https://github.com/ocaml/ocaml-beta-repository.git
 
+# Once the switch is set try to compile coq. On failure remove the switch.
+trap "$OPAM switch remove $CWD/ocaml -y; remove_dir_trap" EXIT
+$OPAM install  . --inplace-build -y \
+&& $OPAM pin add  coq git+https://github.com/ocaml-flambda/coq.git\#flambda2-patches -y 
