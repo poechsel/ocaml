@@ -9,7 +9,8 @@ help() {
   echo "                    this directory, including deleting it."
   echo "                    Omitting this entry will result in using a temp dir."
   echo "[-c|--compile-opam] Compile and use the latest version of opam."
-  echo "[--opam opam]       Use a specific version of opam."
+  echo "[--opam opam]       [opam] will be used as the opam command to execute."
+  echo "                    Usefull to specify a specific opam binary."
   echo "[-r|--remove]       Remove the destination directory after coq is compiled."
 }
 
