@@ -132,7 +132,7 @@ let preserve_tailcall_for_prim = function
   | Pbytes_set_64 _ | Pbigstring_load_16 _ | Pbigstring_load_32 _
   | Pbigstring_load_64 _ | Pbigstring_set_16 _ | Pbigstring_set_32 _
   | Pbigstring_set_64 _ | Pctconst _ | Pbswap16 | Pbbswap _ | Pint_as_pointer
-  | Pflambda_isint | Pgettag ->
+  | Pgettag ->
       false
 
 (* Add a Kpop N instruction in front of a continuation *)

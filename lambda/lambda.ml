@@ -113,7 +113,6 @@ type primitive =
   | Parraysets of array_kind
   (* Test if the argument is a block or an immediate integer *)
   | Pisint
-  | Pflambda_isint
   (* Extract a block's tag *)
   | Pgettag
   (* Test if the (integer) argument is outside an interval *)
@@ -301,7 +300,6 @@ let primitive_can_raise = function
   | Parrayrefu _
   | Parraysetu _
   | Pisint
-  | Pflambda_isint
   | Pisout
   | Pbintofint _
   | Pintofbint _

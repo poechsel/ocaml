@@ -547,7 +547,7 @@ let convert_lprim ~backend (prim : L.primitive) (args : Simple.t list)
   (* CR mshinwell: To do: | Pbittest, [arg1; arg2] -> *)
   (*   Binary (Bit_test, arg1, arg2) *)
 
-  | Pflambda_isint, [arg] ->
+  | Pisint, [arg] ->
     tag_int (Unary (Is_int, arg))
   | Pgettag, [arg] ->
     tag_int (Unary (Get_tag, arg))
@@ -1026,7 +1026,7 @@ let convert_lprim ~backend (prim : L.primitive) (args : Simple.t list)
     | Pnegfloat | Pabsfloat | Pstringlength | Pbyteslength | Pgettag
     | Pbintofint _ | Pintofbint _ | Pnegbint _ | Popaque | Pduprecord _
     | Parraylength _ | Pduparray _ | Pfloatfield _ | Pcvtbint _ | Poffsetref _
-    | Pbswap16 | Pbbswap _ | Pisint | Pflambda_isint | Pint_as_pointer
+    | Pbswap16 | Pbbswap _ | Pisint | Pint_as_pointer
     | Pbigarraydim _
     ),
     ([] |  _ :: _ :: _) ->
@@ -1065,7 +1065,7 @@ let convert_lprim ~backend (prim : L.primitive) (args : Simple.t list)
       Printlambda.primitive prim
       H.print_list_of_simple_or_prim args
   | ( Pidentity | Pignore | Prevapply | Pdirapply | Psequand | Psequor
-    | Pbytes_of_string | Pbytes_to_string | Pisint
+    | Pbytes_of_string | Pbytes_to_string
     ), _ ->
     Misc.fatal_errorf "[%a] should have been removed by \
       [Cps_conversion.transform_primitive]"

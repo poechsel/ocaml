@@ -183,16 +183,6 @@ let transform_primitive env (prim : L.primitive) args loc =
             ~ifnot:(L.Lvar const_false)))))
   | (Psequand | Psequor), _ ->
     Misc.fatal_error "Psequand / Psequor must have exactly two arguments"
-  (* Removed. Should be safe, but will no longer catch misuses.
-     CR keryan: do we still need this primitive ?
-  | Pflambda_isint, _ ->
-    Misc.fatal_error "[Pflambda_isint] should not exist at this stage" *)
-  | Pisint, [arg] ->
-    Transformed
-      (switch_for_if_then_else
-        ~cond:(L.Lprim (Pflambda_isint, [arg], loc))
-        ~ifso:(L.Lconst (Const_base (Const_int 1)))
-        ~ifnot:(L.Lconst (Const_base (Const_int 0))))
   | (Pidentity | Pbytes_to_string | Pbytes_of_string), [arg] -> Transformed arg
   | Pignore, [arg] ->
     let ident = Ident.create_local "ignore" in
@@ -1142,7 +1132,7 @@ and cps_switch env (switch : L.lambda_switch) ~scrutinee (k : Continuation.t)
         I.Let (is_scrutinee_int,
           Not_user_visible,
           Pintval,
-          Prim { prim = Pflambda_isint;
+          Prim { prim = Pisint;
             args = [Var scrutinee];
             loc = Loc_unknown;
             exn_continuation = None; },

@@ -130,7 +130,6 @@ let pcompare_bints = "Pcompare_bints"
 let pintofbint = "Pintofbint"
 let pintoffloat = "Pintoffloat"
 let pisint = "Pisint"
-let pflambda_isint = "Pflambda_isint"
 let pisout = "Pisout"
 let plslbint = "Plslbint"
 let plslint = "Plslint"
@@ -235,7 +234,6 @@ let pcompare_bints_arg = "Pcompare_bints_arg"
 let pintofbint_arg = "Pintofbint_arg"
 let pintoffloat_arg = "Pintoffloat_arg"
 let pisint_arg = "Pisint_arg"
-let pflambda_isint_arg = "Pflambda_isint_arg"
 let pisout_arg = "Pisout_arg"
 let plslbint_arg = "Plslbint_arg"
 let plslint_arg = "Plslint_arg"
@@ -382,7 +380,6 @@ let of_primitive : Lambda.primitive -> string = function
   | Parraysets _ -> parraysets
   | Pctconst _ -> pctconst
   | Pisint -> pisint
-  | Pflambda_isint -> pflambda_isint
   | Pisout -> pisout
   | Pbintofint _ -> pbintofint
   | Pintofbint _ -> pintofbint
@@ -491,7 +488,6 @@ let of_primitive_arg : Lambda.primitive -> string = function
   | Parraysets _ -> parraysets_arg
   | Pctconst _ -> pctconst_arg
   | Pisint -> pisint_arg
-  | Pflambda_isint -> pflambda_isint_arg
   | Pisout -> pisout_arg
   | Pbintofint _ -> pbintofint_arg
   | Pintofbint _ -> pintofbint_arg
