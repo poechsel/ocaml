@@ -3213,8 +3213,6 @@ lambda/dissect_letrec.cmi : \
     typing/ident.cmi
 lambda/lambda.cmo : \
     typing/types.cmi \
-    utils/targetint.cmi \
-    lambda/tag.cmi \
     typing/primitive.cmi \
     typing/path.cmi \
     utils/misc.cmi \
@@ -3227,8 +3225,6 @@ lambda/lambda.cmo : \
     lambda/lambda.cmi
 lambda/lambda.cmx : \
     typing/types.cmx \
-    utils/targetint.cmx \
-    lambda/tag.cmx \
     typing/primitive.cmx \
     typing/path.cmx \
     utils/misc.cmx \
@@ -3241,8 +3237,6 @@ lambda/lambda.cmx : \
     lambda/lambda.cmi
 lambda/lambda.cmi : \
     typing/types.cmi \
-    utils/targetint.cmi \
-    lambda/tag.cmi \
     typing/primitive.cmi \
     typing/path.cmi \
     typing/ident.cmi \
@@ -3253,7 +3247,6 @@ lambda/matching.cmo : \
     typing/types.cmi \
     typing/typeopt.cmi \
     typing/typedtree.cmi \
-    lambda/tag.cmi \
     lambda/switch.cmi \
     typing/printpat.cmi \
     lambda/printlambda.cmi \
@@ -3276,7 +3269,6 @@ lambda/matching.cmx : \
     typing/types.cmx \
     typing/typeopt.cmx \
     typing/typedtree.cmx \
-    lambda/tag.cmx \
     lambda/switch.cmx \
     typing/printpat.cmx \
     lambda/printlambda.cmx \
@@ -3769,7 +3761,6 @@ middle_end/flambda/flambda_backend_intf.cmi : \
 middle_end/flambda/flambda_middle_end.cmo : \
     middle_end/flambda/simplify/simplify.cmi \
     utils/profile.cmi \
-    lambda/printlambda.cmi \
     middle_end/flambda/parser/print_fexpr.cmi \
     utils/misc.cmi \
     middle_end/flambda/inlining/inlining_report.cmi \
@@ -3791,7 +3782,6 @@ middle_end/flambda/flambda_middle_end.cmo : \
 middle_end/flambda/flambda_middle_end.cmx : \
     middle_end/flambda/simplify/simplify.cmx \
     utils/profile.cmx \
-    lambda/printlambda.cmx \
     middle_end/flambda/parser/print_fexpr.cmx \
     utils/misc.cmx \
     middle_end/flambda/inlining/inlining_report.cmx \
@@ -3891,6 +3881,16 @@ asmcomp/debug/reg_with_debug_info.cmx : \
 asmcomp/debug/reg_with_debug_info.cmi : \
     asmcomp/reg.cmi \
     middle_end/backend_var.cmi
+middle_end/flambda/compilenv_deps/coercion.cmo : \
+    utils/misc.cmi \
+    middle_end/flambda/compilenv_deps/flambda_colours.cmi \
+    middle_end/flambda/compilenv_deps/coercion.cmi
+middle_end/flambda/compilenv_deps/coercion.cmx : \
+    utils/misc.cmx \
+    middle_end/flambda/compilenv_deps/flambda_colours.cmx \
+    middle_end/flambda/compilenv_deps/coercion.cmi
+middle_end/flambda/compilenv_deps/coercion.cmi : \
+    middle_end/flambda/compilenv_deps/rec_info.cmi
 middle_end/flambda/compilenv_deps/compilation_unit.cmo : \
     utils/misc.cmi \
     middle_end/flambda/compilenv_deps/linkage_name.cmi \
@@ -4056,7 +4056,6 @@ middle_end/flambda/flambda_backend_intf.cmi : \
 middle_end/flambda/flambda_middle_end.cmo : \
     middle_end/flambda/simplify/simplify.cmi \
     utils/profile.cmi \
-    lambda/printlambda.cmi \
     middle_end/flambda/parser/print_fexpr.cmi \
     utils/misc.cmi \
     middle_end/flambda/inlining/inlining_report.cmi \
@@ -4078,7 +4077,6 @@ middle_end/flambda/flambda_middle_end.cmo : \
 middle_end/flambda/flambda_middle_end.cmx : \
     middle_end/flambda/simplify/simplify.cmx \
     utils/profile.cmx \
-    lambda/printlambda.cmx \
     middle_end/flambda/parser/print_fexpr.cmx \
     utils/misc.cmx \
     middle_end/flambda/inlining/inlining_report.cmx \
@@ -4972,34 +4970,39 @@ middle_end/flambda/from_lambda/closure_conversion_aux.cmi : \
     middle_end/flambda/naming/bindable_let_bound.cmi
 middle_end/flambda/from_lambda/cps_conversion.cmo : \
     lambda/tag.cmi \
+    lambda/simplif.cmi \
     lambda/printlambda.cmi \
     typing/primitive.cmi \
     utils/numbers.cmi \
     utils/misc.cmi \
+    lambda/matching.cmi \
     parsing/location.cmi \
     middle_end/flambda/from_lambda/lambda_conversions.cmi \
     lambda/lambda.cmi \
     middle_end/flambda/from_lambda/ilambda.cmi \
     typing/ident.cmi \
     middle_end/flambda/basic/continuation.cmi \
+    middle_end/flambda/compilenv_deps/compilation_unit.cmi \
     parsing/asttypes.cmi \
     middle_end/flambda/from_lambda/cps_conversion.cmi
 middle_end/flambda/from_lambda/cps_conversion.cmx : \
     lambda/tag.cmx \
+    lambda/simplif.cmx \
     lambda/printlambda.cmx \
     typing/primitive.cmx \
     utils/numbers.cmx \
     utils/misc.cmx \
+    lambda/matching.cmx \
     parsing/location.cmx \
     middle_end/flambda/from_lambda/lambda_conversions.cmx \
     lambda/lambda.cmx \
     middle_end/flambda/from_lambda/ilambda.cmx \
     typing/ident.cmx \
     middle_end/flambda/basic/continuation.cmx \
+    middle_end/flambda/compilenv_deps/compilation_unit.cmx \
     parsing/asttypes.cmi \
     middle_end/flambda/from_lambda/cps_conversion.cmi
 middle_end/flambda/from_lambda/cps_conversion.cmi : \
-    utils/numbers.cmi \
     lambda/lambda.cmi \
     middle_end/flambda/from_lambda/ilambda.cmi
 middle_end/flambda/from_lambda/eliminate_mutable_vars.cmo : \
