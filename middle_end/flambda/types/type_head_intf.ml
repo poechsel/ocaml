@@ -43,7 +43,7 @@ module type S = sig
     -> t
     -> t Or_unknown.t
 
-  val apply_coercion : t -> Rec_info.t -> t Or_bottom.t
+  val apply_coercion : t -> Coercion.t -> t Or_bottom.t
 
   val eviscerate : t -> t Or_unknown.t
 end

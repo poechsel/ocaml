@@ -173,7 +173,7 @@ let apply_coercion t coercion : _ Or_bottom.t =
   | Boxed_nativeint _
   | String _
   | Array _ ->
-    if Rec_info.is_initial coercion then Ok t
+    if Coercion.is_id coercion then Ok t
     else Bottom
 
 let eviscerate t : _ Or_unknown.t =

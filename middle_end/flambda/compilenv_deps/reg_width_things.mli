@@ -154,13 +154,15 @@ module Simple : sig
 
   val const : Const.t -> t
 
-  val coercion : t -> Rec_info.t option
+  val coercion : t -> Coercion.t
 
-  val with_coercion : t -> Rec_info.t -> t
+  val with_coercion : t -> Coercion.t -> t
 
   (* This does not consult the grand table of [Simple]s. *)
   val has_coercion : t -> bool
 
+  (* CR lmaurer: Should make [name] and [const] take a [coercion] argument to
+     be sure we're not dropping coercions by accident. *)
   val pattern_match
      : t
     -> name:(Name.t -> 'a)

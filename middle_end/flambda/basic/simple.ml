@@ -55,23 +55,23 @@ let const_from_descr descr = const (RWC.of_descr descr)
 
 let without_coercion t = pattern_match t ~name ~const
 
-let merge_coercion t ~newer_coercion =
-  if is_const t then None
+let apply_coercion t applied_coercion =
+  if Coercion.is_id applied_coercion then Some t
   else
-    match newer_coercion with
-    | None -> Some t
-    | Some newer_coercion ->
-      let coercion =
-        match coercion t with
-        | None -> newer_coercion
-        | Some older_coercion ->
-          Rec_info.merge older_coercion ~newer:newer_coercion
-      in
-      Some (with_coercion (without_coercion t) coercion)
+    Coercion.compose (coercion t) ~then_:applied_coercion
+    |> Option.map (fun coercion -> with_coercion (without_coercion t) coercion)
+
+let apply_coercion_exn t applied_coercion =
+  match apply_coercion t applied_coercion with
+  | Some t -> t
+  | None ->
+    Misc.fatal_errorf "Cannot apply coercion %a to %a"
+      print t
+      Coercion.print applied_coercion
 
 (* CR mshinwell: Make naming consistent with [Name] re. the option type *)
 
-(* CR mshinwell: Careful that Rec_info doesn't get dropped using the
+(* CR mshinwell: Careful that Coercion don't get dropped using the
    following *)
 
 let [@inline always] must_be_var t =

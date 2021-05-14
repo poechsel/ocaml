@@ -62,4 +62,4 @@ include Type_structure_intf.S
   with type join_env := Join_env.t
   with type typing_env_extension := Typing_env_extension.t
 
-val apply_coercion : t -> Rec_info.t -> t Or_bottom.t
+val apply_coercion : t -> Coercion.t -> t Or_bottom.t
