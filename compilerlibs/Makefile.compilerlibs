@@ -211,6 +211,7 @@ MIDDLE_END_FLAMBDA_BASIC=\
   middle_end/flambda/naming/renaming.cmo \
   middle_end/flambda/naming/num_occurrences.cmo \
   middle_end/flambda/naming/name_occurrences.cmo \
+  middle_end/flambda/types/basic/unit.cmo \
   middle_end/flambda/basic/or_variable.cmo \
   middle_end/flambda/basic/simple.cmo \
   middle_end/flambda/basic/closure_id.cmo \
@@ -273,7 +274,6 @@ MIDDLE_END_FLAMBDA_TYPES=\
   middle_end/flambda/types/type_descr_intf.cmo \
   middle_end/flambda/types/type_head_intf.cmo \
   middle_end/flambda/types/flambda_type.cmo \
-  middle_end/flambda/types/basic/unit.cmo \
   middle_end/flambda/types/basic/closure_id_set.cmo \
   middle_end/flambda/types/basic/closure_id_or_unknown_and_var_within_closure_set.cmo \
   middle_end/flambda/types/basic/closure_id_and_var_within_closure_set.cmo
