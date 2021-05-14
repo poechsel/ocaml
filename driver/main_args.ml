@@ -1000,11 +1000,6 @@ let mk_no_flambda_expert_phantom_lets f =
   " Do not generate phantom lets even when -g is specified"
 ;;
 
-let mk_flambda_expert_max_inlining_depth f =
-  "-flambda-expert-max-inlining-depth", Arg.Int f,
-  " Set maximum inlining depth"
-;;
-
 let mk_flambda_expert_max_block_size_for_projections f =
   "-flambda-expert-max-block-size-for-projections", Arg.Int f,
   " Do not simplify projections from blocks if the block size exceeds \
@@ -1276,7 +1271,6 @@ module type Optcommon_options = sig
   val _no_flambda_expert_inline_effects_in_cmm : unit -> unit
   val _flambda_expert_phantom_lets : unit -> unit
   val _no_flambda_expert_phantom_lets : unit -> unit
-  val _flambda_expert_max_inlining_depth : int -> unit
   val _flambda_expert_max_block_size_for_projections : int -> unit
   val _flambda_expert_max_unboxing_depth : int -> unit
   val _flambda_debug_permute_every_name : unit -> unit
@@ -1645,8 +1639,6 @@ struct
       F._flambda_expert_phantom_lets;
     mk_no_flambda_expert_phantom_lets
       F._no_flambda_expert_phantom_lets;
-    mk_flambda_expert_max_inlining_depth
-      F._flambda_expert_max_inlining_depth;
     mk_flambda_expert_max_block_size_for_projections
       F._flambda_expert_max_block_size_for_projections;
     mk_flambda_expert_max_unboxing_depth
@@ -1813,8 +1805,6 @@ module Make_opttop_options (F : Opttop_options) = struct
       F._flambda_expert_phantom_lets;
     mk_no_flambda_expert_phantom_lets
       F._no_flambda_expert_phantom_lets;
-    mk_flambda_expert_max_inlining_depth
-      F._flambda_expert_max_inlining_depth;
     mk_flambda_expert_max_block_size_for_projections
       F._flambda_expert_max_block_size_for_projections;
     mk_flambda_expert_max_unboxing_depth
@@ -2141,8 +2131,6 @@ module Default = struct
       set Flambda.Expert.phantom_lets
     let _no_flambda_expert_phantom_lets =
       clear Flambda.Expert.phantom_lets
-    let _flambda_expert_max_inlining_depth depth =
-      Flambda.Expert.max_inlining_depth := depth
     let _flambda_expert_max_block_size_for_projections size =
       Flambda.Expert.max_block_size_for_projections := Some size
     let _flambda_expert_max_unboxing_depth depth =
