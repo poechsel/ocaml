@@ -53,7 +53,6 @@ module Inlinable = struct
 
   let code_id t = t.code_id
   let dbg t = t.dbg
-  let rec_info t = t.rec_info
   let is_tupled t = t.is_tupled
   let must_be_inlined t = t.must_be_inlined
 
@@ -62,7 +61,7 @@ module Inlinable = struct
            must_be_inlined = _ } as t) renaming =
     let code_id' = Renaming.apply_code_id renaming code_id in
     if code_id == code_id' then t
-    else { t with code_id = code_id'; }
+    else { t with code_id = code_id'; rec_info = Rec_info.unknown }
 
 end
 
@@ -177,14 +176,14 @@ let meet (env : Meet_env.t) (t1 : t) (t2 : t)
   | Ok (Inlinable {
       code_id = code_id1;
       dbg = dbg1;
-      rec_info = _rec_info1;
+      rec_info = _;
       is_tupled = is_tupled1;
       must_be_inlined = must_be_inlined1;
     }),
     Ok (Inlinable {
       code_id = code_id2;
       dbg = dbg2;
-      rec_info = _rec_info2;
+      rec_info = _;
       is_tupled = is_tupled2;
       must_be_inlined = must_be_inlined2;
     }) ->
@@ -198,13 +197,12 @@ let meet (env : Meet_env.t) (t1 : t) (t2 : t)
       Ok (Ok (Inlinable {
           code_id;
           dbg = dbg1;
-          rec_info = _rec_info1;
+          rec_info = Rec_info.unknown;
           is_tupled = is_tupled1;
           must_be_inlined = must_be_inlined1;
         }),
         TEE.empty ())
     in
-    (* CR mshinwell: What about [rec_info]? *)
     begin match
       Code_age_relation.meet target_code_age_rel ~resolver code_id1 code_id2
     with
@@ -253,14 +251,14 @@ let join (env : Join_env.t) (t1 : t) (t2 : t) : t =
   | Ok (Inlinable {
       code_id = code_id1;
       dbg = dbg1;
-      rec_info = _rec_info1;
+      rec_info = _;
       is_tupled = is_tupled1;
       must_be_inlined = must_be_inlined1;
     }),
     Ok (Inlinable {
       code_id = code_id2;
       dbg = dbg2;
-      rec_info = _rec_info2;
+      rec_info = _;
       is_tupled = is_tupled2;
       must_be_inlined = must_be_inlined2;
     }) ->
@@ -274,12 +272,11 @@ let join (env : Join_env.t) (t1 : t) (t2 : t) : t =
       Ok (Inlinable {
         code_id;
         dbg = dbg1;
-        rec_info = _rec_info1;
+        rec_info = Rec_info.unknown;
         is_tupled = is_tupled1;
         must_be_inlined = must_be_inlined1;
       })
     in
-    (* CR mshinwell: What about [rec_info]? *)
     let code_age_rel1 =
       TE.code_age_relation (Join_env.left_join_env env)
     in
@@ -295,15 +292,4 @@ let join (env : Join_env.t) (t1 : t) (t2 : t) : t =
     end
 
 let apply_coercion (t : t) _coercion : t Or_bottom.t =
-  match t with
-  | Ok (Inlinable { code_id; dbg; rec_info = rec_info'; is_tupled;
-                    must_be_inlined }) ->
-    let rec_info = Rec_info.merge rec_info' ~newer:Rec_info.initial in
-    Ok (Ok (Inlinable { code_id;
-      dbg;
-      rec_info;
-      is_tupled;
-      must_be_inlined;
-    }))
-  | Ok (Non_inlinable { code_id = _; is_tupled = _; }) -> Ok t
-  | Unknown | Bottom -> Ok t
+  Ok t

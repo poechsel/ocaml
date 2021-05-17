@@ -160,7 +160,6 @@ end = struct
               closure_element_types_inside_function) ->
           let function_decls = Set_of_closures.function_decls set_of_closures in
           let all_function_decls_in_set =
-            (* CR mshinwell: [Rec_info] may be wrong. *)
             Closure_id.Map.map (fun function_decl ->
                 let new_code_id =
                   Code_id.Map.find (FD.code_id function_decl)
@@ -171,7 +170,7 @@ end = struct
                   denv function_decl
                   ~code_id:new_code_id
                   ~cost_metrics_source:From_denv
-                  (Rec_info.create ~depth:1 ~unroll_to:None))
+                  Rec_info.unknown)
               (Function_declarations.funs function_decls)
           in
           Closure_id.Map.mapi (fun closure_id _function_decl ->
@@ -509,7 +508,7 @@ let simplify_function context ~used_closure_vars ~shareable_constants
           ~pass:Inlining_report.After_simplify
           ~cost_metrics_source:(Metrics cost_metrics)
           (DA.denv dacc_after_body) function_decl
-          Rec_info.initial
+          Rec_info.unknown
     in
     { function_decl;
       new_code_id;
