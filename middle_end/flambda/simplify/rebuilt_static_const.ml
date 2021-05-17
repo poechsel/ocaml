@@ -304,7 +304,8 @@ module Group = struct
         ~exn_handler:(Continuation.create ~sort:Exn ())
         ~extra_args:[])
       [] ~dbg:Debuginfo.none ~body:(Expr.create_invalid ())
-      ~free_names_of_body:Unknown ~my_closure:(Variable.create "my_closure"))
+      ~free_names_of_body:Unknown ~my_closure:(Variable.create "my_closure")
+      ~my_depth:(Depth_variable.create "my_depth"))
 
   let pieces_of_code_including_those_not_rebuilt t =
     let consts =

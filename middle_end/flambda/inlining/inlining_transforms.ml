@@ -179,7 +179,7 @@ let inline dacc ~apply ~unroll_to function_decl =
   in
   Function_params_and_body.pattern_match params_and_body
     ~f:(fun ~return_continuation exn_continuation params ~body ~my_closure
-            ~is_my_closure_used:_ ->
+            ~is_my_closure_used:_ ~my_depth:_->
           let make_inlined_body =
             make_inlined_body ~callee ~unroll_to ~params ~args ~my_closure ~body
               ~exn_continuation ~return_continuation

@@ -373,7 +373,7 @@ let simplify_function context ~used_closure_vars ~shareable_constants
         uacc_after_upwards_traversal, inlining_arguments =
       Function_params_and_body.pattern_match params_and_body
         ~f:(fun ~return_continuation exn_continuation params ~body
-                ~my_closure ~is_my_closure_used:_ ->
+                ~my_closure ~is_my_closure_used:_ ~my_depth ->
           let dacc =
             dacc_inside_function context ~used_closure_vars ~shareable_constants
               ~params ~my_closure closure_id
@@ -419,7 +419,7 @@ let simplify_function context ~used_closure_vars ~shareable_constants
             let params_and_body =
               RE.Function_params_and_body.create ~free_names_of_body
                 ~return_continuation exn_continuation params ~dbg ~body
-                ~my_closure
+                ~my_closure ~my_depth
             in
             (* Free names of the code = free names of the body minus the
                return and exception continuations, the parameters and the

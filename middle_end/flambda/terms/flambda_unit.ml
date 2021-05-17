@@ -182,7 +182,7 @@ module Iter = struct
         | Present params_and_body ->
           Function_params_and_body.pattern_match params_and_body
             ~f:(fun ~return_continuation:_ _ _ ~body ~my_closure:_
-                    ~is_my_closure_used:_ ->
+                    ~is_my_closure_used:_ ~my_depth:_ ->
                 expr f_c f_s body))
       ~set_of_closures:(fun () ~closure_symbols set_of_closures ->
         f_s ~closure_symbols:(Some closure_symbols) set_of_closures)

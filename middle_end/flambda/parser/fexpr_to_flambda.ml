@@ -28,6 +28,13 @@ module D = struct
 end
 module DM = Map.Make(D)
 
+(* Depth variables *)
+module DV = struct
+  type t = string
+  let compare = String.compare
+end
+module DVM = Map.Make(DV)
+
 (* Closure ids (globally scoped, so updates are in-place) *)
 module U = struct
   type t = string
@@ -52,6 +59,7 @@ type env = {
   variables : Variable.t VM.t;
   symbols : Symbol.t SM.t;
   code_ids : Code_id.t DM.t;
+  depth_variables : Depth_variable.t DVM.t;
   closure_ids : Closure_id.t UT.t;
   vars_within_closures : Var_within_closure.t WT.t;
 }
@@ -64,6 +72,7 @@ let init_env done_continuation error_continuation = {
   variables = VM.empty;
   symbols = SM.empty;
   code_ids = DM.empty;
+  depth_variables = DVM.empty;
   closure_ids = UT.create 10;
   vars_within_closures = WT.create 10;
 }
@@ -71,6 +80,7 @@ let init_env done_continuation error_continuation = {
 let enter_code env = {
   continuations = CM.empty;
   exn_continuations = CM.empty;
+  depth_variables = DVM.empty;
   variables = env.variables;
   done_continuation = env.done_continuation;
   error_continuation = env.error_continuation;
@@ -104,6 +114,12 @@ let fresh_code_id env { Fexpr.txt = name; loc = _ } =
   c,
   { env with
     code_ids = DM.add name c env.code_ids }
+
+let fresh_depth_var env { Fexpr.txt = name; loc = _ } =
+  let dv = Depth_variable.create name in
+  dv,
+  { env with
+    depth_variables = DVM.add name dv env.depth_variables }
 
 let fresh_closure_id env { Fexpr.txt = name; loc = _ } =
   let v = Variable.create name in
@@ -640,6 +656,8 @@ let rec expr env (e : Fexpr.expr) : Flambda.Expr.t =
                 env params
             in
             let my_closure, env = fresh_var env closure_var in
+            (* CR lmaurer: Add depth variables to fexpr *)
+            let my_depth, env = fresh_depth_var env { txt = "depth"; loc = Loc_unknown } in
             let return_continuation, env =
               fresh_cont env ret_cont (List.length result_arity)
             in
@@ -651,7 +669,7 @@ let rec expr env (e : Fexpr.expr) : Flambda.Expr.t =
             let params_and_body =
               Flambda.Function_params_and_body.create
                 ~return_continuation
-                exn_continuation params ~body ~my_closure ~dbg
+                exn_continuation params ~body ~my_closure ~my_depth ~dbg
                 ~free_names_of_body:Unknown
             in
             let free_names =

@@ -243,6 +243,7 @@ let simplify_direct_partial_application ~simplify_expr dacc apply
         ((Apply.callee apply) :: applied_args)
     in
     let my_closure = Variable.create "my_closure" in
+    let my_depth = Depth_variable.create "my_depth" in
     let exn_continuation =
       Apply.exn_continuation apply
       |> Exn_continuation.without_extra_args
@@ -298,6 +299,7 @@ let simplify_direct_partial_application ~simplify_expr dacc apply
         ~body
         ~dbg
         ~my_closure
+        ~my_depth
         ~free_names_of_body:Unknown
     in
     let code_id =

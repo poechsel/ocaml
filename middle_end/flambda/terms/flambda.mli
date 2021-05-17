@@ -426,6 +426,7 @@ end and Function_params_and_body : sig
     -> body:Expr.t
     -> free_names_of_body:Name_occurrences.t Or_unknown.t
     -> my_closure:Variable.t
+    -> my_depth:Depth_variable.t
     -> t
 
   (** Choose a member of the alpha-equivalence class to enable examination
@@ -445,6 +446,7 @@ end and Function_params_and_body : sig
       -> body:Expr.t
       -> my_closure:Variable.t
       -> is_my_closure_used:bool Or_unknown.t
+      -> my_depth:Depth_variable.t
       -> 'a)
     -> 'a
 
@@ -466,6 +468,7 @@ end and Function_params_and_body : sig
       -> body1:Expr.t
       -> body2:Expr.t
       -> my_closure:Variable.t
+      -> my_depth:Depth_variable.t
       -> 'a)
     -> 'a
 

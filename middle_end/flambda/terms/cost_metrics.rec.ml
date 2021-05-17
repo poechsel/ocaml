@@ -80,7 +80,7 @@ and named_size ~find_code (named : Named.t) size =
            | Present params_and_body ->
              Function_params_and_body.pattern_match params_and_body
                ~f:(fun ~return_continuation:_ _exn_continuation _params
-                    ~body ~my_closure:_ ~is_my_closure_used:_ ->
+                    ~body ~my_closure:_ ~is_my_closure_used:_ ~my_depth:_ ->
                     expr_size ~find_code body size)
            | Deleted -> size
          in

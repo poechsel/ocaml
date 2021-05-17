@@ -612,7 +612,8 @@ and static_let_expr env bound_symbols defining_expr body : Fexpr.expr =
           let params_and_body =
             Flambda.Function_params_and_body.pattern_match params_and_body
               ~f:(fun ~return_continuation exn_continuation params ~body
-                  ~my_closure ~is_my_closure_used:_ : Fexpr.params_and_body ->
+                  ~my_closure ~is_my_closure_used:_ ~my_depth
+                    : Fexpr.params_and_body ->
                 let ret_cont, env =
                   Env.bind_named_continuation env return_continuation
                 in
@@ -626,6 +627,8 @@ and static_let_expr env bound_symbols defining_expr body : Fexpr.expr =
                 in
                 let closure_var, env = Env.bind_var env my_closure in
                 let body = expr env body in
+                (* CR lmaurer: Add depth variables to syntax *)
+                ignore my_depth;
                 (* CR-someday lmaurer: Omit exn_cont, closure_var if
                    not used *)
                 { params; ret_cont; exn_cont; closure_var; body }

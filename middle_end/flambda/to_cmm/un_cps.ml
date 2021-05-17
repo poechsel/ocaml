@@ -1415,7 +1415,7 @@ and fill_up_to j acc i =
 and params_and_body env res fun_name p =
   Function_params_and_body.pattern_match p
     ~f:(fun ~return_continuation:k k_exn vars ~body ~my_closure
-          ~is_my_closure_used ->
+          ~is_my_closure_used ~my_depth:_ ->
       try
         let args = function_args vars my_closure ~is_my_closure_used in
         let k_exn = Exn_continuation.exn_handler k_exn in

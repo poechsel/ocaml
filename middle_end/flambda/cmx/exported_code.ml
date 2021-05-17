@@ -43,7 +43,7 @@ module Calling_convention = struct
 
   let compute ~params_and_body =
     let f ~return_continuation:_ _exn_continuation params ~body:_
-          ~my_closure:_ ~(is_my_closure_used : _ Or_unknown.t) =
+          ~my_closure:_ ~(is_my_closure_used : _ Or_unknown.t) ~my_depth:_ =
       let is_my_closure_used =
         match is_my_closure_used with
         | Unknown -> true

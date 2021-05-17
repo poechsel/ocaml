@@ -399,7 +399,7 @@ and subst_code env (code : Code.t)
 and subst_params_and_body env params_and_body =
   Function_params_and_body.pattern_match params_and_body
     ~f:(fun ~return_continuation exn_continuation params ~body ~my_closure
-            ~is_my_closure_used:_ ->
+            ~is_my_closure_used:_ ~my_depth ->
       let body = subst_expr env body in
       let dbg = Function_params_and_body.debuginfo params_and_body in
       Function_params_and_body.create
@@ -410,6 +410,7 @@ and subst_params_and_body env params_and_body =
         ~body
         ~my_closure
         ~free_names_of_body:Unknown
+        ~my_depth
     )
 and subst_let_cont env (let_cont_expr : Let_cont_expr.t) =
   match let_cont_expr with
@@ -1220,13 +1221,13 @@ and codes env (code1 : Code.t) (code2 : Code.t) =
     Function_params_and_body.pattern_match_pair
       params_and_body1 params_and_body2
       ~f:(fun ~return_continuation exn_continuation params ~body1 ~body2
-              ~my_closure ->
+              ~my_closure ~my_depth ->
         exprs env body1 body2
         |> Comparison.map ~f:(fun body1' ->
              let dbg = Function_params_and_body.debuginfo params_and_body1 in
              Function_params_and_body.create
                ~return_continuation exn_continuation params ~dbg ~body:body1'
-               ~my_closure ~free_names_of_body:Unknown
+               ~my_closure ~my_depth ~free_names_of_body:Unknown
            )
       )
   in
