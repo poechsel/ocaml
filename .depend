@@ -9671,6 +9671,7 @@ middle_end/flambda/types/env/typing_env.rec.cmo : \
     middle_end/flambda/types/kinds/flambda_kind.cmi \
     middle_end/flambda/compilenv_deps/flambda_colours.cmi \
     middle_end/flambda/compilenv_deps/compilation_unit.cmi \
+    middle_end/flambda/compilenv_deps/coercion.cmi \
     middle_end/flambda/types/structures/code_age_relation.cmi \
     utils/clflags.cmi \
     middle_end/flambda/types/env/binding_time.cmi \
@@ -9694,6 +9695,7 @@ middle_end/flambda/types/env/typing_env.rec.cmx : \
     middle_end/flambda/types/kinds/flambda_kind.cmx \
     middle_end/flambda/compilenv_deps/flambda_colours.cmx \
     middle_end/flambda/compilenv_deps/compilation_unit.cmx \
+    middle_end/flambda/compilenv_deps/coercion.cmx \
     middle_end/flambda/types/structures/code_age_relation.cmx \
     utils/clflags.cmx \
     middle_end/flambda/types/env/binding_time.cmx \

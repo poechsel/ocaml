@@ -1,0 +1,218 @@
+*** empty
+((canonical_elements {}) (aliases_of_canonical_names {})
+ (aliases_of_consts {}) (binding_times_and_modes {}))
+
+*** single alias
+[added] x/0 <--[(depth 1 -> 0)]-- y/1
+((canonical_elements {(y/1 (x/0 (coercion (depth 1 -> 0))))})
+ (aliases_of_canonical_names {(x/0 {(Normal {(y/1 (depth 1 -> 0))})})})
+ (aliases_of_consts {})
+ (binding_times_and_modes
+  {(y/1 (bound at time 4 Normal)) (x/0 (bound at time 3 Normal))}))
+
+*** single alias (inverse)
+[added] y/3 <--[(depth 0 -> 1)]-- x/2
+((canonical_elements {(x/2 (y/3 (coercion (depth 0 -> 1))))})
+ (aliases_of_canonical_names {(y/3 {(Normal {(x/2 (depth 0 -> 1))})})})
+ (aliases_of_consts {})
+ (binding_times_and_modes
+  {(x/2 (bound at time 6 Normal)) (y/3 (bound at time 5 Normal))}))
+
+*** two aliases (independent)
+[added] x/4 <--[(depth 1 -> 0)]-- y/5
+[added] x/4 <--[(depth 2 -> 0)]-- z/6
+((canonical_elements
+  {(y/5 (x/4 (coercion (depth 1 -> 0))))
+   (z/6 (x/4 (coercion (depth 2 -> 0))))})
+ (aliases_of_canonical_names
+  {(x/4 {(Normal {(y/5 (depth 1 -> 0)) (z/6 (depth 2 -> 0))})})})
+ (aliases_of_consts {})
+ (binding_times_and_modes
+  {(x/4 (bound at time 7 Normal)) (y/5 (bound at time 8 Normal))
+   (z/6 (bound at time 9 Normal))}))
+
+*** two aliases (simple chain)
+[added] x/7 <--[(depth 1 -> 0)]-- y/8
+[added] x/7 <--[(depth 2 -> 0)]-- z/9
+((canonical_elements
+  {(z/9 (x/7 (coercion (depth 2 -> 0))))
+   (y/8 (x/7 (coercion (depth 1 -> 0))))})
+ (aliases_of_canonical_names
+  {(x/7 {(Normal {(z/9 (depth 2 -> 0)) (y/8 (depth 1 -> 0))})})})
+ (aliases_of_consts {})
+ (binding_times_and_modes
+  {(z/9 (bound at time 12 Normal)) (x/7 (bound at time 10 Normal))
+   (y/8 (bound at time 11 Normal))}))
+
+*** two aliases (two inverses)
+[added] x/10 <--[(depth 1 -> 0)]-- y/11
+[added] z/12 <--[(depth 1 -> 2)]-- y/11
+((canonical_elements
+  {(x/10 (z/12 (coercion (depth 0 -> 2))))
+   (y/11 (z/12 (coercion (depth 1 -> 2))))})
+ (aliases_of_canonical_names
+  {(z/12 {(Normal {(x/10 (depth 0 -> 2)) (y/11 (depth 1 -> 2))})})})
+ (aliases_of_consts {})
+ (binding_times_and_modes
+  {(x/10 (bound at time 14 Normal)) (z/12 (bound at time 13 Normal))
+   (y/11 (bound at time 15 Normal))}))
+
+*** two aliases (one inverse)
+[added] x/13 <--[(depth 1 -> 0)]-- y/14
+[added] z/15 <--[(depth 1 -> 2)]-- y/14
+((canonical_elements
+  {(x/13 (z/15 (coercion (depth 0 -> 2))))
+   (y/14 (z/15 (coercion (depth 1 -> 2))))})
+ (aliases_of_canonical_names
+  {(z/15 {(Normal {(x/13 (depth 0 -> 2)) (y/14 (depth 1 -> 2))})})})
+ (aliases_of_consts {})
+ (binding_times_and_modes
+  {(z/15 (bound at time 16 Normal)) (x/13 (bound at time 17 Normal))
+   (y/14 (bound at time 18 Normal))}))
+
+*** two aliases (one inverse)
+[added] x/16 <--[(depth 1 -> 0)]-- y/17
+[added] x/16 <--[(depth 2 -> 0)]-- z/18
+((canonical_elements
+  {(y/17 (x/16 (coercion (depth 1 -> 0))))
+   (z/18 (x/16 (coercion (depth 2 -> 0))))})
+ (aliases_of_canonical_names
+  {(x/16 {(Normal {(y/17 (depth 1 -> 0)) (z/18 (depth 2 -> 0))})})})
+ (aliases_of_consts {})
+ (binding_times_and_modes
+  {(x/16 (bound at time 19 Normal)) (y/17 (bound at time 20 Normal))
+   (z/18 (bound at time 21 Normal))}))
+
+*** three aliases (one inverse)
+[added] x/19 <--[(depth 1 -> 0)]-- y/20
+[added] z/21 <--[(depth 3 -> 2)]-- t/22
+[added] x/19 <--[(depth 3 -> 0)]-- t/22
+((canonical_elements
+  {(y/20 (x/19 (coercion (depth 1 -> 0))))
+   (z/21 (x/19 (coercion (depth 2 -> 0))))
+   (t/22 (x/19 (coercion (depth 3 -> 0))))})
+ (aliases_of_canonical_names
+  {(x/19
+    {(Normal
+      {(y/20 (depth 1 -> 0)) (z/21 (depth 2 -> 0)) (t/22 (depth 3 -> 0))})})})
+ (aliases_of_consts {})
+ (binding_times_and_modes
+  {(x/19 (bound at time 22 Normal)) (y/20 (bound at time 23 Normal))
+   (z/21 (bound at time 24 Normal)) (t/22 (bound at time 25 Normal))}))
+
+*** three aliases (two inverses)
+[added] x/23 <--[(depth 1 -> 0)]-- y/24
+[added] z/25 <--[(depth 3 -> 2)]-- t/26
+[added] z/25 <--[(depth 1 -> 2)]-- y/24
+((canonical_elements
+  {(x/23 (z/25 (coercion (depth 0 -> 2))))
+   (y/24 (z/25 (coercion (depth 1 -> 2))))
+   (t/26 (z/25 (coercion (depth 3 -> 2))))})
+ (aliases_of_canonical_names
+  {(z/25
+    {(Normal
+      {(x/23 (depth 0 -> 2)) (y/24 (depth 1 -> 2)) (t/26 (depth 3 -> 2))})})})
+ (aliases_of_consts {})
+ (binding_times_and_modes
+  {(x/23 (bound at time 27 Normal)) (z/25 (bound at time 26 Normal))
+   (y/24 (bound at time 28 Normal)) (t/26 (bound at time 29 Normal))}))
+
+*** three aliases of const (two inverses)
+[added] x/27 <--[(depth 1 -> 0)]-- y/28
+[added] #1 <--[(depth 3 -> 2)]-- t/29
+[added] #1 <--[(depth 1 -> 2)]-- y/28
+((canonical_elements
+  {(y/28 (#1 (coercion (depth 1 -> 2))))
+   (t/29 (#1 (coercion (depth 3 -> 2))))
+   (x/27 (#1 (coercion (depth 0 -> 2))))}) (aliases_of_canonical_names {})
+ (aliases_of_consts
+  {(#1
+    {(Normal
+      {(y/28 (depth 1 -> 2)) (t/29 (depth 3 -> 2)) (x/27 (depth 0 -> 2))})})})
+ (binding_times_and_modes
+  {(y/28 (bound at time 31 Normal)) (t/29 (bound at time 32 Normal))
+   (x/27 (bound at time 30 Normal))}))
+
+*** name mode: phantom = phantom
+[added] x/30 (Phantom) <--[(depth 1 -> 0)]-- y/31 (Phantom)
+Canonical for y/31: (coerce x/30 (depth 0 -> 1))
+... with mode >= Phantom: (coerce x/30 (depth 0 -> 1))
+Aliases of x/30: ((const ()) (names {(x/30 id) (y/31 (depth 1 -> 0))})
+
+*** name mode: normal > phantom
+[added] x/32 <--[(depth 1 -> 0)]-- y/33 (Phantom)
+Canonical for y/33: (coerce x/32 (depth 0 -> 1))
+... with mode >= Phantom: (coerce x/32 (depth 0 -> 1))
+Aliases of x/32: ((const ()) (names {(y/33 (depth 1 -> 0)) (x/32 id)})
+
+*** name mode: phantom !>= in_types (fail)
+[added] x/34 (Phantom) <--[(depth 1 -> 0)]-- y/35 (Phantom)
+Canonical for y/35: (coerce x/34 (depth 0 -> 1))
+... with mode >= In_types: <none>
+Aliases of x/34: ((const ()) (names {(x/34 id) (y/35 (depth 1 -> 0))})
+
+*** name mode: phantom !>= in_types (return same)
+[added] x/36 (Phantom) <--[(depth 1 -> 0)]-- y/37 (In_types)
+Canonical for y/37: (coerce x/36 (depth 0 -> 1))
+... with mode >= In_types: y/37
+Aliases of x/36: ((const ()) (names {(x/36 id) (y/37 (depth 1 -> 0))})
+
+*** name mode: normal > in_types
+[added] x/38 <--[(depth 1 -> 0)]-- y/39 (Phantom)
+Canonical for y/39: (coerce x/38 (depth 0 -> 1))
+... with mode >= In_types: (coerce x/38 (depth 0 -> 1))
+Aliases of x/38: ((const ()) (names {(x/38 id) (y/39 (depth 1 -> 0))})
+
+*** name mode: phantom !>= normal
+[added] x/40 (Phantom) <--[(depth 1 -> 0)]-- y/41 (Phantom)
+Canonical for y/41: (coerce x/40 (depth 0 -> 1))
+... with mode >= Normal: <none>
+Aliases of x/40: ((const ()) (names {(y/41 (depth 1 -> 0)) (x/40 id)})
+
+*** three aliases (one inverse) /w modes
+[added] x/42 (In_types) <--[(depth 1 -> 0)]-- y/43 (In_types)
+[added] z/44 (Phantom) <--[(depth 3 -> 2)]-- t/45
+[added] x/42 (In_types) <--[(depth 3 -> 0)]-- t/45
+
+Canonical for x/42: x/42
+... with mode >= Phantom: (coerce z/44 (depth 2 -> 0))
+...           >= In_types: x/42
+...           >= Normal: (coerce t/45 (depth 3 -> 0))
+
+Canonical for y/43: (coerce x/42 (depth 0 -> 1))
+... with mode >= Phantom: (coerce z/44 (depth 2 -> 1))
+...           >= In_types: (coerce x/42 (depth 0 -> 1))
+...           >= Normal: (coerce t/45 (depth 3 -> 1))
+
+Canonical for z/44: (coerce x/42 (depth 0 -> 2))
+... with mode >= Phantom: z/44
+...           >= In_types: (coerce x/42 (depth 0 -> 2))
+...           >= Normal: (coerce t/45 (depth 3 -> 2))
+
+Canonical for t/45: (coerce x/42 (depth 0 -> 3))
+... with mode >= Phantom: (coerce z/44 (depth 2 -> 3))
+...           >= In_types: (coerce x/42 (depth 0 -> 3))
+...           >= Normal: t/45
+
+Aliases of x/42: ((const ())
+                  (names
+                   {(y/43 (depth 1 -> 0)) (x/42 id) (t/45 (depth 3 -> 0))
+                    (z/44 (depth 2 -> 0))})
+Aliases of z/44: ((const ())
+                  (names
+                   {(y/43 (depth 1 -> 2)) (x/42 (depth 0 -> 2))
+                    (t/45 (depth 3 -> 2)) (z/44 id)})
+
+((canonical_elements
+  {(y/43 (x/42 (coercion (depth 1 -> 0))))
+   (t/45 (x/42 (coercion (depth 3 -> 0))))
+   (z/44 (x/42 (coercion (depth 2 -> 0))))})
+ (aliases_of_canonical_names
+  {(x/42
+    {(Phantom {(z/44 (depth 2 -> 0))}) (In_types {(y/43 (depth 1 -> 0))})
+     (Normal {(t/45 (depth 3 -> 0))})})}) (aliases_of_consts {})
+ (binding_times_and_modes
+  {(y/43 (bound at time 46 In_types)) (x/42 (bound at time 45 In_types))
+   (t/45 (bound at time 48 Normal)) (z/44 (bound at time 47 Phantom))}))
+
+OK.
