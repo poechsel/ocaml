@@ -59,6 +59,8 @@ let rec_info () = C.fg_256 249
 
 let coercion () = C.fg_256 249
 
+let depth_variable () = C.fg_256 214
+
 let error () = C.fg_256 160
 
 let elide () = C.fg_256 243
