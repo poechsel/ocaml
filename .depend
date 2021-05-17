@@ -9572,7 +9572,6 @@ middle_end/flambda/types/basic/var_within_closure_set.cmi : \
     utils/identifiable.cmi
 middle_end/flambda/types/env/aliases.cmo : \
     middle_end/flambda/compilenv_deps/variable.cmi \
-    middle_end/flambda/types/basic/unit.cmi \
     middle_end/flambda/basic/simple.cmi \
     middle_end/flambda/naming/renaming.cmi \
     middle_end/flambda/compilenv_deps/reg_width_things.cmi \
@@ -9581,12 +9580,12 @@ middle_end/flambda/types/env/aliases.cmo : \
     utils/misc.cmi \
     middle_end/flambda/cmx/ids_for_export.cmi \
     middle_end/flambda/compilenv_deps/flambda_colours.cmi \
+    middle_end/flambda/compilenv_deps/coercion.cmi \
     utils/clflags.cmi \
     middle_end/flambda/types/env/binding_time.cmi \
     middle_end/flambda/types/env/aliases.cmi
 middle_end/flambda/types/env/aliases.cmx : \
     middle_end/flambda/compilenv_deps/variable.cmx \
-    middle_end/flambda/types/basic/unit.cmx \
     middle_end/flambda/basic/simple.cmx \
     middle_end/flambda/naming/renaming.cmx \
     middle_end/flambda/compilenv_deps/reg_width_things.cmx \
@@ -9595,6 +9594,7 @@ middle_end/flambda/types/env/aliases.cmx : \
     utils/misc.cmx \
     middle_end/flambda/cmx/ids_for_export.cmx \
     middle_end/flambda/compilenv_deps/flambda_colours.cmx \
+    middle_end/flambda/compilenv_deps/coercion.cmx \
     utils/clflags.cmx \
     middle_end/flambda/types/env/binding_time.cmx \
     middle_end/flambda/types/env/aliases.cmi
