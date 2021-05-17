@@ -58,6 +58,8 @@ val rec_info : unit -> string
 val depth_variable : unit -> string
 val coercion : unit -> string
 
+val depth_variable : unit -> string
+
 val elide : unit -> string
 
 val error : unit -> string

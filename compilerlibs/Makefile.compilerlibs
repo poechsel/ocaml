@@ -293,6 +293,7 @@ MIDDLE_END_FLAMBDA_TERMS=\
   middle_end/flambda/terms/set_of_closures.cmo \
   middle_end/flambda/inlining/metrics/code_size.cmo \
   middle_end/flambda/inlining/metrics/removed_operations.cmo \
+  middle_end/flambda/terms/rec_info_expr.cmo \
   middle_end/flambda/terms/flambda.cmo \
   middle_end/flambda/terms/flambda_unit.cmo
 
