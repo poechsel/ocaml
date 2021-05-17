@@ -22,11 +22,13 @@ type simplified_named =
   | Simple of Simple.t
   | Prim of Flambda_primitive.t * Debuginfo.t
   | Set_of_closures of Set_of_closures.t
+  | Rec_info of Rec_info_expr.t
 
 let to_named = function
   | Simple simple -> Named.create_simple simple
   | Prim (prim, dbg) -> Named.create_prim prim dbg
   | Set_of_closures set -> Named.create_set_of_closures set
+  | Rec_info rec_info_expr -> Named.create_rec_info rec_info_expr
 
 type t =
   | Reachable of {
@@ -54,6 +56,9 @@ let reachable (named : Named.t) =
       Misc.fatal_errorf "Cannot create [Simplified_named] from \
           [Static_consts];@ use the lifted constant infrastructure instead:@ %a"
         Named.print named
+    | Rec_info rec_info_expr ->
+       Rec_info rec_info_expr,
+       Cost_metrics.zero
   in
   Reachable {
     named = simplified_named;
@@ -78,6 +83,9 @@ let reachable_with_known_free_names ~find_code_characteristics
       Misc.fatal_errorf "Cannot create [Simplified_named] from \
           [Static_consts];@ use the lifted constant infrastructure instead:@ %a"
         Named.print named
+    | Rec_info rec_info_expr ->
+       Rec_info rec_info_expr,
+       Cost_metrics.zero
   in
   Reachable {
     named = simplified_named;

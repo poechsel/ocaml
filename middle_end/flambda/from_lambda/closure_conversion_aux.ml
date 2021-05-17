@@ -355,6 +355,8 @@ module Let_with_acc = struct
             }
           )
           set_of_closures
+      | Named.Rec_info _ ->
+        Cost_metrics.zero
     in
     let acc =
       Acc.increment_metrics

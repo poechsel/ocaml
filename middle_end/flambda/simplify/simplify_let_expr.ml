@@ -127,7 +127,7 @@ let simplify_let ~simplify_expr ~simplify_toplevel dacc let_expr ~down_to_up =
             | Reachable { free_names; named; cost_metrics = _; } ->
               let can_be_removed =
                 match named with
-                | Simple _ | Set_of_closures _ -> true
+                | Simple _ | Set_of_closures _ | Rec_info _ -> true
                 | Prim (prim, _) -> P.at_most_generative_effects prim
               in
               if not can_be_removed then
@@ -145,7 +145,8 @@ let simplify_let ~simplify_expr ~simplify_toplevel dacc let_expr ~down_to_up =
                     Data_flow.record_binding (VB.var v) free_names
                       ~generate_phantom_lets acc)
                 | Symbols _ ->
-                  Data_flow.add_used_in_current_handler free_names acc))
+                  Data_flow.add_used_in_current_handler free_names acc
+                | Depth _ -> acc))
     in
     (* Next remember any lifted constants that were generated during the
        simplification of the defining expression and sort them, since they

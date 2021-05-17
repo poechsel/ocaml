@@ -290,6 +290,12 @@ let subst_set_of_closures env set =
   Set_of_closures.create decls ~closure_elements
 ;;
 
+let subst_rec_info_expr _env ri =
+  (* Only depth variables can occur in [Rec_info_expr], and we only mess with
+     symbols and other global names *)
+  ri
+;;
+
 let subst_field env (field : Static_const.Field_of_block.t) =
   match field with
   | Symbol symbol ->
@@ -334,6 +340,8 @@ and subst_named env (n : Named.t) =
     Named.create_set_of_closures (subst_set_of_closures env set)
   | Static_consts sc ->
     Named.create_static_consts (subst_static_consts env sc)
+  | Rec_info ri ->
+    Named.create_rec_info (subst_rec_info_expr env ri)
 and subst_static_consts env (g : Static_const.Group.t) =
   Static_const.Group.map g ~f:(subst_static_const env)
 and subst_bindable_let_bound env (blb : Bindable_let_bound.t) =
@@ -868,6 +876,15 @@ let sets_of_closures env set1 set2 : Set_of_closures.t Comparison.t =
       else Different { approximant = subst_set_of_closures env set1 }
 ;;
 
+let rec_info_exprs _env rec_info_expr1 rec_info_expr2
+      : Rec_info_expr.t Comparison.t =
+  (* Rec_info expressions only ever have occurrences of local variables, so
+     we don't need to do any of this alpha-equivalence stuff *)
+  if Rec_info_expr.equal rec_info_expr1 rec_info_expr2
+    then Equivalent
+    else Different { approximant = rec_info_expr1 }
+;;
+
 let named_exprs env named1 named2 : Named.t Comparison.t =
   match (named1 : Named.t), (named2 : Named.t) with
   | Simple simple1, Simple simple2 ->
@@ -879,7 +896,15 @@ let named_exprs env named1 named2 : Named.t Comparison.t =
   | Set_of_closures set1, Set_of_closures set2 ->
     sets_of_closures env set1 set2
     |> Comparison.map ~f:Named.create_set_of_closures
-  | _, _ ->
+  | Rec_info rec_info_expr1, Rec_info rec_info_expr2 ->
+    rec_info_exprs env rec_info_expr1 rec_info_expr2
+    |> Comparison.map ~f:Named.create_rec_info
+  | Static_consts _static_consts1, Static_consts _static_consts2 ->
+    (* CR lmaurer: Oops. Use of a wildcard pattern left this case
+       unimplemented back when [Static_consts] was added. Remember, kids, don't
+       use catch-all cases. *)
+    assert false
+  | (Simple _ | Prim _ | Set_of_closures _ | Static_consts _ | Rec_info _), _ ->
     Different { approximant = subst_named env named1 }
 ;;
 

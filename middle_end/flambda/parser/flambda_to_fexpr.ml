@@ -494,6 +494,8 @@ and let_expr env le =
       Misc.fatal_error "TODO: dominator-scoped symbols"
     | Symbols { bound_symbols; scoping_rule = Syntactic } ->
       static_let_expr env bound_symbols defining_expr body
+    | Depth _dv ->
+      Misc.fatal_error "TODO: depth variables"
   )
 and dynamic_let_expr env vars (defining_expr : Flambda.Named.t) body
       : Fexpr.expr =
@@ -513,7 +515,7 @@ and dynamic_let_expr env vars (defining_expr : Flambda.Named.t) body
         List.map (fun decl : Fexpr.named -> Fexpr.Closure decl) fun_decls
       in
       defining_exprs, closure_elements
-    | Static_consts _ ->
+    | Static_consts _ | Rec_info _ ->
       assert false
   in
   if (List.compare_lengths vars defining_exprs <> 0) then

@@ -117,14 +117,14 @@ module Iter = struct
 
   and named let_expr (bindable_let_bound : Bindable_let_bound.t) f_c f_s n =
     match (n : Named.t) with
-    | Simple _ | Prim _ -> ()
+    | Simple _ | Prim _ | Rec_info _ -> ()
     | Set_of_closures s ->
         f_s ~closure_symbols:None s
     | Static_consts consts ->
       match bindable_let_bound with
       | Symbols { bound_symbols; _ } ->
         static_consts f_c f_s bound_symbols consts
-      | Singleton _ | Set_of_closures _ ->
+      | Singleton _ | Set_of_closures _ | Depth _ ->
         Misc.fatal_errorf "[Static_const] can only be bound to [Symbols]:@ %a"
           Let.print let_expr
 

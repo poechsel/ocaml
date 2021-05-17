@@ -32,7 +32,14 @@ type t =
         is decremented by [Succ] until it reaches zero, at which
         point all unrolling should stop. *)
 
+val initial : t
+val var : Depth_variable.t -> t
+val succ : t -> t
+val unroll_to : int -> t -> t
+
 val is_obviously_initial : t -> bool
+
+val equal : t -> t -> bool
 
 include Expr_std.S with type t := t
 

@@ -24,6 +24,7 @@ type simplified_named = private
   | Simple of Simple.t
   | Prim of Flambda_primitive.t * Debuginfo.t
   | Set_of_closures of Set_of_closures.t
+  | Rec_info of Rec_info_expr.t
 
 val to_named : simplified_named -> Named.t
 

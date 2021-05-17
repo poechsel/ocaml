@@ -59,6 +59,9 @@ let create_let uacc (bound_vars : BLB.t) defining_expr
             | Present name_mode, Present greatest_name_mode ->
               Name_mode.max_in_terms name_mode greatest_name_mode
               |> Name_mode.Or_absent.present)
+      | Depth _ ->
+        (* depth variables are never phantom *)
+        Name_mode.Or_absent.present Name_mode.normal
       | Symbols _ -> assert false  (* see below *)
     in
     let declared_name_mode = BLB.name_mode bound_vars in
@@ -91,6 +94,11 @@ let create_let uacc (bound_vars : BLB.t) defining_expr
       end;
       bound_vars, Some Name_mode.normal, Nothing_deleted_at_runtime
     end else begin
+      let is_depth =
+        match bound_vars with
+        | Depth _ -> true
+        | Singleton _ | Set_of_closures _ | Symbols _ -> false
+      in
       let has_uses = Name_mode.Or_absent.is_present greatest_name_mode in
       let user_visible =
         BLB.exists_all_bound_vars bound_vars ~f:(fun bound_var ->
@@ -101,7 +109,7 @@ let create_let uacc (bound_vars : BLB.t) defining_expr
            provenance info associated with the variable.  If there isn't, the
            [Let] can be deleted even if debugging information is being
            generated. *)
-        not (has_uses || (generate_phantom_lets && user_visible))
+        is_depth || not (has_uses || (generate_phantom_lets && user_visible))
       in
       if will_delete_binding then begin
         bound_vars, None, Defining_expr_deleted_at_runtime
@@ -181,7 +189,7 @@ let make_new_let_bindings uacc
         let defining_expr = Simplified_named.to_named defining_expr in
         let expr, uacc, creation_result =
           match (let_bound : Bindable_let_bound.t) with
-          | Singleton _ | Set_of_closures _ ->
+          | Singleton _ | Set_of_closures _ | Depth _ ->
             create_let uacc let_bound defining_expr
               ~free_names_of_defining_expr ~body:expr
               ~cost_metrics_of_defining_expr
@@ -209,6 +217,7 @@ let make_new_let_bindings uacc
                   uacc
               | Some (Simple _)
               | Some (Static_consts _)
+              | Some (Rec_info _)
               | None -> uacc
             end
         in

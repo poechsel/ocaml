@@ -91,6 +91,7 @@ and named_size ~find_code (named : Named.t) size =
   | Prim (prim, _dbg) ->
     size + (Code_size.prim prim |> Code_size.to_int)
   | Static_consts _ -> size
+  | Rec_info _ -> size
 and continuation_handler_size ~find_code handler size =
   Continuation_handler.pattern_match handler
     ~f:(fun _params ~handler -> expr_size ~find_code handler size)

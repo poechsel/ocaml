@@ -40,7 +40,7 @@ let record_any_symbol_projection dacc (defining_expr : Simplified_named.t)
     (not (DE.at_unit_toplevel (DA.denv dacc)))
       && match defining_expr with
          | Reachable { named = Prim _; _ } -> true
-         | Reachable { named = (Simple _ | Set_of_closures _); _ }
+         | Reachable { named = (Simple _ | Set_of_closures _ | Rec_info _); _ }
          | Invalid _ -> false
   in
   let proj =
@@ -305,6 +305,13 @@ let simplify_named0 dacc (bindable_let_bound : Bindable_let_bound.t)
        will create the "let symbol" binding when it sees the lifted
        constant. *)
     Simplify_named_result.have_simplified_to_zero_terms dacc
+  | Rec_info _ ->
+    (* We could simplify away things like [let depth x = y in ...], but those
+       don't actually happen (as of this writing). We could also do CSE,
+       though. *)
+    let defining_expr = Simplified_named.reachable named in
+    Simplify_named_result.have_simplified_to_single_term dacc
+      bindable_let_bound defining_expr ~original_defining_expr:named
 
 let removed_operations (named : Named.t) result =
   let descr = Simplify_named_result.descr result  in
@@ -322,7 +329,8 @@ let removed_operations (named : Named.t) result =
             zero
           | Invalid _
           | Reachable { named = Prim _; _ }
-          | Reachable {named = Simple _; _} ->
+          | Reachable {named = Simple _; _}
+          | Reachable { named = Rec_info _; _ }->
             assert false
         end
       | Zero_terms -> assert false
@@ -342,7 +350,8 @@ let removed_operations (named : Named.t) result =
             zero
           | Invalid _
           | Reachable { named = Set_of_closures _; _ }
-          | Reachable { named = Prim _; _ } ->
+          | Reachable { named = Prim _; _ }
+          | Reachable { named = Rec_info _; _ } ->
             assert false
         end
       | Zero_terms
@@ -362,9 +371,12 @@ let removed_operations (named : Named.t) result =
           | Reachable { named = Set_of_closures _; _}
           | Invalid _ ->
             Removed_operations.prim original_prim
+          | Reachable { named = Rec_info _; _ } ->
+            assert false
         end
       | Zero_terms | Multiple_bindings_to_symbols _ -> assert false
     end
+  | Rec_info _ -> zero
 
 let simplify_named dacc bindable_let_bound named ~simplify_toplevel =
   try

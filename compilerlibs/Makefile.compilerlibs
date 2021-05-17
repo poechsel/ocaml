@@ -248,11 +248,11 @@ MIDDLE_END_FLAMBDA_NAMING=\
   middle_end/flambda/naming/var_in_binding_pos.cmo \
   middle_end/flambda/naming/bindable.cmo \
   middle_end/flambda/terms/bound_symbols.cmo \
+  middle_end/flambda/naming/bindable_depth_variable.cmo \
   middle_end/flambda/naming/bindable_let_bound.cmo \
   middle_end/flambda/naming/bindable_continuation.cmo \
   middle_end/flambda/naming/bindable_exn_continuation.cmo \
   middle_end/flambda/naming/bindable_variable_in_types.cmo \
-  middle_end/flambda/naming/bindable_depth_variable.cmo \
   middle_end/flambda/naming/name_abstraction.cmo \
   middle_end/flambda/naming/name_in_binding_pos.cmo \
   middle_end/flambda/naming/bindable_variable_in_terms.cmo

@@ -31,6 +31,8 @@ type t = private
     (* CR mshinwell: Add comment regarding ordering, recursion, etc. *)
     (** Definition of one or more symbols representing statically-allocated
         constants (including sets of closures). *)
+  | Rec_info of Rec_info_expr.t
+    (** Definition of a state of recursive inlining. *)
 
 (** Printing, invariant checks, name manipulation, etc. *)
 include Expr_std.S with type t := t
@@ -50,6 +52,10 @@ val create_set_of_closures : Set_of_closures.t -> t
 (** Convert one or more statically-allocated constants into the defining
     expression of a [Let]. *)
 val create_static_consts : Static_const.Group.t -> t
+
+(** Convert one or more expressions for recursion state into the defining
+    expression of a [Let]. *)
+val create_rec_info : Rec_info_expr.t -> t
 
 (** Build an expression boxing the name.  The returned kind is the
     one of the unboxed version. *)
