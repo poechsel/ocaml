@@ -20,5 +20,5 @@
 (* *********************************** *)
 
 val filter_non_beneficial_decisions
-   : Unboxing_types.decision
-  -> Unboxing_types.decision
+  : Unboxing_types.decision
+ -> Unboxing_types.decision
