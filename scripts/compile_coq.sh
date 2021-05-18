@@ -1,4 +1,4 @@
-#!/bin/sh -e
+#!/bin/bash -e
 
 help() {
   echo "./compile-coq <compiler_path> <path_to_directory> [--opam opam] [-c|--compile-opam] [-r|--remove]"
@@ -10,7 +10,7 @@ help() {
   echo "                    Omitting this entry will result in using a temp dir."
   echo "[-c|--compile-opam] Compile and use the latest version of opam."
   echo "[--opam opam]       [opam] will be used as the opam command to execute."
-  echo "                    Usefull to specify a specific opam binary."
+  echo "                    Useful to specify a specific opam binary."
   echo "[-r|--remove]       Remove the destination directory after coq is compiled."
 }
 
@@ -66,6 +66,9 @@ fi
 # Setup the working environment
 mkdir -p $CWD
 OCAML_PATH=$CWD/ocaml
+# Export a custom OPAMROOT not to interfer with the user's existing opam
+# environment. All subsequent opam invocations will be done from an environment
+# setup in $CWD/.opam.
 export OPAMROOT=$CWD/.opam
 rm -rdf $OPAMROOT
 
