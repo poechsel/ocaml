@@ -42,8 +42,8 @@ let already_meeting_names t name1 name2 =
 
 let already_meeting t simple1 simple2 =
   let const _const = false in
-  Simple.pattern_match simple1 ~const ~name:(fun name1 ->
-    Simple.pattern_match simple2 ~const ~name:(fun name2 ->
+  Simple.pattern_match simple1 ~const ~name:(fun name1 ~coercion:_ ->
+    Simple.pattern_match simple2 ~const ~name:(fun name2 ~coercion:_ ->
       already_meeting_names t name1 name2))
 
 let now_meeting_names t name1 name2 =
@@ -62,8 +62,8 @@ let now_meeting_names t name1 name2 =
 
 let now_meeting t simple1 simple2 =
   let const _const = t in
-  Simple.pattern_match simple1 ~const ~name:(fun name1 ->
-    Simple.pattern_match simple2 ~const ~name:(fun name2 ->
+  Simple.pattern_match simple1 ~const ~name:(fun name1 ~coercion:_ ->
+    Simple.pattern_match simple2 ~const ~name:(fun name2 ~coercion:_ ->
       now_meeting_names t name1 name2))
 
 (* let with_typing_env t typing_env =

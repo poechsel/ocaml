@@ -949,7 +949,7 @@ let equation_is_directly_recursive name ty =
   | exception Not_found -> false
   | simple ->
     Simple.pattern_match simple
-      ~name:(fun name' -> Name.equal name name')
+      ~name:(fun name' ~coercion:_ -> Name.equal name name')
       ~const:(fun _ -> false)
 
 let check_equation name ty =

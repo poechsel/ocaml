@@ -530,25 +530,29 @@ module Simple = struct
 
   let [@inline always] pattern_match t ~name ~const =
     let flags = Id.flags t in
-    if flags = var_flags then (name [@inlined hint]) (Name.var t)
-    else if flags = symbol_flags then (name [@inlined hint]) (Name.symbol t)
+    if flags = var_flags then
+      (name [@inlined hint]) (Name.var t) ~coercion:Coercion.id
+    else if flags = symbol_flags then
+      (name [@inlined hint]) (Name.symbol t) ~coercion:Coercion.id
     else if flags = const_flags then (const [@inlined hint]) t
     else if flags = simple_flags then
-      let t = (find_data t).simple in
+      let { Simple_data.simple = t; coercion } = find_data t in
       let flags = Id.flags t in
-      if flags = var_flags then (name [@inlined hint]) (Name.var t)
-      else if flags = symbol_flags then (name [@inlined hint]) (Name.symbol t)
+      if flags = var_flags then (name [@inlined hint]) (Name.var t) ~coercion
+      else if flags = symbol_flags then
+        (name [@inlined hint]) (Name.symbol t) ~coercion
       else if flags = const_flags then (const [@inlined hint]) t
       else assert false
     else assert false
 
   let same t1 t2 =
-    let name n1 =
-      pattern_match t2 ~name:(fun n2 -> Name.equal n1 n2)
+    let name n1 ~coercion:co1 =
+      pattern_match t2
+        ~name:(fun n2 ~coercion:co2 -> Name.equal n1 n2 && Coercion.equal co1 co2)
         ~const:(fun _ -> false)
     in
     let const c1 =
-      pattern_match t2 ~name:(fun _ -> false)
+      pattern_match t2 ~name:(fun _ ~coercion:_ -> false)
         ~const:(fun c2 -> Const.equal c1 c2)
     in
     pattern_match t1 ~name ~const
@@ -566,7 +570,7 @@ module Simple = struct
     let print ppf t =
       let print ppf t =
         pattern_match t
-          ~name:(fun name -> Name.print ppf name)
+          ~name:(fun name ~coercion:_ -> Name.print ppf name)
           ~const:(fun cst -> Const.print ppf cst)
       in
       match coercion t with

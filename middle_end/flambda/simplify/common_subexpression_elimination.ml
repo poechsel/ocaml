@@ -120,7 +120,7 @@ let cse_with_eligible_lhs ~typing_env_at_fork ~cse_at_each_use ~params prev_cse
   let params = KP.List.name_set params in
   let is_param simple =
     Simple.pattern_match simple
-      ~name:(fun name -> Name.Set.mem name params)
+      ~name:(fun name ~coercion:_ -> Name.Set.mem name params)
       ~const:(fun _ -> false)
   in
   List.fold_left cse_at_each_use ~init:EP.Map.empty
@@ -351,7 +351,7 @@ let join0 ~typing_env_at_fork ~cse_at_fork ~cse_at_each_use ~params
         let propagate =
           Simple.pattern_match bound_to
             ~const:(fun _ -> true)
-            ~name:(fun name -> Name_occurrences.mem_name allowed name)
+            ~name:(fun name ~coercion:_ -> Name_occurrences.mem_name allowed name)
         in
         if not propagate then cse
         else begin

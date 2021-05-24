@@ -730,7 +730,7 @@ let binding_time_and_mode_of_simple t simple =
     ~const:(fun _ ->
       Binding_time.With_name_mode.create
         Binding_time.consts_and_discriminants Name_mode.normal)
-    ~name:(fun name -> binding_time_and_mode t name)
+    ~name:(fun name ~coercion:_ -> binding_time_and_mode t name)
 
 let mem ?min_name_mode t name =
   Name.pattern_match name
@@ -767,7 +767,7 @@ let mem ?min_name_mode t name =
 
 let mem_simple ?min_name_mode t simple =
   Simple.pattern_match simple
-    ~name:(fun name -> mem ?min_name_mode t name)
+    ~name:(fun name ~coercion:_ -> mem ?min_name_mode t name)
     ~const:(fun _ -> true)
 
 let with_current_level t ~current_level =
@@ -979,7 +979,7 @@ and add_equation t name ty =
     | exception Not_found -> ()
     | simple ->
       Simple.pattern_match simple
-        ~name:(fun name' ->
+        ~name:(fun name' ~coercion:_ ->
           if Name.equal name name' then begin
             Misc.fatal_errorf "Directly recursive equation@ %a = %a@ \
                 disallowed:@ %a"
@@ -1044,7 +1044,8 @@ and add_equation t name ty =
 
      Note also that [p] and [x] may have different name modes! *)
   let ty, t =
-    let [@inline always] name eqn_name =
+    let [@inline always] name eqn_name ~coercion:_ =
+      (* CR lmaurer: Coercion dropped! *)
       if Name.equal name eqn_name then ty, t
       else
         let env = Meet_env.create t in
@@ -1068,7 +1069,10 @@ and add_equation t name ty =
     | Bottom -> Type_grammar.bottom (Type_grammar.kind ty)
     | Ok ty -> ty
   in
-  let [@inline always] name name = add_equation0 t aliases name ty in
+  let [@inline always] name name ~coercion:_ =
+    (* [bare_lhs] has no coercion by its definition *)
+    add_equation0 t aliases name ty
+  in
   Simple.pattern_match bare_lhs ~name ~const:(fun _ -> t)
 
 and add_env_extension t (env_extension : Typing_env_extension.t) =
@@ -1221,7 +1225,8 @@ let type_simple_in_term_exn t ?min_name_mode simple =
         Binding_time.consts_and_discriminants,
         Name_mode.normal
     in
-    let [@inline always] name name =
+    let [@inline always] name name ~coercion:_ =
+      (* CR lmaurer: Coercion dropped! *)
       find_with_binding_time_and_mode t name None
     in
     Simple.pattern_match simple ~const ~name
@@ -1234,7 +1239,7 @@ let type_simple_in_term_exn t ?min_name_mode simple =
       ~const:(fun _ -> aliases_with_min_binding_time t)
       ~name:(fun name ->
         Name.pattern_match name
-          ~var:(fun var ->
+          ~var:(fun var ~coercion:_ ->
             let comp_unit = Variable.compilation_unit var in
             if Compilation_unit.equal comp_unit
                  (Compilation_unit.get_current_exn ())
@@ -1246,7 +1251,7 @@ let type_simple_in_term_exn t ?min_name_mode simple =
                 Misc.fatal_errorf "Error while looking up variable %a:@ \
                                    No corresponding .cmx file was found"
                   Variable.print var)
-          ~symbol:(fun _sym ->
+          ~symbol:(fun _sym ~coercion:_ ->
             (* Symbols can't alias, so lookup in the current aliases is fine *)
             aliases_with_min_binding_time t))
   in
@@ -1276,7 +1281,8 @@ let get_canonical_simple_exn t ?min_name_mode ?name_mode_of_existing_simple
     else
     Simple.pattern_match simple
       ~const:(fun _ -> aliases_with_min_binding_time t)
-      ~name:(fun name ->
+      ~name:(fun name ~coercion:_ ->
+        (* CR lmaurer: Coercion dropped! *)
         Name.pattern_match name
           ~var:(fun var ->
             let comp_unit = Variable.compilation_unit var in
@@ -1322,7 +1328,7 @@ let get_canonical_simple_exn t ?min_name_mode ?name_mode_of_existing_simple
     let in_types =
       Simple.pattern_match simple
         ~const:(fun _ -> false)
-        ~name:(fun name -> variable_is_from_missing_cmx_file t name)
+        ~name:(fun name ~coercion:_ -> variable_is_from_missing_cmx_file t name)
     in
     if in_types then Name_mode.in_types
     else

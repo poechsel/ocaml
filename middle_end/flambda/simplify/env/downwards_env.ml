@@ -483,7 +483,7 @@ let check_name_is_bound t name =
 
 let check_simple_is_bound t (simple : Simple.t) =
   Simple.pattern_match simple
-    ~name:(fun name -> check_name_is_bound t name)
+    ~name:(fun name ~coercion:_ -> check_name_is_bound t name)
     ~const:(fun _ -> ())
 
 let mem_code t code_id =

@@ -62,7 +62,7 @@ and named_size ~find_code (named : Named.t) size =
   | Simple simple ->
     Simple.pattern_match simple
       ~const:(fun _ -> size + 1)
-      ~name:(fun _ -> size)
+      ~name:(fun _ ~coercion:_ -> size)
   | Set_of_closures set_of_closures ->
     let func_decls = Set_of_closures.function_decls set_of_closures in
     let funs = Function_declarations.funs func_decls in

@@ -39,13 +39,17 @@ let const_one = const RWC.const_one
 let const_unit = const RWC.const_unit
 
 let [@inline always] is_var t =
-  pattern_match t ~name:Name.is_var ~const:(fun _ -> false)
+  pattern_match t
+    ~name:(fun name ~coercion:_ -> Name.is_var name)
+    ~const:(fun _ -> false)
 
 let [@inline always] is_symbol t =
-  pattern_match t ~name:Name.is_symbol ~const:(fun _ -> false)
+  pattern_match t
+    ~name:(fun name ~coercion:_ -> Name.is_symbol name)
+    ~const:(fun _ -> false)
 
 let [@inline always] is_const t =
-  pattern_match t ~name:(fun _ -> false) ~const:(fun _ -> true)
+  pattern_match t ~name:(fun _ ~coercion:_ -> false) ~const:(fun _ -> true)
 
 let pattern_match' t ~var ~symbol ~const =
   pattern_match t ~const
@@ -53,7 +57,7 @@ let pattern_match' t ~var ~symbol ~const =
 
 let const_from_descr descr = const (RWC.of_descr descr)
 
-let without_coercion t = pattern_match t ~name ~const
+let without_coercion t = pattern_match t ~name:(fun n ~coercion:_ -> name n) ~const
 
 let apply_coercion t applied_coercion =
   if Coercion.is_id applied_coercion then Some t
@@ -75,42 +79,36 @@ let apply_coercion_exn t applied_coercion =
    following *)
 
 let [@inline always] must_be_var t =
-  pattern_match t ~name:Name.must_be_var_opt ~const:(fun _ -> None)
+  pattern_match t
+    ~name:(fun name ~coercion ->
+        Name.must_be_var_opt name
+        |> Option.map (fun var -> var, coercion)
+      )
+    ~const:(fun _ -> None)
 
 let [@inline always] must_be_symbol t =
-  pattern_match t ~name:Name.must_be_symbol_opt ~const:(fun _ -> None)
+  pattern_match t
+    ~name:(fun name ~coercion ->
+        Name.must_be_symbol_opt name
+        |> Option.map (fun symbol -> symbol, coercion)
+      )
+    ~const:(fun _ -> None)
 
 let [@inline always] must_be_name t =
-  pattern_match t ~name:(fun name -> Some name) ~const:(fun _ -> None)
-
-let to_name t =
-  match must_be_name t with
-  | None -> None
-  | Some name -> Some (coercion t, name)
-
-let map_name t ~f =
-  match must_be_name t with
-  | None -> t
-  | Some old_name -> name (f old_name)
-
-let map_var t ~f =
-  match must_be_name t with
-  | None -> t
-  | Some old_name -> name (Name.map_var old_name ~f)
-
-let map_symbol t ~f =
-  match must_be_name t with
-  | None -> t
-  | Some old_name -> name (Name.map_symbol old_name ~f)
+  pattern_match t
+    ~name:(fun name ~coercion -> Some (name, coercion))
+    ~const:(fun _ -> None)
 
 let free_names t =
   pattern_match t
-    ~name:(fun name -> Name_occurrences.singleton_name name Name_mode.normal)
+    (* CR lmaurer: Need to change this once coercions have names in them *)
+    ~name:(fun name ~coercion:_ -> Name_occurrences.singleton_name name Name_mode.normal)
     ~const:(fun _ -> Name_occurrences.empty)
 
 let free_names_in_types t =
   pattern_match t
-    ~name:(fun name -> Name_occurrences.singleton_name name Name_mode.in_types)
+    (* CR lmaurer: Need to change this once coercions have names in them *)
+    ~name:(fun name ~coercion:_ -> Name_occurrences.singleton_name name Name_mode.in_types)
     ~const:(fun _ -> Name_occurrences.empty)
 
 let apply_renaming t perm =

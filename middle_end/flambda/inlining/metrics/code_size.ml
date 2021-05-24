@@ -378,7 +378,8 @@ let prim (prim : Flambda_primitive.t) =
   | Ternary (p, _, _, _) -> ternary_prim_size p
   | Variadic (p, args) -> variadic_prim_size p args
 
-let simple simple = Simple.pattern_match simple ~const:(fun _ -> 1) ~name:(fun _ -> 0)
+let simple simple =
+  Simple.pattern_match simple ~const:(fun _ -> 1) ~name:(fun _ ~coercion:_ -> 0)
 
 let static_consts _ = 0
 

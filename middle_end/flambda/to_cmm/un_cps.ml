@@ -103,15 +103,15 @@ let function_name simple =
   Simple.pattern_match simple
     ~name:(fun name ->
       Name.pattern_match name
-        ~var:(fun _ -> fail simple)
-        ~symbol:(fun sym -> symbol sym))
+        ~var:(fun _ ~coercion:_ -> fail simple)
+        ~symbol:(fun sym ~coercion:_ -> symbol sym))
     ~const:(fun _ -> fail simple)
 
 (* 'Simple' expression *)
 
 let simple env s =
   Simple.pattern_match s
-    ~name:(fun n -> name env n)
+    ~name:(fun n ~coercion:_ -> name env n)
     ~const:(fun c -> const env c, env, Ece.pure)
 
 (* Arithmetic primitives *)
@@ -1206,10 +1206,10 @@ and switch env res s =
 and match_var_with_extra_info env simple : Env.extra_info option =
   Simple.pattern_match simple
     ~const:(fun _ -> None)
-    ~name:(fun n ->
+    ~name:(fun n ~coercion:_ ->
       Name.pattern_match n
         ~symbol:(fun _ -> None)
-        ~var:(Env.extra_info env)
+        ~var:(fun var -> Env.extra_info env var)
     )
 
 (* Small function to estimate the number of arithmetic instructions

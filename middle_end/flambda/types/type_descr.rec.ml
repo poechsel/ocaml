@@ -171,7 +171,8 @@ module Make (Head : Type_head_intf.S
           in
           force_to_head ~force_to_kind typ
         in
-        let [@inline always] name name : _ Or_unknown_or_bottom.t =
+        let [@inline always] name name ~coercion:_ : _ Or_unknown_or_bottom.t =
+          (* CR lmaurer: Coercion dropped! *)
           let t = force_to_kind (TE.find env name (Some kind)) in
           match descr t with
           | No_alias Bottom -> Bottom
@@ -230,7 +231,9 @@ module Make (Head : Type_head_intf.S
   let add_equation _env (simple : Simple.t) ty env_extension =
     match Simple.must_be_name simple with
     (* CR mshinwell: Does this need to use some kind of [meet_equation]? *)
-    | Some name -> TEE.add_or_replace_equation env_extension name ty
+    | Some (name, _coercion) ->
+      (* CR lmaurer: Coercion dropped! *)
+      TEE.add_or_replace_equation env_extension name ty
     | None -> env_extension
 
   let all_aliases_of env simple_opt ~in_env =

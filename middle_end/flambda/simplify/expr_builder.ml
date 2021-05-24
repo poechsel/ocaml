@@ -401,13 +401,15 @@ let create_let_symbols uacc (scoping_rule : Symbol_scoping_rule.t)
           Simple.pattern_match' simple
             ~const:(fun _ ->
               Named.create_simple simple, Code_size.simple simple)
-            ~symbol:(fun _ ->
+            ~symbol:(fun _ ~coercion:_ ->
               Named.create_simple simple, Code_size.simple simple)
-            ~var:(fun var ->
+            ~var:(fun var ~coercion:_ ->
               match Variable.Map.find var symbol_projections with
               | exception Not_found ->
                 Named.create_simple simple, Code_size.simple simple
-              | proj -> apply_projection proj)
+              | proj ->
+                (* CR lmaurer: Coercion dropped? *)
+                apply_projection proj)
         | None ->
           let prim : P.t =
             let symbol = Simple.symbol (Symbol_projection.symbol proj) in

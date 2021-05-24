@@ -398,7 +398,7 @@ let invariant env t =
         let var = VB.var var in
         Simple.pattern_match simple
           ~const:(fun const -> E.add_variable env var (T.kind_for_const const))
-          ~name:(fun name -> E.add_variable env var (E.kind_of_name env name))
+          ~name:(fun name ~coercion:_ -> E.add_variable env var (E.kind_of_name env name))
       | Static_consts _, Symbols _ -> env
       | Static_consts _, Singleton _ ->
         Misc.fatal_errorf "Cannot bind a [Static_const] to a [Singleton]:@ %a"

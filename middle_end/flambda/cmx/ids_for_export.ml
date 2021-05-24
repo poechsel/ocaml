@@ -82,7 +82,7 @@ let add_simple t simple =
   let t = { t with simples; } in
   Simple.pattern_match simple
     ~const:(add_const t)
-    ~name:(add_name t)
+    ~name:(fun name ~coercion:_ -> add_name t name)
 
 let add_code_id t code_id =
   { t with code_ids = Code_id.Set.add code_id t.code_ids }
@@ -106,11 +106,11 @@ let from_simple simple =
         ())
     ~name:(fun name ->
       Name.pattern_match name
-        ~var:(fun var ->
+        ~var:(fun var ~coercion:_ ->
           create ~simples
             ~variables:(Variable.Set.singleton var)
             ())
-        ~symbol:(fun sym ->
+        ~symbol:(fun sym ~coercion:_ ->
           create ~simples
             ~symbols:(Symbol.Set.singleton sym)
             ()))

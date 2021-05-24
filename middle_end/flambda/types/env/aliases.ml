@@ -267,7 +267,7 @@ module Alias_set = struct
         let const = Some canonical_const in
         let names = alias_names_with_coercions_to_element in
         { const; names })
-      ~name:(fun canonical_name ->
+      ~name:(fun canonical_name ~coercion:_ ->
         let const = None in
         let names =
           Name.Map.add canonical_name coercion_from_canonical_to_element
@@ -279,7 +279,8 @@ module Alias_set = struct
     Simple.pattern_match simple
       ~const:(fun const ->
         { const = Some const; names = Name.Map.empty; })
-      ~name:(fun name ->
+      ~name:(fun name ~coercion:_ ->
+        (* CR lmaurer: Coercion dropped! *)
         { const = None; names = Name.Map.singleton name Coercion.id })
 
   let get_singleton { const; names; } =
@@ -427,10 +428,10 @@ let name_defined_earlier t alias ~than =
 let defined_earlier t alias ~than =
   Simple.pattern_match than
     ~const:(fun _ -> false)
-    ~name:(fun than ->
+    ~name:(fun than ~coercion:_ ->
       Simple.pattern_match alias
         ~const:(fun _ -> true)
-        ~name:(fun alias -> name_defined_earlier t alias ~than))
+        ~name:(fun alias ~coercion:_ -> name_defined_earlier t alias ~than))
 
 let binding_time_and_name_mode t elt =
   Simple.pattern_match elt
@@ -438,7 +439,7 @@ let binding_time_and_name_mode t elt =
       Binding_time.With_name_mode.create
         Binding_time.consts_and_discriminants
         Name_mode.normal)
-    ~name:(fun elt -> Name.Map.find elt t.binding_times_and_modes)
+    ~name:(fun elt ~coercion:_ -> Name.Map.find elt t.binding_times_and_modes)
 
 let name_mode_unscoped t elt =
   Binding_time.With_name_mode.name_mode (binding_time_and_name_mode t elt)
@@ -509,7 +510,8 @@ type canonical =
 let canonical t element : canonical =
   Simple.pattern_match element
     ~const:(fun _ -> Is_canonical)
-    ~name:(fun name ->
+    ~name:(fun name ~coercion:_ ->
+      (* CR lmaurer: Coercion dropped! *)
       match Name.Map.find name t.canonical_elements with
       | exception Not_found -> Is_canonical
       | canonical_element, coercion_to_canonical ->
@@ -519,7 +521,8 @@ let canonical t element : canonical =
         Alias_of_canonical { canonical_element; coercion_to_canonical; })
 
 let get_aliases_of_canonical_element t ~canonical_element =
-  let name name =
+  assert (not (Simple.has_coercion canonical_element));
+  let name name ~coercion:_ =
     Name.Map.find name t.aliases_of_canonical_names
   in
   let const const =
@@ -582,13 +585,14 @@ let add_alias_between_canonical_elements t ~canonical_element
         Coercion.print coercion_to_canonical
   end else
     let name_to_be_demoted =
+      assert (not (Simple.has_coercion to_be_demoted));
       Simple.pattern_match to_be_demoted
         ~const:(fun c ->
           Misc.fatal_errorf
             "Can't demote const %a@ (while adding alias to@ %a)"
           Const.print c
           Simple.print canonical_element)
-        ~name:(fun name -> name)
+        ~name:(fun name ~coercion:_ -> name)
     in
     let aliases_of_to_be_demoted =
       get_aliases_of_canonical_element t ~canonical_element:to_be_demoted
@@ -596,7 +600,8 @@ let add_alias_between_canonical_elements t ~canonical_element
     if !Clflags.flambda_invariant_checks then begin
       Simple.pattern_match canonical_element
         ~const:(fun _ -> ())
-        ~name:(fun canonical_element ->
+        ~name:(fun canonical_element ~coercion ->
+          assert (Coercion.is_id coercion);
           assert (not (Aliases_of_canonical_element.mem
             aliases_of_to_be_demoted canonical_element)))
     end;
@@ -636,8 +641,9 @@ let add_alias_between_canonical_elements t ~canonical_element
       Name.Map.remove name_to_be_demoted t.aliases_of_canonical_names
     in
     let aliases_of_canonical_names, aliases_of_consts =
+      assert (not (Simple.has_coercion canonical_element));
       Simple.pattern_match canonical_element
-        ~name:(fun name ->
+        ~name:(fun name ~coercion:_ ->
           Name.Map.add (* replace *) name aliases aliases_of_canonical_names,
           t.aliases_of_consts)
         ~const:(fun const ->
@@ -889,10 +895,10 @@ let add t ~element1:element1_with_coercion ~binding_time_and_mode1
         "Cannot alias an element to itself: %a" Simple.print element1
     end;
     Simple.pattern_match element1
-      ~name:(fun _ -> ())
+      ~name:(fun _ ~coercion:_ -> ())
       ~const:(fun const1 ->
         Simple.pattern_match element2
-          ~name:(fun _ -> ())
+          ~name:(fun _ ~coercion:_ -> ())
           ~const:(fun const2 ->
             Misc.fatal_errorf
               "Cannot add alias between two consts: %a, %a"
@@ -903,7 +909,7 @@ let add t ~element1:element1_with_coercion ~binding_time_and_mode1
   let add_if_name simple data map =
     Simple.pattern_match simple
       ~const:(fun _ -> map)
-      ~name:(fun name -> Name.Map.add name data map)
+      ~name:(fun name ~coercion:_ -> Name.Map.add name data map)
   in
   let t =
     { t with binding_times_and_modes =
@@ -922,7 +928,7 @@ let mem t element =
   Simple.pattern_match element
     ~const:(fun const ->
       Const.Map.mem const t.aliases_of_consts)
-    ~name:(fun name ->
+    ~name:(fun name ~coercion:_ ->
       Name.Map.mem name t.binding_times_and_modes)
 
   (* CR mshinwell: This needs documenting.  For the moment we allow

@@ -161,7 +161,7 @@ let free_names t =
     Name_occurrences.empty
   | Method { kind = _; obj; } ->
     Simple.pattern_match obj
-      ~name:(fun obj ->
+      ~name:(fun obj ~coercion:_ ->
         Name_occurrences.singleton_name obj Name_mode.normal)
       ~const:(fun _ -> Name_occurrences.empty)
 

@@ -234,7 +234,9 @@ let subst_name env n =
 let subst_simple env s =
   Simple.pattern_match s
     ~const:(fun _ -> s)
-    ~name:(fun n -> Simple.name (subst_name env n))
+    ~name:(fun n ~coercion:_ ->
+        (* CR lmaurer: Coercion dropped! *)
+        Simple.name (subst_name env n))
 ;;
 
 let subst_unary_primitive env (p : Flambda_primitive.unary_primitive)
@@ -652,9 +654,11 @@ let names env name1 name2 : Name.t Comparison.t =
 
 let simple_exprs env simple1 simple2 : Simple.t Comparison.t =
   Simple.pattern_match simple1
-    ~name:(fun name1 ->
+    ~name:(fun name1 ~coercion:_ ->
+      (* CR lmaurer: Coercion dropped! *)
       Simple.pattern_match simple2
-        ~name:(fun name2 ->
+        ~name:(fun name2 ~coercion:_ ->
+          (* CR lmaurer: Coercion dropped! *)
           names env name1 name2
           |> Comparison.map ~f:Simple.name
         )
@@ -664,7 +668,7 @@ let simple_exprs env simple1 simple2 : Simple.t Comparison.t =
     )
     ~const:(fun const1 ->
       Simple.pattern_match simple2
-        ~name:(fun _ -> Comparison.Different { approximant = simple1 })
+        ~name:(fun _ ~coercion:_ -> Comparison.Different { approximant = simple1 })
         ~const:(fun const2 : Simple.t Comparison.t ->
           if Reg_width_const.equal const1 const2
             then Equivalent

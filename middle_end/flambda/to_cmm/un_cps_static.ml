@@ -71,7 +71,7 @@ let const_static _env cst =
 
 let simple_static env s =
   Simple.pattern_match s
-    ~name:(fun n -> name_static env n)
+    ~name:(fun n ~coercion:_ -> name_static env n)
     ~const:(fun c -> env, `Data (const_static env c))
 
 let static_value env v =

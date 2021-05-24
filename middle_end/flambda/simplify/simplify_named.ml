@@ -56,10 +56,10 @@ let record_any_symbol_projection dacc (defining_expr : Simplified_named.t)
       | [closure] ->
         Simple.pattern_match' closure
           ~const:(fun _ -> None)
-          ~symbol:(fun symbol_projected_from ->
+          ~symbol:(fun symbol_projected_from ~coercion:_ ->
             Some (SP.create symbol_projected_from
               (SP.Projection.project_var project_from var)))
-          ~var:(fun _ -> None)
+          ~var:(fun _ ~coercion:_ -> None)
       | [] | _::_ ->
         Misc.fatal_errorf "Expected one argument:@ %a@ =@ %a"
           Bindable_let_bound.print bindable_let_bound
@@ -74,18 +74,18 @@ let record_any_symbol_projection dacc (defining_expr : Simplified_named.t)
             | Tagged_immediate imm ->
               Simple.pattern_match' block
                 ~const:(fun _ -> None)
-                ~symbol:(fun symbol_projected_from ->
+                ~symbol:(fun symbol_projected_from ~coercion:_ ->
                   let index = Target_imm.to_targetint imm in
                   Some (SP.create symbol_projected_from
                     (SP.Projection.block_load ~index)))
-                ~var:(fun _ -> None)
+                ~var:(fun _ ~coercion:_ -> None)
             | Naked_immediate _ | Naked_float _
             | Naked_int32 _ | Naked_int64 _ | Naked_nativeint _ ->
               Misc.fatal_errorf "Kind error for [Block_load] index:@ \
                   %a@ =@ %a"
                 Bindable_let_bound.print bindable_let_bound
                 Named.print named)
-          ~name:(fun _ -> None)
+          ~name:(fun _ ~coercion:_ -> None)
       | [] | _::_ ->
         Misc.fatal_errorf "Expected two arguments:@ %a@ =@ %a"
           Bindable_let_bound.print bindable_let_bound

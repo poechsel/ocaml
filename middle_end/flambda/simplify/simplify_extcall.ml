@@ -32,8 +32,8 @@ let fun_symbol simple =
   Simple.pattern_match simple
     ~name:(fun name ->
       Name.pattern_match name
-        ~var:(fun _ -> fail simple)
-        ~symbol:(fun sym -> sym))
+        ~var:(fun _ ~coercion:_ -> fail simple)
+        ~symbol:(fun sym ~coercion:_ -> sym))
     ~const:(fun _ -> fail simple)
 
 let apply_cont cont v ~dbg =

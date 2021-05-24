@@ -31,7 +31,8 @@ let simplify_field_of_block dacc (field : Field_of_block.t) =
     let ty = S.simplify_simple dacc (Simple.var var) ~min_name_mode in
     let simple = T.get_alias_exn ty in
     Simple.pattern_match simple
-      ~name:(fun name ->
+      ~name:(fun name ~coercion:_ ->
+        (* CR lmaurer: Coercion dropped! *)
         Name.pattern_match name
           ~var:(fun var -> Field_of_block.Dynamically_computed var, ty)
           ~symbol:(fun sym -> Field_of_block.Symbol sym, ty))

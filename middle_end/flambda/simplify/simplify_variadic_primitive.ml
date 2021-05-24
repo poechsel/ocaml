@@ -45,7 +45,10 @@ let simplify_make_block_of_values dacc _prim dbg tag ~shape
         end;
         Simple.pattern_match arg
           ~const:(fun _ -> arg_ty)
-          ~name:(fun name -> T.alias_type_of K.value (Simple.name name)))
+          ~name:(fun name ~coercion:_ ->
+              (* CR lmaurer: Coercion dropped! Though why not just [arg] rather
+                 than [Simple.name name]? *)
+              T.alias_type_of K.value (Simple.name name)))
       args_with_tys shape
   in
   if !found_bottom then begin
@@ -94,7 +97,10 @@ let simplify_make_block_of_floats dacc _prim dbg
         end;
         Simple.pattern_match arg
           ~const:(fun _ -> arg_ty)
-          ~name:(fun name -> T.alias_type_of K.naked_float (Simple.name name)))
+          ~name:(fun name ~coercion:_ ->
+              (* CR lmaurer: Coercion dropped! Though why not just [arg] rather
+                 than [Simple.name name]? *)
+              T.alias_type_of K.naked_float (Simple.name name)))
       args_with_tys
   in
   if !found_bottom then begin

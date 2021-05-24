@@ -165,7 +165,7 @@ module Simple : sig
      be sure we're not dropping coercions by accident. *)
   val pattern_match
      : t
-    -> name:(Name.t -> 'a)
+    -> name:(Name.t -> coercion:Coercion.t -> 'a)
     -> const:(Const.t -> 'a)
     -> 'a
 

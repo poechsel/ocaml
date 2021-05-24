@@ -139,7 +139,7 @@ let prove_equals_to_var_or_symbol_or_tagged_immediate env t
             Simple.print simple
             K.print original_kind
             print t)
-      ~name:(fun _ : _ proof ->
+      ~name:(fun _ ~coercion:_ : _ proof ->
         match
           Typing_env.get_canonical_simple_exn env simple
             ~min_name_mode:Name_mode.normal
@@ -160,7 +160,8 @@ let prove_equals_to_var_or_symbol_or_tagged_immediate env t
                   K.print kind
                   Simple.print simple
                   print t)
-            ~name:(fun name ->
+            ~name:(fun name ~coercion:_ ->
+              (* CR lmaurer: Coercion dropped? *)
               Name.pattern_match name
                 ~var:(fun var : var_or_symbol_or_tagged_immediate proof ->
                   Proved (Var var))

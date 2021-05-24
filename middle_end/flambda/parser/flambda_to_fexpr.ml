@@ -275,7 +275,8 @@ let const c : Fexpr.const =
 
 let simple env s =
   Simple.pattern_match s
-    ~name:(fun n : Fexpr.simple ->
+    (* CR lmaurer: Add coercions *)
+    ~name:(fun n ~coercion:_ : Fexpr.simple ->
       match name env n with
       | Var v -> Var v
       | Symbol s -> Symbol s
@@ -741,7 +742,7 @@ and cont_handler env cont_id h =
 and apply_expr env (app : Apply_expr.t) : Fexpr.expr =
   let func =
     Simple.pattern_match (Apply_expr.callee app)
-      ~name:(fun n -> name env n)
+      ~name:(fun n ~coercion:_ -> (* CR lmaurer: Add coercions *) name env n)
       ~const:(fun c ->
         Misc.fatal_errorf "Unexpected const as callee: %a"
           Reg_width_things.Const.print c

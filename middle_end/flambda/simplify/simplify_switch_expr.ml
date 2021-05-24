@@ -103,7 +103,7 @@ let rebuild_switch ~simplify_let dacc ~arms ~scrutinee ~scrutinee_ty uacc
                   normal_case ~identity_arms ~not_arms
               in
               Simple.pattern_match arg ~const
-                ~name:(fun _ -> normal_case ~identity_arms ~not_arms)
+                ~name:(fun _ ~coercion:_ -> normal_case ~identity_arms ~not_arms)
           end
         | New_wrapper (new_cont, new_handler, free_names_of_handler,
             cost_metrics_handler) ->

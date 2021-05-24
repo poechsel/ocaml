@@ -223,7 +223,7 @@ let check_name_is_bound t name =
 
 let check_simple_is_bound t (simple : Simple.t) =
   Simple.pattern_match simple
-    ~name:(fun name -> check_name_is_bound t name)
+    ~name:(fun name ~coercion:_ -> check_name_is_bound t name)
     ~const:(fun _ -> ())
 
 let check_simples_are_bound t simples =
@@ -249,7 +249,8 @@ let check_name_is_bound_and_of_kind t name desired_kind =
 
 let check_simple_is_bound_and_of_kind t (simple : Simple.t) desired_kind =
   Simple.pattern_match simple
-    ~name:(fun name -> check_name_is_bound_and_of_kind t name desired_kind)
+    ~name:(fun name ~coercion:_ ->
+        check_name_is_bound_and_of_kind t name desired_kind)
     ~const:(fun const ->
       let actual_kind = Reg_width_const.kind const in
       if not (Flambda_kind.equal actual_kind desired_kind)
@@ -295,7 +296,7 @@ let kind_of_name t name =
 
 let kind_of_simple t (simple : Simple.t) =
   Simple.pattern_match simple
-    ~name:(fun name -> kind_of_name t name)
+    ~name:(fun name ~coercion:_ -> kind_of_name t name)
     ~const:(fun const -> Reg_width_const.kind const)
 
 let kind_of_variable t var = kind_of_name t (Name.var var)

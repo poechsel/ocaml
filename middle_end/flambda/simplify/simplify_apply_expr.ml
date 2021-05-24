@@ -266,7 +266,8 @@ let simplify_direct_partial_application ~simplify_expr dacc apply
       List.fold_left (fun (expr, cost_metrics) (closure_var, arg) ->
           match Simple.must_be_var arg with
           | None -> expr, cost_metrics
-          | Some arg ->
+          | Some (arg, _coercion) ->
+            (* CR lmaurer: Coercion dropped! *)
             let arg = VB.create arg Name_mode.normal in
             let prim =
               P.Unary (Project_var {
