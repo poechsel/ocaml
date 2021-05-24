@@ -33,6 +33,7 @@ Error: This expression has type
        is not compatible with type < left : 'left0; right : 'right0 > pair
        The method left has type 'a, but the expected method type was 'left
        The universal variable 'left would escape its scope
+<<<<<<< HEAD
 |}, Principal{|
 Line 4, characters 6-7:
 4 | = fun x -> x
@@ -45,4 +46,6 @@ Error: This pattern matches values of type
        is not compatible with type < left : 'left0; right : 'right0 > pair
        The method left has type 'a, but the expected method type was 'left
        The universal variable 'left would escape its scope
+=======
+>>>>>>> ocaml/4.12
 |}]

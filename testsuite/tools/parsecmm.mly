@@ -133,7 +133,6 @@ let access_array base numelt size =
 %token NLEF
 %token NLTF
 %token OR
-%token <int> POINTER
 %token PROJ
 %token <Lambda.raise_kind> RAISE
 %token RBRACKET
@@ -214,7 +213,6 @@ expr:
     INTCONST    { Cconst_int ($1, debuginfo ()) }
   | FLOATCONST  { Cconst_float (float_of_string $1, debuginfo ()) }
   | STRING      { Cconst_symbol ($1, debuginfo ()) }
-  | POINTER     { Cconst_pointer ($1, debuginfo ()) }
   | IDENT       { Cvar(find_ident $1) }
   | LBRACKET RBRACKET { Ctuple [] }
   | LPAREN LET letdef sequence RPAREN { make_letdef $3 $4 }
@@ -223,12 +221,18 @@ expr:
   | LPAREN APPLY location expr exprlist machtype RPAREN
                 { Cop(Capply $6, $4 :: List.rev $5, debuginfo ?loc:$3 ()) }
   | LPAREN EXTCALL STRING exprlist machtype RPAREN
+<<<<<<< HEAD
                {Cop(Cextcall {
                  func = $3; ty = $5;
                  alloc = false; label_after = None;
                  returns = true;
                 }, List.rev $4, debuginfo ()) }
   | LPAREN ALLOC machtype exprlist RPAREN { Cop(Calloc, List.rev $4, debuginfo ()) }
+=======
+               {Cop(Cextcall($3, $5, [], false),
+                    List.rev $4, debuginfo ())}
+  | LPAREN ALLOC exprlist RPAREN { Cop(Calloc, List.rev $3, debuginfo ()) }
+>>>>>>> ocaml/4.12
   | LPAREN SUBF expr RPAREN { Cop(Cnegf, [$3], debuginfo ()) }
   | LPAREN SUBF expr expr RPAREN { Cop(Csubf, [$3; $4], debuginfo ()) }
   | LPAREN unaryop expr RPAREN { Cop($2, [$3], debuginfo ()) }

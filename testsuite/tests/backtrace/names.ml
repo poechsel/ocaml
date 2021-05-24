@@ -1,6 +1,9 @@
 (* TEST
    flags = "-g"
+<<<<<<< HEAD
    compare_programs = "false"
+=======
+>>>>>>> ocaml/4.12
  *)
 
 

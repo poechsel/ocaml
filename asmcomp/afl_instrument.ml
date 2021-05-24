@@ -91,8 +91,8 @@ and instrument = function
 
   (* these are base cases and have no logging *)
   | Cconst_int _ | Cconst_natint _ | Cconst_float _
-  | Cconst_symbol _ | Cconst_pointer _ | Cconst_natpointer _
-  | Cblockheader _ | Cvar _ as c -> c
+  | Cconst_symbol _
+  | Cvar _ as c -> c
 
 let instrument_function c dbg =
   with_afl_logging c dbg
@@ -103,9 +103,13 @@ let instrument_initialiser c dbg =
      calls *)
   with_afl_logging
     (Csequence
+<<<<<<< HEAD
        (Cop (Cextcall { func = "caml_setup_afl";
                         ty = typ_int; alloc = false;
                         label_after = None; returns = true; },
+=======
+       (Cop (Cextcall ("caml_setup_afl", typ_int, [], false),
+>>>>>>> ocaml/4.12
              [Cconst_int (0, dbg ())],
              dbg ()),
         c))

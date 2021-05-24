@@ -179,7 +179,7 @@ module Variance = struct
     if b then v lor single x else  v land (lnot (single x))
   let mem x = subset (single x)
   let null = 0
-  let may_inv = 7
+  let unknown = 7
   let full = 127
   let covariant = single May_pos lor single Pos lor single Inj
   let swap f1 f2 v =
@@ -187,6 +187,9 @@ module Variance = struct
   let conjugate v = swap May_pos May_neg (swap Pos Neg v)
   let get_upper v = (mem May_pos v, mem May_neg v)
   let get_lower v = (mem Pos v, mem Neg v, mem Inv v, mem Inj v)
+  let unknown_signature ~injective ~arity =
+    let v = if injective then set Inj true unknown else unknown in
+    Misc.replicate_list v arity
 end
 
 module Separability = struct
@@ -212,7 +215,7 @@ module Separability = struct
 
   let default_signature ~arity =
     let default_mode = if Config.flat_float_array then Deepsep else Ind in
-    List.init arity (fun _ -> default_mode)
+    Misc.replicate_list default_mode arity
 end
 
 (* Type definitions *)
@@ -436,9 +439,14 @@ let equal_tag t1 t2 =
       Path.same path1 path2 && b1 = b2
   | (Cstr_constant _|Cstr_block _|Cstr_unboxed|Cstr_extension _), _ -> false
 
-let may_equal_constr c1 c2 = match c1.cstr_tag,c2.cstr_tag with
-| Cstr_extension _,Cstr_extension _ -> c1.cstr_arity = c2.cstr_arity
-| tag1,tag2 -> equal_tag tag1 tag2
+let may_equal_constr c1 c2 =
+  c1.cstr_arity = c2.cstr_arity
+  && (match c1.cstr_tag,c2.cstr_tag with
+     | Cstr_extension _,Cstr_extension _ ->
+         (* extension constructors may be rebindings of each other *)
+         true
+     | tag1, tag2 ->
+         equal_tag tag1 tag2)
 
 type label_description =
   { lbl_name: string;                   (* Short name *)

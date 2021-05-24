@@ -20,12 +20,32 @@ open Location
 module Scoped_location = struct
   type scope_item =
     | Sc_anonymous_function
+<<<<<<< HEAD
     | Sc_value_definition of string
     | Sc_module_definition of string
     | Sc_class_definition of string
     | Sc_method_definition of string
 
   type scopes = scope_item list
+=======
+    | Sc_value_definition
+    | Sc_module_definition
+    | Sc_class_definition
+    | Sc_method_definition
+
+  type scopes =
+    | Empty
+    | Cons of {item: scope_item; str: string; str_fun: string}
+
+  let str_fun = function
+    | Empty -> "(fun)"
+    | Cons r -> r.str_fun
+
+  let cons item str =
+    Cons {item; str; str_fun = str ^ ".(fun)"}
+
+  let empty_scopes = Empty
+>>>>>>> ocaml/4.12
 
   let add_parens_if_symbolic = function
     | "" -> ""
@@ -34,6 +54,7 @@ module Scoped_location = struct
        | 'a'..'z' | 'A'..'Z' | '_' | '0'..'9' -> s
        | _ -> "(" ^ s ^ ")"
 
+<<<<<<< HEAD
   let string_of_scope_item = function
     | Sc_anonymous_function ->
        "(fun)"
@@ -74,6 +95,38 @@ module Scoped_location = struct
     Sc_class_definition (Ident.name id) :: scopes
   let enter_method_definition ~scopes (m : Asttypes.label) =
     Sc_method_definition m :: scopes
+=======
+  let dot ?(sep = ".") scopes s =
+    let s = add_parens_if_symbolic s in
+    match scopes with
+    | Empty -> s
+    | Cons {str; _} -> str ^ sep ^ s
+
+  let enter_anonymous_function ~scopes =
+    let str = str_fun scopes in
+    Cons {item = Sc_anonymous_function; str; str_fun = str}
+
+  let enter_value_definition ~scopes id =
+    cons Sc_value_definition (dot scopes (Ident.name id))
+
+  let enter_module_definition ~scopes id =
+    cons Sc_module_definition (dot scopes (Ident.name id))
+
+  let enter_class_definition ~scopes id =
+    cons Sc_class_definition (dot scopes (Ident.name id))
+
+  let enter_method_definition ~scopes (s : Asttypes.label) =
+    let str =
+      match scopes with
+      | Cons {item = Sc_class_definition; _} -> dot ~sep:"#" scopes s
+      | _ -> dot scopes s
+    in
+    cons Sc_method_definition str
+
+  let string_of_scopes = function
+    | Empty -> "<unknown>"
+    | Cons {str; _} -> str
+>>>>>>> ocaml/4.12
 
   type t =
     | Loc_unknown

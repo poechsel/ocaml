@@ -86,10 +86,12 @@ libraries. They are linked with the program.
 The output of the linking phase is a regular Unix or Windows
 executable file. It does not need "ocamlrun" to run.
 
-%  The following two paragraphs are a duplicate from the description of the batch compiler.
+The compiler is able to emit some information on its internal stages:
 
-The compiler is able to emit some information on its internal stages.
-It can output ".cmt" files for the implementation of the compilation unit
+\begin{itemize}
+\item
+%  The following two paragraphs are a duplicate from the description of the batch compiler.
+".cmt" files for the implementation of the compilation unit
 and ".cmti" for signatures if the option "-bin-annot" is passed to it (see the
 description of "-bin-annot" below).
 Each such file contains a typed abstract syntax tree (AST), that is produced
@@ -98,6 +100,18 @@ about the location and the specific type of each term in the source file.
 The AST is partial if type checking was unsuccessful.
 
 These ".cmt" and ".cmti" files are typically useful for code inspection tools.
+
+\item
+".cmir-linear" files for the implementation of the compilation unit
+if the option "-save-ir-after scheduling" is passed to it.
+Each such file contains a low-level intermediate representation,
+produced by the instruction scheduling pass.
+
+An external tool can perform low-level optimisations,
+such as code layout, by transforming a ".cmir-linear" file.
+To continue compilation, the compiler can be invoked with (a possibly modified)
+".cmir-linear" file as an argument, instead of the corresponding source file.
+\end{itemize}
 
 \section{s:native-options}{Options}
 
@@ -113,12 +127,13 @@ exclusive.
 % compilers and toplevel
 \input{unified-options.tex}
 
-\paragraph{Options for the IA32 architecture}
-The IA32 code generator (Intel Pentium, AMD Athlon) supports the
+\paragraph{Options for the 32-bit x86 architecture}
+The 32-bit code generator for Intel/AMD x86 processors ("i386"
+architecture) supports the
 following additional option:
 
 \begin{options}
-\item["-ffast-math"] Use the IA32 instructions to compute
+\item["-ffast-math"] Use the processor instructions to compute
 trigonometric and exponential functions, instead of calling the
 corresponding library routines.  The functions affected are:
 "atan", "atan2", "cos", "log", "log10", "sin", "sqrt" and "tan".
@@ -128,9 +143,9 @@ trigonometric operations "cos", "sin", "tan" have their range reduced to
 $[-2^{64}, 2^{64}]$.
 \end{options}
 
-\paragraph{Options for the AMD64 architecture}
-The AMD64 code generator (64-bit versions of Intel Pentium and AMD
-Athlon) supports the following additional options:
+\paragraph{Options for the 64-bit x86 architecture}
+The 64-bit code generator for Intel/AMD x86 processors ("amd64"
+architecture) supports the following additional options:
 
 \begin{options}
 \item["-fPIC"] Generate position-independent machine code.  This is
@@ -219,8 +234,8 @@ until the next heap allocation.
   beneficial, but produces floating-point results that differ slightly
   from those produced by the bytecode interpreter.
 
-\item On IA32 processors only (Intel and AMD x86 processors in 32-bit
-mode), some intermediate results in floating-point computations are
+\item On Intel/AMD x86 processors in 32-bit mode,
+some intermediate results in floating-point computations are
 kept in extended precision rather than being rounded to double
 precision like the bytecode compiler always does.  Floating-point
 results can therefore differ slightly between bytecode and native code.

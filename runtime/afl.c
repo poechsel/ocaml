@@ -15,7 +15,12 @@
 /* Runtime support for afl-fuzz */
 #include "caml/config.h"
 
-#if !defined(HAS_SYS_SHM_H)
+/* Values used by the instrumentation logic (see cmmgen.ml) */
+static unsigned char afl_area_initial[1 << 16];
+unsigned char* caml_afl_area_ptr = afl_area_initial;
+uintnat caml_afl_prev_loc;
+
+#if !defined(HAS_SYS_SHM_H) || !defined(HAS_SHMAT)
 
 #include "caml/mlvalues.h"
 
@@ -49,11 +54,6 @@ static int afl_initialised = 0;
 /* afl uses abnormal termination (SIGABRT) to check whether
    to count a testcase as "crashing" */
 extern int caml_abort_on_uncaught_exn;
-
-/* Values used by the instrumentation logic (see cmmgen.ml) */
-static unsigned char afl_area_initial[1 << 16];
-unsigned char* caml_afl_area_ptr = afl_area_initial;
-uintnat caml_afl_prev_loc;
 
 /* File descriptors used to synchronise with afl-fuzz */
 #define FORKSRV_FD_READ 198
