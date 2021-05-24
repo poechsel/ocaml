@@ -279,9 +279,8 @@ module Alias_set = struct
     Simple.pattern_match simple
       ~const:(fun const ->
         { const = Some const; names = Name.Map.empty; })
-      ~name:(fun name ~coercion:_ ->
-        (* CR lmaurer: Coercion dropped! *)
-        { const = None; names = Name.Map.singleton name Coercion.id })
+      ~name:(fun name ~coercion ->
+        { const = None; names = Name.Map.singleton name coercion })
 
   let get_singleton { const; names; } =
     match const with
@@ -510,15 +509,24 @@ type canonical =
 let canonical t element : canonical =
   Simple.pattern_match element
     ~const:(fun _ -> Is_canonical)
-    ~name:(fun name ~coercion:_ ->
-      (* CR lmaurer: Coercion dropped! *)
+    ~name:(fun name ~coercion:coercion_from_bare_element_to_element ->
       match Name.Map.find name t.canonical_elements with
       | exception Not_found -> Is_canonical
-      | canonical_element, coercion_to_canonical ->
+      | canonical_element, coercion_from_bare_element_to_canonical ->
+        let coercion_from_element_to_bare_element =
+          Coercion.inverse coercion_from_bare_element_to_element
+        in
+        let coercion_from_element_to_canonical =
+          Coercion.compose_exn
+            coercion_from_element_to_bare_element
+            ~then_:coercion_from_bare_element_to_canonical
+        in
         if !Clflags.flambda_invariant_checks then begin
           assert (not (Simple.equal element canonical_element))
         end;
-        Alias_of_canonical { canonical_element; coercion_to_canonical; })
+        Alias_of_canonical
+          { canonical_element;
+            coercion_to_canonical = coercion_from_element_to_canonical; })
 
 let get_aliases_of_canonical_element t ~canonical_element =
   assert (not (Simple.has_coercion canonical_element));

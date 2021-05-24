@@ -175,21 +175,31 @@ Aliases of x/40: ((const ()) (names {(y/41 (depth 1 -> 0)) (x/40 id)})
 [added] x/42 (In_types) <--[(depth 3 -> 0)]-- t/45
 
 Canonical for x/42: x/42
+Canonical for x/42
 ... with mode >= Phantom: (coerce z/44 (depth 2 -> 0))
 ...           >= In_types: x/42
 ...           >= Normal: (coerce t/45 (depth 3 -> 0))
 
 Canonical for y/43: (coerce x/42 (depth 0 -> 1))
+Canonical for y/43
 ... with mode >= Phantom: (coerce z/44 (depth 2 -> 1))
 ...           >= In_types: (coerce x/42 (depth 0 -> 1))
 ...           >= Normal: (coerce t/45 (depth 3 -> 1))
 
 Canonical for z/44: (coerce x/42 (depth 0 -> 2))
+Canonical for z/44
 ... with mode >= Phantom: z/44
 ...           >= In_types: (coerce x/42 (depth 0 -> 2))
 ...           >= Normal: (coerce t/45 (depth 3 -> 2))
 
+Canonical for z/44: (coerce x/42 (depth 0 -> 2))
+Canonical for (coerce z/44 (depth 2 -> 4))
+... with mode >= Phantom: (coerce z/44 (depth 2 -> 4))
+...           >= In_types: (coerce x/42 (depth 0 -> 4))
+...           >= Normal: (coerce t/45 (depth 3 -> 4))
+
 Canonical for t/45: (coerce x/42 (depth 0 -> 3))
+Canonical for t/45
 ... with mode >= Phantom: (coerce z/44 (depth 2 -> 3))
 ...           >= In_types: (coerce x/42 (depth 0 -> 3))
 ...           >= Normal: t/45
@@ -202,6 +212,12 @@ Aliases of z/44: ((const ())
                   (names
                    {(y/43 (depth 1 -> 2)) (x/42 (depth 0 -> 2))
                     (t/45 (depth 3 -> 2)) (z/44 id)})
+Aliases of (coerce z/44 (depth 2 -> 4)): ((const ())
+                                          (names
+                                           {(y/43 (depth 1 -> 4))
+                                            (x/42 (depth 0 -> 4))
+                                            (t/45 (depth 3 -> 4))
+                                            (z/44 (depth 2 -> 4))})
 
 ((canonical_elements
   {(y/43 (x/42 (coercion (depth 1 -> 0))))

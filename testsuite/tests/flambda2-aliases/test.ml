@@ -550,6 +550,7 @@ let () = test "three aliases (one inverse) /w modes" ~f:(fun ppf ->
   let y = Simple.var v_y in
   let z = Simple.var v_z in
   let t = Simple.var v_t in
+  let z' = Simple.with_coercion z (mk_coercion 2 4) in
   (* x <--[f]-- y
      +
      z <--[g]-- t
@@ -590,21 +591,26 @@ let () = test "three aliases (one inverse) /w modes" ~f:(fun ppf ->
       ~binding_time_and_mode2:t_t
   in
   let show_canonicals simple var mode =
+    (* CR lmaurer: This is a bit awkward because [Aliases] happens to lack a
+       function for the canonical of a general [Simple.t] ignoring name
+       modes. *)
     Format.fprintf ppf
       "@.Canonical for %a: %a@.\
+       Canonical for %a@.\
        ... with mode >= Phantom: %a@.\
        ...           >= In_types: %a@.\
        ...           >= Normal: %a@.\
       "
-      Simple.print simple
+      Variable.print var
       Simple.print
        (Aliases.get_canonical_ignoring_name_mode aliases (Name.var var))
-       (pp_opt_or_none Simple.print)
-         (get_canonical aliases simple mode ~min_name_mode:Name_mode.phantom)
-       (pp_opt_or_none Simple.print)
-         (get_canonical aliases simple mode ~min_name_mode:Name_mode.in_types)
-       (pp_opt_or_none Simple.print)
-         (get_canonical aliases simple mode ~min_name_mode:Name_mode.normal)
+      Simple.print simple
+      (pp_opt_or_none Simple.print)
+        (get_canonical aliases simple mode ~min_name_mode:Name_mode.phantom)
+      (pp_opt_or_none Simple.print)
+        (get_canonical aliases simple mode ~min_name_mode:Name_mode.in_types)
+      (pp_opt_or_none Simple.print)
+        (get_canonical aliases simple mode ~min_name_mode:Name_mode.normal)
   in
   let show_aliases simple =
     Format.fprintf ppf "@.Aliases of %a: %a"
@@ -614,9 +620,11 @@ let () = test "three aliases (one inverse) /w modes" ~f:(fun ppf ->
   show_canonicals x v_x Name_mode.in_types;
   show_canonicals y v_y Name_mode.in_types;
   show_canonicals z v_z Name_mode.phantom;
+  show_canonicals z' v_z Name_mode.phantom;
   show_canonicals t v_t Name_mode.normal;
   show_aliases x;
   show_aliases z;
+  show_aliases z';
   Format.fprintf ppf "@.@.%a" Aliases.print aliases)
 
 let () = print_endline "OK."
