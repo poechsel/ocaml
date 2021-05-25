@@ -34,11 +34,7 @@ endif
 include stdlib/StdlibModules
 
 CAMLC=$(BOOT_OCAMLC) -g -nostdlib -I boot -use-prims runtime/primitives
-<<<<<<< HEAD
-CAMLOPT=$(CAMLRUN) ./ocamlopt -g -nostdlib -I stdlib -I otherlibs/dynlink
-=======
 CAMLOPT=$(CAMLRUN) ./ocamlopt$(EXE) -g -nostdlib -I stdlib -I otherlibs/dynlink
->>>>>>> ocaml/4.12
 ARCHES=amd64 i386 arm arm64 power s390x riscv
 INCLUDES=-I utils -I parsing -I typing -I bytecomp -I file_formats \
         -I lambda -I middle_end -I middle_end/closure \
@@ -742,11 +738,7 @@ ilambdac.opt: compilerlibs/ocamlcommon.cmxa compilerlibs/ocamloptcomp.cmxa \
 	$(CAMLOPT_CMD) $(LINKFLAGS) -o $@ $^
 
 partialclean::
-<<<<<<< HEAD
-	rm -f ocamlopt.opt ocamlopt-memtrace.opt ilambdac.opt
-=======
-	rm -f ocamlopt.opt$(EXE)
->>>>>>> ocaml/4.12
+	rm -f ocamlopt.opt$(EXE) ocamlopt-memtrace.opt ilambdac.opt
 
 # The predefined exceptions and primitives
 
@@ -825,13 +817,8 @@ clean::
 
 otherlibs_all := bigarray dynlink \
   str systhreads unix win32unix
-<<<<<<< HEAD
 subdirs := debugger lex ocamldoc ocamltest runtime stdlib tools \
   memprof/memtrace $(addprefix otherlibs/, $(otherlibs_all)) \
-=======
-subdirs := debugger lex ocamldoc ocamltest stdlib tools \
-  $(addprefix otherlibs/, $(otherlibs_all)) \
->>>>>>> ocaml/4.12
 
 .PHONY: alldepend
 alldepend: depend
