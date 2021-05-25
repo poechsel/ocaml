@@ -378,9 +378,9 @@ let binary_float_comp_primitive_yielding_int _env dbg x y =
 let unary_primitive env dbg f arg =
   match (f : Flambda_primitive.unary_primitive) with
   | Duplicate_array _ ->
-    None, C.extcall ~alloc:true ~returns:true "caml_obj_dup" typ_val [arg]
+    None, C.extcall ~alloc:true ~returns:true ~ty_args:[] "caml_obj_dup" typ_val [arg]
   | Duplicate_block _ ->
-    None, C.extcall ~alloc:true ~returns:true "caml_obj_dup" typ_val [arg]
+    None, C.extcall ~alloc:true ~returns:true ~ty_args:[] "caml_obj_dup" typ_val [arg]
   | Is_int ->
     None, C.and_ ~dbg arg (C.int ~dbg 1)
   | Get_tag ->
@@ -410,6 +410,7 @@ let unary_primitive env dbg f arg =
        between different register kinds (e.g. integer to XMM registers
        on x86-64). *)
     None, C.extcall ~alloc:false ~returns:true
+      ~ty_args:[C.exttype_of_kind Flambda_kind.naked_int64]
       "caml_int64_float_of_bits_unboxed"
       typ_float
       [arg]
@@ -844,7 +845,7 @@ and let_cont_exn env res k body vars handle id arity =
     C.trywith
       ~dbg:Debuginfo.none
       ~kind:(Delayed id)
-      ~body ~exn_var ~handler
+      ~body ~exn_var ~handler ()
   in
   wrap_let_cont_exn_body trywith extra_vars, res
 
@@ -965,7 +966,7 @@ and apply_call env e =
       in
       C.indirect_full_call ~dbg ty f args, env, effs
     end
-  | Call_kind.C_call { alloc; return_arity; _ } ->
+  | Call_kind.C_call { alloc; return_arity; param_arity; _ } ->
     let f = function_name f in
     (* CR vlaviron: temporary hack to recover the right symbol *)
     let len = String.length f in
@@ -976,7 +977,8 @@ and apply_call env e =
     let args, env, _ = arg_list env args in
     let ty = machtype_of_return_arity return_arity in
     let wrap = wrap_extcall_result return_arity in
-    wrap dbg (C.extcall ~dbg ~alloc ~returns f ty args), env, effs
+    let ty_args = List.map C.exttype_of_kind param_arity in
+    wrap dbg (C.extcall ~dbg ~alloc ~returns ~ty_args f ty args), env, effs
   | Call_kind.Method { kind; obj; } ->
     let obj, env, _ = simple env obj in
     let meth, env, _ = simple env f in

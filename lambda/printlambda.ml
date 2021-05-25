@@ -479,6 +479,7 @@ let name_of_primitive = function
   | Pbbswap _ -> "Pbbswap"
   | Pint_as_pointer -> "Pint_as_pointer"
   | Popaque -> "Popaque"
+  | Pisout -> "Pisout"
 
 let function_attribute ppf { inline; specialise; local; is_a_functor; stub } =
   if is_a_functor then

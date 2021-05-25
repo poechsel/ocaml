@@ -194,7 +194,7 @@ let transform_primitive env (prim : L.primitive) args loc =
       { ap_func = funct;
         ap_args = [arg];
         ap_loc = loc;
-        ap_should_be_tailcall = false;
+        ap_tailcall = Default_tailcall;
         (* CR-someday lwhite: it would be nice to be able to give
            inlined attributes to functions applied with the application
            operators. *)
@@ -337,7 +337,7 @@ let rec cps_non_tail env (lam : L.lambda) (k : Ident.t -> Ilambda.t)
       k id
   | Lconst const ->
     name_then_cps_non_tail "const" (I.Simple (Const const)) k k_exn
-  | Lapply { ap_func; ap_args; ap_loc; ap_should_be_tailcall; ap_inlined;
+  | Lapply { ap_func; ap_args; ap_loc; ap_tailcall; ap_inlined;
       ap_specialised; } ->
     cps_non_tail_list env ap_args (fun args ->
       cps_non_tail env ap_func (fun func ->
@@ -356,7 +356,7 @@ let rec cps_non_tail env (lam : L.lambda) (k : Ident.t -> Ilambda.t)
           exn_continuation;
           args;
           loc = ap_loc;
-          should_be_tailcall = ap_should_be_tailcall;
+          tailcall = ap_tailcall;
           inlined = ap_inlined;
           specialised = ap_specialised;
         } in
@@ -542,7 +542,7 @@ let rec cps_non_tail env (lam : L.lambda) (k : Ident.t -> Ilambda.t)
             exn_continuation;
             args;
             loc;
-            should_be_tailcall = false;
+            tailcall = Default_tailcall;
             inlined = Default_inline;
             specialised = Default_specialise;
           } in
@@ -688,7 +688,7 @@ and cps_tail env (lam : L.lambda) (k : Continuation.t) (k_exn : Continuation.t)
           exn_continuation;
           args;
           loc = apply.ap_loc;
-          should_be_tailcall = apply.ap_should_be_tailcall;
+          tailcall = apply.ap_tailcall;
           inlined = apply.ap_inlined;
           specialised = apply.ap_specialised;
         } in
@@ -855,7 +855,7 @@ and cps_tail env (lam : L.lambda) (k : Continuation.t) (k_exn : Continuation.t)
             exn_continuation;
             args;
             loc;
-            should_be_tailcall = false;
+            tailcall = Default_tailcall;
             inlined = Default_inline;
             specialised = Default_specialise;
           } in

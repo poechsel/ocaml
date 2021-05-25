@@ -798,7 +798,8 @@ let direct_apply env fundesc ufunct uargs ~loc ~attribute =
   then app
   else Usequence(ufunct, app)
 
-(* Add [Value_integer] info to the approximation of an application *)
+(* Add [Value_integer] or [Value_constptr] info to the approximation
+   of an application *)
 
 let strengthen_approx appl approx =
   match approx_ulam appl with
@@ -806,7 +807,7 @@ let strengthen_approx appl approx =
       intapprox
   | _ -> approx
 
-(* If a term has approximation Value_integer and is pure,
+(* If a term has approximation Value_integer or Value_constptr and is pure,
    replace it by an integer constant *)
 
 let check_constant_result ulam approx =
@@ -943,14 +944,12 @@ let rec close ({ backend; fenv; cenv ; mutable_vars } as env) lam =
                kind = Curried;
                return = Pgenval;
                params = List.map (fun v -> v, Pgenval) final_args;
-               body = Lapply{
-                 ap_loc=loc;
-                 ap_func=(Lvar funct_var);
-                 ap_args=internal_args;
-                 ap_tailcall=Default_tailcall;
-                 ap_inlined=Default_inline;
-                 ap_specialised=Default_specialise;
-               };
+               body = Lapply{ap_loc=loc;
+                             ap_func=(Lvar funct_var);
+                             ap_args=internal_args;
+                             ap_tailcall=Default_tailcall;
+                             ap_inlined=Default_inline;
+                             ap_specialised=Default_specialise};
                loc;
                attr = default_function_attribute})
         in
@@ -1071,15 +1070,12 @@ let rec close ({ backend; fenv; cenv ; mutable_vars } as env) lam =
       close env arg
   | Lprim(Pdirapply,[funct;arg], loc)
   | Lprim(Prevapply,[arg;funct], loc) ->
-      close env
-        (Lapply{
-           ap_loc=loc;
-           ap_func=funct;
-           ap_args=[arg];
-           ap_tailcall=Default_tailcall;
-           ap_inlined=Default_inline;
-           ap_specialised=Default_specialise;
-         })
+      close env       (Lapply{ap_loc=loc;
+                              ap_func=funct;
+                              ap_args=[arg];
+                              ap_tailcall=Default_tailcall;
+                              ap_inlined=Default_inline;
+                              ap_specialised=Default_specialise})
   | Lprim(Pgetglobal id, [], loc) ->
       let dbg = Debuginfo.from_location loc in
       check_constant_result (getglobal dbg id)
