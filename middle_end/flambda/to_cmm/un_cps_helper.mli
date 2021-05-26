@@ -27,7 +27,7 @@ val arch64 : bool
 val typ_int64 : Cmm.machtype
 (** An adequate Cmm machtype for an int64 (including on a 32-bit target). *)
 
-val  exttype_of_kind : Flambda_kind.t -> Cmm.exttype
+val exttype_of_kind : Flambda_kind.t -> Cmm.exttype
 
 (** {2 Data items} *)
 

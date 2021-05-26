@@ -17,8 +17,8 @@
 open Cmm_helpers
 module P = Flambda_primitive
 
-let unsupported_32_bits () = 
-  Misc.fatal_errorf "32 bits is currently unsupported in Flambda." 
+let unsupported_32_bits () =
+  Misc.fatal_errorf "32 bits is currently unsupported in Flambda."
 
 (* Are we compiling on/for a 32-bit architecture ? *)
 let arch32 = Arch.size_int = 4
@@ -39,7 +39,7 @@ let exttype_of_kind k =
     | Thirty_two -> Cmm.XInt32
     | Sixty_four -> Cmm.XInt64
     end
-  | Fabricated -> Misc.fatal_error "[Fabricated] king not expected here"
+  | Fabricated -> Misc.fatal_error "[Fabricated] kind not expected here"
 
 (* Void *)
 

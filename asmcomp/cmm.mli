@@ -182,6 +182,9 @@ and operation =
         ty_args : exttype list;
         alloc : bool;
         returns : bool; }
+  (** The [machtype] is the machine type of the result.
+      The [exttype list] describes the unboxing types of the arguments.
+      An empty list means "all arguments are machine words [XInt]". *)
   | Cload of memory_chunk * Asttypes.mutable_flag
   | Calloc
   | Cstore of memory_chunk * Lambda.initialization_or_assignment
