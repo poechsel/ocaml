@@ -51,5 +51,5 @@ let ()  =
     while !sz >= 0 do push big l; sz += Sys.max_string_length done;
     while !sz <= 0 do push big l; sz += Sys.max_string_length done;
     try ignore (String.concat "" !l); assert false
-    with Invalid_argument _ -> ()
+    with Invalid_argument _ -> ();
   end

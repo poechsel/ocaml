@@ -160,7 +160,9 @@ let rec static_set_of_closures env symbs set prev_update =
       (List.map fst (Var_within_closure.Map.bindings elts))
   in
   let env, l, updates, length =
-    fill_static_layout clos_symb symbs decls elts env [] prev_update 0 layout.slots
+    fill_static_layout
+      clos_symb symbs decls layout.startenv
+      elts env [] prev_update 0 layout.slots
   in
   let block =
     match l with
@@ -178,16 +180,16 @@ let rec static_set_of_closures env symbs set prev_update =
   in
   env, block, updates
 
-and fill_static_layout s symbs decls elts env acc updates i = function
+and fill_static_layout s symbs decls startenv elts env acc updates i = function
   | [] -> env, List.rev acc, updates, i
   | (j, slot) :: r ->
       let acc = fill_static_up_to j acc i in
       let env, acc, offset, updates =
-        fill_static_slot s symbs decls elts env acc j updates slot
+        fill_static_slot s symbs decls startenv elts env acc j updates slot
       in
-      fill_static_layout s symbs decls elts env acc updates offset r
+      fill_static_layout s symbs decls startenv elts env acc updates offset r
 
-and fill_static_slot s symbs decls elts env acc offset updates slot =
+and fill_static_slot s symbs decls startenv elts env acc offset updates slot =
   match (slot : Un_cps_closure.layout_slot) with
   | Infix_header ->
       let field = C.cint (C.infix_header (offset + 1)) in
@@ -216,11 +218,11 @@ and fill_static_slot s symbs decls elts env acc offset updates slot =
       let code_name = Linkage_name.to_string (Symbol.linkage_name code_symbol) in
       let acc = List.rev (C.define_symbol ~global:true external_name) @ acc in
       let arity = Env.get_func_decl_params_arity env decl in
-      let tagged_arity = arity * 2 + 1 in
+      let closure_info = C.closure_info ~arity ~startenv:(startenv - offset) in
       (* We build here the **reverse** list of fields for the closure *)
       if arity = 1 || arity = 0 then begin
         let acc =
-          C.cint (Nativeint.of_int tagged_arity) ::
+          C.cint closure_info ::
           C.symbol_address code_name ::
           acc
         in
@@ -228,7 +230,7 @@ and fill_static_slot s symbs decls elts env acc offset updates slot =
       end else begin
         let acc =
           C.symbol_address code_name ::
-          C.cint (Nativeint.of_int tagged_arity) ::
+          C.cint closure_info ::
           C.symbol_address (C.curry_function_sym arity) ::
           acc
         in
@@ -290,7 +292,7 @@ let static_const0 env r ~updates ~params_and_body
       let name = symbol s in
       let tag = Tag.Scannable.to_int tag in
       let block_name = name, Cmmgen_state.Global in
-      let header = C.block_header tag (List.length fields) in
+      let header = C.black_block_header tag (List.length fields) in
       let env, static_fields =
         List.fold_right
           (fun v (env, static_fields) ->
@@ -432,7 +434,7 @@ let static_consts env r ~params_and_body bound_symbols static_consts =
        fully_static). *)
     let roots =
       if Static_const.Group.is_fully_static static_consts then []
-      else Symbol.Set.elements (Bound_symbols.being_defined bound_symbols)
+      else Bound_symbols.gc_roots bound_symbols
     in
     let r = R.add_gc_roots r roots in
     static_consts0 env r ~params_and_body bound_symbols static_consts

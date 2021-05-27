@@ -92,24 +92,18 @@ let rec live env i finally =
      before the instruction sequence.
      The instruction i is annotated by the set of registers live across
      the instruction. *)
-  let arg =
-    if Config.spacetime
-      && Mach.spacetime_node_hole_pointer_is_live_before i
-    then Array.append i.arg [| Proc.loc_spacetime_node_hole |]
-    else i.arg
-  in
   match i.desc with
     Iend ->
       i.live <- finally;
       finally
-  | Ireturn _ | Iop(Itailcall_ind _) | Iop(Itailcall_imm _) ->
+  | Ireturn _ | Iop(Itailcall_ind) | Iop(Itailcall_imm _) ->
       i.live <- Reg.Set.empty; (* no regs are live across *)
-      Reg.set_of_array arg
+      Reg.set_of_array i.arg
   | Iop op ->
       let after = live env i.next finally in
       if Proc.op_is_pure op                    (* no side effects *)
       && Reg.disjoint_set_array after i.res    (* results are not used after *)
-      && not (Proc.regs_are_volatile arg)      (* no stack-like hard reg *)
+      && not (Proc.regs_are_volatile i.arg)    (* no stack-like hard reg *)
       && not (Proc.regs_are_volatile i.res)    (*            is involved *)
       then begin
         (* This operation is dead code.  Ignore its arguments. *)
@@ -122,8 +116,8 @@ let rec live env i finally =
           | Iextcall { returns = false; _ } ->
               (* extcalls that never return can raise an exception *)
               env.at_raise
-          | Icall_ind _ | Icall_imm _ | Iextcall _ | Ialloc _
-          | Iintop (Icheckbound _) | Iintop_imm(Icheckbound _, _) ->
+          | Icall_ind | Icall_imm _ | Iextcall _ | Ialloc _
+          | Iintop (Icheckbound) | Iintop_imm(Icheckbound, _) ->
               (* The function call may raise an exception, branching to the
                  nearest enclosing try ... with. Similarly for bounds checks
                  and allocation (for the latter: finalizers may throw
@@ -134,7 +128,7 @@ let rec live env i finally =
            | _ ->
                across_after in
         i.live <- across;
-        Reg.add_set_array across arg
+        Reg.add_set_array across i.arg
       end
   | Iifthenelse(_test, ifso, ifnot) ->
       let at_join = live env i.next finally in
@@ -142,7 +136,7 @@ let rec live env i finally =
         Reg.Set.union (live env ifso at_join) (live env ifnot at_join)
       in
       i.live <- at_fork;
-      Reg.add_set_array at_fork arg
+      Reg.add_set_array at_fork i.arg
   | Iswitch(_index, cases) ->
       let at_join = live env i.next finally in
       let at_fork = ref Reg.Set.empty in
@@ -150,7 +144,7 @@ let rec live env i finally =
         at_fork := Reg.Set.union !at_fork (live env cases.(i) at_join)
       done;
       i.live <- !at_fork;
-      Reg.add_set_array !at_fork arg
+      Reg.add_set_array !at_fork i.arg
   | Icatch(rec_flag, ts, handlers, body) ->
       let at_join = live (env_from_trap_stack env ts) i.next finally in
       let aux env (nfail, ts, handler) (nfail', before_handler) =
@@ -229,18 +223,13 @@ let rec live env i finally =
       before_body
   | Iraise _ ->
       i.live <- env.at_raise;
-      Reg.add_set_array env.at_raise arg
+      Reg.add_set_array env.at_raise i.arg
 
 let fundecl f =
   reset_cache ();
   let initially_live = live (initial_env f) f.fun_body Reg.Set.empty in
-  (* Sanity check: only function parameters (and the Spacetime node hole
-     register, if profiling) can be live at entrypoint *)
+  (* Sanity check: only function parameters can be live at entrypoint *)
   let wrong_live = Reg.Set.diff initially_live (Reg.set_of_array f.fun_args) in
-  let wrong_live =
-    if not Config.spacetime then wrong_live
-    else Reg.Set.remove Proc.loc_spacetime_node_hole wrong_live
-  in
   if not (Reg.Set.is_empty wrong_live) then begin
     Misc.fatal_errorf "@[Liveness.fundecl:@\n%a@]"
       Printmach.regset wrong_live

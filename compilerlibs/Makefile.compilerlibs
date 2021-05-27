@@ -26,12 +26,13 @@
 
 UTILS=utils/config.cmo utils/build_path_prefix_map.cmo utils/misc.cmo \
 	utils/identifiable.cmo utils/numbers.cmo utils/arg_helper.cmo \
-	utils/clflags.cmo utils/profile.cmo utils/load_path.cmo \
+	utils/clflags.cmo utils/profile.cmo utils/local_store.cmo \
+	utils/load_path.cmo \
 	utils/terminfo.cmo utils/ccomp.cmo utils/warnings.cmo \
 	utils/consistbl.cmo utils/strongly_connected_components.cmo \
         utils/one_bit_fewer.cmo \
 	utils/targetint.cmo utils/int_replace_polymorphic_compare.cmo \
-	utils/domainstate.cmo utils/printing_cache.cmo \
+	utils/domainstate.cmo utils/binutils.cmo utils/printing_cache.cmo \
         utils/lmap.cmo
 UTILS_CMI=
 
@@ -59,7 +60,7 @@ TYPING=typing/ident.cmo typing/path.cmo \
   typing/tast_iterator.cmo typing/tast_mapper.cmo typing/stypes.cmo \
   file_formats/cmt_format.cmo typing/cmt2annot.cmo typing/untypeast.cmo \
   typing/includemod.cmo typing/typetexp.cmo typing/printpat.cmo \
-  typing/parmatch.cmo \
+  typing/patterns.cmo typing/parmatch.cmo \
   typing/typedecl_properties.cmo typing/typedecl_variance.cmo \
   typing/typedecl_unboxed.cmo typing/typedecl_immediacy.cmo \
   typing/typedecl_separability.cmo \
@@ -105,11 +106,6 @@ BYTECOMP=bytecomp/instruct.cmo bytecomp/bytegen.cmo \
   driver/errors.cmo driver/compile.cmo driver/maindriver.cmo
 BYTECOMP_CMI=
 
-ARCH_SPECIFIC =\
-  asmcomp/arch.ml asmcomp/proc.ml asmcomp/CSE.ml asmcomp/selection.ml \
-  asmcomp/scheduling.ml asmcomp/reload.ml
-ARCH_SPECIFIC_CMI=
-
 INTEL_ASM=\
   asmcomp/x86_proc.cmo \
   asmcomp/x86_dsl.cmo \
@@ -119,6 +115,7 @@ INTEL_ASM_CMI=\
   asmcomp/x86_ast.cmi
 
 ARCH_SPECIFIC_ASMCOMP=
+ARCH_SPECIFIC_ASMCOMP_CMI=
 ifeq ($(ARCH),i386)
 ARCH_SPECIFIC_ASMCOMP=$(INTEL_ASM)
 ARCH_SPECIFIC_ASMCOMP_CMI=$(INTEL_ASM_CMI)
@@ -151,7 +148,7 @@ ASMCOMP=\
   $(ASMCOMP_FLAMBDA) \
   asmcomp/interval.cmo \
   asmcomp/printmach.cmo asmcomp/selectgen.cmo \
-  asmcomp/spacetime_profiling.cmo asmcomp/selection.cmo \
+  asmcomp/selection.cmo \
   asmcomp/comballoc.cmo \
   asmcomp/CSEgen.cmo asmcomp/CSE.cmo \
   asmcomp/liveness.cmo \
@@ -161,6 +158,7 @@ ASMCOMP=\
   asmcomp/reloadgen.cmo asmcomp/reload.cmo \
   asmcomp/deadcode.cmo \
   asmcomp/linear.cmo asmcomp/printlinear.cmo asmcomp/linearize.cmo \
+  file_formats/linear_format.cmo \
   asmcomp/debug/available_regs.cmo \
   asmcomp/debug/compute_ranges_intf.cmo \
   asmcomp/debug/compute_ranges.cmo \
@@ -430,8 +428,8 @@ OPTTOPLEVEL=toplevel/genprintval.cmo toplevel/opttoploop.cmo \
 OPTTOPLEVEL_CMI=
 
 
-$(COMMON:.cmo=.cmx) $(BYTECOMP:.cmo=.cmx) $(OPTCOMP:.cmo=.cmx): ocamlopt
-$(OPTTOPLEVEL:.cmo=.cmx): ocamlopt
+$(COMMON:.cmo=.cmx) $(BYTECOMP:.cmo=.cmx) $(OPTCOMP:.cmo=.cmx): ocamlopt$(EXE)
+$(OPTTOPLEVEL:.cmo=.cmx): ocamlopt$(EXE)
 
 
 compilerlibs/ocamlcommon.cma: $(COMMON_CMI) $(COMMON)

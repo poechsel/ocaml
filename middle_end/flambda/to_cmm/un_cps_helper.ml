@@ -17,8 +17,8 @@
 open Cmm_helpers
 module P = Flambda_primitive
 
-let unsupported_32_bits () = 
-  Misc.fatal_errorf "32 bits is currently unsupported in Flambda." 
+let unsupported_32_bits () =
+  Misc.fatal_errorf "32 bits is currently unsupported in Flambda."
 
 (* Are we compiling on/for a 32-bit architecture ? *)
 let arch32 = Arch.size_int = 4
@@ -28,11 +28,23 @@ let arch64 = Arch.size_int = 8
 let typ_int64 =
   if arch32 then [| Cmm.Int; Cmm.Int |] else [| Cmm.Int |]
 
+let exttype_of_kind k =
+  match (k  : Flambda_kind.t) with
+  | Value -> Cmm.XInt
+  | Naked_number Naked_float -> Cmm.XFloat
+  | Naked_number Naked_int64 -> Cmm.XInt64
+  | Naked_number Naked_int32 -> Cmm.XInt32
+  | Naked_number (Naked_immediate | Naked_nativeint) ->
+    begin match Targetint.num_bits with
+    | Thirty_two -> Cmm.XInt32
+    | Sixty_four -> Cmm.XInt64
+    end
+  | Fabricated -> Misc.fatal_error "[Fabricated] kind not expected here"
 
 (* Void *)
 
 let void = Cmm.Ctuple []
-let unit ~dbg = Cmm.Cconst_pointer (1, dbg)
+let unit ~dbg = Cmm.Cconst_int (1, dbg)
 
 (* Data items *)
 
@@ -73,6 +85,9 @@ let int32 ?(dbg=Debuginfo.none) i =
      when cross-compiling for 64-bit on a 32-bit host *)
 let int64 ?(dbg=Debuginfo.none) i =
   natint_const_untagged dbg (Int64.to_nativeint i)
+
+let nativeint ?(dbg=Debuginfo.none) i =
+  natint_const_untagged dbg i
 
 let targetint ?(dbg=Debuginfo.none) t =
   match Targetint.repr t with
@@ -202,10 +217,11 @@ let load ?(dbg=Debuginfo.none) kind mut addr =
 let store ?(dbg=Debuginfo.none) kind init addr value =
   Cmm.Cop (Cmm.Cstore (kind, init), [addr; value], dbg)
 
-let extcall ?(dbg=Debuginfo.none) ?label ~returns ~alloc name typ_res args =
+let extcall ?(dbg=Debuginfo.none) ~returns ~alloc ~ty_args name typ_res
+  args =
   if not returns then assert (typ_res = Cmm.typ_void);
   Cmm.Cop (Cextcall  { func = name; ty = typ_res;
-                       alloc; label_after = label; returns; }, args, dbg)
+                       alloc; ty_args; returns; }, args, dbg)
 
 
 (* Arithmetic helpers *)
@@ -251,7 +267,7 @@ let make_array ?(dbg=Debuginfo.none) kind args =
       begin match args with
       | [] -> static_atom ~dbg 0
       | _ ->
-          extcall ~dbg ~alloc:true ~returns:true
+          extcall ~dbg ~alloc:true ~returns:true ~ty_args:[]
             "caml_make_array" Cmm.typ_val
             [make_alloc dbg 0 args]
       end
@@ -466,7 +482,7 @@ let bigarray_store ?(dbg=Debuginfo.none) _dims kind _layout ba offset v =
 
 (* try-with blocks *)
 
-let trywith ?(dbg=Debuginfo.none) ~kind ~body ~exn_var ~handler =
+let trywith ?(dbg=Debuginfo.none) ~kind ~body ~exn_var ~handler () =
   Cmm.Ctrywith (body, kind, exn_var, handler, dbg)
 
 let raise_kind (kind : Trap_action.raise_kind option) : Lambda.raise_kind =

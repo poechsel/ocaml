@@ -120,6 +120,13 @@ module Pattern = struct
       in
       Ids_for_export.create ~symbols ()
     | Block_like symbol -> Ids_for_export.singleton_symbol symbol
+
+  let gc_roots t =
+    match t with
+    | Code _ -> []
+    | Set_of_closures closure_symbols ->
+      [ List.hd (Closure_id.Lmap.data closure_symbols) ]
+    | Block_like s -> [ s ]
 end
 
 type t = Pattern.t list
@@ -188,3 +195,5 @@ let all_ids_for_export t =
   |> Ids_for_export.union_list
 
 let concat t1 t2 = t1 @ t2
+
+let gc_roots t = List.map Pattern.gc_roots t |> List.concat

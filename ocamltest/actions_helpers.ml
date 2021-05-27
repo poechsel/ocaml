@@ -62,14 +62,25 @@ let files env = words_of_variable env Builtin_variables.files
 
 let setup_symlinks test_source_directory build_directory files =
   let symlink filename =
+    (* Emulate ln -sfT *)
     let src = Filename.concat test_source_directory filename in
-    let cmd = "ln -sf " ^ src ^" " ^ build_directory in
-    Sys.run_system_command cmd in
+    let dst = Filename.concat build_directory filename in
+    let () =
+      if Sys.file_exists dst then
+        if Sys.win32 && Sys.is_directory dst then
+          (* Native symbolic links to directories don't disappear with unlink;
+             doing rmdir here is technically slightly more than ln -sfT would
+             do *)
+          Sys.rmdir dst
+        else
+          Sys.remove dst
+    in
+      Unix.symlink src dst in
   let copy filename =
     let src = Filename.concat test_source_directory filename in
     let dst = Filename.concat build_directory filename in
     Sys.copy_file src dst in
-  let f = if Sys.os_type="Win32" then copy else symlink in
+  let f = if Unix.has_symlink () then symlink else copy in
   Sys.make_directory build_directory;
   List.iter f files
 
@@ -122,7 +133,7 @@ let run_cmd
   in
   let lst = List.concat (List.map String.words cmd) in
   let quoted_lst =
-    if Sys.os_type="Win32"
+    if Sys.win32
     then List.map Filename.maybe_quote lst
     else lst in
   let cmd' = String.concat " " quoted_lst in
@@ -140,17 +151,29 @@ let run_cmd
       environment
       (Environments.to_system_env env)
   in
-  Run_command.run {
-    Run_command.progname = progname;
-    Run_command.argv = arguments;
-    Run_command.envp = systemenv;
-    Run_command.stdin_filename = stdin_filename;
-    Run_command.stdout_filename = stdout_filename;
-    Run_command.stderr_filename = stderr_filename;
-    Run_command.append = append;
-    Run_command.timeout = timeout;
-    Run_command.log = log
-  }
+  let n =
+    Run_command.run {
+      Run_command.progname = progname;
+      Run_command.argv = arguments;
+      Run_command.envp = systemenv;
+      Run_command.stdin_filename = stdin_filename;
+      Run_command.stdout_filename = stdout_filename;
+      Run_command.stderr_filename = stderr_filename;
+      Run_command.append = append;
+      Run_command.timeout = timeout;
+      Run_command.log = log
+    }
+  in
+  let dump_file s fn =
+    if not (Sys.file_is_empty fn) then begin
+      Printf.fprintf log "### begin %s ###\n" s;
+      Sys.dump_file log fn;
+      Printf.fprintf log "### end %s ###\n" s
+    end
+  in
+  dump_file "stdout" stdout_filename;
+  if stdout_filename <> stderr_filename then dump_file "stderr" stderr_filename;
+  n
 
 let run
     (log_message : string)

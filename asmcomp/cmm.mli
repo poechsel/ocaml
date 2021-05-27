@@ -82,6 +82,17 @@ val ge_component
   -> machtype_component
   -> bool
 
+type exttype =
+  | XInt                                (**r OCaml value, word-sized integer *)
+  | XInt32                              (**r 32-bit integer *)
+  | XInt64                              (**r 64-bit integer  *)
+  | XFloat                              (**r double-precision FP number  *)
+(** A variant of [machtype] used to describe arguments
+    to external C functions *)
+
+val machtype_of_exttype: exttype -> machtype
+val machtype_of_exttype_list: exttype list -> machtype
+
 type integer_comparison = Lambda.integer_comparison =
   | Ceq | Cne | Clt | Cgt | Cle | Cge
 
@@ -96,6 +107,8 @@ val swap_float_comparison: float_comparison -> float_comparison
 
 type label = int
 val new_label: unit -> label
+val set_label: label -> unit
+val cur_label: unit -> label
 
 type exit_label =
   | Return_lbl
@@ -164,9 +177,14 @@ type memory_chunk =
 and operation =
     Capply of machtype
   | Cextcall of
-      { func : string; ty : machtype;
-        alloc : bool ; label_after : label option;
+      { func : string;
+        ty : machtype;
+        ty_args : exttype list;
+        alloc : bool;
         returns : bool; }
+  (** The [machtype] is the machine type of the result.
+      The [exttype list] describes the unboxing types of the arguments.
+      An empty list means "all arguments are machine words [XInt]". *)
   | Cload of memory_chunk * Asttypes.mutable_flag
   | Calloc
   | Cstore of memory_chunk * Lambda.initialization_or_assignment
@@ -193,9 +211,6 @@ and expression =
   | Cconst_natint of nativeint * Debuginfo.t
   | Cconst_float of float * Debuginfo.t
   | Cconst_symbol of string * Debuginfo.t
-  | Cconst_pointer of int * Debuginfo.t
-  | Cconst_natpointer of nativeint * Debuginfo.t
-  | Cblockheader of nativeint * Debuginfo.t
   | Cvar of Backend_var.t
   | Clet of Backend_var.With_provenance.t * expression * expression
   | Clet_mut of Backend_var.With_provenance.t * machtype

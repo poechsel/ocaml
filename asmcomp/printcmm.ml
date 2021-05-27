@@ -39,6 +39,21 @@ let machtype ppf mty =
            fprintf ppf "*%a" machtype_component mty.(i)
          done
 
+let exttype ppf = function
+  | XInt -> fprintf ppf "int"
+  | XInt32 -> fprintf ppf "int32"
+  | XInt64 -> fprintf ppf "int64"
+  | XFloat -> fprintf ppf "float"
+
+let extcall_signature ppf (ty_res, ty_args) =
+  begin match ty_args with
+  | [] -> ()
+  | ty_arg1 :: ty_args ->
+      exttype ppf ty_arg1;
+      List.iter (fun ty -> fprintf ppf ",%a" exttype ty) ty_args
+  end;
+  fprintf ppf "->%a" machtype ty_res
+
 let integer_comparison = function
   | Ceq -> "=="
   | Cne -> "!="
@@ -123,7 +138,7 @@ let trywith_kind ppf kind =
 
 let operation d = function
   | Capply _ty -> "app" ^ location d
-  | Cextcall { func = lbl; ty = _; alloc = _; label_after = _; returns = _; } ->
+  | Cextcall { func = lbl; ty = _; alloc = _; ty_args = _; returns = _; } ->
       Printf.sprintf "extcall \"%s\"%s" lbl (location d)
   | Cload (c, Asttypes.Immutable) -> Printf.sprintf "load %s" (chunk c)
   | Cload (c, Asttypes.Mutable) -> Printf.sprintf "load_mut %s" (chunk c)
@@ -168,13 +183,8 @@ let rec expr ppf = function
   | Cconst_int (n, _dbg) -> fprintf ppf "%i" n
   | Cconst_natint (n, _dbg) ->
     fprintf ppf "%s" (Nativeint.to_string n)
-  | Cblockheader(n, d) ->
-    fprintf ppf "block-hdr(%s)%s"
-      (Nativeint.to_string n) (location d)
   | Cconst_float (n, _dbg) -> fprintf ppf "%F" n
   | Cconst_symbol (s, _dbg) -> fprintf ppf "\"%s\"" s
-  | Cconst_pointer (n, _dbg) -> fprintf ppf "%ia" n
-  | Cconst_natpointer (n, _dbg) -> fprintf ppf "%sa" (Nativeint.to_string n)
   | Cvar id -> V.print ppf id
   | Clet(id, def, (Clet(_, _, _) as body)) ->
       let print_binding id ppf def =
@@ -231,7 +241,7 @@ let rec expr ppf = function
       List.iter (fun e -> fprintf ppf "@ %a" expr e) el;
       begin match op with
       | Capply mty -> fprintf ppf "@ %a" machtype mty
-      | Cextcall { func = _; ty = mty; alloc = _; label_after = _; returns = _; } ->
+      | Cextcall { func = _; ty = mty; alloc = _; ty_args = _; returns = _; } ->
         fprintf ppf "@ %a" machtype mty
       | _ -> ()
       end;

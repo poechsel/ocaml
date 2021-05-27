@@ -378,9 +378,9 @@ let binary_float_comp_primitive_yielding_int _env dbg x y =
 let unary_primitive env dbg f arg =
   match (f : Flambda_primitive.unary_primitive) with
   | Duplicate_array _ ->
-    None, C.extcall ~alloc:true ~returns:true "caml_obj_dup" typ_val [arg]
+    None, C.extcall ~alloc:true ~returns:true ~ty_args:[] "caml_obj_dup" typ_val [arg]
   | Duplicate_block _ ->
-    None, C.extcall ~alloc:true ~returns:true "caml_obj_dup" typ_val [arg]
+    None, C.extcall ~alloc:true ~returns:true ~ty_args:[] "caml_obj_dup" typ_val [arg]
   | Is_int ->
     None, C.and_ ~dbg arg (C.int ~dbg 1)
   | Get_tag ->
@@ -410,6 +410,7 @@ let unary_primitive env dbg f arg =
        between different register kinds (e.g. integer to XMM registers
        on x86-64). *)
     None, C.extcall ~alloc:false ~returns:true
+      ~ty_args:[C.exttype_of_kind Flambda_kind.naked_int64]
       "caml_int64_float_of_bits_unboxed"
       typ_float
       [arg]
@@ -844,7 +845,7 @@ and let_cont_exn env res k body vars handle id arity =
     C.trywith
       ~dbg:Debuginfo.none
       ~kind:(Delayed id)
-      ~body ~exn_var ~handler
+      ~body ~exn_var ~handler ()
   in
   wrap_let_cont_exn_body trywith extra_vars, res
 
@@ -965,7 +966,7 @@ and apply_call env e =
       in
       C.indirect_full_call ~dbg ty f args, env, effs
     end
-  | Call_kind.C_call { alloc; return_arity; _ } ->
+  | Call_kind.C_call { alloc; return_arity; param_arity; _ } ->
     let f = function_name f in
     (* CR vlaviron: temporary hack to recover the right symbol *)
     let len = String.length f in
@@ -976,7 +977,8 @@ and apply_call env e =
     let args, env, _ = arg_list env args in
     let ty = machtype_of_return_arity return_arity in
     let wrap = wrap_extcall_result return_arity in
-    wrap dbg (C.extcall ~dbg ~alloc ~returns f ty args), env, effs
+    let ty_args = List.map C.exttype_of_kind param_arity in
+    wrap dbg (C.extcall ~dbg ~alloc ~returns ~ty_args f ty args), env, effs
   | Call_kind.Method { kind; obj; } ->
     let obj, env, _ = simple env obj in
     let meth, env, _ = simple env f in
@@ -1344,7 +1346,9 @@ and let_dynamic_set_of_closures env res body closure_vars
     Effects.Only_generative_effects Immutable, Coeffects.No_coeffects
   in
   let decl_map = decls |> Closure_id.Lmap.bindings |> Closure_id.Map.of_list in
-  let l, env, effs = fill_layout decl_map elts env effs [] 0 layout.slots in
+  let l, env, effs =
+    fill_layout decl_map layout.startenv elts env effs [] 0 layout.slots
+  in
   let csoc = C.make_closure_block l in
   (* Create a variable to hold the set of closure *)
   let soc_var = Variable.create "*set_of_closures*" in
@@ -1371,15 +1375,15 @@ and get_closure_by_offset env set_cmm cid =
   | None ->
     Misc.fatal_errorf "No closure offset for %a" Closure_id.print cid
 
-and fill_layout decls elts env effs acc i = function
+and fill_layout decls startenv elts env effs acc i = function
   | [] -> List.rev acc, env, effs
   | (j, slot) :: r ->
     let acc = fill_up_to j acc i in
-    let acc, offset, env, eff = fill_slot decls elts env acc j slot in
+    let acc, offset, env, eff = fill_slot decls startenv elts env acc j slot in
     let effs = Ece.join eff effs in
-    fill_layout decls elts env effs acc offset r
+    fill_layout decls startenv elts env effs acc offset r
 
-and fill_slot decls elts env acc offset slot =
+and fill_slot decls startenv elts env acc offset slot =
   match (slot : Un_cps_closure.layout_slot) with
   | Infix_header ->
     let field = C.alloc_infix_header (offset + 1) Debuginfo.none in
@@ -1395,10 +1399,11 @@ and fill_slot decls elts env acc offset slot =
     let code_symbol = Code_id.code_symbol code_id in
     let code_name = Linkage_name.to_string (Symbol.linkage_name code_symbol) in
     let arity = Env.get_func_decl_params_arity env decl in
+    let closure_info = C.closure_info ~arity ~startenv:(startenv - offset) in
     (* We build here the **reverse** list of fields for the closure *)
     if arity = 1 || arity = 0 then begin
       let acc =
-        C.int_const dbg arity ::
+        C.nativeint ~dbg closure_info ::
         C.symbol ~dbg code_name ::
         acc
       in
@@ -1406,7 +1411,7 @@ and fill_slot decls elts env acc offset slot =
     end else begin
       let acc =
         C.symbol ~dbg code_name ::
-        C.int_const dbg arity ::
+        C.nativeint ~dbg closure_info ::
         C.symbol ~dbg (C.curry_function_sym arity) ::
         acc
       in

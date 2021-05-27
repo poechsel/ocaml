@@ -1523,7 +1523,7 @@ static header_t *bf_allocate (mlsize_t wosz)
       return Hp_val (block);
     }else{
       /* allocate from the next available size */
-      mlsize_t s = ffs (bf_small_map & ((-1) << wosz));
+      mlsize_t s = ffs (bf_small_map & ((~0U) << wosz));
       FREELIST_DEBUG_bf_check ();
       if (s != 0){
         block = bf_small_fl[s].free;
@@ -1670,7 +1670,6 @@ static header_t *bf_merge_block (value bp, char *limit)
     switch (Color_val (cur)){
     case Caml_white: goto white;
     case Caml_blue: bf_remove (cur); goto next;
-    case Caml_gray:
     case Caml_black:
       goto end_of_run;
     }

@@ -1,5 +1,5 @@
 diff --git a/ocamltest/ocaml_compilers.ml b/ocamltest/ocaml_compilers.ml
-index bb3ed6ae4..c3e635ddf 100644
+index a47c2ae6f..90d62b8b7 100644
 --- a/ocamltest/ocaml_compilers.ml
 +++ b/ocamltest/ocaml_compilers.ml
 @@ -40,14 +40,20 @@ class compiler
@@ -24,10 +24,10 @@ index bb3ed6ae4..c3e635ddf 100644
    method ! reference_file env prefix =
      let default = tool#reference_file env prefix in
 diff --git a/ocamltest/ocaml_tests.ml b/ocamltest/ocaml_tests.ml
-index 964eaa2f6..acce5b1a3 100644
+index b42172d37..6cf4f6718 100644
 --- a/ocamltest/ocaml_tests.ml
 +++ b/ocamltest/ocaml_tests.ml
-@@ -22,16 +22,18 @@ open Ocaml_actions
+@@ -22,10 +22,12 @@ open Ocaml_actions
  let bytecode =
    let opt_actions =
    [
@@ -40,14 +40,7 @@ index 964eaa2f6..acce5b1a3 100644
    ] in
  {
    test_name = "bytecode";
-   test_run_by_default = true;
-   test_actions =
--  [
-+    [
-     setup_ocamlc_byte_build_env;
-     ocamlc_byte;
-     check_ocamlc_byte_output;
-@@ -43,15 +45,19 @@ let bytecode =
+@@ -43,14 +45,16 @@ let bytecode =
  let native =
    let opt_actions =
    [
@@ -63,9 +56,6 @@ index 964eaa2f6..acce5b1a3 100644
      check_ocamlopt_opt_output;
 +    run;
 +    check_program_output;
-+(*
-     compare_native_programs;
-+*)
    ] in
    {
      test_name = "native";

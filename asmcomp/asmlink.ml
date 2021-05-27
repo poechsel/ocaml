@@ -212,13 +212,12 @@ let scan_file obj_name (tolink, objfiles) = match read_file obj_name with
                reqd)
           infos.lib_units tolink
       and objfiles =
-        if Config.ccomp_type = "msvc"
-        && infos.lib_units = []
+        if infos.lib_units = []
         && not (Sys.file_exists (object_file_name obj_name)) then
-          (* MSVC doesn't support empty .lib files, so there shouldn't be one
-             if the .cmxa contains no units. The file_exists check is added to
-             be ultra-defensive for the case where a user has manually added
-             things to the .lib file *)
+          (* MSVC doesn't support empty .lib files, and macOS struggles to make
+             them (#6550), so there shouldn't be one if the .cmxa contains no
+             units. The file_exists check is added to be ultra-defensive for the
+             case where a user has manually added things to the .a/.lib file *)
           objfiles
         else
           obj_name :: objfiles
@@ -268,9 +267,6 @@ let make_startup_file ~ppf_dump units_list ~crc_interfaces =
     compile_phrase(Cmm_helpers.code_segment_table("_startup" :: name_list));
   let all_names = "_startup" :: "_system" :: name_list in
   compile_phrase (Cmm_helpers.frame_table all_names);
-  if Config.spacetime then begin
-    compile_phrase (Cmm_helpers.spacetime_shapes all_names);
-  end;
   if !Clflags.output_complete_object then
     force_linking_of_startup ~ppf_dump;
   Emit.end_assembly ()
@@ -315,8 +311,9 @@ let link_shared ~ppf_dump objfiles output_name =
       then output_name ^ ".startup" ^ ext_asm
       else Filename.temp_file "camlstartup" ext_asm in
     let startup_obj = output_name ^ ".startup" ^ ext_obj in
-    Asmgen.compile_unit
-      startup !Clflags.keep_startup_file startup_obj
+    Asmgen.compile_unit ~output_prefix:output_name
+      ~asm_filename:startup ~keep_asm:!Clflags.keep_startup_file
+      ~obj_filename:startup_obj
       (fun () ->
          make_shared_startup_file ~ppf_dump
            (List.map (fun (ui,_,crc) -> (ui,crc)) units_tolink)
@@ -331,14 +328,9 @@ let call_linker file_list startup_file output_name =
   and main_obj_runtime = !Clflags.output_complete_object
   in
   let files = startup_file :: (List.rev file_list) in
-  let libunwind =
-    if not Config.spacetime then []
-    else if not Config.libunwind_available then []
-    else String.split_on_char ' ' Config.libunwind_link_flags
-  in
   let files, c_lib =
     if (not !Clflags.output_c_object) || main_dll || main_obj_runtime then
-      files @ (List.rev !Clflags.ccobjs) @ runtime_lib () @ libunwind,
+      files @ (List.rev !Clflags.ccobjs) @ runtime_lib (),
       (if !Clflags.nopervasives || (main_obj_runtime && not main_dll)
        then "" else Config.native_c_libraries)
     else
@@ -383,8 +375,9 @@ let link ~ppf_dump objfiles output_name =
       then output_name ^ ".startup" ^ ext_asm
       else Filename.temp_file "camlstartup" ext_asm in
     let startup_obj = Filename.temp_file "camlstartup" ext_obj in
-    Asmgen.compile_unit
-      startup !Clflags.keep_startup_file startup_obj
+    Asmgen.compile_unit ~output_prefix:output_name
+      ~asm_filename:startup ~keep_asm:!Clflags.keep_startup_file
+      ~obj_filename:startup_obj
       (fun () -> make_startup_file ~ppf_dump units_tolink ~crc_interfaces);
     Misc.try_finally
       (fun () ->

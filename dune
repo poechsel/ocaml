@@ -54,6 +54,7 @@
    profile terminfo ccomp warnings consistbl strongly_connected_components
    one_bit_fewer targetint load_path
    int_replace_polymorphic_compare printing_cache lmap
+   binutils local_store
    ; manual update: mli only files
    targetint_intf
 
@@ -69,7 +70,8 @@
    cmi_format persistent_env env type_immediacy
    typedtree printtyped ctype printtyp includeclass mtype envaux includecore
    tast_iterator tast_mapper cmt_format untypeast includemod
-   typetexp printpat parmatch stypes typedecl typeopt rec_check typecore
+   typetexp patterns printpat parmatch stypes typedecl typeopt rec_check
+   typecore
    typeclass typemod typedecl_variance typedecl_properties typedecl_immediacy
    typedecl_unboxed typedecl_separability cmt2annot
    ; manual update: mli only files
@@ -151,8 +153,8 @@
    afl_instrument asmgen asmlibrarian asmlink asmpackager branch_relaxation
    branch_relaxation_intf cmmgen coloring comballoc
    CSE CSEgen deadcode domainstate emit emitaux interf linear linearize linscan
-   liveness printlinear reload reloadgen schedgen
-   scheduling selectgen selection spacetime_profiling spill split
+   linear_format liveness printlinear reload reloadgen schedgen
+   scheduling selectgen selection spill split
    x86_dsl x86_gas x86_masm
 
    ;; asmcomp/debug/

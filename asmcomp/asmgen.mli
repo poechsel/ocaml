@@ -70,17 +70,25 @@ val compile_implementation_flambda_for_ilambdac
   -> Flambda_middle_end.middle_end_result
   -> unit
 
+val compile_implementation_linear :
+    string -> progname:string -> unit 
+
 (** Information that Flambda needs to know about the backend. *)
 module Flambda_backend : Flambda_backend_intf.S
-
 val compile_phrase :
     ppf_dump:Format.formatter -> Cmm.phrase -> unit
 
-type error = Assembler_error of string
+type error =
+  | Assembler_error of string
+  | Mismatched_for_pack of string option
+
 exception Error of error
 val report_error: Format.formatter -> error -> unit
 
-
-val compile_unit:
-  string(*asm file*) -> bool(*keep asm*) ->
-  string(*obj file*) -> (unit -> unit) -> unit
+val compile_unit
+   : output_prefix:string
+   -> asm_filename:string
+   -> keep_asm:bool
+   -> obj_filename:string
+   -> (unit -> unit)
+   -> unit
