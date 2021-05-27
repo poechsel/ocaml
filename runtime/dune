@@ -12,7 +12,7 @@
 ;*                                                                        *
 ;**************************************************************************
 
-urule
+(rule
  (targets primitives)
  (mode    fallback)
  (deps
@@ -45,7 +45,7 @@ urule
      gc_ctrl.c  md5.c obj.c
    lexing.c callback.c debugger.c weak.c compact.c finalise.c custom.c dynlink.c
    afl.c unix.c win32.c bigarray.c main.c memprof.c domain.c
-   skiplist.c codefrag.c .depend
+   skiplist.c codefrag.c
  )
  (action
    (progn
@@ -63,7 +63,7 @@ urule
   parsing.c gc_ctrl.c md5.c obj.c lexing.c unix.c printexc.c callback.c weak.c
   compact.c finalise.c custom.c globroots.c backtrace_nat.c backtrace.c
   dynlink_nat.c debugger.c meta.c dynlink.c clambda_checks.c
-  afl.c bigarray.c memprof.c eventlog.c .depend)
+  afl.c bigarray.c memprof.c eventlog.c)
  (action
    (progn
      (run make %{targets} COMPUTE_DEPS=false))))
