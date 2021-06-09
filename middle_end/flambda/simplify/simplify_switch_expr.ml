@@ -30,6 +30,9 @@ let rebuild_switch ~simplify_let dacc ~arms ~scrutinee ~scrutinee_ty uacc
         with
         | Apply_cont action ->
           let action =
+            Simplify_common.clear_demoted_trap_action uacc action
+          in
+          let action =
             (* First try to absorb any [Apply_cont] expression that forms the
                entirety of the arm's action (via an intermediate zero-arity
                continuation without trap action) into the [Switch] expression
@@ -280,11 +283,14 @@ let simplify_switch ~simplify_let dacc switch ~down_to_up =
             |> DE.with_typing_env (DA.denv dacc)
           in
           let args = AC.args action in
+          let use_kind =
+            Simplify_common.apply_cont_use_kind ~context:Switch_branch action
+          in
           match args with
           | [] ->
             let dacc, rewrite_id =
               DA.record_continuation_use dacc (AC.continuation action)
-                (Non_inlinable { escaping = false; }) ~env_at_use ~arg_types:[]
+                use_kind ~env_at_use ~arg_types:[]
             in
             let dacc =
               DA.map_data_flow dacc ~f:(
@@ -300,7 +306,7 @@ let simplify_switch ~simplify_let dacc switch ~down_to_up =
             in
             let dacc, rewrite_id =
               DA.record_continuation_use dacc (AC.continuation action)
-                (Non_inlinable { escaping = false; }) ~env_at_use ~arg_types
+                use_kind ~env_at_use ~arg_types
             in
             let arity = List.map T.kind arg_types in
             let action = Apply_cont.update_args action ~args in
