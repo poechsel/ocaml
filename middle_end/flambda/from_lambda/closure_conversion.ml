@@ -459,199 +459,215 @@ let close_trap_action_opt trap_action =
         Pop { exn_handler; raise_kind = None; })
     trap_action
 
-let rec close acc env (ilam : Ilambda.t) : Acc.t * Expr_with_acc.t =
+let rec close_let acc env id user_visible defining_expr body
+  : Acc.t * Expr_with_acc.t =
+  let body_env, var = Env.add_var_like env id user_visible in
+  let cont acc (defining_expr : Named.t option) =
+    let body_env =
+      match defining_expr with
+      | Some (Simple simple) ->
+        Env.add_simple_to_substitute body_env id simple
+      | Some _ | None -> body_env
+    in
+    (* CR pchambart: Not tail ! *)
+    let acc, body = close acc body_env body in
+    match defining_expr with
+    | None -> acc, body
+    | Some defining_expr ->
+      let var = VB.create var Name_mode.normal in
+      Let_with_acc.create acc (Bindable_let_bound.singleton var) defining_expr
+        ~body ~free_names_of_body:Unknown
+      |> Expr_with_acc.create_let
+  in
+  close_named acc env ~let_bound_var:var defining_expr cont
+
+and close_let_cont acc env ({ name; is_exn_handler; params; recursive; body;
+      handler; } as let_cont : Ilambda.let_cont) : Acc.t * Expr_with_acc.t =
+  if is_exn_handler then begin
+    match recursive with
+    | Nonrecursive -> ()
+    | Recursive ->
+      Misc.fatal_errorf "[Let_cont]s marked as exception handlers must \
+                         be [Nonrecursive]: %a"
+        Ilambda.print (Ilambda.Let_cont let_cont)
+  end;
+  let params_with_kinds = params in
+  let handler_env, params =
+    Env.add_vars_like env
+      (List.map (fun (param, user_visible, _kind) -> param, user_visible)
+         params)
+  in
+  let params =
+    List.map2 (fun param (_, _, kind) ->
+        Kinded_parameter.create param (LC.value_kind kind))
+      params
+      params_with_kinds
+  in
+  let cost_metrics_of_handler, acc, handler =
+    Acc.measure_cost_metrics acc ~f:(fun acc ->
+        close acc handler_env handler)
+  in
+  let acc, handler =
+    Continuation_handler_with_acc.create acc params ~handler
+      ~free_names_of_handler:Unknown
+      ~is_exn_handler
+  in
+  let acc, body = close acc env body in
+  begin match recursive with
+  | Nonrecursive ->
+    Let_cont_with_acc.create_non_recursive acc name handler ~body
+      ~free_names_of_body:Unknown ~cost_metrics_of_handler
+  | Recursive ->
+    let handlers = Continuation.Map.singleton name handler in
+    Let_cont_with_acc.create_recursive acc handlers ~body
+      ~cost_metrics_of_handlers:cost_metrics_of_handler
+  end
+
+and close_apply acc env ({ kind; func; args; continuation; exn_continuation;
+      loc; tailcall = _; inlined; specialised = _; } : Ilambda.apply)
+  : Acc.t * Expr_with_acc.t =
+  let acc, call_kind =
+    match kind with
+    | Function -> acc, Call_kind.indirect_function_call_unknown_arity ()
+    | Method { kind; obj; } ->
+      let acc, obj = find_simple acc env obj in
+      acc,
+      Call_kind.method_call (LC.method_kind kind) ~obj
+  in
+  let acc, exn_continuation =
+    close_exn_continuation acc env exn_continuation
+  in
+  let callee = find_simple_from_id env func in
+  let acc, args = find_simples acc env args in
+  let apply =
+    Apply.create ~callee
+      ~continuation:(Return continuation)
+      exn_continuation
+      ~args
+      ~call_kind
+      (Debuginfo.from_location loc)
+      ~inline:(LC.inline_attribute inlined)
+      ~inlining_state:(Inlining_state.default)
+  in
+  Expr_with_acc.create_apply acc apply
+
+and close_apply_cont acc env cont trap_action args
+  : Acc.t * Expr_with_acc.t =
+  let acc, args = find_simples acc env args in
+  let trap_action = close_trap_action_opt trap_action in
+  let apply_cont =
+    Apply_cont.create ?trap_action cont ~args ~dbg:Debuginfo.none
+  in
+  Expr_with_acc.create_apply_cont acc apply_cont
+
+and close_switch acc env scrutinee (sw :Ilambda.switch)
+  : Acc.t * Expr_with_acc.t =
+  let scrutinee = Simple.name (Env.find_name env scrutinee) in
+  let untagged_scrutinee = Variable.create "untagged" in
+  let untagged_scrutinee' =
+    VB.create untagged_scrutinee Name_mode.normal
+  in
+  let untag =
+    Named.create_prim
+      (Unary (Unbox_number Untagged_immediate, scrutinee))
+      Debuginfo.none
+  in
+  let acc, arms =
+    List.fold_left_map (fun acc (case, cont, trap_action, args) ->
+        let trap_action = close_trap_action_opt trap_action in
+        let acc, args = find_simples acc env args in
+        acc,
+        (Target_imm.int (Targetint.OCaml.of_int case),
+         Apply_cont.create ?trap_action cont ~args
+           ~dbg:Debuginfo.none))
+      acc
+      sw.consts
+  in
+  match arms, sw.failaction with
+  | [case, action], Some (default_action, default_trap_action, default_args)
+    when sw.numconsts >= 3 ->
+    (* Avoid enormous switches, where every arm goes to the same place
+       except one, that arise from single-arm [Lambda] switches with a
+       default case.  (Seen in code generated by ppx_compare for variants,
+       which exhibited quadratic size blowup.) *)
+    let compare =
+      Named.create_prim
+        (Binary (Phys_equal (Flambda_kind.naked_immediate, Eq),
+                 Simple.var untagged_scrutinee,
+                 Simple.const (Reg_width_const.naked_immediate case)))
+        Debuginfo.none
+    in
+    let comparison_result = Variable.create "eq" in
+    let comparison_result' = VB.create comparison_result Name_mode.normal in
+    let acc, default_action =
+      let acc, args = find_simples acc env default_args in
+      let trap_action = close_trap_action_opt default_trap_action in
+      acc,
+      Apply_cont.create ?trap_action default_action ~args
+        ~dbg:Debuginfo.none
+    in
+    let acc, switch =
+      let scrutinee = Simple.var comparison_result in
+      Expr_with_acc.create_switch acc (
+        Switch.if_then_else ~scrutinee
+          ~if_true:action
+          ~if_false:default_action)
+    in
+    let acc, body =
+      Let_with_acc.create acc (Bindable_let_bound.singleton comparison_result')
+        compare ~body:switch ~free_names_of_body:Unknown
+      |> Expr_with_acc.create_let
+    in
+    Let_with_acc.create acc (Bindable_let_bound.singleton untagged_scrutinee')
+      untag ~body ~free_names_of_body:Unknown
+    |> Expr_with_acc.create_let
+  | _, _ ->
+    let acc, arms =
+      match sw.failaction with
+      | None -> acc, Target_imm.Map.of_list arms
+      | Some (default, trap_action, args) ->
+        Numbers.Int.Set.fold (fun case (acc, cases) ->
+            let case = Target_imm.int (Targetint.OCaml.of_int case) in
+            if Target_imm.Map.mem case cases then acc, cases
+            else
+              let acc, args = find_simples acc env args in
+              let trap_action = close_trap_action_opt trap_action in
+              let default =
+                Apply_cont.create ?trap_action default ~args
+                  ~dbg:Debuginfo.none
+              in
+              acc,
+              Target_imm.Map.add case default cases)
+          (Numbers.Int.zero_to_n (sw.numconsts - 1))
+          (acc, Target_imm.Map.of_list arms)
+    in
+    if Target_imm.Map.is_empty arms then
+      Expr_with_acc.create_invalid acc ()
+    else
+      let scrutinee = Simple.var untagged_scrutinee in
+      let acc, body =
+        match Target_imm.Map.get_singleton arms with
+        | Some (_discriminant, action) ->
+          Expr_with_acc.create_apply_cont acc action
+        | None ->
+          Expr_with_acc.create_switch acc (Switch.create ~scrutinee ~arms)
+      in
+      Let_with_acc.create acc
+        (Bindable_let_bound.singleton untagged_scrutinee')
+        untag ~body ~free_names_of_body:Unknown
+      |> Expr_with_acc.create_let
+
+and close acc env (ilam : Ilambda.t) : Acc.t * Expr_with_acc.t =
   match ilam with
   | Let (id, user_visible, _kind, defining_expr, body) ->
     (* CR mshinwell: Remove [kind] on the Ilambda terms? *)
-    let body_env, var = Env.add_var_like env id user_visible in
-    let cont acc (defining_expr : Named.t option) =
-      let body_env =
-        match defining_expr with
-        | Some (Simple simple) ->
-          Env.add_simple_to_substitute body_env id simple
-        | Some _ | None -> body_env
-      in
-      (* CR pchambart: Not tail ! *)
-      let acc, body = close acc body_env body in
-      match defining_expr with
-      | None -> acc, body
-      | Some defining_expr ->
-        let var = VB.create var Name_mode.normal in
-        Let_with_acc.create acc (Bindable_let_bound.singleton var) defining_expr
-          ~body ~free_names_of_body:Unknown
-        |> Expr_with_acc.create_let
-    in
-    close_named acc env ~let_bound_var:var defining_expr cont
+    close_let acc env id user_visible defining_expr body
   | Let_rec (defs, body) -> close_let_rec acc env ~defs ~body
-  | Let_cont { name; is_exn_handler; params; recursive; body;
-      handler; } ->
-    if is_exn_handler then begin
-      match recursive with
-      | Nonrecursive -> ()
-      | Recursive ->
-        Misc.fatal_errorf "[Let_cont]s marked as exception handlers must \
-            be [Nonrecursive]: %a"
-          Ilambda.print ilam
-    end;
-    let params_with_kinds = params in
-    let handler_env, params =
-      Env.add_vars_like env
-        (List.map (fun (param, user_visible, _kind) -> param, user_visible)
-          params)
-    in
-    let params =
-      List.map2 (fun param (_, _, kind) ->
-          Kinded_parameter.create param (LC.value_kind kind))
-        params
-        params_with_kinds
-    in
-    let cost_metrics_of_handler, acc, handler =
-      Acc.measure_cost_metrics acc ~f:(fun acc ->
-        close acc handler_env handler)
-    in
-    let acc, handler =
-      Continuation_handler_with_acc.create acc params ~handler
-        ~free_names_of_handler:Unknown
-        ~is_exn_handler
-    in
-    let acc, body = close acc env body in
-    begin match recursive with
-    | Nonrecursive ->
-      Let_cont_with_acc.create_non_recursive acc name handler ~body
-        ~free_names_of_body:Unknown ~cost_metrics_of_handler
-    | Recursive ->
-      let handlers = Continuation.Map.singleton name handler in
-      Let_cont_with_acc.create_recursive acc handlers ~body
-        ~cost_metrics_of_handlers:cost_metrics_of_handler
-    end
-  | Apply { kind; func; args; continuation; exn_continuation;
-      loc; tailcall = _; inlined; specialised = _; } ->
-    let acc, call_kind =
-      match kind with
-      | Function -> acc, Call_kind.indirect_function_call_unknown_arity ()
-      | Method { kind; obj; } ->
-        let acc, obj = find_simple acc env obj in
-        acc,
-        Call_kind.method_call (LC.method_kind kind) ~obj
-    in
-    let acc, exn_continuation =
-      close_exn_continuation acc env exn_continuation
-    in
-    let callee = find_simple_from_id env func in
-    let acc, args = find_simples acc env args in
-    let apply =
-      Apply.create ~callee
-        ~continuation:(Return continuation)
-        exn_continuation
-        ~args
-        ~call_kind
-        (Debuginfo.from_location loc)
-        ~inline:(LC.inline_attribute inlined)
-        ~inlining_state:(Inlining_state.default)
-    in
-    Expr_with_acc.create_apply acc apply
+  | Let_cont let_cont -> close_let_cont acc env let_cont
+  | Apply apply -> close_apply acc env apply
   | Apply_cont (cont, trap_action, args) ->
-    let acc, args = find_simples acc env args in
-    let trap_action = close_trap_action_opt trap_action in
-    let apply_cont =
-      Apply_cont.create ?trap_action cont ~args ~dbg:Debuginfo.none
-    in
-    Expr_with_acc.create_apply_cont acc apply_cont
-  | Switch (scrutinee, sw) ->
-    let scrutinee = Simple.name (Env.find_name env scrutinee) in
-    let untagged_scrutinee = Variable.create "untagged" in
-    let untagged_scrutinee' =
-      VB.create untagged_scrutinee Name_mode.normal
-    in
-    let untag =
-      Named.create_prim
-        (Unary (Unbox_number Untagged_immediate, scrutinee))
-        Debuginfo.none
-    in
-    let acc, arms =
-      List.fold_left_map (fun acc (case, cont, trap_action, args) ->
-          let trap_action = close_trap_action_opt trap_action in
-          let acc, args = find_simples acc env args in
-          acc,
-          (Target_imm.int (Targetint.OCaml.of_int case),
-            Apply_cont.create ?trap_action cont ~args
-              ~dbg:Debuginfo.none))
-        acc
-        sw.consts
-    in
-    match arms, sw.failaction with
-    | [case, action], Some (default_action, default_trap_action, default_args)
-        when sw.numconsts >= 3 ->
-      (* Avoid enormous switches, where every arm goes to the same place
-         except one, that arise from single-arm [Lambda] switches with a
-         default case.  (Seen in code generated by ppx_compare for variants,
-         which exhibited quadratic size blowup.) *)
-      let compare =
-        Named.create_prim
-          (Binary (Phys_equal (Flambda_kind.naked_immediate, Eq),
-            Simple.var untagged_scrutinee,
-            Simple.const (Reg_width_const.naked_immediate case)))
-          Debuginfo.none
-      in
-      let comparison_result = Variable.create "eq" in
-      let comparison_result' = VB.create comparison_result Name_mode.normal in
-      let acc, default_action =
-        let acc, args = find_simples acc env default_args in
-        let trap_action = close_trap_action_opt default_trap_action in
-        acc,
-        Apply_cont.create ?trap_action default_action ~args
-          ~dbg:Debuginfo.none
-      in
-      let acc, switch =
-        let scrutinee = Simple.var comparison_result in
-        Expr_with_acc.create_switch acc (
-          Switch.if_then_else ~scrutinee
-            ~if_true:action
-            ~if_false:default_action)
-      in
-      let acc, body =
-        Let_with_acc.create acc (Bindable_let_bound.singleton comparison_result')
-          compare ~body:switch ~free_names_of_body:Unknown
-        |> Expr_with_acc.create_let
-      in
-      Let_with_acc.create acc (Bindable_let_bound.singleton untagged_scrutinee')
-        untag ~body ~free_names_of_body:Unknown
-      |> Expr_with_acc.create_let
-    | _, _ ->
-      let acc, arms =
-        match sw.failaction with
-        | None -> acc, Target_imm.Map.of_list arms
-        | Some (default, trap_action, args) ->
-          Numbers.Int.Set.fold (fun case (acc, cases) ->
-              let case = Target_imm.int (Targetint.OCaml.of_int case) in
-              if Target_imm.Map.mem case cases then acc, cases
-              else
-                let acc, args = find_simples acc env args in
-                let trap_action = close_trap_action_opt trap_action in
-                let default =
-                  Apply_cont.create ?trap_action default ~args
-                    ~dbg:Debuginfo.none
-                in
-                acc,
-                Target_imm.Map.add case default cases)
-            (Numbers.Int.zero_to_n (sw.numconsts - 1))
-            (acc, Target_imm.Map.of_list arms)
-      in
-      if Target_imm.Map.is_empty arms then
-        Expr_with_acc.create_invalid acc ()
-      else
-        let scrutinee = Simple.var untagged_scrutinee in
-        let acc, body =
-          match Target_imm.Map.get_singleton arms with
-          | Some (_discriminant, action) ->
-            Expr_with_acc.create_apply_cont acc action
-          | None ->
-            Expr_with_acc.create_switch acc (Switch.create ~scrutinee ~arms)
-        in
-        Let_with_acc.create acc
-          (Bindable_let_bound.singleton untagged_scrutinee')
-          untag ~body ~free_names_of_body:Unknown
-        |> Expr_with_acc.create_let
+      close_apply_cont acc env cont trap_action args
+  | Switch (scrutinee, switch) -> close_switch acc env scrutinee switch
 
 and close_named acc env ~let_bound_var (named : Ilambda.named)
       (k : Acc.t -> Named.t option -> Acc.t * Expr_with_acc.t)
