@@ -18,4 +18,6 @@
 
 [@@@ocaml.warning "+a-4-30-40-41-42"]
 
-val lambda_to_ilambda : Lambda.lambda -> Ilambda.program
+val lambda_to_ilambda
+   : backend:(module Flambda_backend_intf.S)
+  -> Lambda.lambda -> Ilambda.program

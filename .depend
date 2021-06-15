@@ -5031,6 +5031,8 @@ middle_end/flambda/from_lambda/cps_conversion.cmo : \
     middle_end/flambda/basic/continuation.cmi \
     middle_end/flambda/compilenv_deps/compilation_unit.cmi \
     parsing/asttypes.cmi \
+    middle_end/flambda/flambda_backend_intf.cmi \
+    middle_end/flambda/from_lambda/closure_conversion_aux.cmi \
     middle_end/flambda/from_lambda/cps_conversion.cmi
 middle_end/flambda/from_lambda/cps_conversion.cmx : \
     lambda/tag.cmx \
@@ -5048,8 +5050,11 @@ middle_end/flambda/from_lambda/cps_conversion.cmx : \
     middle_end/flambda/basic/continuation.cmx \
     middle_end/flambda/compilenv_deps/compilation_unit.cmx \
     parsing/asttypes.cmi \
+    middle_end/flambda/flambda_backend_intf.cmi \
+    middle_end/flambda/from_lambda/closure_conversion_aux.cmx \
     middle_end/flambda/from_lambda/cps_conversion.cmi
 middle_end/flambda/from_lambda/cps_conversion.cmi : \
+    middle_end/flambda/flambda_backend_intf.cmi \
     lambda/lambda.cmi \
     middle_end/flambda/from_lambda/ilambda.cmi
 middle_end/flambda/from_lambda/ilambda.cmo : \

@@ -94,7 +94,7 @@ let middle_end0 ppf ~prefixname ~backend ~filename ~module_ident
   Profile.record_call "flambda.0" (fun () ->
     let ilambda =
       Profile.record_call "cps_conversion" (fun () ->
-        Cps_conversion.lambda_to_ilambda module_initializer)
+        Cps_conversion.lambda_to_ilambda ~backend module_initializer)
     in
     print_ilambda ppf ilambda;
     let flambda =
