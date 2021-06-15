@@ -193,7 +193,7 @@ module Function_decls = struct
       return : Lambda.value_kind;
       return_continuation : Continuation.t;
       exn_continuation : Ilambda.exn_continuation;
-      body : Ilambda.t;
+      body : (Acc.t -> Env.t -> Acc.t * Flambda.Import.Expr.t);
       free_idents_of_body : Ident.Set.t;
       attr : Lambda.function_attribute;
       loc : Lambda.scoped_location;
@@ -204,13 +204,12 @@ module Function_decls = struct
 
     let create ~let_rec_ident ~closure_id ~kind ~params ~return
         ~return_continuation ~exn_continuation ~body ~attr
-        ~loc ~free_idents_of_body ~stub recursive =
+        ~loc ~free_idents_of_body ~stub recursive ~contains_closures =
       let let_rec_ident =
         match let_rec_ident with
         | None -> Ident.create_local "unnamed_function"
         | Some let_rec_ident -> let_rec_ident
       in
-      let contains_closures = Ilambda.contains_closures body in
       { let_rec_ident;
         closure_id;
         kind;

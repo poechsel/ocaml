@@ -116,13 +116,15 @@ module Function_decls : sig
       -> return:Lambda.value_kind
       -> return_continuation:Continuation.t
       -> exn_continuation:Ilambda.exn_continuation
-      -> body:Ilambda.t
+      -> body:(Acc.t -> Env.t -> Acc.t * Flambda.Import.Expr.t)
       -> attr:Lambda.function_attribute
       -> loc:Lambda.scoped_location
       -> free_idents_of_body:Ident.Set.t
       -> stub:bool
       -> Recursive.t
+      -> contains_closures:bool
       -> t
+
 
     val let_rec_ident : t -> Ident.t
     val closure_id : t -> Closure_id.t
@@ -131,7 +133,7 @@ module Function_decls : sig
     val return : t -> Lambda.value_kind
     val return_continuation : t -> Continuation.t
     val exn_continuation : t -> Ilambda.exn_continuation
-    val body : t -> Ilambda.t
+    val body : t -> (Acc.t -> Env.t -> Acc.t * Flambda.Import.Expr.t)
     val inline : t -> Lambda.inline_attribute
     val specialise : t -> Lambda.specialise_attribute
     val is_a_functor : t -> bool
