@@ -19,6 +19,7 @@
 open! Int_replace_polymorphic_compare
 open! Flambda
 
+module IR =  Closure_conversion_aux.IR
 module Acc = Closure_conversion_aux.Acc
 module Env = Closure_conversion_aux.Env
 module Expr_with_acc = Closure_conversion_aux.Expr_with_acc
@@ -156,7 +157,7 @@ let find_simple_from_id env id =
     | simple -> simple
 
 (* CR mshinwell: Avoid the double lookup *)
-let find_simple acc env (simple : Ilambda.simple) =
+let find_simple acc env (simple : IR.simple) =
   match simple with
   | Const const ->
     let acc, simple, _ = close_const0 acc const in
@@ -173,9 +174,9 @@ let close_c_call acc ~let_bound_var (prim : Primitive.description)
       ~(args : Simple.t list) exn_continuation dbg
       (k : Acc.t -> Named.t option -> Acc.t * Expr_with_acc.t)
   : Acc.t * Expr_with_acc.t =
-  (* We always replace the original Ilambda [Let] with an Flambda
+  (* We always replace the original let-binding with an Flambda
      expression, so we call [k] with [None], to get just the closure-converted
-     body of that [Let]. *)
+     body of that binding. *)
   let cost_metrics_of_body, acc, body =
     Acc.measure_cost_metrics acc ~f:(fun acc -> k acc None)
   in
@@ -377,7 +378,7 @@ let close_c_call acc ~let_bound_var (prim : Primitive.description)
     wrap_c_call acc ~handler_param ~code_after_call call
 
 let close_exn_continuation acc env
-      (exn_continuation : Ilambda.exn_continuation) =
+      (exn_continuation : IR.exn_continuation) =
   let acc, extra_args =
     List.fold_left_map (fun acc (simple, kind) ->
         let acc, simple = find_simple acc env simple in
@@ -389,7 +390,7 @@ let close_exn_continuation acc env
   Exn_continuation.create ~exn_handler:exn_continuation.exn_handler ~extra_args
 
 let close_primitive acc env ~let_bound_var named (prim : Lambda.primitive) ~args
-      loc (exn_continuation : Ilambda.exn_continuation option)
+      loc (exn_continuation : IR.exn_continuation option)
       (k : Acc.t -> Named.t option -> Acc.t * Expr_with_acc.t)
   : Acc.t * Expr_with_acc.t =
   let acc, exn_continuation =
@@ -407,7 +408,7 @@ let close_primitive acc env ~let_bound_var named (prim : Lambda.primitive) ~args
       match exn_continuation with
       | None ->
         Misc.fatal_errorf "Pccall is missing exception continuation: %a"
-          Ilambda.print_named named
+          IR.print_named named
       | Some exn_continuation -> exn_continuation
     in
     close_c_call acc ~let_bound_var prim ~args exn_continuation dbg k
@@ -426,7 +427,7 @@ let close_primitive acc env ~let_bound_var named (prim : Lambda.primitive) ~args
       match exn_continuation with
       | None ->
         Misc.fatal_errorf "Praise is missing exception continuation: %a"
-          Ilambda.print_named named
+          IR.print_named named
       | Some exn_continuation -> exn_continuation
     in
     let exn_handler = Exn_continuation.exn_handler exn_continuation in
@@ -452,14 +453,14 @@ let close_primitive acc env ~let_bound_var named (prim : Lambda.primitive) ~args
       prim ~args dbg k
 
 let close_trap_action_opt trap_action =
-  Option.map (fun (trap_action : Ilambda.trap_action) : Trap_action.t ->
+  Option.map (fun (trap_action : IR.trap_action) : Trap_action.t ->
       match trap_action with
       | Push { exn_handler; } -> Push { exn_handler; }
       | Pop { exn_handler; } ->
         Pop { exn_handler; raise_kind = None; })
     trap_action
 
-let close_named acc env ~let_bound_var (named : Ilambda.named)
+let close_named acc env ~let_bound_var (named : IR.named)
       (k : Acc.t -> Named.t option -> Acc.t * Expr_with_acc.t)
   : Acc.t * Expr_with_acc.t =
   match named with
@@ -546,7 +547,7 @@ let close_let_cont acc env ~name ~is_exn_handler ~params
   end
 
 let close_apply acc env ({ kind; func; args; continuation; exn_continuation;
-      loc; tailcall = _; inlined; specialised = _; } : Ilambda.apply)
+      loc; tailcall = _; inlined; specialised = _; } : IR.apply)
   : Acc.t * Expr_with_acc.t =
   let acc, call_kind =
     match kind with
@@ -582,7 +583,7 @@ let close_apply_cont acc env cont trap_action args
   in
   Expr_with_acc.create_apply_cont acc apply_cont
 
-let close_switch acc env scrutinee (sw : Ilambda.switch)
+let close_switch acc env scrutinee (sw : IR.switch)
   : Acc.t * Expr_with_acc.t =
   let scrutinee = Simple.name (Env.find_name env scrutinee) in
   let untagged_scrutinee = Variable.create "untagged" in
@@ -783,7 +784,7 @@ let close_one_function acc ~external_env ~by_closure_id decl
           (Flambda_colours.normal ())
           Ident.print our_let_rec_ident
           Closure_id.print closure_id
-          (* Ilambda.print body *)
+          (* print body *)
       end;
       raise Misc.Fatal_error
     end
@@ -1087,8 +1088,8 @@ let close_program ~backend ~module_ident ~module_block_size_in_words
   in
   let acc, body =
     (* This binds the return continuation that is free (or, at least, not bound)
-       in the incoming Ilambda code. The handler for the continuation receives a
-       tuple with fields indexed from zero to [module_block_size_in_words]. The
+       in the incoming code. The handler for the continuation receives a tuple
+       with fields indexed from zero to [module_block_size_in_words]. The
        handler extracts the fields; the variables bound to such fields are then
        used to define the module block symbol. *)
     let acc, body = program acc env in

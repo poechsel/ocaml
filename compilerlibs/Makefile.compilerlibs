@@ -364,7 +364,6 @@ MIDDLE_END_FLAMBDA_SIMPLIFY=\
 
 MIDDLE_END_FLAMBDA_FROM_LAMBDA=\
   middle_end/flambda/from_lambda/lambda_conversions.cmo \
-  middle_end/flambda/from_lambda/ilambda.cmo \
   middle_end/flambda/from_lambda/closure_conversion_aux.cmo \
   middle_end/flambda/from_lambda/lambda_to_flambda_primitives_helpers.cmo \
   middle_end/flambda/from_lambda/lambda_to_flambda_primitives.cmo \

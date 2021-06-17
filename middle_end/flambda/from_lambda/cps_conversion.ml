@@ -20,11 +20,12 @@
 
 [@@@ocaml.warning "+a-4-30-40-41-42"]
 
-module I = Ilambda
 module L = Lambda
 module LC = Lambda_conversions
 
+
 module CC = Closure_conversion
+module IR = Closure_conversion.IR
 module Expr_with_acc = Closure_conversion_aux.Expr_with_acc
 module Function_decl =
   Closure_conversion_aux.Function_decls.Function_decl
@@ -286,11 +287,54 @@ let name_for_function (func : Lambda.lfunction) =
   | Loc_known { loc; _ } ->
     Format.asprintf "anon-fn[%a]" Location.print_compact loc
 
+let contains_functions (lam : Lambda.lambda) =
+  let rec contains_functions_tail (lam : Lambda.lambda) k =
+  match lam with
+    | Lvar _  | Lconst _ -> k ()
+    | Lfunction _ | Lletrec _ -> true
+    | Lassign (_, lam) | Levent (lam, _) | Lifused (_, lam)
+      -> contains_functions_tail lam k
+    | Lapply { ap_func; ap_args; _}
+      -> contains_functions_list (ap_func::ap_args) k
+    | Llet (_, _, _, lam1, lam2) | Lstaticcatch (lam1, _, lam2)
+    | Ltrywith (lam1, _, lam2) | Lsequence (lam1, lam2)
+    | Lwhile (lam1, lam2)
+      -> contains_functions_list [lam1; lam2] k
+    | Lifthenelse (lam1, lam2, lam3) | Lfor (_, lam1, lam2, _, lam3)
+      -> contains_functions_list [lam1; lam2; lam3] k
+    | Lprim (_, lams, _) | Lstaticraise (_, lams)
+      -> contains_functions_list lams k
+    | Lsend (_, lam1, lam2, lams, _)
+      -> contains_functions_list (lam1::lam2::lams) k
+    | Lswitch (lam1, { sw_consts; sw_blocks; sw_failaction; _ }, _) ->
+      let lams1 = List.map snd sw_consts in
+      let lams2 = List.map snd sw_blocks in
+      let lams = match sw_failaction with
+        | None -> lam1::lams1 @ lams2
+        | Some lam2 -> lam1::lam2::lams1 @ lams2
+      in
+      contains_functions_list lams k
+    | Lstringswitch (lam1, branches, failaction, _) ->
+      let lams = List.map snd branches in
+      let lams = match failaction with
+        | None -> lam1::lams
+        | Some lam2 -> lam1::lam2::lams
+      in
+      contains_functions_list lams k
+  and contains_functions_list lams k =
+    match lams with
+    | [] -> k ()
+    | lam::lams ->
+        contains_functions_tail lam
+          (fun () -> contains_functions_list lams k)
+  in
+  contains_functions_tail lam (fun () -> false)
+
 let extra_args_for_exn_continuation env exn_handler =
   let more_extra_args =
     Env.extra_args_for_continuation_with_kinds env exn_handler
   in
-  List.map (fun (arg, kind) : (Ilambda.simple * _) -> Var arg, kind)
+  List.map (fun (arg, kind) : (IR.simple * _) -> Var arg, kind)
     more_extra_args
 
 let _print_stack ppf stack =
@@ -319,7 +363,7 @@ let compile_staticfail acc env ccenv ~(continuation : Continuation.t) ~args
         add_pop_traps acc ~try_stack_now
       in
       let wrapper_cont = Continuation.create () in
-      let trap_action : I.trap_action =
+      let trap_action : IR.trap_action =
         Pop { exn_handler = cont; }
       in
       let handler = mk_remaining_traps acc after_pop in
@@ -545,7 +589,7 @@ let let_cont_nonrecursive_with_extra_params acc env ccenv ~is_exn_handler
       ~push_to_try_stack:is_exn_handler Nonrecursive
   in
   let extra_params =
-     List.map (fun (id, kind) -> id, Ilambda.User_visible, kind) extra_params
+     List.map (fun (id, kind) -> id, IR.User_visible, kind) extra_params
   in
   let handler = fun acc ccenv -> handler acc handler_env ccenv in
   let body = fun acc ccenv -> body acc body_env ccenv cont in
@@ -559,12 +603,12 @@ let let_cont_nonrecursive_with_extra_params acc env ccenv ~is_exn_handler
 
 let apply_cont_with_extra_args acc env ccenv cont traps args =
   let extra_args =
-      List.map (fun var : Ilambda.simple -> Var var)
+      List.map (fun var : IR.simple -> Var var)
         (Env.extra_args_for_continuation env cont)
   in
   CC.close_apply_cont acc ccenv cont traps (args @ extra_args)
 
-let wrap_return_continuation acc env ccenv (apply : Ilambda.apply) =
+let wrap_return_continuation acc env ccenv (apply : IR.apply) =
   let extra_args = Env.extra_args_for_continuation env apply.continuation in
   match extra_args with
   | [] -> CC.close_apply acc ccenv apply
@@ -572,7 +616,7 @@ let wrap_return_continuation acc env ccenv (apply : Ilambda.apply) =
       let wrapper_cont = Continuation.create () in
       let return_value = Ident.create_local "return_val" in
       let args =
-        List.map (fun var : Ilambda.simple -> Var var)
+        List.map (fun var : IR.simple -> Var var)
           (return_value :: extra_args)
       in
       let handler = fun acc ccenv ->
@@ -600,12 +644,12 @@ let rec cps_non_tail acc env ccenv (lam : L.lambda)
   | Lvar id ->
     if Env.is_mutable env id then
       name_then_cps_non_tail acc env ccenv "mutable_read"
-        (I.Simple (Var (Env.get_mutable_variable env id))) k k_exn
+        (IR.Simple (Var (Env.get_mutable_variable env id))) k k_exn
     else
       k acc env ccenv id
   | Lconst const ->
     name_then_cps_non_tail acc env ccenv "const"
-      (I.Simple (Const const)) k k_exn
+      (IR.Simple (Const const)) k k_exn
   | Lapply { ap_func; ap_args; ap_loc; ap_tailcall; ap_inlined;
       ap_specialised; } ->
     cps_non_tail_list acc env ccenv ap_args (fun acc env ccenv args ->
@@ -613,14 +657,14 @@ let rec cps_non_tail acc env ccenv (lam : L.lambda)
         let result_var = Ident.create_local "apply_result" in
         let_cont_nonrecursive_with_extra_params acc env ccenv
           ~is_exn_handler:false
-          ~params:[result_var, I.Not_user_visible, Pgenval]
+          ~params:[result_var, IR.Not_user_visible, Pgenval]
           ~body:(fun acc env ccenv continuation ->
-            let exn_continuation : I.exn_continuation =
+            let exn_continuation : IR.exn_continuation =
               { exn_handler = k_exn;
                 extra_args = extra_args_for_exn_continuation env k_exn;
               }
             in
-            let apply : Ilambda.apply = {
+            let apply : IR.apply = {
               kind = Function;
               func;
               continuation;
@@ -650,7 +694,7 @@ let rec cps_non_tail acc env ccenv (lam : L.lambda)
     let temp_id = Ident.create_local "let_mutable" in
     let_cont_nonrecursive_with_extra_params acc env ccenv
       ~is_exn_handler:false
-      ~params:[temp_id, I.Not_user_visible, value_kind]
+      ~params:[temp_id, IR.Not_user_visible, value_kind]
       ~body:(fun acc env ccenv after_defining_expr ->
           cps_tail acc env ccenv defining_expr after_defining_expr k_exn)
       ~handler:(fun acc env ccenv ->
@@ -687,7 +731,7 @@ let rec cps_non_tail acc env ccenv (lam : L.lambda)
     begin match transform_primitive env prim args loc with
     | Primitive (prim, args, loc) ->
       (* This case avoids extraneous continuations. *)
-      let exn_continuation : I.exn_continuation option =
+      let exn_continuation : IR.exn_continuation option =
         if L.primitive_can_raise prim then
           Some {
             exn_handler = k_exn;
@@ -710,7 +754,7 @@ let rec cps_non_tail acc env ccenv (lam : L.lambda)
   | Llet (_let_kind, value_kind, id, defining_expr, body) ->
     let_cont_nonrecursive_with_extra_params acc env ccenv
       ~is_exn_handler:false
-      ~params:[id, I.User_visible, value_kind]
+      ~params:[id, IR.User_visible, value_kind]
       ~body:(fun acc env ccenv after_defining_expr ->
         cps_tail acc env ccenv defining_expr after_defining_expr k_exn)
       ~handler:(fun acc env ccenv ->
@@ -729,7 +773,7 @@ let rec cps_non_tail acc env ccenv (lam : L.lambda)
     | Primitive (prim, args, loc) ->
       let name = Printlambda.name_of_primitive prim in
       let result_var = Ident.create_local name in
-      let exn_continuation : I.exn_continuation option =
+      let exn_continuation : IR.exn_continuation option =
         if L.primitive_can_raise prim then
           Some {
             exn_handler = k_exn;
@@ -752,7 +796,7 @@ let rec cps_non_tail acc env ccenv (lam : L.lambda)
     let result_var = Ident.create_local "switch_result" in
     let_cont_nonrecursive_with_extra_params acc env ccenv
       ~is_exn_handler:false
-      ~params:[result_var, I.Not_user_visible, Pgenval]
+      ~params:[result_var, IR.Not_user_visible, Pgenval]
       ~body:(fun acc env ccenv after_switch ->
         cps_switch acc env ccenv switch ~scrutinee after_switch k_exn)
       ~handler:(fun acc env ccenv -> k acc env ccenv result_var)
@@ -763,7 +807,7 @@ let rec cps_non_tail acc env ccenv (lam : L.lambda)
   | Lstaticraise (static_exn, args) ->
     let continuation = Env.get_static_exn_continuation env static_exn in
     let extra_args =
-      List.map (fun var : Ilambda.simple -> Var var)
+      List.map (fun var : IR.simple -> Var var)
         (Env.extra_args_for_continuation env continuation)
     in
     cps_non_tail_list acc env ccenv args
@@ -775,7 +819,7 @@ let rec cps_non_tail acc env ccenv (lam : L.lambda)
     let result_var = Ident.create_local "staticcatch_result" in
     let_cont_nonrecursive_with_extra_params acc env ccenv
       ~is_exn_handler:false
-      ~params:[result_var, I.Not_user_visible, Pgenval]
+      ~params:[result_var, IR.Not_user_visible, Pgenval]
       ~body:(fun acc env ccenv after_continuation ->
         let continuation = Continuation.create () in
         let { Env. body_env; handler_env; extra_params } =
@@ -788,7 +832,7 @@ let rec cps_non_tail acc env ccenv (lam : L.lambda)
             Nonrecursive
         in
         let params =
-          List.map (fun (arg, kind) -> arg, I.User_visible, kind)
+          List.map (fun (arg, kind) -> arg, IR.User_visible, kind)
             (args @ extra_params)
         in
         let handler = fun acc ccenv ->
@@ -814,12 +858,12 @@ let rec cps_non_tail acc env ccenv (lam : L.lambda)
             ~is_exn_handler:false
             ~params:[result_var, Not_user_visible, Pgenval]
             ~body:(fun acc env ccenv continuation ->
-              let exn_continuation : I.exn_continuation =
+              let exn_continuation : IR.exn_continuation =
                 { exn_handler = k_exn;
                   extra_args = extra_args_for_exn_continuation env k_exn;
                 }
               in
-              let apply : Ilambda.apply = {
+              let apply : IR.apply = {
                 kind = Method { kind = meth_kind; obj; };
                 func = meth;
                 continuation;
@@ -854,7 +898,7 @@ let rec cps_non_tail acc env ccenv (lam : L.lambda)
                   ~body:(fun acc env ccenv body_continuation ->
                     apply_cont_with_extra_args acc env ccenv
                       body_continuation
-                      (Some (I.Push {
+                      (Some (IR.Push {
                         exn_handler = handler_continuation;
                       }))
                       [])
@@ -864,8 +908,8 @@ let rec cps_non_tail acc env ccenv (lam : L.lambda)
               ~handler:(fun acc env ccenv ->
                 apply_cont_with_extra_args acc env ccenv
                   after_continuation
-                  (Some (I.Pop { exn_handler = handler_continuation; }))
-                  [Ilambda.Var body_result]))
+                  (Some (IR.Pop { exn_handler = handler_continuation; }))
+                  [IR.Var body_result]))
           ~handler:(fun acc env ccenv ->
             cps_tail acc env ccenv handler after_continuation k_exn))
       ~handler:(fun acc env ccenv -> k acc env ccenv result_var)
@@ -893,7 +937,7 @@ let rec cps_non_tail acc env ccenv (lam : L.lambda)
         in
         let body = fun acc ccenv ->
             name_then_cps_non_tail acc env ccenv "assign"
-              (I.Simple (Const L.const_unit)) k k_exn
+              (IR.Simple (Const L.const_unit)) k k_exn
         in
         CC.close_let acc ccenv new_id User_visible
           (Simple new_value) ~body)
@@ -909,11 +953,11 @@ let rec cps_non_tail acc env ccenv (lam : L.lambda)
 
 and cps_non_tail_simple acc env ccenv (lam : L.lambda)
       (k : Acc.t -> Env.t -> CCenv.t
-        -> Ilambda.simple -> Acc.t * Expr_with_acc.t)
+        -> IR.simple -> Acc.t * Expr_with_acc.t)
       (k_exn : Continuation.t) : Acc.t * Expr_with_acc.t =
   match lam with
-  | Lvar id when not (Env.is_mutable env id) -> k acc env ccenv (Ilambda.Var id)
-  | Lconst const -> k acc env ccenv (Ilambda.Const const)
+  | Lvar id when not (Env.is_mutable env id) -> k acc env ccenv (IR.Var id)
+  | Lconst const -> k acc env ccenv (IR.Const const)
   | Lvar _ (* mutable read *)
   | Lapply _
   | Lfunction _
@@ -934,7 +978,7 @@ and cps_non_tail_simple acc env ccenv (lam : L.lambda)
   | Levent _
   | Lifused _ ->
       cps_non_tail acc env ccenv lam
-        (fun acc env ccenv id -> k acc env ccenv (Ilambda.Var id)) k_exn
+        (fun acc env ccenv id -> k acc env ccenv (IR.Var id)) k_exn
 
 and cps_tail acc env ccenv (lam : L.lambda) (k : Continuation.t)
       (k_exn : Continuation.t) : Acc.t * Expr_with_acc.t =
@@ -942,20 +986,20 @@ and cps_tail acc env ccenv (lam : L.lambda) (k : Continuation.t)
   | Lvar id ->
     if Env.is_mutable env id then
       name_then_cps_tail acc env ccenv "mutable_read"
-        (I.Simple (Var (Env.get_mutable_variable env id))) k k_exn
+        (IR.Simple (Var (Env.get_mutable_variable env id))) k k_exn
     else
-      apply_cont_with_extra_args acc env ccenv k None [Ilambda.Var id]
+      apply_cont_with_extra_args acc env ccenv k None [IR.Var id]
   | Lconst const ->
-    name_then_cps_tail acc env ccenv "const" (I.Simple (Const const)) k k_exn
+    name_then_cps_tail acc env ccenv "const" (IR.Simple (Const const)) k k_exn
   | Lapply apply ->
     cps_non_tail_list acc env ccenv apply.ap_args (fun acc env ccenv args ->
       cps_non_tail acc env ccenv apply.ap_func (fun acc env ccenv func ->
-        let exn_continuation : I.exn_continuation =
+        let exn_continuation : IR.exn_continuation =
           { exn_handler = k_exn;
             extra_args = extra_args_for_exn_continuation env k_exn;
           }
         in
-        let apply : I.apply = {
+        let apply : IR.apply = {
           kind = Function;
           func;
           continuation = k;
@@ -974,7 +1018,7 @@ and cps_tail acc env ccenv (lam : L.lambda) (k : Continuation.t)
         ~recursive:(Non_recursive : Recursive.t) func
     in
     let body = fun acc ccenv ->
-      apply_cont_with_extra_args acc env ccenv k None [Ilambda.Var id]
+      apply_cont_with_extra_args acc env ccenv k None [IR.Var id]
     in
     CC.close_let_rec acc ccenv
       ~function_declarations:[func]
@@ -1020,7 +1064,7 @@ and cps_tail acc env ccenv (lam : L.lambda) (k : Continuation.t)
     begin match transform_primitive env prim args loc with
     | Primitive (prim, args, loc) ->
       (* This case avoids extraneous continuations. *)
-      let exn_continuation : I.exn_continuation option =
+      let exn_continuation : IR.exn_continuation option =
         if L.primitive_can_raise prim then
           Some {
             exn_handler = k_exn;
@@ -1086,7 +1130,7 @@ and cps_tail acc env ccenv (lam : L.lambda) (k : Continuation.t)
       (* CR mshinwell: Arrange for "args" to be named. *)
       let name = Printlambda.name_of_primitive prim in
       let result_var = Ident.create_local name in
-      let exn_continuation : I.exn_continuation option =
+      let exn_continuation : IR.exn_continuation option =
         if L.primitive_can_raise prim then
           Some {
             exn_handler = k_exn;
@@ -1097,7 +1141,7 @@ and cps_tail acc env ccenv (lam : L.lambda) (k : Continuation.t)
       cps_non_tail_list acc env ccenv args (fun acc env ccenv args ->
           let body = fun acc ccenv ->
             apply_cont_with_extra_args acc env ccenv
-              k None [Ilambda.Var result_var]
+              k None [IR.Var result_var]
           in
           CC.close_let acc ccenv result_var Not_user_visible
             (Prim { prim; args; loc; exn_continuation; })
@@ -1114,7 +1158,7 @@ and cps_tail acc env ccenv (lam : L.lambda) (k : Continuation.t)
   | Lstaticraise (static_exn, args) ->
     let continuation = Env.get_static_exn_continuation env static_exn in
     let extra_args =
-      List.map (fun var : Ilambda.simple -> Var var)
+      List.map (fun var : IR.simple -> Var var)
         (Env.extra_args_for_continuation env continuation)
     in
     cps_non_tail_list acc env ccenv args
@@ -1140,7 +1184,7 @@ and cps_tail acc env ccenv (lam : L.lambda) (k : Continuation.t)
         Nonrecursive
     in
     let params =
-      List.map (fun (arg, kind) -> arg, I.User_visible, kind)
+      List.map (fun (arg, kind) -> arg, IR.User_visible, kind)
         (args @ extra_params)
     in
     CC.close_let_cont acc ccenv
@@ -1154,12 +1198,12 @@ and cps_tail acc env ccenv (lam : L.lambda) (k : Continuation.t)
     cps_non_tail_simple acc env ccenv obj (fun acc env ccenv obj ->
       cps_non_tail acc env ccenv meth (fun acc env ccenv meth ->
         cps_non_tail_list acc env ccenv args (fun acc env ccenv args ->
-          let exn_continuation : I.exn_continuation =
+          let exn_continuation : IR.exn_continuation =
             { exn_handler = k_exn;
               extra_args = extra_args_for_exn_continuation env k_exn;
             }
           in
-          let apply : Ilambda.apply = {
+          let apply : IR.apply = {
             kind = Method { kind = meth_kind; obj; };
             func = meth;
             continuation = k;
@@ -1182,7 +1226,7 @@ and cps_tail acc env ccenv (lam : L.lambda) (k : Continuation.t)
         in
         let body = fun acc ccenv ->
           name_then_cps_tail acc env ccenv "assign"
-            (I.Simple (Const L.const_unit))
+            (IR.Simple (Const L.const_unit))
             k k_exn
         in
         CC.close_let acc ccenv new_id User_visible
@@ -1204,7 +1248,7 @@ and cps_tail acc env ccenv (lam : L.lambda) (k : Continuation.t)
               ~body:(fun acc env ccenv body_continuation ->
                 apply_cont_with_extra_args acc env ccenv
                   body_continuation
-                  (Some (I.Push { exn_handler = handler_continuation; }))
+                  (Some (IR.Push { exn_handler = handler_continuation; }))
                   [])
               ~handler:(fun acc env ccenv ->
                   cps_tail acc env ccenv body
@@ -1212,8 +1256,8 @@ and cps_tail acc env ccenv (lam : L.lambda) (k : Continuation.t)
           ~handler:(fun acc env ccenv ->
               apply_cont_with_extra_args acc env ccenv
                 k
-                (Some (I.Pop { exn_handler = handler_continuation; }))
-                [Ilambda.Var body_result]))
+                (Some (IR.Pop { exn_handler = handler_continuation; }))
+                [IR.Var body_result]))
       ~handler:(fun acc env ccenv ->
         cps_tail acc env ccenv handler k k_exn)
   | Lifthenelse (cond, ifso, ifnot) ->
@@ -1247,7 +1291,7 @@ and name_then_cps_tail acc env ccenv name defining_expr k _k_exn
   : Acc.t * Expr_with_acc.t =
   let id = Ident.create_local name in
   let body = fun acc ccenv ->
-    apply_cont_with_extra_args acc env ccenv k None [Ilambda.Var id]
+    apply_cont_with_extra_args acc env ccenv k None [IR.Var id]
   in
   CC.close_let acc ccenv id Not_user_visible defining_expr ~body
 
@@ -1258,7 +1302,7 @@ and cps_non_tail_list acc env ccenv lams k k_exn =
 
 and cps_non_tail_list_core acc env ccenv (lams : L.lambda list)
       (k : Acc.t -> Env.t -> CCenv.t
-        -> Ilambda.simple list -> Acc.t * Expr_with_acc.t)
+        -> IR.simple list -> Acc.t * Expr_with_acc.t)
       (k_exn : Continuation.t) =
   match lams with
   | [] -> k acc env ccenv []
@@ -1368,7 +1412,7 @@ and cps_function env ~fid ~stub
       ~return_continuation:body_cont
       ~exn_continuation:body_exn_cont
   in
-  let exn_continuation : I.exn_continuation = {
+  let exn_continuation : IR.exn_continuation = {
     exn_handler = body_exn_cont;
     extra_args = [] }
   in
@@ -1376,7 +1420,7 @@ and cps_function env ~fid ~stub
     Closure_id.wrap (Compilation_unit.get_current_exn ())
       (Variable.create_with_same_name_as_ident fid)
   in
-  let contains_closures = Ilambda.contains_functions body in
+  let contains_closures = contains_functions body in
   let body = fun acc ccenv ->
     cps_tail acc new_env ccenv body body_cont body_exn_cont
   in
@@ -1421,20 +1465,20 @@ and cps_switch acc env ccenv (switch : L.lambda_switch) ~scrutinee
         match action with
         | Lvar var when not (Env.is_mutable env var) ->
           let extra_args =
-            List.map (fun arg : Ilambda.simple -> Var arg)
+            List.map (fun arg : IR.simple -> Var arg)
               (Env.extra_args_for_continuation env k)
           in
           let consts_rev =
-            (arm, k, None, (Ilambda.Var var)::extra_args):: consts_rev
+            (arm, k, None, (IR.Var var)::extra_args):: consts_rev
           in
           consts_rev, wrappers
         | Lconst cst ->
           let extra_args =
-            List.map (fun arg : Ilambda.simple -> Var arg)
+            List.map (fun arg : IR.simple -> Var arg)
               (Env.extra_args_for_continuation env k)
           in
           let consts_rev =
-            (arm, k, None, (Ilambda.Const cst)::extra_args) :: consts_rev
+            (arm, k, None, (IR.Const cst)::extra_args) :: consts_rev
           in
           consts_rev, wrappers
         | Lvar _ (* mutable *)
@@ -1486,13 +1530,13 @@ and cps_switch acc env ccenv (switch : L.lambda_switch) ~scrutinee
           let wrappers = (cont, action) :: wrappers in
           Some (cont, None, []), wrappers
       in
-      let const_switch : I.switch =
+      let const_switch : IR.switch =
         { numconsts = switch.sw_numconsts;
           consts;
           failaction;
         }
       in
-      let block_switch : I.switch =
+      let block_switch : IR.switch =
         { numconsts = switch.sw_numblocks;
           consts = blocks;
           failaction;
@@ -1519,7 +1563,7 @@ and cps_switch acc env ccenv (switch : L.lambda_switch) ~scrutinee
         else
           let const_cont = Continuation.create () in
           let block_cont = Continuation.create () in
-          let isint_switch : I.switch =
+          let isint_switch : IR.switch =
             { numconsts = 2;
               consts = [ (0, block_cont, None, []);
                          (1, const_cont, None, []) ];

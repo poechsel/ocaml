@@ -3795,7 +3795,6 @@ middle_end/flambda/flambda_middle_end.cmo : \
     middle_end/flambda/parser/print_fexpr.cmi \
     utils/misc.cmi \
     middle_end/flambda/inlining/inlining_report.cmi \
-    middle_end/flambda/from_lambda/ilambda.cmi \
     middle_end/flambda/terms/flambda_unit.cmi \
     middle_end/flambda/parser/flambda_to_fexpr.cmi \
     middle_end/flambda/compilenv_deps/flambda_colours.cmi \
@@ -3815,7 +3814,6 @@ middle_end/flambda/flambda_middle_end.cmx : \
     middle_end/flambda/parser/print_fexpr.cmx \
     utils/misc.cmx \
     middle_end/flambda/inlining/inlining_report.cmx \
-    middle_end/flambda/from_lambda/ilambda.cmx \
     middle_end/flambda/terms/flambda_unit.cmx \
     middle_end/flambda/parser/flambda_to_fexpr.cmx \
     middle_end/flambda/compilenv_deps/flambda_colours.cmx \
@@ -4104,7 +4102,6 @@ middle_end/flambda/flambda_middle_end.cmo : \
     middle_end/flambda/parser/print_fexpr.cmi \
     utils/misc.cmi \
     middle_end/flambda/inlining/inlining_report.cmi \
-    middle_end/flambda/from_lambda/ilambda.cmi \
     middle_end/flambda/terms/flambda_unit.cmi \
     middle_end/flambda/parser/flambda_to_fexpr.cmi \
     middle_end/flambda/compilenv_deps/flambda_colours.cmi \
@@ -4124,7 +4121,6 @@ middle_end/flambda/flambda_middle_end.cmx : \
     middle_end/flambda/parser/print_fexpr.cmx \
     utils/misc.cmx \
     middle_end/flambda/inlining/inlining_report.cmx \
-    middle_end/flambda/from_lambda/ilambda.cmx \
     middle_end/flambda/terms/flambda_unit.cmx \
     middle_end/flambda/parser/flambda_to_fexpr.cmx \
     middle_end/flambda/compilenv_deps/flambda_colours.cmx \
@@ -4868,7 +4864,6 @@ middle_end/flambda/from_lambda/closure_conversion.cmo : \
     middle_end/flambda/inlining/inlining_state.cmi \
     middle_end/flambda/inlining/inlining_arguments.cmi \
     middle_end/flambda/basic/inline_attribute.cmi \
-    middle_end/flambda/from_lambda/ilambda.cmi \
     typing/ident.cmi \
     middle_end/flambda/terms/function_declarations.cmi \
     middle_end/flambda/terms/function_declaration.cmi \
@@ -4922,7 +4917,6 @@ middle_end/flambda/from_lambda/closure_conversion.cmx : \
     middle_end/flambda/inlining/inlining_state.cmx \
     middle_end/flambda/inlining/inlining_arguments.cmx \
     middle_end/flambda/basic/inline_attribute.cmx \
-    middle_end/flambda/from_lambda/ilambda.cmx \
     typing/ident.cmx \
     middle_end/flambda/terms/function_declarations.cmx \
     middle_end/flambda/terms/function_declaration.cmx \
@@ -4948,7 +4942,6 @@ middle_end/flambda/from_lambda/closure_conversion.cmx : \
     middle_end/flambda/terms/apply_cont_expr.cmx \
     middle_end/flambda/from_lambda/closure_conversion.cmi
 middle_end/flambda/from_lambda/closure_conversion.cmi : \
-    middle_end/flambda/from_lambda/ilambda.cmi \
     middle_end/flambda/from_lambda/closure_conversion_aux.cmi \
     typing/ident.cmi \
     middle_end/flambda/terms/flambda_unit.cmi \
@@ -4964,7 +4957,6 @@ middle_end/flambda/from_lambda/closure_conversion_aux.cmo : \
     middle_end/flambda/basic/name.cmi \
     utils/misc.cmi \
     lambda/lambda.cmi \
-    middle_end/flambda/from_lambda/ilambda.cmi \
     typing/ident.cmi \
     middle_end/flambda/flambda_backend_intf.cmi \
     middle_end/flambda/terms/flambda.cmi \
@@ -4985,7 +4977,6 @@ middle_end/flambda/from_lambda/closure_conversion_aux.cmx : \
     middle_end/flambda/basic/name.cmx \
     utils/misc.cmx \
     lambda/lambda.cmx \
-    middle_end/flambda/from_lambda/ilambda.cmx \
     typing/ident.cmx \
     middle_end/flambda/flambda_backend_intf.cmi \
     middle_end/flambda/terms/flambda.cmx \
@@ -5008,7 +4999,6 @@ middle_end/flambda/from_lambda/closure_conversion_aux.cmi : \
     lambda/lambda.cmi \
     middle_end/flambda/basic/kinded_parameter.cmi \
     middle_end/flambda/basic/invalid_term_semantics.cmi \
-    middle_end/flambda/from_lambda/ilambda.cmi \
     typing/ident.cmi \
     middle_end/flambda/flambda_backend_intf.cmi \
     middle_end/flambda/terms/flambda.cmi \
@@ -5027,7 +5017,6 @@ middle_end/flambda/from_lambda/cps_conversion.cmo : \
     parsing/location.cmi \
     middle_end/flambda/from_lambda/lambda_conversions.cmi \
     lambda/lambda.cmi \
-    middle_end/flambda/from_lambda/ilambda.cmi \
     typing/ident.cmi \
     middle_end/flambda/basic/continuation.cmi \
     middle_end/flambda/compilenv_deps/compilation_unit.cmi \
@@ -5047,7 +5036,6 @@ middle_end/flambda/from_lambda/cps_conversion.cmx : \
     parsing/location.cmx \
     middle_end/flambda/from_lambda/lambda_conversions.cmx \
     lambda/lambda.cmx \
-    middle_end/flambda/from_lambda/ilambda.cmx \
     typing/ident.cmx \
     middle_end/flambda/basic/continuation.cmx \
     middle_end/flambda/compilenv_deps/compilation_unit.cmx \
@@ -5058,29 +5046,7 @@ middle_end/flambda/from_lambda/cps_conversion.cmx : \
     middle_end/flambda/from_lambda/cps_conversion.cmi
 middle_end/flambda/from_lambda/cps_conversion.cmi : \
     middle_end/flambda/flambda_backend_intf.cmi \
-    lambda/lambda.cmi \
-    middle_end/flambda/from_lambda/ilambda.cmi
-middle_end/flambda/from_lambda/ilambda.cmo : \
-    utils/strongly_connected_components.cmi \
-    lambda/printlambda.cmi \
-    lambda/lambda.cmi \
-    typing/ident.cmi \
-    middle_end/flambda/basic/continuation.cmi \
-    parsing/asttypes.cmi \
-    middle_end/flambda/from_lambda/ilambda.cmi
-middle_end/flambda/from_lambda/ilambda.cmx : \
-    utils/strongly_connected_components.cmx \
-    lambda/printlambda.cmx \
-    lambda/lambda.cmx \
-    typing/ident.cmx \
-    middle_end/flambda/basic/continuation.cmx \
-    parsing/asttypes.cmi \
-    middle_end/flambda/from_lambda/ilambda.cmi
-middle_end/flambda/from_lambda/ilambda.cmi : \
-    lambda/lambda.cmi \
-    typing/ident.cmi \
-    middle_end/flambda/basic/continuation.cmi \
-    parsing/asttypes.cmi
+    lambda/lambda.cmi
 middle_end/flambda/from_lambda/lambda_conversions.cmo : \
     middle_end/flambda/basic/trap_action.cmi \
     utils/targetint.cmi \

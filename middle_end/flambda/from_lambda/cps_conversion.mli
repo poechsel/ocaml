@@ -14,7 +14,7 @@
 (*                                                                        *)
 (**************************************************************************)
 
-(** Conversion from Lambda to Ilambda: halfway to Flambda. *)
+(** Conversion from Lambda to Flambda. *)
 
 [@@@ocaml.warning "+a-4-30-40-41-42"]
 

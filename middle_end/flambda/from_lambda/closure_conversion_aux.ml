@@ -16,6 +16,72 @@
 
 [@@@ocaml.warning "+a-4-30-40-41-42"]
 
+module IR = struct
+  type simple =
+    | Var of Ident.t
+    | Const of Lambda.structured_constant
+
+  type exn_continuation =
+    { exn_handler : Continuation.t;
+      extra_args : (simple * Lambda.value_kind) list;
+    }
+
+  type trap_action =
+    | Push of { exn_handler : Continuation.t; }
+    | Pop of { exn_handler : Continuation.t; }
+
+  type user_visible =
+    | User_visible
+    | Not_user_visible
+
+  type named =
+    | Simple of simple
+    | Prim of {
+        prim : Lambda.primitive;
+        args : simple list;
+        loc : Lambda.scoped_location;
+        exn_continuation : exn_continuation option;
+      }
+
+  type apply_kind =
+    | Function
+    | Method of { kind : Lambda.meth_kind; obj : simple; }
+
+  type apply = {
+    kind : apply_kind;
+    func : Ident.t;
+    args : simple list;
+    continuation : Continuation.t;
+    exn_continuation : exn_continuation;
+    loc : Lambda.scoped_location;
+    tailcall : Lambda.tailcall_attribute;
+    inlined : Lambda.inline_attribute;
+    specialised : Lambda.specialise_attribute;
+  }
+
+  type switch = {
+    numconsts : int;
+    consts : (int * Continuation.t * trap_action option * (simple list)) list;
+    failaction : (Continuation.t * trap_action option * (simple list)) option;
+  }
+
+  let fprintf = Format.fprintf
+
+  let print_simple ppf simple =
+    match simple with
+    | Var id -> Ident.print ppf id
+    | Const cst -> Printlambda.structured_constant ppf cst
+
+  let print_named ppf (named : named) =
+    match named with
+    | Simple (Var id) -> Ident.print ppf id
+    | Simple (Const cst) -> Printlambda.structured_constant ppf cst
+    | Prim { prim; args; _ } ->
+      fprintf ppf "@[<2>(%a %a)@]"
+        Printlambda.primitive prim
+        (Format.pp_print_list ~pp_sep:Format.pp_print_space print_simple) args
+end
+
 module Env = struct
   type t = {
     variables : Variable.t Ident.Map.t;
@@ -57,7 +123,7 @@ module Env = struct
   let add_var_map t map =
     { t with variables = Ident.Map.union_right t.variables map }
 
-  let add_var_like t id (user_visible : Ilambda.user_visible) =
+  let add_var_like t id (user_visible : IR.user_visible) =
     let user_visible =
       match user_visible with
       | Not_user_visible -> None
@@ -68,7 +134,7 @@ module Env = struct
 
   let add_vars_like t ids =
     let vars =
-      List.map (fun (id, (user_visible : Ilambda.user_visible)) ->
+      List.map (fun (id, (user_visible : IR.user_visible)) ->
           let user_visible =
             match user_visible with
             | Not_user_visible -> None
@@ -192,7 +258,7 @@ module Function_decls = struct
       params : (Ident.t * Lambda.value_kind) list;
       return : Lambda.value_kind;
       return_continuation : Continuation.t;
-      exn_continuation : Ilambda.exn_continuation;
+      exn_continuation : IR.exn_continuation;
       body : (Acc.t -> Env.t -> Acc.t * Flambda.Import.Expr.t);
       free_idents_of_body : Ident.Set.t;
       attr : Lambda.function_attribute;

@@ -18,6 +18,59 @@
 
 (** Environments and auxiliary structures used during closure conversion. *)
 
+
+module IR : sig
+  type simple =
+    | Var of Ident.t
+    | Const of Lambda.structured_constant
+
+  type exn_continuation =
+    { exn_handler : Continuation.t;
+      extra_args : (simple * Lambda.value_kind) list;
+    }
+
+  type trap_action =
+    | Push of { exn_handler : Continuation.t; }
+    | Pop of { exn_handler : Continuation.t; }
+
+  type user_visible =
+    | User_visible
+    | Not_user_visible
+
+  type named =
+    | Simple of simple
+    | Prim of {
+        prim : Lambda.primitive;
+        args : simple list;
+        loc : Lambda.scoped_location;
+        exn_continuation : exn_continuation option;
+      }
+
+  type apply_kind =
+    | Function
+    | Method of { kind : Lambda.meth_kind; obj : simple; }
+
+  type apply = {
+    kind : apply_kind;
+    func : Ident.t;
+    args : simple list;
+    continuation : Continuation.t;
+    exn_continuation : exn_continuation;
+    loc : Lambda.scoped_location;
+    tailcall : Lambda.tailcall_attribute;
+    inlined : Lambda.inline_attribute;
+    specialised : Lambda.specialise_attribute;
+  }
+
+  type switch = {
+    numconsts : int;
+    consts : (int * Continuation.t * trap_action option * (simple list)) list;
+    failaction : (Continuation.t * trap_action option * (simple list)) option;
+  }
+
+  val print_named : Format.formatter -> named -> unit
+end
+
 (** Used to remember which [Variable.t] values correspond to which
     [Ident.t] values during closure conversion, and similarly for
      static exception identifiers. *)
@@ -32,11 +85,11 @@ module Env : sig
   val add_vars : t -> Ident.t list -> Variable.t list -> t
   val add_var_map : t -> Variable.t Ident.Map.t -> t
 
-  val add_var_like : t -> Ident.t -> Ilambda.user_visible -> t * Variable.t
+  val add_var_like : t -> Ident.t -> IR.user_visible -> t * Variable.t
 
   val add_vars_like
      : t
-    -> (Ident.t * Ilambda.user_visible) list
+    -> (Ident.t * IR.user_visible) list
     -> t * Variable.t list
 
   val find_name : t -> Ident.t -> Name.t
@@ -115,7 +168,7 @@ module Function_decls : sig
       -> params:(Ident.t * Lambda.value_kind) list
       -> return:Lambda.value_kind
       -> return_continuation:Continuation.t
-      -> exn_continuation:Ilambda.exn_continuation
+      -> exn_continuation:IR.exn_continuation
       -> body:(Acc.t -> Env.t -> Acc.t * Flambda.Import.Expr.t)
       -> attr:Lambda.function_attribute
       -> loc:Lambda.scoped_location
@@ -132,7 +185,7 @@ module Function_decls : sig
     val params : t -> (Ident.t * Lambda.value_kind) list
     val return : t -> Lambda.value_kind
     val return_continuation : t -> Continuation.t
-    val exn_continuation : t -> Ilambda.exn_continuation
+    val exn_continuation : t -> IR.exn_continuation
     val body : t -> (Acc.t -> Env.t -> Acc.t * Flambda.Import.Expr.t)
     val inline : t -> Lambda.inline_attribute
     val specialise : t -> Lambda.specialise_attribute
