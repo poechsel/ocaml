@@ -31,27 +31,15 @@ let check_invariants unit =
     raise exn
   end
 
-let print_ilambda ppf (ilam : Ilambda.program) =
-  if !Clflags.dump_ilambda then begin
-    Format.fprintf ppf
-      "\n%sAfter CPS conversion (return continuation %a) \
-       (exception continuation %a):%s@ %a@."
-      (Flambda_colours.each_file ())
-      Continuation.print ilam.return_continuation
-      Continuation.print ilam.exn_continuation.exn_handler
-      (Flambda_colours.normal ())
-      Ilambda.print ilam.expr
-  end
-
 let print_rawflambda ppf unit =
   if !Clflags.dump_rawflambda then begin
-    Format.fprintf ppf "\n%sAfter closure conversion:%s@ %a@."
+    Format.fprintf ppf "\n%sAfter CPS conversion:%s@ %a@."
       (Flambda_colours.each_file ())
       (Flambda_colours.normal ())
       Flambda_unit.print unit
   end;
   if !Clflags.dump_rawfexpr then begin
-    Format.fprintf ppf "\n%sAfter closure conversion:%s@ %a@."
+    Format.fprintf ppf "\n%sAfter CPS conversion:%s@ %a@."
       (Flambda_colours.each_file ())
       (Flambda_colours.normal ())
       Print_fexpr.flambda_unit (unit |> Flambda_to_fexpr.conv)
@@ -92,15 +80,10 @@ let middle_end0 ppf ~prefixname ~backend ~filename ~module_ident
       ~module_block_size_in_words ~module_initializer =
   Misc.Color.setup !Clflags.color;
   Profile.record_call "flambda.0" (fun () ->
-    let ilambda =
-      Profile.record_call "cps_conversion" (fun () ->
-        Cps_conversion.lambda_to_ilambda ~backend module_initializer)
-    in
-    print_ilambda ppf ilambda;
     let flambda =
-      Profile.record_call "closure_conversion" (fun () ->
-        Closure_conversion.ilambda_to_flambda ~backend ~module_ident
-          ~module_block_size_in_words ilambda)
+      Profile.record_call "cps_conversion" (fun () ->
+        Cps_conversion.lambda_to_flambda ~backend ~module_ident
+          ~module_block_size_in_words module_initializer)
     in
     print_rawflambda ppf flambda;
     check_invariants flambda;

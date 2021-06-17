@@ -251,9 +251,6 @@ module type Optcommon_options = sig
   val _no_flambda_debug_permute_every_name : unit -> unit
   val _flambda_debug_concrete_types_only_on_canonicals : unit -> unit
   val _no_flambda_debug_concrete_types_only_on_canonicals : unit -> unit
-
-  val _dprepared_lambda : unit -> unit
-  val _dilambda : unit -> unit
 end;;
 
 module type Optcomp_options = sig

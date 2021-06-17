@@ -55,9 +55,11 @@ val close_switch
    : Acc.t -> Env.t -> Ident.t -> Ilambda.switch
   -> Acc.t * Expr_with_acc.t
 
-val ilambda_to_flambda
+val close_program
    : backend:(module Flambda_backend_intf.S)
   -> module_ident:Ident.t
   -> module_block_size_in_words:int
-  -> Ilambda.program
+  -> program:(Acc.t -> Env.t -> Acc.t * Expr_with_acc.t)
+  -> prog_return_cont:Continuation.t
+  -> exn_continuation:Continuation.t
   -> Flambda_unit.t

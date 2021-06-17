@@ -777,10 +777,6 @@ let mk_dclambda f =
   "-dclambda", Arg.Unit f, " (undocumented)"
 ;;
 
-let mk_dilambda f =
-  "-dilambda", Arg.Unit f, " Print Ilambda terms"
-;;
-
 let mk_dflambda f =
   "-dflambda", Arg.Unit f, " Print Flambda terms"
 ;;
@@ -1290,9 +1286,6 @@ module type Optcommon_options = sig
   val _no_flambda_debug_permute_every_name : unit -> unit
   val _flambda_debug_concrete_types_only_on_canonicals : unit -> unit
   val _no_flambda_debug_concrete_types_only_on_canonicals : unit -> unit
-
-  val _dprepared_lambda : unit -> unit
-  val _dilambda : unit -> unit
 end;;
 
 module type Optcomp_options = sig
@@ -1710,8 +1703,6 @@ struct
     mk_dump_into_file F._dump_into_file;
     mk_dump_pass F._dump_pass;
 
-    mk_dilambda F._dilambda;
-
     mk_args F._args;
     mk_args0 F._args0;
   ]
@@ -1862,8 +1853,6 @@ module Make_opttop_options (F : Opttop_options) = struct
     mk_dinterval F._dinterval;
     mk_dstartup F._dstartup;
     mk_dump_pass F._dump_pass;
-
-    mk_dilambda F._dilambda;
   ]
 end;;
 
@@ -2194,9 +2183,6 @@ module Default = struct
       use_inlining_arguments_set ~round:0 o1_arguments;
       *)
       ()
-
-    let _dprepared_lambda = set dump_prepared_lambda
-    let _dilambda = set dump_ilambda
   end
 
   module Compiler = struct

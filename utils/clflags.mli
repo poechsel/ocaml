@@ -135,8 +135,6 @@ val dump_lambda : bool ref
 val dump_rawclambda : bool ref
 val dump_clambda : bool ref
 val dump_rawflambda : bool ref
-val dump_prepared_lambda : bool ref
-val dump_ilambda : bool ref
 val dump_flambda : bool ref
 val dump_rawfexpr : bool ref
 val dump_fexpr : bool ref

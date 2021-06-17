@@ -996,56 +996,8 @@ let close_let_rec acc env ~function_declarations
     ~body ~free_names_of_body:Unknown
   |> Expr_with_acc.create_let
 
-let rec close acc env (ilam : Ilambda.t) : Acc.t * Expr_with_acc.t =
-  match ilam with
-  | Let (id, user_visible, _kind, defining_expr, body) ->
-    (* CR mshinwell: Remove [kind] on the Ilambda terms? *)
-    close_let acc env id user_visible defining_expr
-      ~body:(fun acc env -> close acc env body)
-  | Let_rec (defs, body) ->
-    let function_declarations =
-      let compilation_unit = Compilation_unit.get_current_exn () in
-      let recursive_functions = Ilambda.recursive_functions defs in
-      List.map (function (let_rec_ident,
-          ({ kind; return_continuation; exn_continuation;
-             params; return; body; free_idents_of_body;
-             attr; loc; stub;
-           } : Ilambda.function_declaration)) ->
-            let closure_id =
-              Closure_id.wrap compilation_unit
-                (Variable.create_with_same_name_as_ident let_rec_ident)
-            in
-            let recursive : Recursive.t =
-              if Ident.Set.mem let_rec_ident recursive_functions then
-                Recursive
-              else
-                Non_recursive
-            in
-            let contains_closures = Ilambda.contains_closures body in
-            let function_declaration =
-              Function_decl.create ~let_rec_ident:(Some let_rec_ident)
-                ~closure_id ~kind ~params ~return ~return_continuation
-                ~exn_continuation ~body:(fun acc env -> close acc env body)
-                ~attr ~loc ~free_idents_of_body ~stub
-                recursive ~contains_closures
-            in
-            function_declaration)
-        defs
-    in
-    close_let_rec acc env ~function_declarations
-      ~body:(fun acc env -> close acc env body)
-  | Let_cont { name; is_exn_handler; params; recursive; body; handler } ->
-    close_let_cont acc env ~name ~is_exn_handler ~params ~recursive
-      ~body:(fun acc env -> close acc env body)
-      ~handler:(fun acc env -> close acc env handler)
-  | Apply apply -> close_apply acc env apply
-  | Apply_cont (cont, trap_action, args) ->
-    close_apply_cont acc env cont trap_action args
-  | Switch (scrutinee, switch) -> close_switch acc env scrutinee switch
-
-
-let ilambda_to_flambda ~backend ~module_ident ~module_block_size_in_words
-      (ilam : Ilambda.program) =
+let close_program ~backend ~module_ident ~module_block_size_in_words
+      ~program ~prog_return_cont ~exn_continuation =
   let module Backend = (val backend : Flambda_backend_intf.S) in
   let env = Env.empty ~backend in
   let module_symbol =
@@ -1139,20 +1091,13 @@ let ilambda_to_flambda ~backend ~module_ident ~module_block_size_in_words
        tuple with fields indexed from zero to [module_block_size_in_words]. The
        handler extracts the fields; the variables bound to such fields are then
        used to define the module block symbol. *)
-    let acc, body = close acc env ilam.expr in
-    Let_cont_with_acc.create_non_recursive acc ilam.return_continuation
+    let acc, body = program acc env in
+    Let_cont_with_acc.create_non_recursive acc prog_return_cont
       load_fields_cont_handler
       ~body
       ~free_names_of_body:Unknown
       ~cost_metrics_of_handler
   in
-  begin match ilam.exn_continuation.extra_args with
-  | [] -> ()
-  | _::_ ->
-    Misc.fatal_error "Ilambda toplevel exception continuation cannot have \
-      extra arguments"
-  end;
-  let exn_continuation = ilam.exn_continuation.exn_handler in
   let acc, body =
     Code_id.Map.fold (fun code_id code (acc, body) ->
       let bound_symbols =

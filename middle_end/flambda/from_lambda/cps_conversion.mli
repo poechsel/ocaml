@@ -18,6 +18,9 @@
 
 [@@@ocaml.warning "+a-4-30-40-41-42"]
 
-val lambda_to_ilambda
+val lambda_to_flambda
    : backend:(module Flambda_backend_intf.S)
-  -> Lambda.lambda -> Ilambda.program
+  -> module_ident:Ident.t
+  -> module_block_size_in_words:int
+  -> Lambda.lambda
+  -> Flambda_unit.t
