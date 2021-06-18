@@ -1420,7 +1420,12 @@ and cps_function env ~fid ~stub
     Closure_id.wrap (Compilation_unit.get_current_exn ())
       (Variable.create_with_same_name_as_ident fid)
   in
-  let contains_closures = contains_functions body in
+  let contains_closures =
+    (* only useful with this flag *)
+    if !Clflags.Flambda.Expert.fallback_inlining_heuristic
+    then contains_functions body
+    else false
+  in
   let body = fun acc ccenv ->
     cps_tail acc new_env ccenv body body_cont body_exn_cont
   in
