@@ -33,6 +33,7 @@ module Function_declaration_decision : sig
         small_function_size: Code_size.t;
         large_function_size: Code_size.t;
       }
+    | Functor of { size : Code_size.t }
 
   val print : Format.formatter -> t -> unit
 

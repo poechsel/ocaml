@@ -48,6 +48,7 @@ module Function_declaration_decision = struct
         small_function_size: Code_size.t;
         large_function_size: Code_size.t;
       }
+    | Functor of { size : Code_size.t }
 
   type inlining_behaviour =
     | Cannot_be_inlined
@@ -61,6 +62,7 @@ module Function_declaration_decision = struct
     | Stub
     | Attribute_inline
     | Small_function _ -> Must_be_inlined
+    | Functor _
     | Speculatively_inlinable _-> Could_possibly_be_inlined
 
   let print fmt = function
@@ -94,6 +96,12 @@ module Function_declaration_decision = struct
         Code_size.print size
         Code_size.print small_function_size
         Code_size.print large_function_size
+    | Functor { size } ->
+      Format.fprintf fmt
+        "@[<hov 1>(Functor@ \
+         @[<hov 1>(size@ %a)@]\
+         )@]"
+        Code_size.print size
 
   let report_reason fmt = function
     | Never_inline_attribute ->
@@ -126,6 +134,9 @@ module Function_declaration_decision = struct
         Code_size.print small_function_size
         Code_size.print size
         Code_size.print large_function_size
+    | Functor _ ->
+      Format.fprintf fmt "this@ function@ is@ a@ functor@ (so@ the@ large@ \
+                          function@ threshold@ was@ not@ applied)."
 
   let report fmt t =
     Format.fprintf fmt "@[<v>The function %s be inlined at its use-sites@ \
@@ -170,7 +181,9 @@ let make_decision_for_function_declaration denv ~cost_metrics_source function_de
       let size = Cost_metrics.size metrics in
       let is_small = Code_size.(<=) size small_function_size in
       let is_large = Code_size.(<=) large_function_size size in
-      if is_large then
+      if Code.is_a_functor code then
+        Functor { size }
+      else if is_large then
         Function_body_too_large large_function_size
       else if is_small then
         Small_function {
