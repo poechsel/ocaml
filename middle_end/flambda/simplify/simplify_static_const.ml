@@ -31,8 +31,10 @@ let simplify_field_of_block dacc (field : Field_of_block.t) =
     let ty = S.simplify_simple dacc (Simple.var var) ~min_name_mode in
     let simple = T.get_alias_exn ty in
     Simple.pattern_match simple
-      ~name:(fun name ~coercion:_ ->
-        (* CR lmaurer: Coercion dropped! *)
+      ~name:(fun name ~coercion ->
+        (* CR lmaurer: This will break if you try and put a coerced thing
+           in a block *)
+        assert (Coercion.is_id coercion);
         Name.pattern_match name
           ~var:(fun var -> Field_of_block.Dynamically_computed var, ty)
           ~symbol:(fun sym -> Field_of_block.Symbol sym, ty))

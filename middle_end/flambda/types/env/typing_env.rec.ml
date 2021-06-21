@@ -1038,7 +1038,6 @@ and add_equation t name ty =
       let canonical = Aliases.get_canonical_ignoring_name_mode aliases name in
       canonical, t, ty
     | alias_of ->
-      let alias_of = Simple.without_coercion alias_of in
       (* Forget where [name] and [alias_of] came from---our job is now to
          record that they're equal. In general, they have canonical expressions
          [c_n] and [c_a], respectively, so what we ultimately need to record is
@@ -1070,6 +1069,18 @@ and add_equation t name ty =
       in
       alias_of_demoted_element, t, ty
   in
+  (* We have [(coerce <bare_lhs> <coercion>) : <ty>].
+     Thus [<bare_lhs> : (coerce <ty> <coercion>^-1)]. *)
+  let bare_lhs = Simple.without_coercion simple in
+  let coercion_from_bare_lhs_to_ty = Simple.coercion simple in
+  let coercion_from_ty_to_bare_lhs =
+    Coercion.inverse coercion_from_bare_lhs_to_ty
+  in
+  let ty =
+    match Type_grammar.apply_coercion ty coercion_from_ty_to_bare_lhs with
+    | Bottom -> Type_grammar.bottom (Type_grammar.kind ty)
+    | Ok ty -> ty
+  in
   (* Beware: if we're about to add the equation on a name which is different
      from the one that the caller passed in, then we need to make sure that the
      type we assign to that name is the most precise available. This
@@ -1084,8 +1095,8 @@ and add_equation t name ty =
 
      Note also that [p] and [x] may have different name modes! *)
   let ty, t =
-    let [@inline always] name eqn_name ~coercion:_ =
-      (* CR lmaurer: Coercion dropped! *)
+    let [@inline always] name eqn_name ~coercion =
+      assert (Coercion.is_id coercion); (* true by definition *)
       if Name.equal name eqn_name then ty, t
       else
         let env = Meet_env.create t in
@@ -1095,22 +1106,10 @@ and add_equation t name ty =
         | Ok (meet_ty, env_extension) ->
           meet_ty, add_env_extension t env_extension
     in
-    Simple.pattern_match simple ~name ~const:(fun _ -> ty, t)
+    Simple.pattern_match bare_lhs ~name ~const:(fun _ -> ty, t)
   in
-  (* We have [(coerce <bare_lhs> <coercion>) : <ty>].
-     Thus [<bare_lhs> : (coerce <ty> <coercion>^-1)]. *)
-  let bare_lhs = Simple.without_coercion simple in
-  let coercion_from_bare_lhs_to_ty = Simple.coercion simple in
-  let coercion_from_ty_to_bare_lhs =
-    Coercion.inverse coercion_from_bare_lhs_to_ty
-  in
-  let ty =
-    match Type_grammar.apply_coercion ty coercion_from_ty_to_bare_lhs with
-    | Bottom -> Type_grammar.bottom (Type_grammar.kind ty)
-    | Ok ty -> ty
-  in
-  let [@inline always] name name ~coercion:_ =
-    (* [bare_lhs] has no coercion by its definition *)
+  let [@inline always] name name ~coercion =
+    assert (Coercion.is_id coercion); (* true by definition *)
     add_equation0 t name ty
   in
   Simple.pattern_match bare_lhs ~name ~const:(fun _ -> t)
@@ -1266,10 +1265,21 @@ let type_simple_in_term_exn t ?min_name_mode simple =
         Name_mode.normal
     in
     let [@inline always] name name ~coercion:_ =
-      (* CR lmaurer: Coercion dropped! *)
+      (* Applying coercion below *)
       find_with_binding_time_and_mode t name None
     in
     Simple.pattern_match simple ~const ~name
+  in
+  let ty =
+    if Simple.has_coercion simple then
+      match
+        (Type_grammar.apply_coercion ty (Simple.coercion simple)
+           : _ Or_bottom.t)
+      with
+      | Ok ty -> ty
+      | Bottom -> Type_grammar.bottom_like ty
+    else
+      ty
   in
   let kind = Type_grammar.kind ty in
   let aliases_for_simple, min_binding_time =
@@ -1322,7 +1332,6 @@ let get_canonical_simple_exn t ?min_name_mode ?name_mode_of_existing_simple
     Simple.pattern_match simple
       ~const:(fun _ -> aliases_with_min_binding_time t)
       ~name:(fun name ~coercion:_ ->
-        (* CR lmaurer: Coercion dropped! *)
         Name.pattern_match name
           ~var:(fun var ->
             let comp_unit = Variable.compilation_unit var in
@@ -1400,7 +1409,6 @@ let get_canonical_simple_exn t ?min_name_mode ?name_mode_of_existing_simple
 let get_alias_then_canonical_simple_exn t ?min_name_mode
       ?name_mode_of_existing_simple typ =
   let simple = Type_grammar.get_alias_exn typ in
-  let simple = Simple.without_coercion simple in
   get_canonical_simple_exn t ?min_name_mode ?name_mode_of_existing_simple
     simple
 

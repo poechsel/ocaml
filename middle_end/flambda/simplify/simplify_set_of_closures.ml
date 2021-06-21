@@ -675,8 +675,7 @@ let simplify_and_lift_set_of_closures dacc ~closure_bound_vars_inverse
     Var_within_closure.Map.map (fun closure_element ->
         Simple.pattern_match closure_element
           ~const:(fun _ -> T.alias_type_of K.value closure_element)
-          ~name:(fun name ~coercion:_ ->
-            (* CR lmaurer: Coercion dropped! *)
+          ~name:(fun name ~coercion ->
             Name.pattern_match name
               ~var:(fun var ->
                 match Variable.Map.find var closure_bound_vars_inverse with
@@ -687,7 +686,10 @@ let simplify_and_lift_set_of_closures dacc ~closure_bound_vars_inverse
                   let closure_symbol =
                     Closure_id.Map.find closure_id closure_symbols_map
                   in
-                  T.alias_type_of K.value (Simple.symbol closure_symbol))
+                  let simple =
+                    Simple.with_coercion (Simple.symbol closure_symbol) coercion
+                  in
+                  T.alias_type_of K.value simple)
                 ~symbol:(fun _sym -> T.alias_type_of K.value closure_element)))
       closure_elements
   in
@@ -840,7 +842,6 @@ let type_closure_elements_and_make_lifting_decision_for_one_set dacc
               ~const:(fun _ -> symbol_projections)
               ~symbol:(fun _ ~coercion:_ -> symbol_projections)
               ~var:(fun var ~coercion:_ ->
-                (* CR lmaurer: Coercion dropped? *)
                 (* [var] will already be canonical, as we require for the
                    symbol projections map. *)
                 match DE.find_symbol_projection (DA.denv dacc) var with

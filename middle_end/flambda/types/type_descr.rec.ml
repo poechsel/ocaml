@@ -171,27 +171,22 @@ module Make (Head : Type_head_intf.S
           in
           force_to_head ~force_to_kind typ
         in
-        let [@inline always] name name ~coercion:_ : _ Or_unknown_or_bottom.t =
-          (* CR lmaurer: Coercion dropped! *)
+        let [@inline always] name name ~coercion : _ Or_unknown_or_bottom.t =
           let t = force_to_kind (TE.find env name (Some kind)) in
           match descr t with
           | No_alias Bottom -> Bottom
           | No_alias Unknown -> Unknown
-          | No_alias (Ok head) -> Ok head
-            (* CR mshinwell: Fix coercion
-            begin match coercion with
-            | None -> Ok head
-            | Some coercion ->
-              (* CR mshinwell: check coercion handling is correct, after
-                 recent changes in this area *)
+          | No_alias (Ok head) ->
+            if Coercion.is_id coercion then
+              Ok head
+            else
               (* [simple] already has [coercion] applied to it (see
                  [get_canonical_simple], above).  However we also need to
                  apply it to the expanded head of the type. *)
-              match Head.apply_coercion head coercion with
+              begin match Head.apply_coercion head coercion with
               | Bottom -> Bottom
               | Ok head -> Ok head
-            end
-            *)
+              end
           | Equals _ ->
             Misc.fatal_errorf "Canonical alias %a should never have \
                 [Equals] type %a:@ %a"
@@ -228,12 +223,19 @@ module Make (Head : Type_head_intf.S
           end
         | Equals _ -> assert false
 
-  let add_equation _env (simple : Simple.t) ty env_extension =
+  let add_equation _env (simple : Simple.t) ty_of_simple env_extension ~to_type =
     match Simple.must_be_name simple with
     (* CR mshinwell: Does this need to use some kind of [meet_equation]? *)
-    | Some (name, _coercion) ->
-      (* CR lmaurer: Coercion dropped! *)
-      TEE.add_or_replace_equation env_extension name ty
+    | Some (name, coercion_from_name_to_simple) ->
+      let coercion_from_simple_to_name =
+        Coercion.inverse coercion_from_name_to_simple
+      in
+      let ty_of_name =
+        match apply_coercion ty_of_simple coercion_from_simple_to_name with
+        | Ok ty -> ty
+        | Bottom -> bottom ()
+      in
+      TEE.add_or_replace_equation env_extension name (to_type ty_of_name)
     | None -> env_extension
 
   let all_aliases_of env simple_opt ~in_env =
@@ -361,7 +363,7 @@ module Make (Head : Type_head_intf.S
         | Left_head_unchanged ->
           let env_extension =
             TEE.empty ()
-            |> add_equation env simple2 (to_type (create_no_alias head1))
+            |> add_equation env simple2 (create_no_alias head1) ~to_type
           in
           Ok (to_type (create_equals simple2), env_extension)
         | Right_head_unchanged ->
@@ -369,7 +371,7 @@ module Make (Head : Type_head_intf.S
         | New_head (head, env_extension) ->
           let env_extension =
             env_extension
-            |> add_equation env simple2 (to_type (create_no_alias head))
+            |> add_equation env simple2 (create_no_alias head) ~to_type
           in
           match head with
           | Bottom -> Bottom
@@ -389,13 +391,13 @@ module Make (Head : Type_head_intf.S
         | Right_head_unchanged ->
           let env_extension =
             TEE.empty ()
-            |> add_equation env simple1 (to_type (create_no_alias head2))
+            |> add_equation env simple1 ~to_type (create_no_alias head2)
           in
           Ok (to_type (create_equals simple1), env_extension)
         | New_head (head, env_extension) ->
           let env_extension =
             env_extension
-            |> add_equation env simple1 (to_type (create_no_alias head))
+            |> add_equation env simple1 ~to_type (create_no_alias head)
           in
           match head with
           | Bottom -> Bottom
@@ -424,20 +426,20 @@ module Make (Head : Type_head_intf.S
           | Left_head_unchanged ->
             let env_extension =
               TEE.empty ()
-              |> add_equation env simple2 (to_type (create_equals simple1))
+              |> add_equation env simple2 ~to_type (create_equals simple1)
             in
             Ok (to_type (create_equals simple1), env_extension)
           | Right_head_unchanged ->
             let env_extension =
               TEE.empty ()
-              |> add_equation env simple1 (to_type (create_equals simple2))
+              |> add_equation env simple1 ~to_type (create_equals simple2)
             in
             Ok (to_type (create_equals simple2), env_extension)
           | New_head (head, env_extension) ->
             let env_extension =
               env_extension
-              |> add_equation env simple1 (to_type (create_no_alias head))
-              |> add_equation env simple2 (to_type (create_equals simple1))
+              |> add_equation env simple1 ~to_type (create_no_alias head)
+              |> add_equation env simple2 ~to_type (create_equals simple1)
             in
             (* It makes things easier (to check if the result of [meet] was
                bottom) to not return "=simple" in the bottom case.  This is ok

@@ -118,7 +118,7 @@ type var_or_symbol_or_tagged_immediate =
   | Tagged_immediate of Target_imm.t
 
 let prove_equals_to_var_or_symbol_or_tagged_immediate env t
-      : var_or_symbol_or_tagged_immediate proof =
+      : (var_or_symbol_or_tagged_immediate * Coercion.t) proof =
   let original_kind = kind t in
   if not (K.equal original_kind K.value) then begin
     Misc.fatal_errorf "Type %a is not of kind value"
@@ -132,7 +132,7 @@ let prove_equals_to_var_or_symbol_or_tagged_immediate env t
     Simple.pattern_match simple
       ~const:(fun cst : _ proof ->
         match Reg_width_const.descr cst with
-        | Tagged_immediate imm -> Proved (Tagged_immediate imm)
+        | Tagged_immediate imm -> Proved (Tagged_immediate imm, Coercion.id)
         | _ ->
           Misc.fatal_errorf "[Simple] %a in the [Equals] field has a kind \
               different from that returned by [kind] (%a):@ %a"
@@ -152,7 +152,8 @@ let prove_equals_to_var_or_symbol_or_tagged_immediate env t
           Simple.pattern_match simple
             ~const:(fun cst : _ proof ->
               match Reg_width_const.descr cst with
-              | Tagged_immediate imm -> Proved (Tagged_immediate imm)
+              | Tagged_immediate imm ->
+                Proved (Tagged_immediate imm, Coercion.id)
               | _ ->
                 let kind = kind t in
                 Misc.fatal_errorf "Kind returned by [get_canonical_simple] (%a) \
@@ -160,14 +161,14 @@ let prove_equals_to_var_or_symbol_or_tagged_immediate env t
                   K.print kind
                   Simple.print simple
                   print t)
-            ~name:(fun name ~coercion:_ ->
-              (* CR lmaurer: Coercion dropped? *)
+            ~name:(fun name ~coercion ->
               Name.pattern_match name
-                ~var:(fun var : var_or_symbol_or_tagged_immediate proof ->
-                  Proved (Var var))
+                ~var:(fun var : (var_or_symbol_or_tagged_immediate
+                                 * Coercion.t) proof ->
+                  Proved (Var var, coercion))
                 ~symbol:(fun symbol
-                    : var_or_symbol_or_tagged_immediate proof ->
-                  Proved (Symbol symbol))))
+                    : (var_or_symbol_or_tagged_immediate * Coercion.t) proof ->
+                  Proved (Symbol symbol, coercion))))
 
 let prove_single_closures_entry' env t : _ proof_allowing_kind_mismatch =
   match expand_head t env with
@@ -1023,10 +1024,14 @@ let reify ?allowed_if_free_vars_defined_in ?additional_free_var_criterion
                       prove_equals_to_var_or_symbol_or_tagged_immediate env
                         field_type
                     with
-                    | Proved (Var var) ->
+                    | Proved (_, coercion) when not (Coercion.is_id coercion) ->
+                      (* CR-someday lmaurer: Support lifting things whose fields
+                         have coercions. *)
+                      None
+                    | Proved (Var var, _) ->
                       if var_allowed var then Some (Var var) else None
-                    | Proved (Symbol sym) -> Some (Symbol sym)
-                    | Proved (Tagged_immediate imm) ->
+                    | Proved (Symbol sym, _) -> Some (Symbol sym)
+                    | Proved (Tagged_immediate imm, _) ->
                       Some (Tagged_immediate imm)
                     (* CR mshinwell: [Invalid] should propagate up *)
                     | Unknown | Invalid -> None)
@@ -1108,14 +1113,18 @@ let reify ?allowed_if_free_vars_defined_in ?additional_free_var_criterion
                           prove_equals_to_var_or_symbol_or_tagged_immediate
                             env closure_var_type
                         with
-                        | Proved (Var var) ->
+                        | Proved (Var var, coercion) ->
                           if var_allowed var
-                          then Some (Simple.var var)
+                          then
+                            Some (
+                              Simple.with_coercion (Simple.var var) coercion)
                           else None
-                        | Proved (Symbol sym) -> Some (Simple.symbol sym)
-                        | Proved (Tagged_immediate imm) ->
-                          Some (Simple.const (
-                            Reg_width_const.tagged_immediate imm))
+                        | Proved (Symbol sym, coercion) ->
+                          Some (
+                            Simple.with_coercion (Simple.symbol sym) coercion)
+                        | Proved (Tagged_immediate imm, coercion) ->
+                          Some (Simple.with_coercion (Simple.const (
+                            Reg_width_const.tagged_immediate imm)) coercion)
                         | Unknown | Invalid -> None)
                       closure_var_types
                   in
