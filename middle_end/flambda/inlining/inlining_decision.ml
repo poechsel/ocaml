@@ -134,10 +134,9 @@ module Function_declaration_decision = struct
         Code_size.print small_function_size
         Code_size.print size
         Code_size.print large_function_size
-    | Functor { size } ->
-      Format.fprintf fmt "this@ function@ is@ a@ functor@ and@ might@ be@ \
-                          inlined@ independently@ from@ it's@ size (%a)."
-        Code_size.print size
+    | Functor _ ->
+      Format.fprintf fmt "this@ function@ is@ a@ functor@ (so@ the@ large@ \
+                          function@ threshold@ was@ not@ applied)."
 
   let report fmt t =
     Format.fprintf fmt "@[<v>The function %s be inlined at its use-sites@ \
