@@ -81,8 +81,8 @@ let middle_end0 ppf ~prefixname ~backend ~filename ~module_ident
   Misc.Color.setup !Clflags.color;
   Profile.record_call "flambda.0" (fun () ->
     let flambda =
-      Profile.record_call "cps_conversion" (fun () ->
-        Cps_conversion.lambda_to_flambda ~backend ~module_ident
+      Profile.record_call "lambda_to_flambda" (fun () ->
+        Lambda_to_flambda.lambda_to_flambda ~backend ~module_ident
           ~module_block_size_in_words module_initializer)
     in
     print_rawflambda ppf flambda;

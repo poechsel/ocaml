@@ -133,7 +133,7 @@ let for_primitive (prim : Clambda_primitives.primitive) =
   | Psequand
   | Psequor ->
       (* Removed by [Closure_conversion] in the flambda pipeline and
-         [Cps_conversion] in the Flambda 2.0 pipeline.  Still needed for
+         [Lambda_to_flambda] in the Flambda 2.0 pipeline.  Still needed for
          [Closure]. *)
       No_effects, No_coeffects
 

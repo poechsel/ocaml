@@ -909,11 +909,11 @@ let convert_lprim ~backend (prim : L.primitive) (args : Simple.t list)
     | None, _ ->
       Misc.fatal_errorf
         "Lambda_to_flambda_primitives.convert_lprim: Pbigarrayref primitives \
-         with an unknown kind should have been removed by Cps_conversion."
+         with an unknown kind should have been removed by Lambda_to_flambda."
     | _, None ->
       Misc.fatal_errorf
         "Lambda_to_flambda_primitives.convert_lprim: Pbigarrayref primitives \
-         with an unknown layout should have been removed by Cps_conversion."
+         with an unknown layout should have been removed by Lambda_to_flambda."
     end
   | Pbigarrayset (unsafe, num_dimensions, kind, layout), args ->
     begin match C.convert_bigarray_kind kind,
@@ -933,11 +933,11 @@ let convert_lprim ~backend (prim : L.primitive) (args : Simple.t list)
     | None, _ ->
       Misc.fatal_errorf
         "Lambda_to_flambda_primitives.convert_lprim: Pbigarrayref primitives \
-         with an unknown kind should have been removed by Cps_conversion."
+         with an unknown kind should have been removed by Lambda_to_flambda."
     | _, None ->
       Misc.fatal_errorf
         "Lambda_to_flambda_primitives.convert_lprim: Pbigarrayref primitives \
-         with an unknown layout should have been removed by Cps_conversion."
+         with an unknown layout should have been removed by Lambda_to_flambda."
     end
   | Pbigarraydim dimension, [arg] ->
     tag_int (Unary (Bigarray_length { dimension; }, arg))
@@ -1068,7 +1068,7 @@ let convert_lprim ~backend (prim : L.primitive) (args : Simple.t list)
     | Pbytes_of_string | Pbytes_to_string
     ), _ ->
     Misc.fatal_errorf "[%a] should have been removed by \
-      [Cps_conversion.transform_primitive]"
+      [Lambda_to_flambda.transform_primitive]"
       Printlambda.primitive prim
   | Pgetglobal _, _ ->
     Misc.fatal_errorf "[%a] should have been handled by \

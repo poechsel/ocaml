@@ -139,7 +139,7 @@ let convert_float_comparison (comp : L.float_comparison) : P.comparison =
   | CFge -> Ge
   | CFnlt | CFngt | CFnle | CFnge ->
     Misc.fatal_error "Negated floating-point comparisons should have been \
-      removed by [Cps_conversion]"
+      removed by [Lambda_to_flambda]"
 
 let boxable_number_of_boxed_integer (bint : L.boxed_integer)
   : Flambda_kind.Boxable_number.t =

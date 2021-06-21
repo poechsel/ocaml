@@ -492,7 +492,7 @@ let transform_primitive env (prim : L.primitive) args loc =
         Primitive (L.Pccall desc, args, loc)
       end else begin
         Misc.fatal_errorf
-          "Cps_conversion.transform_primitive: \
+          "Lambda_to_flambda.transform_primitive: \
            Pbigarrayref with unknown layout and elements should only have \
            dimensions between 1 and 3 (see translprim)."
       end
@@ -510,7 +510,7 @@ let transform_primitive env (prim : L.primitive) args loc =
         Primitive (L.Pccall desc, args, loc)
       end else begin
         Misc.fatal_errorf
-          "Cps_conversion.transform_primimive: \
+          "Lambda_to_flambda.transform_primimive: \
            Pbigarrayset with unknown layout and elements should only have \
            dimensions between 1 and 3 (see translprim)."
       end
