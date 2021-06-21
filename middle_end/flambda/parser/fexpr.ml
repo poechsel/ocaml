@@ -61,6 +61,7 @@ type kind =
   | Value
   | Naked_number of Naked_number_kind.t
   | Fabricated
+  | Rec_info
 
 type static_structure = {
   symbol : symbol;

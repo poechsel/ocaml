@@ -9164,6 +9164,7 @@ middle_end/flambda/types/flambda_type.cmo : \
     middle_end/flambda/types/structures/row_like_maps_to_intf.cmo \
     middle_end/flambda/naming/renaming.cmi \
     middle_end/flambda/basic/reg_width_const.cmi \
+    middle_end/flambda/terms/rec_info_expr.cmi \
     middle_end/flambda/compilenv_deps/rec_info.cmi \
     middle_end/flambda/types/structures/product_intf.cmo \
     utils/printing_cache.cmi \
@@ -9218,6 +9219,7 @@ middle_end/flambda/types/flambda_type.cmx : \
     middle_end/flambda/types/structures/row_like_maps_to_intf.cmx \
     middle_end/flambda/naming/renaming.cmx \
     middle_end/flambda/basic/reg_width_const.cmx \
+    middle_end/flambda/terms/rec_info_expr.cmx \
     middle_end/flambda/compilenv_deps/rec_info.cmx \
     middle_end/flambda/types/structures/product_intf.cmx \
     utils/printing_cache.cmx \
@@ -9264,6 +9266,7 @@ middle_end/flambda/types/flambda_type.cmi : \
     middle_end/flambda/basic/scope.cmi \
     middle_end/flambda/naming/renaming.cmi \
     middle_end/flambda/basic/reg_width_const.cmi \
+    middle_end/flambda/terms/rec_info_expr.cmi \
     middle_end/flambda/compilenv_deps/rec_info.cmi \
     utils/printing_cache.cmi \
     middle_end/flambda/types/basic/or_unknown_or_bottom.cmi \
@@ -9373,6 +9376,7 @@ middle_end/flambda/types/type_grammar.rec.cmo : \
     middle_end/flambda/types/structures/set_of_closures_contents.cmi \
     middle_end/flambda/naming/renaming.cmi \
     middle_end/flambda/basic/reg_width_const.cmi \
+    middle_end/flambda/terms/rec_info_expr.cmi \
     utils/printing_cache.cmi \
     middle_end/flambda/types/basic/or_unknown_or_bottom.cmi \
     middle_end/flambda/types/basic/or_unknown.cmi \
@@ -9396,6 +9400,7 @@ middle_end/flambda/types/type_grammar.rec.cmx : \
     middle_end/flambda/types/structures/set_of_closures_contents.cmx \
     middle_end/flambda/naming/renaming.cmx \
     middle_end/flambda/basic/reg_width_const.cmx \
+    middle_end/flambda/terms/rec_info_expr.cmx \
     utils/printing_cache.cmx \
     middle_end/flambda/types/basic/or_unknown_or_bottom.cmx \
     middle_end/flambda/types/basic/or_unknown.cmx \
@@ -9416,6 +9421,7 @@ middle_end/flambda/types/type_grammar.rec.cmi : \
     lambda/tag.cmi \
     middle_end/flambda/basic/simple.cmi \
     middle_end/flambda/basic/reg_width_const.cmi \
+    middle_end/flambda/terms/rec_info_expr.cmi \
     middle_end/flambda/compilenv_deps/rec_info.cmi \
     utils/printing_cache.cmi \
     middle_end/flambda/types/basic/or_unknown.cmi \
@@ -10171,6 +10177,21 @@ middle_end/flambda/types/type_of_kind/type_of_kind_naked_nativeint0.rec.cmx : \
 middle_end/flambda/types/type_of_kind/type_of_kind_naked_nativeint0.rec.cmi : \
     middle_end/flambda/types/type_head_intf.cmo \
     utils/targetint.cmi
+middle_end/flambda/types/type_of_kind/type_of_kind_rec_info0.rec.cmo : \
+    middle_end/flambda/terms/rec_info_expr.cmi \
+    middle_end/flambda/types/basic/or_unknown.cmi \
+    middle_end/flambda/types/basic/or_bottom.cmi \
+    middle_end/flambda/compilenv_deps/coercion.cmi \
+    middle_end/flambda/types/type_of_kind/type_of_kind_rec_info0.rec.cmi
+middle_end/flambda/types/type_of_kind/type_of_kind_rec_info0.rec.cmx : \
+    middle_end/flambda/terms/rec_info_expr.cmx \
+    middle_end/flambda/types/basic/or_unknown.cmx \
+    middle_end/flambda/types/basic/or_bottom.cmx \
+    middle_end/flambda/compilenv_deps/coercion.cmx \
+    middle_end/flambda/types/type_of_kind/type_of_kind_rec_info0.rec.cmi
+middle_end/flambda/types/type_of_kind/type_of_kind_rec_info0.rec.cmi : \
+    middle_end/flambda/types/type_head_intf.cmo \
+    middle_end/flambda/terms/rec_info_expr.cmi
 middle_end/flambda/types/type_of_kind/type_of_kind_value0.rec.cmo : \
     middle_end/flambda/types/basic/string_info.cmi \
     utils/printing_cache.cmi \
@@ -10246,6 +10267,15 @@ middle_end/flambda/types/type_of_kind/variant.rec.cmi : \
     middle_end/flambda/types/type_of_kind/boilerplate/type_of_kind_naked_nativeint.rec.cmi
  \
     middle_end/flambda/types/type_of_kind/boilerplate/type_of_kind_naked_nativeint.rec.cmi : \
+    middle_end/flambda/types/type_descr_intf.cmo
+ \
+    middle_end/flambda/types/type_of_kind/boilerplate/type_of_kind_rec_info.rec.cmo : \
+    middle_end/flambda/types/type_of_kind/boilerplate/type_of_kind_rec_info.rec.cmi
+ \
+    middle_end/flambda/types/type_of_kind/boilerplate/type_of_kind_rec_info.rec.cmx : \
+    middle_end/flambda/types/type_of_kind/boilerplate/type_of_kind_rec_info.rec.cmi
+ \
+    middle_end/flambda/types/type_of_kind/boilerplate/type_of_kind_rec_info.rec.cmi : \
     middle_end/flambda/types/type_descr_intf.cmo
 middle_end/flambda/types/type_of_kind/boilerplate/type_of_kind_value.rec.cmo : \
     middle_end/flambda/types/type_of_kind/boilerplate/type_of_kind_value.rec.cmi

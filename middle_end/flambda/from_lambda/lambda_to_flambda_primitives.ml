@@ -156,26 +156,36 @@ let bigstring_ref ~size_int access_size arg1 arg2 dbg : H.expr_primitive =
   }
 
 let bigarray_box_raw_value_read kind =
+  let error what =
+    Misc.fatal_errorf
+      "Don't know how to unbox %s to store it in a bigarray"
+      what
+  in
   match P.element_kind_of_bigarray_kind kind with
   | Value -> Fun.id
   | Naked_number k ->
     let bi = K.Boxable_number.of_naked_number_kind k in
     fun arg -> H.Unary (Box_number bi, Prim arg)
   | Fabricated ->
-    Misc.fatal_errorf
-      "Don't know how to unbox a fabricated expression to \
-       store it in a bigarray"
+    error "a fabricated expression"
+  | Rec_info ->
+    error "recursion info"
 
 let bigarray_unbox_value_to_store kind =
+  let error what =
+    Misc.fatal_errorf
+      "Don't know how to unbox %s to store it in a bigarray"
+      what
+  in
   match P.element_kind_of_bigarray_kind kind with
   | Value -> Fun.id
   | Naked_number k ->
     let bi = K.Boxable_number.of_naked_number_kind k in
     fun arg -> H.Prim (Unary (Unbox_number bi, arg))
   | Fabricated ->
-    Misc.fatal_errorf
-      "Don't know how to unbox a fabricated expression to \
-       store it in a bigarray"
+    error "a fabricated expression"
+  | Rec_info ->
+    error "recursion info"
 
 let bigarray_dim_bound b dimension =
   H.Prim (Unary (Bigarray_length { dimension }, b))

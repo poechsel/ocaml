@@ -33,6 +33,7 @@ type naked_int32 = empty_naked_int32 * Numbers.Int32.Set.t
 type naked_int64 = empty_naked_int64 * Numbers.Int64.Set.t
 type naked_nativeint = empty_naked_nativeint * Targetint.Set.t
 type fabricated = private Fabricated
+type rec_info = private Rec_info
 
 module Naked_number_kind : sig
   type t =
@@ -54,6 +55,9 @@ type t = private
   | Fabricated
     (** Values which have been introduced by Flambda and are never accessible
         at the source language level (for example sets of closures). *)
+  | Rec_info
+    (** Recursion depths of identifiers. Like [Fabricated], not accessible at
+        the source level, but also not accessible at run time.  *)
 
 type kind = t
 
@@ -67,6 +71,7 @@ val naked_nativeint : t
 (* CR mshinwell: Fabricated kinds are only used in Flambda_static now.  Make
    a separate type. *)
 val fabricated : t
+val rec_info : t
 
 val is_value : t -> bool
 val is_naked_float : t -> bool
@@ -186,6 +191,7 @@ module With_subkind : sig
   val boxed_int64 : t
   val boxed_nativeint : t
   val tagged_immediate : t
+  val rec_info : t
 
   val of_naked_number_kind : Naked_number_kind.t -> t
 
@@ -197,6 +203,7 @@ module With_subkind : sig
     | Boxed_int64
     | Boxed_nativeint
     | Tagged_immediate
+    | Rec_info
 
   val descr : t -> descr
 

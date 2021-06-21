@@ -14,7 +14,7 @@
 (*                                                                        *)
 (**************************************************************************)
 
-[@@@ocaml.warning "+a-4-30-40-41-42"]
+[@@@ocaml.warning "+a-30-40-41-42"]
 
 type t =
   | Simple of Simple.t
@@ -67,7 +67,7 @@ let invariant_returning_kind env t : Flambda_primitive.result_kind =
          constants *)
       Singleton K.value
     | Rec_info _ ->
-      Singleton K.fabricated
+      Singleton K.rec_info
   with Misc.Fatal_error ->
     Misc.fatal_errorf "(during invariant checks) Context is:@ %a" print t
 
@@ -129,6 +129,8 @@ let box_value name (kind : Flambda_kind.t) dbg : t * Flambda_kind.t =
     Prim (Unary (Box_number Naked_nativeint, simple), dbg), K.value
   | Fabricated ->
     Misc.fatal_error "Cannot box values of [Fabricated] kind"
+  | Rec_info ->
+    Misc.fatal_error "Cannot box values of [Rec_info] kind"
 
 let unbox_value name (kind : Flambda_kind.t) dbg : t * Flambda_kind.t =
   let simple = Simple.name name in
@@ -146,7 +148,9 @@ let unbox_value name (kind : Flambda_kind.t) dbg : t * Flambda_kind.t =
     Prim (Unary (Unbox_number Naked_nativeint, simple), dbg),
       K.naked_nativeint
   | Fabricated ->
-    Misc.fatal_error "Cannot box values of [Fabricated] kind"
+    Misc.fatal_error "Cannot unbox values of [Fabricated] kind"
+  | Rec_info ->
+    Misc.fatal_error "Cannot unbox values of [Rec_info] kind"
 
 let at_most_generative_effects (t : t) =
   match t with
@@ -172,6 +176,7 @@ let dummy_value (kind : K.t) : t =
     | Naked_number Naked_nativeint ->
       Simple.const (Reg_width_const.naked_nativeint Targetint.zero)
     | Fabricated -> Misc.fatal_error "[Fabricated] kind not expected here"
+    | Rec_info -> Misc.fatal_error "[Rec_info] kind not expected here"
   in
   Simple simple
 

@@ -297,6 +297,7 @@ let kind (k : Flambda_kind.t) : Fexpr.kind =
   | Value -> Value
   | Fabricated -> Fabricated
   | Naked_number nnk -> Naked_number (naked_number_kind nnk)
+  | Rec_info -> Rec_info
 
 let arity (a : Flambda_arity.With_subkinds.t) : Fexpr.flambda_arity =
   List.map kind (Flambda_arity.With_subkinds.to_arity a)

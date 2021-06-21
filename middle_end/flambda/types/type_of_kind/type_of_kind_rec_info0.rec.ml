@@ -16,12 +16,30 @@
 
 [@@@ocaml.warning "+a-30-40-41-42"]
 
-type t =
-  | Const of Reg_width_const.Descr.t
-  | Value of Type_of_kind_value0.t Or_unknown_or_bottom.t
-  | Naked_immediate of Type_of_kind_naked_immediate0.t Or_unknown_or_bottom.t
-  | Naked_float of Type_of_kind_naked_float0.t Or_unknown_or_bottom.t
-  | Naked_int32 of Type_of_kind_naked_int32_0.t Or_unknown_or_bottom.t
-  | Naked_int64 of Type_of_kind_naked_int64_0.t Or_unknown_or_bottom.t
-  | Naked_nativeint of Type_of_kind_naked_nativeint0.t Or_unknown_or_bottom.t
-  | Rec_info of Type_of_kind_rec_info0.t Or_unknown_or_bottom.t
+type t = Rec_info_expr.t
+
+let print ppf t = Rec_info_expr.print ppf t
+
+let print_with_cache ~cache:_ ppf t = print ppf t
+
+let apply_renaming t renaming = Rec_info_expr.apply_renaming t renaming
+
+let free_names t = Rec_info_expr.free_names t
+
+let all_ids_for_export t = Rec_info_expr.all_ids_for_export t
+
+let apply_coercion t coercion : _ Or_bottom.t =
+  if Coercion.is_id coercion then Ok t
+  else Bottom
+
+let eviscerate _ : _ Or_unknown.t = Unknown
+
+let meet _env t1 t2 : _ Or_bottom.t =
+  (* CR lmaurer: This could be doing things like discovering two depth
+     variables are equal *)
+  if Rec_info_expr.equal t1 t2 then
+    Ok (t1, Typing_env_extension.empty ())
+  else Bottom
+
+let join _env t1 t2 : _ Or_unknown.t =
+  if Rec_info_expr.equal t1 t2 then Known t1 else Unknown

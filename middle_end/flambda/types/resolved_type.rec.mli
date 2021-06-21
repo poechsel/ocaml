@@ -24,3 +24,4 @@ type t =
   | Naked_int32 of Type_of_kind_naked_int32_0.t Or_unknown_or_bottom.t
   | Naked_int64 of Type_of_kind_naked_int64_0.t Or_unknown_or_bottom.t
   | Naked_nativeint of Type_of_kind_naked_nativeint0.t Or_unknown_or_bottom.t
+  | Rec_info of Type_of_kind_rec_info0.t Or_unknown_or_bottom.t

@@ -107,6 +107,7 @@ let kind ppf (k : kind) =
         | Naked_nativeint -> "nativeint"
       end
     | Fabricated -> "fabricated"
+    | Rec_info -> "rec_info"
   in
   Format.pp_print_string ppf s
 

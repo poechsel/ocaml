@@ -65,6 +65,7 @@ let keyword_table =
     "newer_version_of", NEWER_VERSION_OF;
     "noalloc", NOALLOC;
     "rec", REC;
+    "rec_info", REC_INFO;
     "set_of_closures", SET_OF_CLOSURES;
     "size", SIZE;
     "stub", STUB;

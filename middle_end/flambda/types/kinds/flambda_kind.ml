@@ -14,7 +14,7 @@
 (*                                                                        *)
 (**************************************************************************)
 
-[@@@ocaml.warning "+a-4-30-40-41-42"]
+[@@@ocaml.warning "+a-30-40-41-42"]
 
 type value = private Value
 type empty_naked_immediate = private Naked_immediate
@@ -23,6 +23,7 @@ type empty_naked_int32 = private Naked_int32
 type empty_naked_int64 = private Naked_int64
 type empty_naked_nativeint = private Naked_nativeint
 type fabricated = private Fabricated
+type rec_info = private Rec_info
 
 type naked_immediate = empty_naked_immediate * Target_imm.Set.t
 type naked_float = empty_naked_float * Numbers.Float_by_bit_pattern.Set.t
@@ -65,6 +66,7 @@ type t =
   | Value
   | Naked_number of Naked_number_kind.t
   | Fabricated
+  | Rec_info
 
 type kind = t
 
@@ -75,6 +77,7 @@ let naked_int32 = Naked_number Naked_int32
 let naked_int64 = Naked_number Naked_int64
 let naked_nativeint = Naked_number Naked_nativeint
 let fabricated = Fabricated
+let rec_info = Rec_info
 
 let unit = Value
 
@@ -90,10 +93,13 @@ include Identifiable.Make (struct
       | Value, Value -> 0
       | Naked_number n1, Naked_number n2 -> Naked_number_kind.compare n1 n2
       | Fabricated, Fabricated -> 0
+      | Rec_info, Rec_info -> 0
       | Value, _ -> -1
       | _, Value -> 1
       | Naked_number _, _ -> -1
       | _, Naked_number _ -> 1
+      | Fabricated, _ -> -1
+      | _, Fabricated -> 1
 
   let equal t1 t2 = (compare t1 t2 = 0)
 
@@ -136,6 +142,12 @@ include Identifiable.Make (struct
           colour (Flambda_colours.normal ())
       else
         Format.fprintf ppf "Fab"
+    | Rec_info ->
+      if unicode then
+        Format.fprintf ppf "@<0>%s@<1>\u{211d}@<0>%s"
+          colour (Flambda_colours.normal ())
+      else
+        Format.fprintf ppf "Rec"
 
   let output chan t =
     print (Format.formatter_of_out_channel chan) t
@@ -145,14 +157,16 @@ let is_value t =
   match t with
   | Value -> true
   | Naked_number _
-  | Fabricated -> false
+  | Fabricated
+  | Rec_info -> false
 
 let is_naked_float t =
   match t with
   | Naked_number Naked_float -> true
   | Value
-  | Naked_number _
-  | Fabricated -> false
+  | Naked_number (Naked_immediate | Naked_int32 | Naked_int64 | Naked_nativeint)
+  | Fabricated
+  | Rec_info -> false
 
 module Standard_int = struct
   type t =
@@ -407,7 +421,7 @@ module With_subkind = struct
   let create (kind : kind) (subkind : Subkind.t) =
     begin match kind with
     | Value -> ()
-    | Naked_number _ | Fabricated ->
+    | Naked_number _ | Fabricated | Rec_info ->
       match subkind with
       | Anything -> ()
       | Boxed_float
@@ -435,6 +449,7 @@ module With_subkind = struct
   let boxed_int64 = create value Boxed_int64
   let boxed_nativeint = create value Boxed_nativeint
   let tagged_immediate = create value Tagged_immediate
+  let rec_info = create rec_info Anything
 
   let of_naked_number_kind (naked_number_kind : Naked_number_kind.t) =
     match naked_number_kind with
@@ -454,7 +469,10 @@ module With_subkind = struct
         Format.fprintf ppf "@[%a%a@]"
           print kind
           Subkind.print subkind
-      | _, _ -> assert false  (* see [create] *)
+      | (Naked_number _ | Fabricated | Rec_info),
+        (Boxed_float | Boxed_int32 | Boxed_int64 | Boxed_nativeint
+          | Tagged_immediate) ->
+        assert false  (* see [create] *)
 
     let compare
           { kind = kind1; subkind = subkind1; }
@@ -479,6 +497,7 @@ module With_subkind = struct
     | Boxed_int64
     | Boxed_nativeint
     | Tagged_immediate
+    | Rec_info
 
   let descr t : descr =
     match t.kind with
@@ -492,6 +511,7 @@ module With_subkind = struct
       | Boxed_nativeint -> Boxed_nativeint
       end
     | Naked_number naked_number_kind -> Naked_number naked_number_kind
+    | Rec_info -> Rec_info
     | Fabricated -> Misc.fatal_error "Not implemented"
 
   let compatible t ~when_used_at =
@@ -503,7 +523,8 @@ module With_subkind = struct
     | Boxed_int32, Boxed_int32
     | Boxed_int64, Boxed_int64
     | Boxed_nativeint, Boxed_nativeint
-    | Tagged_immediate, Tagged_immediate -> true
+    | Tagged_immediate, Tagged_immediate
+    | Rec_info, Rec_info -> true
     (* Subkinds of [Value] may always be used at [Value], but not the
        converse: *)
     | Boxed_float, Any_value
@@ -513,7 +534,7 @@ module With_subkind = struct
     | Tagged_immediate, Any_value -> true
     (* All other combinations are incompatible. *)
     | (Any_value | Naked_number _ | Boxed_float | Boxed_int32 | Boxed_int64
-      | Boxed_nativeint | Tagged_immediate), _ -> false
+      | Boxed_nativeint | Tagged_immediate | Rec_info), _ -> false
 
   let has_useful_subkind_info t =
     match t.subkind with

@@ -40,6 +40,7 @@ let exttype_of_kind k =
     | Sixty_four -> Cmm.XInt64
     end
   | Fabricated -> Misc.fatal_error "[Fabricated] kind not expected here"
+  | Rec_info -> Misc.fatal_error "[Rec_info] kind not expected here"
 
 (* Void *)
 

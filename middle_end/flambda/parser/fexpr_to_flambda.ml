@@ -207,6 +207,7 @@ let value_kind : Fexpr.kind -> Flambda_kind.With_subkind.t = function
       | Naked_nativeint -> Flambda_kind.With_subkind.naked_nativeint
     end
   | Fabricated -> Misc.fatal_error "Fabricated should not be used"
+  | Rec_info -> Flambda_kind.With_subkind.rec_info
 
 let value_kind_without_subkind kind =
   Flambda_kind.With_subkind.kind (value_kind kind)

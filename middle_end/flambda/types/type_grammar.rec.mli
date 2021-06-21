@@ -26,6 +26,7 @@ type t = private
   | Naked_int32 of Type_of_kind_naked_int32.t
   | Naked_int64 of Type_of_kind_naked_int64.t
   | Naked_nativeint of Type_of_kind_naked_nativeint.t
+  | Rec_info of Type_of_kind_rec_info.t
 
 val print : Format.formatter -> t -> unit
 
@@ -70,6 +71,8 @@ val any_naked_int32 : unit -> t
 val any_naked_int64 : unit -> t
 val any_naked_nativeint : unit -> t
 
+val any_rec_info : unit -> t
+
 val this_tagged_immediate : Target_imm.t -> t
 val this_boxed_float : Numbers.Float_by_bit_pattern.t -> t
 val this_boxed_int32 : Int32.t -> t
@@ -82,6 +85,8 @@ val these_boxed_floats : Numbers.Float_by_bit_pattern.Set.t -> t
 val these_boxed_int32s : Int32.Set.t -> t
 val these_boxed_int64s : Int64.Set.t -> t
 val these_boxed_nativeints : Targetint.Set.t -> t
+
+val this_rec_info : Rec_info_expr.t -> t
 
 val this_naked_immediate : Target_imm.t -> t
 val this_naked_float : Numbers.Float_by_bit_pattern.t -> t

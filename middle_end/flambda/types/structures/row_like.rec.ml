@@ -526,7 +526,7 @@ struct
           | Naked_number Naked_float -> Known Tag.double_array_tag
           | Naked_number Naked_immediate | Naked_number Naked_int32
           | Naked_number Naked_int64 | Naked_number Naked_nativeint
-          | Fabricated ->
+          | Fabricated | Rec_info ->
             Misc.fatal_errorf "Bad kind %a for fields"
               Flambda_kind.print field_kind
           end
@@ -547,7 +547,7 @@ struct
             Known tag
           | Naked_number Naked_immediate | Naked_number Naked_int32
           | Naked_number Naked_int64 | Naked_number Naked_nativeint
-          | Fabricated ->
+          | Fabricated | Rec_info ->
             Misc.fatal_errorf "Bad kind %a for fields"
               Flambda_kind.print field_kind
           end

@@ -110,6 +110,7 @@ let make_const_int (i, m) : const =
 %token PLUSDOT  [@symbol "+."]
 %token RBRACE [@symbol "}"]
 %token REC    [@symbol "rec"]
+%token REC_INFO [@symbol "rec_info"]
 %token RPAREN [@symbol ")"]
 %token SEMICOLON [@symbol ";"]
 %token SET_OF_CLOSURES [@symbol "set_of_closures"]
@@ -354,6 +355,7 @@ kind:
   | INT64 { Naked_number Naked_int64 }
   | NATIVEINT { Naked_number Naked_nativeint }
   | FABRICATED { Fabricated }
+  | REC_INFO { Rec_info }
 ;
 kinds:
   | UNIT { [] }

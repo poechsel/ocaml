@@ -1064,6 +1064,7 @@ let simplify_phys_equal (op : P.equality_comparison)
       Binary_int_eq_comp_nativeint.simplify op dacc ~original_term dbg
         ~arg1 ~arg1_ty ~arg2 ~arg2_ty ~result_var
     | Fabricated -> Misc.fatal_error "Fabricated kind not expected here"
+    | Rec_info -> Misc.fatal_error "Rec_info kind not expected here"
     end
 
 let simplify_binary_primitive dacc (prim : P.binary_primitive)

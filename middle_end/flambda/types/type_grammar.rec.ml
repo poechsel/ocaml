@@ -27,6 +27,7 @@ module T_Nf = Type_of_kind_naked_float
 module T_N32 = Type_of_kind_naked_int32
 module T_N64 = Type_of_kind_naked_int64
 module T_NN = Type_of_kind_naked_nativeint
+module T_RI = Type_of_kind_rec_info
 
 type t =
   | Value of T_V.t
@@ -35,6 +36,7 @@ type t =
   | Naked_int32 of T_N32.t
   | Naked_int64 of T_N64.t
   | Naked_nativeint of T_NN.t
+  | Rec_info of T_RI.t
 
 let print_with_cache ~cache ppf (t : Type_grammar.t) =
   match t with
@@ -56,6 +58,9 @@ let print_with_cache ~cache ppf (t : Type_grammar.t) =
   | Naked_nativeint ty ->
     Format.fprintf ppf "@[<hov 1>(Naked_nativeint@ %a)@]"
       (T_NN.print_with_cache ~cache) ty
+  | Rec_info ty ->
+    Format.fprintf ppf "@[<hov 1>(Rec_info@ %a)@]"
+      (T_RI.print_with_cache ~cache) ty
 
 let print ppf t =
   let cache : Printing_cache.t = Printing_cache.create () in
@@ -65,14 +70,14 @@ let force_to_kind_value t =
   match t with
   | Value ty -> ty
   | Naked_immediate _ | Naked_float _ | Naked_int32 _ | Naked_int64 _
-  | Naked_nativeint _ ->
+  | Naked_nativeint _ | Rec_info _ ->
     Misc.fatal_errorf "Type has wrong kind (expected [Value]):@ %a" print t
 
 let force_to_kind_naked_immediate t =
   match t with
   | Naked_immediate ty -> ty
   | Value _ | Naked_float _ | Naked_int32 _ | Naked_int64 _
-  | Naked_nativeint _ ->
+  | Naked_nativeint _ | Rec_info _ ->
     Misc.fatal_errorf
       "Type has wrong kind (expected [Naked_immediate]):@ %a"
       print t
@@ -81,7 +86,7 @@ let force_to_kind_naked_float t =
   match t with
   | Naked_float ty -> ty
   | Value _ | Naked_immediate _ | Naked_int32 _ | Naked_int64 _
-  | Naked_nativeint _ ->
+  | Naked_nativeint _ | Rec_info _ ->
     Misc.fatal_errorf
       "Type has wrong kind (expected [Naked_float]):@ %a"
       print t
@@ -90,7 +95,7 @@ let force_to_kind_naked_int32 t =
   match t with
   | Naked_int32 ty -> ty
   | Value _ | Naked_immediate _ | Naked_float _ | Naked_int64 _
-  | Naked_nativeint _ ->
+  | Naked_nativeint _ | Rec_info _ ->
     Misc.fatal_errorf
       "Type has wrong kind (expected [Naked_int32]):@ %a"
       print t
@@ -99,7 +104,7 @@ let force_to_kind_naked_int64 t =
   match t with
   | Naked_int64 ty -> ty
   | Value _ | Naked_immediate _ | Naked_float _ | Naked_int32 _
-  | Naked_nativeint _ ->
+  | Naked_nativeint _ | Rec_info _ ->
     Misc.fatal_errorf
       "Type has wrong kind (expected [Naked_number Int64]):@ %a"
       print t
@@ -108,9 +113,18 @@ let force_to_kind_naked_nativeint t =
   match t with
   | Naked_nativeint ty -> ty
   | Value _ | Naked_immediate _ | Naked_float _ | Naked_int32 _
-  | Naked_int64 _ ->
+  | Naked_int64 _ | Rec_info _ ->
     Misc.fatal_errorf
       "Type has wrong kind (expected [Naked_number Nativeint]):@ %a"
+      print t
+
+let force_to_kind_rec_info t =
+  match t with
+  | Rec_info ty -> ty
+  | Value _ | Naked_immediate _ | Naked_float _ | Naked_int32 _
+  | Naked_int64 _ | Naked_nativeint _ ->
+    Misc.fatal_errorf
+      "Type has wrong kind (expected [Rec_info]):@ %a"
       print t
 
 let apply_renaming t renaming =
@@ -139,6 +153,10 @@ let apply_renaming t renaming =
     let ty' = T_NN.apply_renaming ty renaming in
     if ty == ty' then t
     else Naked_nativeint ty'
+  | Rec_info ty ->
+    let ty' = T_RI.apply_renaming ty renaming in
+    if ty == ty' then t
+    else Rec_info ty'
 
 let free_names t =
   match t with
@@ -148,6 +166,7 @@ let free_names t =
   | Naked_int32 ty -> T_N32.free_names ty
   | Naked_int64 ty -> T_N64.free_names ty
   | Naked_nativeint ty -> T_NN.free_names ty
+  | Rec_info ty -> T_RI.free_names ty
 
 let all_ids_for_export t =
   match t with
@@ -157,6 +176,7 @@ let all_ids_for_export t =
   | Naked_int32 ty -> T_N32.all_ids_for_export ty
   | Naked_int64 ty -> T_N64.all_ids_for_export ty
   | Naked_nativeint ty -> T_NN.all_ids_for_export ty
+  | Rec_info ty -> T_RI.all_ids_for_export ty
 
 let apply_coercion t coercion : _ Or_bottom.t =
   match t with
@@ -188,6 +208,11 @@ let apply_coercion t coercion : _ Or_bottom.t =
   | Naked_nativeint ty ->
     begin match T_NN.apply_coercion ty coercion with
     | Ok ty -> Ok (Naked_nativeint ty)
+    | Bottom -> Bottom
+    end
+  | Rec_info ty ->
+    begin match T_RI.apply_coercion ty coercion with
+    | Ok ty -> Ok (Rec_info ty)
     | Bottom -> Bottom
     end
 
@@ -228,6 +253,12 @@ let eviscerate t env =
         K.naked_nativeint
     in
     Naked_nativeint ty
+  | Rec_info ty ->
+    let ty =
+      T_RI.eviscerate ~force_to_kind:force_to_kind_rec_info ty env
+        K.rec_info
+    in
+    Rec_info ty
 
 let kind t =
   match t with
@@ -237,6 +268,7 @@ let kind t =
   | Naked_int32 _ -> K.naked_int32
   | Naked_int64 _ -> K.naked_int64
   | Naked_nativeint _ -> K.naked_nativeint
+  | Rec_info _ -> K.rec_info
 
 let get_alias_exn t =
   match t with
@@ -246,6 +278,7 @@ let get_alias_exn t =
   | Naked_int32 ty -> T_N32.get_alias_exn ty
   | Naked_int64 ty -> T_N64.get_alias_exn ty
   | Naked_nativeint ty -> T_NN.get_alias_exn ty
+  | Rec_info ty -> T_RI.get_alias_exn ty
 
 (* CR mshinwell: We should have transformations and invariant checks to
    enforce that, when a type can be expressed just using [Equals] (e.g. to
@@ -262,6 +295,7 @@ let is_obviously_bottom (t : t) =
   | Naked_int32 ty -> T_N32.is_obviously_bottom ty
   | Naked_int64 ty -> T_N64.is_obviously_bottom ty
   | Naked_nativeint ty -> T_NN.is_obviously_bottom ty
+  | Rec_info ty -> T_RI.is_obviously_bottom ty
 
 let is_obviously_unknown (t : t) =
   match t with
@@ -271,6 +305,7 @@ let is_obviously_unknown (t : t) =
   | Naked_int32 ty -> T_N32.is_obviously_unknown ty
   | Naked_int64 ty -> T_N64.is_obviously_unknown ty
   | Naked_nativeint ty -> T_NN.is_obviously_unknown ty
+  | Rec_info ty -> T_RI.is_obviously_unknown ty
 
 let alias_type_of (kind : K.t) name : t =
   match kind with
@@ -280,6 +315,7 @@ let alias_type_of (kind : K.t) name : t =
   | Naked_number Naked_int32 -> Naked_int32 (T_N32.create_equals name)
   | Naked_number Naked_int64 -> Naked_int64 (T_N64.create_equals name)
   | Naked_number Naked_nativeint -> Naked_nativeint (T_NN.create_equals name)
+  | Rec_info -> Rec_info (T_RI.create_equals name)
   | Fabricated -> Misc.fatal_error "Only used in [Flambda_static] now"
 
 let bottom_value () = Value (T_V.bottom ())
@@ -288,6 +324,7 @@ let bottom_naked_float () = Naked_float (T_Nf.bottom ())
 let bottom_naked_int32 () = Naked_int32 (T_N32.bottom ())
 let bottom_naked_int64 () = Naked_int64 (T_N64.bottom ())
 let bottom_naked_nativeint () = Naked_nativeint (T_NN.bottom ())
+let bottom_rec_info () = Rec_info (T_RI.bottom ())
 
 let bottom (kind : K.t) =
   match kind with
@@ -297,6 +334,7 @@ let bottom (kind : K.t) =
   | Naked_number Naked_int32 -> bottom_naked_int32 ()
   | Naked_number Naked_int64 -> bottom_naked_int64 ()
   | Naked_number Naked_nativeint -> bottom_naked_nativeint ()
+  | Rec_info -> bottom_rec_info ()
   | Fabricated -> Misc.fatal_error "Only used in [Flambda_static] now"
 
 let bottom_like t = bottom (kind t)
@@ -307,6 +345,7 @@ let any_naked_float () = Naked_float (T_Nf.unknown ())
 let any_naked_int32 () = Naked_int32 (T_N32.unknown ())
 let any_naked_int64 () = Naked_int64 (T_N64.unknown ())
 let any_naked_nativeint () = Naked_nativeint (T_NN.unknown ())
+let any_rec_info () = Rec_info (T_RI.unknown ())
 
 let unknown (kind : K.t) =
   match kind with
@@ -316,6 +355,7 @@ let unknown (kind : K.t) =
   | Naked_number Naked_int32 -> any_naked_int32 ()
   | Naked_number Naked_int64 -> any_naked_int64 ()
   | Naked_number Naked_nativeint -> any_naked_nativeint ()
+  | Rec_info -> any_rec_info ()
   | Fabricated -> Misc.fatal_error "Only used in [Flambda_static] now"
 
 let unknown_like t = unknown (kind t)
@@ -400,7 +440,7 @@ let box_float (t : t) : t =
   match t with
   | Naked_float _ -> Value (T_V.create (Boxed_float t))
   | Value _ | Naked_immediate _ | Naked_int32 _ | Naked_int64 _
-  | Naked_nativeint _ ->
+  | Naked_nativeint _ | Rec_info _ ->
     Misc.fatal_errorf "Type of wrong kind for [box_float]: %a"
       print t
 
@@ -408,7 +448,7 @@ let box_int32 (t : t) : t =
   match t with
   | Naked_int32 _ -> Value (T_V.create (Boxed_int32 t))
   | Value _ | Naked_immediate _ | Naked_float _ | Naked_int64 _
-  | Naked_nativeint _ ->
+  | Naked_nativeint _ | Rec_info _ ->
     Misc.fatal_errorf "Type of wrong kind for [box_int32]: %a"
       print t
 
@@ -416,7 +456,7 @@ let box_int64 (t : t) : t =
   match t with
   | Naked_int64 _ -> Value (T_V.create (Boxed_int64 t))
   | Value _ | Naked_immediate _ | Naked_float _ | Naked_int32 _
-  | Naked_nativeint _ ->
+  | Naked_nativeint _ | Rec_info _ ->
     Misc.fatal_errorf "Type of wrong kind for [box_int64]: %a"
       print t
 
@@ -424,7 +464,7 @@ let box_nativeint (t : t) : t =
   match t with
   | Naked_nativeint _ -> Value (T_V.create (Boxed_nativeint t))
   | Value _ | Naked_immediate _ | Naked_float _ | Naked_int32 _
-  | Naked_int64 _ ->
+  | Naked_int64 _ | Rec_info _ ->
     Misc.fatal_errorf "Type of wrong kind for [box_nativeint]: %a"
       print t
 
@@ -463,7 +503,7 @@ let tag_immediate t : t =
       ~immediates:(Known t)
       ~blocks:(Known (Row_like.For_blocks.create_bottom ()))))))
   | Value _ | Naked_float _ | Naked_int32 _ | Naked_int64 _
-  | Naked_nativeint _ ->
+  | Naked_nativeint _ | Rec_info _ ->
     Misc.fatal_errorf "Type of wrong kind for [tag_immediate]: %a"
       print t
 
@@ -715,6 +755,9 @@ let type_for_const const =
 
 let kind_for_const const = kind (type_for_const const)
 
+let this_rec_info (rec_info_expr : Rec_info_expr.t) =
+  Rec_info (T_RI.create rec_info_expr)
+
 let expand_head t env : Resolved_type.t =
   match t with
   | Value ty ->
@@ -752,6 +795,12 @@ let expand_head t env : Resolved_type.t =
         K.naked_nativeint
     in
     Naked_nativeint head
+  | Rec_info ty ->
+    let head =
+      T_RI.expand_head ~force_to_kind:force_to_kind_rec_info ty env
+        K.rec_info
+    in
+    Rec_info head
 
 let expand_head' t env : t =
   match t with
@@ -778,6 +827,11 @@ let expand_head' t env : t =
     Naked_nativeint (
       T_NN.expand_head' ~force_to_kind:force_to_kind_naked_nativeint ty env
         K.naked_nativeint)
+  | Rec_info ty ->
+    Rec_info (
+      T_RI.expand_head' ~force_to_kind:force_to_kind_rec_info ty env
+        K.rec_info
+    )
 
 let missing_kind env free_names =
   Name_occurrences.fold_variables free_names ~init:false
@@ -900,8 +954,13 @@ let meet env t1 t2 =
       K.naked_nativeint t1 t2 ty1 ty2
       ~force_to_kind:force_to_kind_naked_nativeint
       ~to_type:(fun ty -> Naked_nativeint ty)
+  | Rec_info ty1, Rec_info ty2 ->
+    T_RI.meet env
+      K.rec_info t1 t2 ty1 ty2
+      ~force_to_kind:force_to_kind_rec_info
+      ~to_type:(fun ty -> Rec_info ty)
   | (Value _ | Naked_immediate _ | Naked_float _ | Naked_int32 _
-    | Naked_int64 _ | Naked_nativeint _), _ ->
+    | Naked_int64 _ | Naked_nativeint _ | Rec_info _), _ ->
     Misc.fatal_errorf "Kind mismatch upon meet:@ %a@ versus@ %a"
       print t1
       print t2
@@ -938,8 +997,13 @@ let join ?bound_name env t1 t2 =
       K.naked_nativeint t1 t2 ty1 ty2
       ~force_to_kind:force_to_kind_naked_nativeint
       ~to_type:(fun ty -> Naked_nativeint ty)
+  | Rec_info ty1, Rec_info ty2 ->
+    T_RI.join ?bound_name env
+      K.rec_info t1 t2 ty1 ty2
+      ~force_to_kind:force_to_kind_rec_info
+      ~to_type:(fun ty -> Rec_info ty)
   | (Value _ | Naked_immediate _ | Naked_float _ | Naked_int32 _
-    | Naked_int64 _ | Naked_nativeint _), _ ->
+    | Naked_int64 _ | Naked_nativeint _ | Rec_info _), _ ->
     Misc.fatal_errorf "Kind mismatch upon join:@ %a@ versus@ %a"
       print t1
       print t2

@@ -16,12 +16,11 @@
 
 [@@@ocaml.warning "+a-30-40-41-42"]
 
-type t =
-  | Const of Reg_width_const.Descr.t
-  | Value of Type_of_kind_value0.t Or_unknown_or_bottom.t
-  | Naked_immediate of Type_of_kind_naked_immediate0.t Or_unknown_or_bottom.t
-  | Naked_float of Type_of_kind_naked_float0.t Or_unknown_or_bottom.t
-  | Naked_int32 of Type_of_kind_naked_int32_0.t Or_unknown_or_bottom.t
-  | Naked_int64 of Type_of_kind_naked_int64_0.t Or_unknown_or_bottom.t
-  | Naked_nativeint of Type_of_kind_naked_nativeint0.t Or_unknown_or_bottom.t
-  | Rec_info of Type_of_kind_rec_info0.t Or_unknown_or_bottom.t
+include Type_descr_intf.S
+  with type flambda_type := Type_grammar.t
+  with type typing_env := Typing_env.t
+  with type typing_env_extension := Typing_env_extension.t
+  with type typing_env_level := Typing_env_level.t
+  with type meet_env := Meet_env.t
+  with type join_env := Join_env.t
+  with type head := Type_of_kind_rec_info0.t
