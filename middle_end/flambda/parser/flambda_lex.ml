@@ -30,54 +30,54 @@ let create_hashtable init =
 
 let keyword_table =
   create_hashtable [
-    "always", ALWAYS;
-    "and", AND;
-    "andwhere", ANDWHERE;
-    "apply", APPLY;
-    "Block", BLOCK;
-    "ccall", CCALL;
-    "closure", CLOSURE;
-    "code", CODE;
-    "cont", CONT;
-    "default", DEFAULT;
-    "deleted", DELETED;
-    "direct", DIRECT;
-    "done", DONE;
-    "end", END;
-    "error", ERROR;
-    "exn", EXN;
-    "fabricated", FABRICATED;
-    "float", FLOAT_KIND;
-    "halt_and_catch_fire", HCF;
-    "hint", HINT;
-    "imm", IMM;
-    "immutable_unique", IMMUTABLE_UNIQUE;
-    "in", IN;
-    "inline", INLINE;
-    "inlining_state", INLINING_STATE;
-    "depth", INLINING_STATE_DEPTH;
-    "int32", INT32;
-    "int64", INT64;
-    "let", LET;
-    "mutable", MUTABLE;
-    "nativeint", NATIVEINT;
-    "never", NEVER;
-    "newer_version_of", NEWER_VERSION_OF;
-    "noalloc", NOALLOC;
-    "rec", REC;
-    "rec_info", REC_INFO;
-    "set_of_closures", SET_OF_CLOSURES;
-    "size", SIZE;
-    "stub", STUB;
-    "switch", SWITCH;
-    "tupled", TUPLED;
-    "unit", UNIT;
-    "unreachable", UNREACHABLE;
-    "unroll", UNROLL;
-    "unsigned", UNSIGNED;
-    "val", VAL;
-    "where", WHERE;
-    "with", WITH;
+    "always", KWD_ALWAYS;
+    "and", KWD_AND;
+    "andwhere", KWD_ANDWHERE;
+    "apply", KWD_APPLY;
+    "Block", KWD_BLOCK;
+    "ccall", KWD_CCALL;
+    "closure", KWD_CLOSURE;
+    "code", KWD_CODE;
+    "cont", KWD_CONT;
+    "default", KWD_DEFAULT;
+    "deleted", KWD_DELETED;
+    "direct", KWD_DIRECT;
+    "done", KWD_DONE;
+    "end", KWD_END;
+    "error", KWD_ERROR;
+    "exn", KWD_EXN;
+    "fabricated", KWD_FABRICATED;
+    "float", KWD_FLOAT;
+    "halt_and_catch_fire", KWD_HCF;
+    "hint", KWD_HINT;
+    "imm", KWD_IMM;
+    "immutable_unique", KWD_IMMUTABLE_UNIQUE;
+    "in", KWD_IN;
+    "inline", KWD_INLINE;
+    "inlining_state", KWD_INLINING_STATE;
+    "depth", KWD_INLINING_STATE_DEPTH;
+    "int32", KWD_INT32;
+    "int64", KWD_INT64;
+    "let", KWD_LET;
+    "mutable", KWD_MUTABLE;
+    "nativeint", KWD_NATIVEINT;
+    "never", KWD_NEVER;
+    "newer_version_of", KWD_NEWER_VERSION_OF;
+    "noalloc", KWD_NOALLOC;
+    "rec", KWD_REC;
+    "rec_info", KWD_REC_INFO;
+    "set_of_closures", KWD_SET_OF_CLOSURES;
+    "size", KWD_SIZE;
+    "stub", KWD_STUB;
+    "switch", KWD_SWITCH;
+    "tupled", KWD_TUPLED;
+    "unit", KWD_UNIT;
+    "unreachable", KWD_UNREACHABLE;
+    "unroll", KWD_UNROLL;
+    "unsigned", KWD_UNSIGNED;
+    "val", KWD_VAL;
+    "where", KWD_WHERE;
+    "with", KWD_WITH;
 ]
 
 let ident_or_keyword str =
@@ -921,7 +921,7 @@ and __ocaml_lex_token_rec lexbuf __ocaml_lex_state =
 
   | 3 ->
 # 149 "flambda_lex.mll"
-      ( LET )
+      ( KWD_LET )
 # 926 "flambda_lex.ml"
 
   | 4 ->
