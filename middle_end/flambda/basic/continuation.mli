@@ -29,6 +29,8 @@ module Sort : sig
     | Return
     | Define_root_symbol
     | Toplevel_return
+
+  val equal : t -> t -> bool
 end
 
 val create : ?sort:Sort.t -> ?name:string -> unit -> t

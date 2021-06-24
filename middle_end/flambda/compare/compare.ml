@@ -1,3 +1,5 @@
+open! Int_replace_polymorphic_compare
+
 open Flambda
 
 (* General notes on comparison
@@ -109,34 +111,51 @@ module Comparison = struct
 end
 
 let debugging = false
+let debugging_verbose = false
 
 let log f e1 e2 thunk =
   if debugging
     then begin
-      Format.eprintf
-        "@[<v>@[<hv>COMPARING@;<1 2>%a@;<1 0>TO@;<1 2>%a@]@,---@;<0 2>"
-        f e1 f e2;
-      let ans = thunk () in
-      Format.eprintf "%a@]@," (Comparison.print f) ans;
-      ans
+      if debugging_verbose
+        then begin
+          Format.eprintf
+            "@[<v>@[<hv>COMPARING@;<1 2>%a@;<1 0>TO@;<1 2>%a@]@,---@;<0 2>"
+            f e1 f e2;
+          let ans = thunk () in
+          Format.eprintf "%a@]@," (Comparison.print f) ans;
+          ans
+        end else begin
+          let ans : _ Comparison.t = thunk () in
+          begin
+            match ans with
+            | Equivalent ->
+              ()
+            | Different { approximant } ->
+              Format.eprintf
+                "@[<hv>FOUND DIFFERENCE:\
+                @;<1 2>%a@;<1 0>!=@;<1 2>%a@;<1 0>approx@;<1 2>%a@]\n%!"
+                f e1 f e2 f approximant
+          end;
+          ans
+        end
     end
     else
       thunk ()
 ;;
 
 let log_rel f e1 rel e2 =
-  if debugging then
+  if debugging && debugging_verbose then
     Format.eprintf "@[<hv>%a@;<1 2>%s@;<1 0>%a@]@," f e1 rel f e2
 ;;
 
 let log_eq p f e1 e2 =
-  if debugging then
+  if debugging && debugging_verbose then
     let rel = if p e1 e2 then "=" else "/=" in
     log_rel f e1 rel e2
 ;;
 
 let log_comp c f e1 e2 =
-  if debugging then
+  if debugging && debugging_verbose then
     let rel = match c e1 e2 with
       | n when n < 0 -> "<"
       | 0 -> "="
@@ -387,14 +406,21 @@ and subst_static_const env (static_const : Static_const.t)
     Set_of_closures (subst_set_of_closures env set_of_closures)
   | _ ->
     static_const
-and subst_code env (code : Code.t)
-      : Code.t =
+and subst_code env (code : Code.t) : Code.t =
   let params_and_body =
     match Code.params_and_body code with
     | Or_deleted.Present params_and_body ->
       let params_and_body = subst_params_and_body env params_and_body in
-      Or_deleted.Present (params_and_body,
-        Function_params_and_body.free_names params_and_body)
+      let names_and_closure_vars names =
+        Name_occurrences.(union
+          (restrict_to_closure_vars names)
+          (with_only_names_and_code_ids names |> without_code_ids))
+      in
+      let free_names =
+        Flambda.Function_params_and_body.free_names params_and_body
+        |> names_and_closure_vars
+      in
+      Or_deleted.Present (params_and_body, free_names)
     | Or_deleted.Deleted ->
       Or_deleted.Deleted
   in
@@ -502,11 +528,11 @@ module Comparator = struct
     of_predicate ~f:(fun a1 a2 -> f a1 a2 = 0) ?subst
 end
 
-(* If subst2 is given, it will be used on the second member of the first
- * pair to produce an approximant if the first members are unequal (see step
- * 1(b)(ii) in the note at the top of the file).  This is *only* safe if the
- * type of the second component of the pair is such that unification is not
- * necessary, which is to say, if the second component cannot contain any
+(* If subst2 is given and the first components of the pairs are unequal, then
+ * rather than call f2 on the second components to produce the approximants (see
+ * step 1(b)(ii) in the note at the top of the file), it will use the
+ * (presumably faster) subst2 function instead. This is *only* safe if
+ * unification is unnecessary because the second components cannot contain any
  * closure ids or closure variables. *)
 let pairs
       ~(f1 : 'a Comparator.t)
@@ -1041,6 +1067,11 @@ let call_kinds env (call_kind1 : Call_kind.t) (call_kind2 : Call_kind.t)
     Different { approximant = call_kind1 }
 ;;
 
+let inlining_states_equal is1 is2 : bool =
+  (* CR lmaurer: Compare inlining arguments once we've added them to
+     the Flambda syntax *)
+  Inlining_state.depth is1 = Inlining_state.depth is2
+
 let apply_exprs env apply1 apply2 : Expr.t Comparison.t =
   let atomic_things_equal =
     Apply.Result_continuation.equal
@@ -1050,7 +1081,9 @@ let apply_exprs env apply1 apply2 : Expr.t Comparison.t =
          (Apply.exn_continuation apply1)
          (Apply.exn_continuation apply2)
     && Inline_attribute.equal (Apply.inline apply1) (Apply.inline apply2)
-    && Inlining_state.equal (Apply.inlining_state apply1)  (Apply.inlining_state apply2)
+    && inlining_states_equal
+         (Apply.inlining_state apply1)
+         (Apply.inlining_state apply2)
   in
   let ok = ref atomic_things_equal in
   let callee1' =
@@ -1107,17 +1140,18 @@ let apply_cont_exprs env apply_cont1 apply_cont2 : Apply_cont.t Comparison.t =
 
 let switch_exprs env switch1 switch2 : Expr.t Comparison.t =
   let compare_arms env arms1 arms2 =
-    lists ~f:(
-      pairs
-        ~f1:(Comparator.of_predicate ~f:Target_imm.equal)
-        ~f2:apply_cont_exprs
-        ~subst2:subst_apply_cont
-    )
-    ~subst:(fun env (target_imm, apply_cont) ->
-      (target_imm, subst_apply_cont env apply_cont)
-    )
-    ~subst_snd:true
-    env (Target_imm.Map.bindings arms1) (Target_imm.Map.bindings arms2)
+    lists
+      ~f:(
+        pairs
+          ~f1:(Comparator.of_predicate ~f:Target_imm.equal)
+          ~f2:apply_cont_exprs
+          ~subst2:subst_apply_cont
+      )
+      ~subst:(fun env (target_imm, apply_cont) ->
+        (target_imm, subst_apply_cont env apply_cont)
+      )
+      ~subst_snd:true
+      env (Target_imm.Map.bindings arms1) (Target_imm.Map.bindings arms2)
     |> Comparison.map ~f:Target_imm.Map.of_list
   in
   pairs ~f1:compare_arms ~f2:simple_exprs ~subst2:subst_simple
@@ -1131,31 +1165,31 @@ let switch_exprs env switch1 switch2 : Expr.t Comparison.t =
 
 let rec exprs env e1 e2 : Expr.t Comparison.t =
   log Expr.print e1 e2 (fun () ->
-  match Expr.descr e1, Expr.descr e2 with
-  | Let let_expr1, Let let_expr2 ->
-    let_exprs env let_expr1 let_expr2
-  | Let_cont let_cont1, Let_cont let_cont2 ->
-    let_cont_exprs env let_cont1 let_cont2
-  | Apply apply1, Apply apply2 ->
-    apply_exprs env apply1 apply2
-  | Apply_cont apply_cont1, Apply_cont apply_cont2 ->
-    apply_cont_exprs env apply_cont1 apply_cont2
-    |> Comparison.map ~f:Expr.create_apply_cont
-  | Switch switch1, Switch switch2 ->
-    switch_exprs env switch1 switch2
-  | Invalid invalid1, Invalid invalid2 ->
-    if Invalid_term_semantics.compare invalid1 invalid2 = 0
-      then Equivalent
-      else Different { approximant = e1 }
-  | _, _ ->
-    Different { approximant = subst_expr env e1 }
+    match Expr.descr e1, Expr.descr e2 with
+    | Let let_expr1, Let let_expr2 ->
+      let_exprs env let_expr1 let_expr2
+    | Let_cont let_cont1, Let_cont let_cont2 ->
+      let_cont_exprs env let_cont1 let_cont2
+    | Apply apply1, Apply apply2 ->
+      apply_exprs env apply1 apply2
+    | Apply_cont apply_cont1, Apply_cont apply_cont2 ->
+      apply_cont_exprs env apply_cont1 apply_cont2
+      |> Comparison.map ~f:Expr.create_apply_cont
+    | Switch switch1, Switch switch2 ->
+      switch_exprs env switch1 switch2
+    | Invalid invalid1, Invalid invalid2 ->
+      if Invalid_term_semantics.compare invalid1 invalid2 = 0
+        then Equivalent
+        else Different { approximant = e1 }
+    | _, _ ->
+      Different { approximant = subst_expr env e1 }
   )
 and let_exprs env let_expr1 let_expr2 : Expr.t Comparison.t =
   let named1 = Let_expr.defining_expr let_expr1 in
   let named2 = Let_expr.defining_expr let_expr2 in
-  let named_comp = named_exprs env named1 named2 in
   Let_expr.pattern_match_pair let_expr1 let_expr2
     ~dynamic:(fun bindable_let_bound ~body1 ~body2 : Expr.t Comparison.t ->
+      let named_comp = named_exprs env named1 named2 in
       let body_comp = exprs env body1 body2 in
       match named_comp, body_comp with
       | Equivalent, Equivalent ->
@@ -1244,7 +1278,7 @@ and static_consts env (const1 : Static_const.t) (const2 : Static_const.t)
   | _, _ ->
     if Static_const.equal const1 const2
     then Equivalent
-    else Different { approximant = const1 }
+    else Different { approximant = subst_static_const env const1 }
 and codes env (code1 : Code.t) (code2 : Code.t) =
   let bodies env params_and_body1 params_and_body2 =
     Function_params_and_body.pattern_match_pair
@@ -1304,20 +1338,32 @@ and codes env (code1 : Code.t) (code2 : Code.t) =
 and let_cont_exprs env (let_cont1 : Let_cont.t) (let_cont2 : Let_cont.t)
       : Expr.t Comparison.t =
   match let_cont1, let_cont2 with
-  | Non_recursive { handler = handler1; num_free_occurrences = num1 },
-    Non_recursive { handler = handler2; num_free_occurrences = num2 } ->
+  | Non_recursive { handler = handler1; num_free_occurrences = _ },
+    Non_recursive { handler = handler2; num_free_occurrences = _ } ->
     let module Non_rec = Non_recursive_let_cont_handler in
+    let sorts_match =
+      let sort handler =
+        Non_rec.pattern_match handler ~f:(fun cont ~body:_ ->
+          Continuation.sort cont
+        )
+      in
+      Continuation.Sort.equal (sort handler1) (sort handler2)
+    in
     Non_rec.pattern_match_pair handler1 handler2
       ~f:(fun cont ~body1 ~body2 ->
         pairs ~f1:cont_handlers ~f2:exprs env
           (Non_rec.handler handler1, body1)
           (Non_rec.handler handler2, body2)
+        |> Comparison.add_condition
+             ~approximant:(fun () ->
+               subst_cont_handler env (Non_rec.handler handler1),
+               subst_expr env body1)
+             ~cond:sorts_match
         |> Comparison.map ~f:(fun (handler, body) ->
              Let_cont.create_non_recursive cont handler ~body
                ~free_names_of_body:Unknown
-           ))
-    |> Comparison.add_condition ~cond:(num1 = num2)
-         ~approximant:(fun () -> subst_let_cont env let_cont1)
+           )
+      )
   | Recursive handlers1, Recursive handlers2 ->
     let compare_handler_maps env map1 map2
         : Continuation_handler.t Continuation.Map.t Comparison.t =
@@ -1352,23 +1398,25 @@ and let_cont_exprs env (let_cont1 : Let_cont.t) (let_cont2 : Let_cont.t)
   | _, _ ->
     Different { approximant = subst_let_cont env let_cont1 }
 and cont_handlers env handler1 handler2 =
-  Continuation_handler.pattern_match_pair handler1 handler2
-    ~f:(fun params ~handler1:expr1 ~handler2:expr2 ->
-      exprs env expr1 expr2
-      |> Comparison.map ~f:(fun handler ->
-          Continuation_handler.create params ~handler
-            ~free_names_of_handler:Unknown
-            ~is_exn_handler:(Continuation_handler.is_exn_handler handler2))
-      |> Comparison.add_condition ~cond:(
-        Bool.equal
-          (Continuation_handler.is_exn_handler handler1)
-          (Continuation_handler.is_exn_handler handler2))
-        ~approximant:(fun () -> subst_cont_handler env handler1))
-  |> function
-    | Ok comp ->
-      comp
-    | Error _ ->
-      Comparison.Different { approximant = subst_cont_handler env handler1 }
+  log Continuation_handler.print handler1 handler2 (fun () ->
+    Continuation_handler.pattern_match_pair handler1 handler2
+      ~f:(fun params ~handler1:expr1 ~handler2:expr2 ->
+        exprs env expr1 expr2
+        |> Comparison.map ~f:(fun handler ->
+            Continuation_handler.create params ~handler
+              ~free_names_of_handler:Unknown
+              ~is_exn_handler:(Continuation_handler.is_exn_handler handler2))
+        |> Comparison.add_condition ~cond:(
+          Bool.equal
+            (Continuation_handler.is_exn_handler handler1)
+            (Continuation_handler.is_exn_handler handler2))
+          ~approximant:(fun () -> subst_cont_handler env handler1))
+    |> function
+      | Ok comp ->
+        comp
+      | Error _ ->
+        Comparison.Different { approximant = subst_cont_handler env handler1 }
+  )
 ;;
 
 let flambda_units u1 u2 =

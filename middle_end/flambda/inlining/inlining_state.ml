@@ -35,6 +35,8 @@ let print ppf t =
     t.depth
     Inlining_arguments.print t.arguments
 
+let depth t = t.depth
+
 let is_depth_exceeded t =
   (* CR-soon lmaurer: Fix this once rec_info is functional again; hardcoding
      depth of 1 until then *)

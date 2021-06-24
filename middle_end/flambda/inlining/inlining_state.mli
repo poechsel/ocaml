@@ -28,6 +28,8 @@ val default : t
 
 val create : arguments:Inlining_arguments.t -> depth:int -> t
 
+val depth : t -> int
+
 val increment_depth : t -> t
 
 val is_depth_exceeded : t -> bool

@@ -139,12 +139,14 @@ end = struct
 
   module Symbol_name_map = Name_map(struct
     include Symbol
-    type fexpr_id = Fexpr.symbol
+    (* We don't need the name map for non-local symbols, so only bother with
+     * the ident part of the symbol here *)
+    type fexpr_id = string
 
     let desc = "symbol"
     let name v = linkage_name v |> Linkage_name.to_string
     let add_tag = default_add_tag
-    let mk_fexpr_id name = name |> nowhere
+    let mk_fexpr_id name = name
   end)
 
   module Code_id_name_map = Name_map(struct
@@ -216,8 +218,15 @@ end = struct
     bind_var t (v |> Var_in_binding_pos.var)
 
   let bind_symbol t s =
+    let is_local =
+      Compilation_unit.equal
+        (Symbol.compilation_unit s)
+        (Compilation_unit.get_current_exn ())
+    in
+    if not is_local
+      then Misc.fatal_errorf "Cannot bind non-local symbol %a" Symbol.print s;
     let s, symbols = Symbol_name_map.bind t.symbols s in
-    s, { t with symbols }
+    (None, s) |> nowhere, { t with symbols }
 
   let bind_code_id t c =
     let c, code_ids = Code_id_name_map.bind t.code_ids c in
@@ -240,7 +249,28 @@ end = struct
 
   let find_var_exn t v = Variable_name_map.find_exn t.variables v
 
-  let find_symbol_exn t s = Symbol_name_map.find_exn t.symbols s
+  let find_symbol_exn t s =
+    let cunit = Symbol.compilation_unit s in
+    let is_local =
+      Compilation_unit.equal cunit (Compilation_unit.get_current_exn ())
+    in
+    if is_local
+    then (None, Symbol_name_map.find_exn t.symbols s) |> nowhere
+    else 
+      let cunit =
+        let ident =
+          Compilation_unit.get_persistent_ident cunit |> Ident.name
+        in
+        let linkage_name =
+          Compilation_unit.get_linkage_name cunit |> Linkage_name.to_string
+        in
+        let linkage_name =
+          if String.equal ident linkage_name then None else Some linkage_name
+        in
+        { Fexpr.ident; linkage_name }
+      in
+      let linkage_name = Symbol.linkage_name s |> Linkage_name.to_string in
+      (Some cunit, linkage_name) |> nowhere
 
   let find_code_id_exn t c = Code_id_name_map.find_exn t.code_ids c
 
@@ -258,6 +288,9 @@ let name env n =
     ~var:(fun v : Fexpr.name -> Var (Env.find_var_exn env v))
     ~symbol:(fun s : Fexpr.name -> Symbol (Env.find_symbol_exn env s))
 
+let float f = f |> Numbers.Float_by_bit_pattern.to_float
+let targetint i = i |> Targetint.to_int64
+
 let const c : Fexpr.const =
   match Reg_width_things.Const.descr c with
   | Naked_immediate imm ->
@@ -265,13 +298,13 @@ let const c : Fexpr.const =
   | Tagged_immediate imm ->
     Tagged_immediate (imm |> Target_imm.to_targetint' |> Targetint.to_string)
   | Naked_float f ->
-    Naked_float (f |> Numbers.Float_by_bit_pattern.to_float)
+    Naked_float (f |> float)
   | Naked_int32 i ->
     Naked_int32 i
   | Naked_int64 i ->
     Naked_int64 i
   | Naked_nativeint i ->
-    Naked_nativeint (i |> Targetint.to_int64)
+    Naked_nativeint (i |> targetint)
 
 let simple env s =
   Simple.pattern_match s
@@ -283,32 +316,33 @@ let simple env s =
     )
     ~const:(fun c -> Fexpr.Const (const c))
 
-let naked_number_kind (nnk : Flambda_kind.Naked_number_kind.t)
-      : Fexpr.Naked_number_kind.t =
-  match nnk with
-  | Naked_immediate -> Naked_immediate
-  | Naked_float -> Naked_float
-  | Naked_int32 -> Naked_int32
-  | Naked_int64 -> Naked_int64
-  | Naked_nativeint -> Naked_nativeint
-
 let kind (k : Flambda_kind.t) : Fexpr.kind =
   match k with
   | Value -> Value
   | Fabricated -> Fabricated
-  | Naked_number nnk -> Naked_number (naked_number_kind nnk)
+  | Naked_number nnk -> Naked_number nnk
   | Rec_info -> Rec_info
 
-let arity (a : Flambda_arity.With_subkinds.t) : Fexpr.flambda_arity =
-  List.map kind (Flambda_arity.With_subkinds.to_arity a)
+let kind_with_subkind (k : Flambda_kind.With_subkind.t)
+: Fexpr.kind_with_subkind =
+  match k |> Flambda_kind.With_subkind.descr with
+  | Any_value -> Any_value
+  | Naked_number nnk -> Naked_number nnk
+  | Boxed_float -> Boxed_float
+  | Boxed_int32 -> Boxed_int32
+  | Boxed_int64 -> Boxed_int64
+  | Boxed_nativeint -> Boxed_nativeint
+  | Tagged_immediate -> Tagged_immediate
+  | Rec_info -> Rec_info
 
-let arity_without_subkinds a = List.map kind a
+let arity (a : Flambda_arity.With_subkinds.t) : Fexpr.arity =
+  List.map kind_with_subkind a
 
 let kinded_parameter env (kp : Kinded_parameter.t)
       : Fexpr.kinded_parameter * Env.t =
   let k =
-    match kind (Flambda_kind.With_subkind.kind (Kinded_parameter.kind kp)) with
-    | Value -> None
+    match kind_with_subkind (Kinded_parameter.kind kp) with
+    | Any_value -> None
     | k -> Some k
   in
   let param, env = Env.bind_var env (Kinded_parameter.var kp) in
@@ -324,16 +358,13 @@ let recursive_flag (r : Recursive.t) : Fexpr.is_recursive =
 
 let unop env (op : Flambda_primitive.unary_primitive) : Fexpr.unop =
   match op with
-  | Box_number Untagged_immediate ->
-    Tag_imm
-  | Get_tag ->
-    Get_tag
-  | Is_int ->
-    Is_int
-  | Opaque_identity ->
-    Opaque_identity
-  | Unbox_number Untagged_immediate ->
-    Untag_imm
+  | Array_length ak -> Array_length ak
+  | Box_number bk -> Box_number bk
+  | Get_tag -> Get_tag
+  | Is_int -> Is_int
+  | Num_conv { src; dst } -> Num_conv { src; dst }
+  | Opaque_identity -> Opaque_identity
+  | Unbox_number bk -> Unbox_number bk
   | Project_var { project_from; var } ->
     let project_from = Env.translate_closure_id env project_from in
     let var = Env.translate_var_within_closure env var in
@@ -342,6 +373,8 @@ let unop env (op : Flambda_primitive.unary_primitive) : Fexpr.unop =
     let move_from = Env.translate_closure_id env move_from in
     let move_to = Env.translate_closure_id env move_to in
     Select_closure { move_from; move_to }
+  | String_length string_or_bytes ->
+    String_length string_or_bytes
   | _ ->
     Misc.fatal_errorf "TODO: Unary primitive: %a"
       Flambda_primitive.Without_args.print
@@ -349,17 +382,25 @@ let unop env (op : Flambda_primitive.unary_primitive) : Fexpr.unop =
 
 let binop (op : Flambda_primitive.binary_primitive) : Fexpr.binop =
   match op with
-  | Block_load (Values { field_kind;
-                         size;
-                         tag }, mutability) ->
-    let size =
-      match size with
-      | Known size -> Some (size |> targetint_ocaml)
+  | Array_load (ak, mut) ->
+    Array_load (ak, mut)
+  | Block_load (access_kind, mutability) ->
+    let size (s : _ Or_unknown.t) =
+      match s with
+      | Known s -> Some (s |> targetint_ocaml)
       | Unknown -> None
     in
-    Block_load (Values { field_kind;
-                         size;
-                         tag = tag |> Tag.Scannable.to_int }, mutability)
+    let access_kind : Fexpr.block_access_kind =
+      match access_kind with
+      | Values { field_kind; size = s; tag } ->
+        let size = s |> size in
+        let tag = tag |> Tag.Scannable.to_int in
+        Values { field_kind; size; tag }
+      | Naked_floats { size = s } ->
+        let size = s |> size in
+        Naked_floats { size }
+    in
+    Block_load (access_kind, mutability)
   | Phys_equal (k, op) ->
     let k =
       match kind k with
@@ -367,36 +408,26 @@ let binop (op : Flambda_primitive.binary_primitive) : Fexpr.binop =
       | k -> Some k
     in
     Phys_equal (k, op)
-  | Int_arith (Tagged_immediate, Add) ->
-    Infix Plus
-  | Int_arith (Tagged_immediate, Sub) ->
-    Infix Minus
-  | Int_comp (Tagged_immediate, Signed, Yielding_bool Lt) ->
-    Infix Lt
-  | Int_comp (Tagged_immediate, Signed, Yielding_bool Gt) ->
-    Infix Gt
-  | Int_comp (Tagged_immediate, Signed, Yielding_bool Le) ->
-    Infix Le
-  | Int_comp (Tagged_immediate, Signed, Yielding_bool Ge) ->
-    Infix Ge
-  | Int_comp (i, s, Yielding_bool c) ->
-    Int_comp (i, s, c)
-  | Float_comp (Yielding_bool Eq) ->
-    Infix Eqdot
-  | Float_comp (Yielding_bool Neq) ->
-    Infix Neqdot
-  | Float_comp (Yielding_bool Lt) ->
-    Infix Ltdot
-  | Float_comp (Yielding_bool Gt) ->
-    Infix Gtdot
-  | Float_comp (Yielding_bool Le) ->
-    Infix Ledot
-  | Float_comp (Yielding_bool Ge) ->
-    Infix Gedot
+  | Int_arith (Tagged_immediate, o) ->        Infix (Int_arith o)
+  | Int_arith (i, o) ->                       Int_arith (i, o)
+  | Int_comp (Tagged_immediate, Signed, c) -> Infix (Int_comp c)
+  | Int_comp (i, s, c) ->                     Int_comp (i, s, c)
+  | Int_shift (Tagged_immediate, s) ->        Infix (Int_shift s)
+  | Int_shift (i, s) ->                       Int_shift (i, s)
+  | Float_arith o ->                          Infix (Float_arith o)
+  | Float_comp c ->                           Infix (Float_comp c)
   | _ ->
     Misc.fatal_errorf "TODO: Binary primitive: %a"
       Flambda_primitive.Without_args.print
       (Flambda_primitive.Without_args.Binary op)
+
+let ternop (op : Flambda_primitive.ternary_primitive) : Fexpr.ternop =
+  match op with
+  | Array_set (ak, ia) -> Array_set (ak, ia)
+  | _ ->
+    Misc.fatal_errorf "TODO: Ternary primitive: %a"
+      Flambda_primitive.Without_args.print
+      (Flambda_primitive.Without_args.Ternary op)
 
 let varop (op : Flambda_primitive.variadic_primitive) : Fexpr.varop =
   match op with
@@ -415,10 +446,8 @@ let prim env (p : Flambda_primitive.t) : Fexpr.prim =
     Unary (unop env op, simple env arg)
   | Binary (op, arg1, arg2) ->
     Binary (binop op, simple env arg1, simple env arg2)
-  | Ternary (op, _, _, _) ->
-    Misc.fatal_errorf "TODO: Ternary primitive:"
-      Flambda_primitive.Without_args.print
-      (Flambda_primitive.Without_args.Ternary op)
+  | Ternary (op, arg1, arg2, arg3) ->
+    Ternary (ternop op, simple env arg1, simple env arg2, simple env arg3)
   | Variadic (op, args) ->
     Variadic (varop op, List.map (simple env) args)
 
@@ -456,7 +485,7 @@ let set_of_closures env sc =
   fun_decls, elts
 
 let field_of_block env (field : Flambda.Static_const.Field_of_block.t)
-      : Fexpr.of_kind_value =
+      : Fexpr.field_of_block =
   match field with
   | Symbol symbol ->
     Symbol (Env.find_symbol_exn env symbol)
@@ -465,7 +494,12 @@ let field_of_block env (field : Flambda.Static_const.Field_of_block.t)
   | Dynamically_computed var ->
     Dynamically_computed (Env.find_var_exn env var)
 
-let static_const env (sc : Flambda.Static_const.t) : Fexpr.static_part =
+let or_variable f env (ov : _ Or_variable.t) : _ Fexpr.or_variable =
+  match ov with
+  | Const c -> Const (f c)
+  | Var v -> Var (Env.find_var_exn env v)
+
+let static_const env (sc : Flambda.Static_const.t) : Fexpr.static_data =
   match sc with
   | Block (tag, mutability, fields) ->
     let tag = tag |> Tag.Scannable.to_int in
@@ -473,8 +507,22 @@ let static_const env (sc : Flambda.Static_const.t) : Fexpr.static_part =
     Block { tag; mutability; elements }
   | Code _ | Set_of_closures _ ->
     assert false
-  | _ ->
-    Misc.fatal_error "TODO: More static consts"
+  | Boxed_float f -> Boxed_float (or_variable float env f)
+  | Boxed_int32 i -> Boxed_int32 (or_variable Fun.id env i)
+  | Boxed_int64 i -> Boxed_int64 (or_variable Fun.id env i)
+  | Boxed_nativeint i -> Boxed_nativeint (or_variable targetint env i)
+  | Immutable_float_block elements ->
+    Immutable_float_block (List.map (or_variable float env) elements)
+  | Immutable_float_array elements ->
+    Immutable_float_array (List.map (or_variable float env) elements)
+  | Mutable_string { initial_value } -> Mutable_string { initial_value }
+  | Immutable_string s -> Immutable_string s
+
+let inlining_state (is : Inlining_state.t) : Fexpr.inlining_state option =
+  if Inlining_state.equal is Inlining_state.default then None else
+    let depth = Inlining_state.depth is in
+    (* TODO: inlining arguments *)
+    Some { depth; }
 
 let rec expr env e =
   match Flambda.Expr.descr e with
@@ -492,10 +540,8 @@ and let_expr env le =
       dynamic_let_expr env [ var ] defining_expr body
     | Set_of_closures { closure_vars; _ } ->
       dynamic_let_expr env closure_vars defining_expr body
-    | Symbols { scoping_rule = Dominator; _ } ->
-      Misc.fatal_error "TODO: dominator-scoped symbols"
-    | Symbols { bound_symbols; scoping_rule = Syntactic } ->
-      static_let_expr env bound_symbols defining_expr body
+    | Symbols { bound_symbols; scoping_rule } ->
+      static_let_expr env bound_symbols scoping_rule defining_expr body
     | Depth _dv ->
       Misc.fatal_error "TODO: depth variables"
   )
@@ -524,10 +570,11 @@ and dynamic_let_expr env vars (defining_expr : Flambda.Named.t) body
     Misc.fatal_error "Mismatched vars vs. values";
   let bindings =
     List.map2 (fun var defining_expr ->
-      { Fexpr.var; kind = None; defining_expr }
+      { Fexpr.var; defining_expr }
     ) vars defining_exprs in
   Let { bindings; closure_elements; body }
-and static_let_expr env bound_symbols defining_expr body : Fexpr.expr =
+and static_let_expr env bound_symbols scoping_rule defining_expr body
+  : Fexpr.expr =
   let static_consts =
     match defining_expr with
     | Flambda.Named.Static_consts static_consts ->
@@ -539,8 +586,8 @@ and static_let_expr env bound_symbols defining_expr body : Fexpr.expr =
   let env =
     let bind_names env (pat : Bound_symbols.Pattern.t) =
       match pat with
-      | Code code_id ->
-        let _, env = Env.bind_code_id env code_id in
+      | Code _code_id ->
+        (* Already bound at the beginning; see [bind_all_code_ids] *)
         env
       | Block_like symbol ->
         let _, env = Env.bind_symbol env symbol in
@@ -562,7 +609,7 @@ and static_let_expr env bound_symbols defining_expr body : Fexpr.expr =
        * already during the first pass *)
       let symbol = Env.find_symbol_exn env symbol in
       let defining_expr = static_const env const in
-      Block_like { symbol; kind = None; defining_expr }
+      Data { symbol; defining_expr }
     | Set_of_closures closure_symbols, Set_of_closures set ->
       let fun_decls, elements = set_of_closures env set in
       let symbols_by_closure_id =
@@ -584,8 +631,6 @@ and static_let_expr env bound_symbols defining_expr body : Fexpr.expr =
       in
       Set_of_closures { bindings; elements }
     | Code code_id, Code code ->
-      (* This is a binding occurrence, but it should have been added
-       * already during the first pass *)
       let code_id = Env.find_code_id_exn env code_id in
       let newer_version_of =
         Option.map (Env.find_code_id_exn env)
@@ -600,7 +645,7 @@ and static_let_expr env bound_symbols defining_expr body : Fexpr.expr =
       in
       let ret_arity =
         match arity (Flambda.Code.result_arity code) with
-        | [ Value ] -> None
+        | [ Any_value ] -> None
         | other -> Some other
       in
       let recursive = recursive_flag (Flambda.Code.recursive code) in
@@ -652,57 +697,58 @@ and static_let_expr env bound_symbols defining_expr body : Fexpr.expr =
         Bound_symbols.Pattern.print pat
         Flambda.Static_const.print const
   in
-  let symbol_bindings = List.map2 translate_const bound_symbols static_consts in
-  (* If there's exactly one set of closures, make it implicit *)
-  let only_set_of_closures =
-    let rec loop only_set (symbol_bindings : Fexpr.symbol_binding list) =
-      match symbol_bindings with
-      | [] -> only_set
-      | Set_of_closures set :: symbol_bindings ->
-        begin
-          match only_set with
-          | None -> loop (Some set) symbol_bindings
-          | Some _ -> None
-        end
-      | _ :: symbol_bindings ->
-        loop only_set symbol_bindings
-    in
-    loop None symbol_bindings
+  let bindings = List.map2 translate_const bound_symbols static_consts in
+  let scoping_rule =
+    match scoping_rule with
+    | Symbol_scoping_rule.Syntactic -> None
+    | Symbol_scoping_rule.Dominator -> Some Symbol_scoping_rule.Dominator
   in
   let body = expr env body in
+  (* If there's exactly one set of closures, make it implicit *)
+  let only_set_of_closures =
+    let rec loop only_set (bindings : Fexpr.symbol_binding list) =
+      match bindings with
+      | [] -> only_set
+      | Set_of_closures set :: bindings ->
+        begin
+          match only_set with
+          | None -> loop (Some set) bindings
+          | Some _ -> None
+        end
+      | _ :: bindings ->
+        loop only_set bindings
+    in
+    loop None bindings
+  in
   match only_set_of_closures with
   | None ->
-    Let_symbol { bindings = symbol_bindings; closure_elements = None; body }
-  | Some { bindings; elements } ->
-    let symbol_bindings =
-      List.filter (fun (binding : Fexpr.symbol_binding) ->
+    Let_symbol { bindings; closure_elements = None; scoping_rule; body }
+  | Some { bindings = _; elements = closure_elements } ->
+    let bindings =
+      List.concat_map (fun (binding : Fexpr.symbol_binding) ->
         match binding with
-        | Set_of_closures _ -> false
-        | _ -> true
-      ) symbol_bindings
-    in
-    let extra_symbol_bindings =
-      List.map (fun (binding : Fexpr.static_closure_binding)
-          : Fexpr.symbol_binding ->
-        Closure binding
+        | Set_of_closures { bindings; elements = _ } ->
+          List.map (fun closure -> Fexpr.Closure closure) bindings
+        | _ ->
+          [ binding ]
       ) bindings
     in
-    let symbol_bindings = symbol_bindings @ extra_symbol_bindings in
-    Let_symbol { bindings = symbol_bindings; closure_elements = elements; body }
+    Let_symbol { bindings; closure_elements; scoping_rule; body }
 
 and let_cont_expr env (lc : Flambda.Let_cont_expr.t) =
   match lc with
   | Non_recursive { handler; _ } ->
     Flambda.Non_recursive_let_cont_handler.pattern_match handler
       ~f:(fun c ~body ->
+        let sort = Continuation.sort c in
         let c, body_env = Env.bind_named_continuation env c in
-        let handler =
-          cont_handler env c
+        let binding =
+          cont_handler env c sort
             (Flambda.Non_recursive_let_cont_handler.handler handler)
         in
         let body = expr body_env body in
         Fexpr.Let_cont { recursive = Nonrecursive;
-                         handlers = [ handler ];
+                         bindings = [ binding ];
                          body }
       )
   | Recursive handlers ->
@@ -714,31 +760,38 @@ and let_cont_expr env (lc : Flambda.Let_cont_expr.t) =
             env
           ) (Flambda.Continuation_handlers.domain handlers) env
         in
-        let handlers =
+        let bindings =
           List.map (fun (c, handler) ->
+            let sort = Continuation.sort c in
             let c =
               match Env.find_continuation_exn env c with
               | Named c -> c
               | Special _ -> assert false
             in
-            cont_handler env c handler
+            cont_handler env c sort handler
           ) (handlers
               |> Flambda.Continuation_handlers.to_map
               |> Continuation.Map.bindings)
         in
         let body = expr env body in
-        Fexpr.Let_cont { recursive = Recursive; handlers; body }
+        Fexpr.Let_cont { recursive = Recursive; bindings; body }
       )
-and cont_handler env cont_id h =
+and cont_handler env cont_id (sort : Continuation.Sort.t) h =
   let is_exn_handler = Flambda.Continuation_handler.is_exn_handler h in
+  let sort : Fexpr.continuation_sort option =
+    match sort with
+    | Normal_or_exn -> if is_exn_handler then Some Exn else None
+    | Define_root_symbol -> assert (not is_exn_handler); Some Define_root_symbol
+    | Return
+    | Toplevel_return -> assert false
+  in
   Flambda.Continuation_handler.pattern_match h
-    ~f:(fun params ~handler : Fexpr.continuation_handler ->
+    ~f:(fun params ~handler : Fexpr.continuation_binding ->
       let params, env =
         Misc.Stdlib.List.map_accum_left kinded_parameter env params
       in
       let handler = expr env handler in
-      (* CR mshinwell: remove [stub], no longer used *)
-      { name = cont_id; params; stub = false; is_exn_handler; handler }
+      { name = cont_id; params; sort; handler }
     )
 and apply_expr env (app : Apply_expr.t) : Fexpr.expr =
   let func =
@@ -749,10 +802,10 @@ and apply_expr env (app : Apply_expr.t) : Fexpr.expr =
           Reg_width_things.Const.print c
       )
   in
-  let continuation =
+  let continuation : Fexpr.result_continuation =
     match Apply_expr.continuation app with
-    | Return c -> Env.find_continuation_exn env c
-    | Never_returns -> Misc.fatal_error "TODO: Never_returns"
+    | Return c -> Return (Env.find_continuation_exn env c)
+    | Never_returns -> Never_returns
   in
   let exn_continuation =
     let ec = Apply_expr.exn_continuation app in
@@ -783,20 +836,32 @@ and apply_expr env (app : Apply_expr.t) : Fexpr.expr =
       Misc.fatal_error "TODO: Method call kind"
   in
   let arities : Fexpr.function_arities option =
+    let is_default_arity a =
+      match a with
+      | [ k ] ->
+        begin match Flambda_kind.With_subkind.descr k with
+        | Any_value -> true
+        | _ -> false
+        end
+      | _ ->
+        false
+    in
     match Apply_expr.call_kind app with
     | Function (Indirect_known_arity { param_arity; return_arity }) ->
+      let params_arity = Some (arity param_arity) in
+      let ret_arity = arity return_arity in
+      Some { params_arity; ret_arity; }
+    | Function (Direct { return_arity; _ }) ->
+      if is_default_arity return_arity then None else
+        let ret_arity = arity return_arity in
+        Some { params_arity = None; ret_arity; }
+    | C_call { param_arity; return_arity; _ } ->
       let params_arity =
-        Flambda_arity.With_subkinds.to_arity param_arity
-        |> arity_without_subkinds
+        Some (arity (param_arity |> Flambda_arity.With_subkinds.of_arity))
       in
       let ret_arity =
-        Flambda_arity.With_subkinds.to_arity return_arity
-        |> arity_without_subkinds
+        arity (return_arity |> Flambda_arity.With_subkinds.of_arity)
       in
-      Some { params_arity; ret_arity; }
-    | C_call { param_arity; return_arity; _ } ->
-      let params_arity = arity_without_subkinds param_arity in
-      let ret_arity = arity_without_subkinds return_arity in
       Some { params_arity; ret_arity }
     | _ ->
       None
@@ -807,8 +872,7 @@ and apply_expr env (app : Apply_expr.t) : Fexpr.expr =
     | other -> Some other
   in
   let inlining_state =
-    let s = Apply_expr.inlining_state app in
-    if Inlining_state.equal s (Inlining_state.default) then None else Some(s)
+    inlining_state (Apply_expr.inlining_state app)
   in
   Apply { func; continuation; exn_continuation; args; call_kind; inline;
           inlining_state; arities }
@@ -819,9 +883,16 @@ and apply_cont env app_cont : Fexpr.apply_cont =
     Env.find_continuation_exn env (Apply_cont_expr.continuation app_cont)
   in
   let trap_action =
-    match Apply_cont_expr.trap_action app_cont with
-    | Some _ -> Misc.fatal_error "TODO: trap action"
-    | None -> None
+    Apply_cont_expr.trap_action app_cont
+    |> Option.map (fun (action : Trap_action.t) : Fexpr.trap_action ->
+      match action with
+      | Push { exn_handler } ->
+        let exn_handler = Env.find_continuation_exn env exn_handler in
+        Push { exn_handler }
+      | Pop { exn_handler; raise_kind } ->
+        let exn_handler = Env.find_continuation_exn env exn_handler in
+        Pop { exn_handler; raise_kind }
+    )
   in
   let args = List.map (simple env) (Apply_cont_expr.args app_cont) in
   { cont; trap_action; args }
@@ -838,11 +909,22 @@ and switch_expr env switch : Fexpr.expr =
 and invalid_expr _env invalid : Fexpr.expr =
   Invalid invalid
 
+let bind_all_code_ids env unit =
+  let env = ref env in
+  Flambda_unit.iter unit
+    ~code:(fun ~id _code ->
+        let _id, new_env = Env.bind_code_id !env id in
+        env := new_env);
+  !env
+
 let conv flambda_unit =
   let done_ = Flambda_unit.return_continuation flambda_unit in
   let error = Flambda_unit.exn_continuation flambda_unit in
   let env = Env.create () in
   let env = Env.bind_special_continuation env done_ ~to_:Done in
   let env = Env.bind_special_continuation env error ~to_:Error in
+  (* Bind all code ids in toplevel let bindings at the start, since they don't
+     necessarily occur in dependency order *)
+  let env = bind_all_code_ids env flambda_unit in
   let body = expr env (Flambda_unit.body flambda_unit) in
   { Fexpr.body }

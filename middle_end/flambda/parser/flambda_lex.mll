@@ -34,15 +34,21 @@ let keyword_table =
     "and", KWD_AND;
     "andwhere", KWD_ANDWHERE;
     "apply", KWD_APPLY;
+    "asr", KWD_ASR;
     "Block", KWD_BLOCK;
+    "boxed", KWD_BOXED;
     "ccall", KWD_CCALL;
     "closure", KWD_CLOSURE;
     "code", KWD_CODE;
     "cont", KWD_CONT;
     "default", KWD_DEFAULT;
+    "define_root_symbol", KWD_DEFINE_ROOT_SYMBOL;
     "deleted", KWD_DELETED;
+    "depth", KWD_DEPTH;
     "direct", KWD_DIRECT;
+    "dominator_scoped", KWD_DOMINATOR_SCOPED;
     "done", KWD_DONE;
+    "dynamic", KWD_DYNAMIC;
     "end", KWD_END;
     "error", KWD_ERROR;
     "exn", KWD_EXN;
@@ -55,21 +61,27 @@ let keyword_table =
     "in", KWD_IN;
     "inline", KWD_INLINE;
     "inlining_state", KWD_INLINING_STATE;
-    "depth", KWD_INLINING_STATE_DEPTH;
     "int32", KWD_INT32;
     "int64", KWD_INT64;
     "let", KWD_LET;
+    "lsl", KWD_LSL;
+    "lsr", KWD_LSR;
     "mutable", KWD_MUTABLE;
     "nativeint", KWD_NATIVEINT;
     "never", KWD_NEVER;
     "newer_version_of", KWD_NEWER_VERSION_OF;
     "noalloc", KWD_NOALLOC;
+    "notrace", KWD_NOTRACE;
+    "pop", KWD_POP;
+    "push", KWD_PUSH;
     "rec", KWD_REC;
     "rec_info", KWD_REC_INFO;
+    "regular", KWD_REGULAR;
+    "reraise", KWD_RERAISE;
     "set_of_closures", KWD_SET_OF_CLOSURES;
     "size", KWD_SIZE;
-    "stub", KWD_STUB;
     "switch", KWD_SWITCH;
+    "tagged", KWD_TAGGED;
     "tupled", KWD_TUPLED;
     "unit", KWD_UNIT;
     "unreachable", KWD_UNREACHABLE;
@@ -89,23 +101,58 @@ let is_keyword str =
 
 let prim_table =
   create_hashtable [
+    "array_length", PRIM_ARRAY_LENGTH;
+    "array_load", PRIM_ARRAY_LOAD;
+    "array_set", PRIM_ARRAY_SET;
     "Block", PRIM_BLOCK;
     "block_load", PRIM_BLOCK_LOAD;
+    "Box_float", PRIM_BOX_FLOAT;
+    "Box_int32", PRIM_BOX_INT32;
+    "Box_int64", PRIM_BOX_INT64;
+    "Box_nativeint", PRIM_BOX_NATIVEINT;
+    "bytes_length", PRIM_BYTES_LENGTH;
     "get_tag", PRIM_GET_TAG;
+    "int_arith", PRIM_INT_ARITH;
     "int_comp", PRIM_INT_COMP;
+    "int_shift", PRIM_INT_SHIFT;
     "is_int", PRIM_IS_INT;
+    "num_conv", PRIM_NUM_CONV;
     "Opaque", PRIM_OPAQUE;
     "phys_eq", PRIM_PHYS_EQ;
     "phys_ne", PRIM_PHYS_NE;
     "project_var", PRIM_PROJECT_VAR;
     "select_closure", PRIM_SELECT_CLOSURE;
+    "string_length", PRIM_STRING_LENGTH;
     "Tag_imm", PRIM_TAG_IMM;
+    "unbox_float", PRIM_UNBOX_FLOAT;
+    "unbox_int32", PRIM_UNBOX_INT32;
+    "unbox_int64", PRIM_UNBOX_INT64;
+    "unbox_nativeint", PRIM_UNBOX_NATIVEINT;
     "untag_imm", PRIM_UNTAG_IMM;
 ]
 
 let prim ~lexbuf str =
   try Hashtbl.find prim_table str
   with Not_found -> error ~lexbuf (No_such_primitive str)
+
+let unquote_ident str =
+  match str with
+  | "" -> ""
+  | _ ->
+    begin
+      match String.get str 0 with
+      | '`' -> String.sub str 1 (String.length str - 2)
+      | _ -> str
+    end
+
+let symbol cunit_ident cunit_linkage_name ident =
+  let cunit =
+    Option.map (fun cunit_ident ->
+      { Fexpr.ident = unquote_ident cunit_ident;
+        linkage_name = Option.map unquote_ident cunit_linkage_name }
+    ) cunit_ident
+  in
+  SYMBOL (cunit, unquote_ident ident)
 
 }
 
@@ -114,6 +161,7 @@ let lowercase = ['a'-'z' '_']
 let uppercase = ['A'-'Z']
 let identstart = lowercase | uppercase
 let identchar = ['A'-'Z' 'a'-'z' '_' '\'' '0'-'9']
+let quoted_ident = '`' [^ '`' '\n']* '`'
 let decimal_literal =
   ['0'-'9'] ['0'-'9' '_']*
 let hex_digit =
@@ -145,8 +193,6 @@ rule token = parse
   | "(*"
       { comment 1 lexbuf;
         token lexbuf }
-  | "let"
-      { KWD_LET }
   | ":"
       { COLON }
   | ","
@@ -157,6 +203,8 @@ rule token = parse
       { SEMICOLON }
   | "="
       { EQUAL }
+  | "_"
+      { BLANK }
   | "{"
       { LBRACE }
   | "}"
@@ -165,30 +213,45 @@ rule token = parse
       { LPAREN }
   | ")"
       { RPAREN }
+  | "[|"
+      { LBRACKPIPE }
+  | "|]"
+      { RBRACKPIPE }
   | "+"  { PLUS }
-  | "*"  { STAR }
   | "-"  { MINUS }
+  | "*"  { STAR }
+  | "/"  { SLASH }
+  | "%"  { PERCENT }
   | "<"  { LESS }
   | ">"  { GREATER }
   | "<=" { LESSEQUAL }
   | ">=" { GREATEREQUAL }
+  | "?"  { QMARK }
   | "+." { PLUSDOT }
   | "-." { MINUSDOT }
+  | "*." { STARDOT }
+  | "/." { SLASHDOT }
   | "=." { EQUALDOT }
   | "!=." { NOTEQUALDOT }
   | "<." { LESSDOT }
   | "<=." { LESSEQUALDOT }
+  | "?." { QMARKDOT }
+  | "<-" { LESSMINUS }
   | "->" { MINUSGREATER }
   | "@" { AT }
   | "|"  { PIPE }
   | "===>" { BIGARROW }
   | identstart identchar* as ident
          { ident_or_keyword ident }
-  | '`' ([^ '`' '\n']* as ident) '`'
-         { IDENT ident }
-  | '$' ((identchar* as ident) | '`' ([^ '`' '\n']* as ident) '`')
-         { SYMBOL ident }
-  | '%' (identchar* as p)
+  | quoted_ident as ident
+         { IDENT (unquote_ident ident) }
+  | '$'
+    (((identchar* | quoted_ident) as cunit_ident)
+     ('/' ((identchar* | quoted_ident) as cunit_linkage_name))?
+     '.')?
+    ((identchar* | quoted_ident) as ident)
+         { symbol cunit_ident cunit_linkage_name ident }
+  | '%' (identchar+ as p)
          { prim ~lexbuf p }
   | (int_literal as lit) (int_modifier as modif)?
          { INT (lit, modif) }
@@ -196,6 +259,9 @@ rule token = parse
          { FLOAT (lit |> Float.of_string) }
   | (float_literal | hex_float_literal | int_literal) identchar+ as lit
          { error ~lexbuf (Invalid_literal lit) }
+  | '"' (([^ '"'] | '\\' '"')* as s) '"'
+         (* CR-someday lmaurer: Escape sequences, multiline strings *)
+         { STRING s }
   | eof  { EOF }
   | _ as ch
          { error ~lexbuf (Illegal_character ch) }
