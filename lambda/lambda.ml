@@ -113,8 +113,6 @@ type primitive =
   | Parraysets of array_kind
   (* Test if the argument is a block or an immediate integer *)
   | Pisint
-  (* Extract a block's tag *)
-  | Pgettag
   (* Test if the (integer) argument is outside an interval *)
   | Pisout
   (* Operations on boxed integers (Nativeint.t, Int32.t, Int64.t) *)
@@ -339,8 +337,7 @@ let primitive_can_raise = function
   | Pbswap16
   | Pbbswap _
   | Pint_as_pointer
-  | Popaque
-  | Pgettag -> false
+  | Popaque -> false
 
 type structured_constant =
     Const_base of constant

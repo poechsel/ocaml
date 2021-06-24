@@ -559,8 +559,6 @@ let convert_lprim ~backend (prim : L.primitive) (args : Simple.t list)
 
   | Pisint, [arg] ->
     tag_int (Unary (Is_int, arg))
-  | Pgettag, [arg] ->
-    tag_int (Unary (Get_tag, arg))
   | Pisout, [arg1; arg2] ->
     tag_int (
       Binary (Int_comp (I.Tagged_immediate, Unsigned, Yielding_bool Lt),
@@ -1033,7 +1031,7 @@ let convert_lprim ~backend (prim : L.primitive) (args : Simple.t list)
       Printlambda.primitive prim
       H.print_list_of_simple_or_prim args
   | ( Pfield _ | Pnegint | Pnot | Poffsetint _ | Pintoffloat | Pfloatofint
-    | Pnegfloat | Pabsfloat | Pstringlength | Pbyteslength | Pgettag
+    | Pnegfloat | Pabsfloat | Pstringlength | Pbyteslength
     | Pbintofint _ | Pintofbint _ | Pnegbint _ | Popaque | Pduprecord _
     | Parraylength _ | Pduparray _ | Pfloatfield _ | Pcvtbint _ | Poffsetref _
     | Pbswap16 | Pbbswap _ | Pisint | Pint_as_pointer

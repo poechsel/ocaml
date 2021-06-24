@@ -1508,11 +1508,7 @@ and cps_switch acc env ccenv (switch : L.lambda_switch) ~scrutinee
             CC.close_switch acc ccenv scrutinee_tag block_switch
           in
           CC.close_let acc ccenv scrutinee_tag Not_user_visible
-            (Prim { prim = Pgettag;
-              args = [Var scrutinee];
-              loc = Loc_unknown;
-              exn_continuation = None; })
-            ~body
+            (Get_tag scrutinee) ~body
         in
         if switch.sw_numblocks = 0 then const_switch, wrappers
         else if switch.sw_numconsts = 0 then block_switch, wrappers

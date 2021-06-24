@@ -39,6 +39,7 @@ module IR : sig
 
   type named =
     | Simple of simple
+    | Get_tag of Ident.t (* Intermediary primitive for block switch *)
     | Prim of {
         prim : Lambda.primitive;
         args : simple list;
