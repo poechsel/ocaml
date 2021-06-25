@@ -146,15 +146,15 @@ let close_const acc const =
   acc, named, name
 
 let find_simple_from_id env id =
-  match Env.find_var_exn env id with
+  match Env.find_simple_to_substitute_exn env id with
+  | simple -> simple
   | exception Not_found ->
-    Misc.fatal_errorf
-      "find_simple_from_id: Cannot find [Ident] %a in environment"
-      Ident.print id
-  | var ->
-    match Env.find_simple_to_substitute_exn env id with
-    | exception Not_found -> Simple.var var
-    | simple -> simple
+    match Env.find_var_exn env id with
+    | exception Not_found ->
+      Misc.fatal_errorf
+        "find_simple_from_id: Cannot find [Ident] %a in environment"
+        Ident.print id
+    | var -> Simple.var var
 
 (* CR mshinwell: Avoid the double lookup *)
 let find_simple acc env (simple : IR.simple) =
@@ -466,7 +466,7 @@ let close_named acc env ~let_bound_var (named : IR.named)
   match named with
   | Simple (Var id) ->
     let acc, simple =
-      if not (Ident.is_predef id) then acc, Simple.var (Env.find_var env id)
+      if not (Ident.is_predef id) then find_simple acc env (Var id)
       else symbol_for_ident acc env id
     in
     let named = Named.create_simple simple in
@@ -494,21 +494,20 @@ let close_let acc env id user_visible defining_expr
     : Acc.t * Expr_with_acc.t =
   let body_env, var = Env.add_var_like env id user_visible in
   let cont acc (defining_expr : Named.t option) =
-    let body_env =
-      match defining_expr with
-      | Some (Simple simple) ->
-        Env.add_simple_to_substitute body_env id simple
-      | Some _ | None -> body_env
-    in
-    (* CR pchambart: Not tail ! *)
-    let acc, body = body acc body_env in
     match defining_expr with
-    | None -> acc, body
-    | Some defining_expr ->
-      let var = VB.create var Name_mode.normal in
-      Let_with_acc.create acc (Bindable_let_bound.singleton var) defining_expr
-        ~body ~free_names_of_body:Unknown
-      |> Expr_with_acc.create_let
+    | Some (Simple simple) ->
+      let body_env = Env.add_simple_to_substitute env id simple in
+      body acc body_env
+    | Some _ | None ->
+      (* CR pchambart: Not tail ! *)
+      let acc, body = body acc body_env in
+      match defining_expr with
+      | None -> acc, body
+      | Some defining_expr ->
+        let var = VB.create var Name_mode.normal in
+        Let_with_acc.create acc (Bindable_let_bound.singleton var) defining_expr
+          ~body ~free_names_of_body:Unknown
+        |> Expr_with_acc.create_let
   in
   close_named acc env ~let_bound_var:var defining_expr cont
 
@@ -596,7 +595,12 @@ let close_apply_cont acc env cont trap_action args
 
 let close_switch acc env scrutinee (sw : IR.switch)
   : Acc.t * Expr_with_acc.t =
-  let scrutinee = Simple.name (Env.find_name env scrutinee) in
+  let scrutinee =
+    match Env.find_simple_to_substitute_exn env scrutinee with
+      | simple -> simple
+      | exception Not_found ->
+          Simple.name (Env.find_name env scrutinee)
+  in
   let untagged_scrutinee = Variable.create "untagged" in
   let untagged_scrutinee' =
     VB.create untagged_scrutinee Name_mode.normal
@@ -910,11 +914,26 @@ let close_functions acc external_env function_declarations =
   let compilation_unit = Compilation_unit.get_current_exn () in
   let var_within_closures_from_idents =
     Ident.Set.fold (fun id map ->
-        (* Filter out predefined exception identifiers, since they will be
-           turned into symbols when we closure-convert the body. *)
-        if Ident.is_predef id then map
+        (* Filter out predefined exception identifiers and simple substitutions.
+           The former will be turned into symbols, and the latter substituted
+           when we closure-convert the body *)
+        let has_non_var_subst, subst_var =
+          match Env.find_simple_to_substitute_exn external_env id with
+          | exception Not_found -> false, None
+          | simple ->
+              Simple.pattern_match simple
+                ~const:(fun _ -> true, None)
+                ~name:(fun name ~coercion:_ ->
+                    Name.pattern_match name
+                      ~var:(fun var -> false, Some var)
+                      ~symbol:(fun _ -> true, None))
+        in
+        if has_non_var_subst || Ident.is_predef id then map
         else
-          let var = Variable.create_with_same_name_as_ident id in
+          let var = match subst_var with
+            | None -> Variable.create_with_same_name_as_ident id
+            | Some var -> Variable.rename var
+          in
           Ident.Map.add id (Var_within_closure.wrap compilation_unit var) map)
       (Function_decls.all_free_idents function_declarations)
       Ident.Map.empty
