@@ -708,7 +708,7 @@ let close_one_function acc ~external_env ~by_closure_id decl
   let my_closure = Variable.create "my_closure" in
   let closure_id = Function_decl.closure_id decl in
   let my_closure_id = closure_id in
-  let my_depth = Depth_variable.create "my_depth" in
+  let my_depth = Variable.create "my_depth" in
   let our_let_rec_ident = Function_decl.let_rec_ident decl in
   let compilation_unit = Compilation_unit.get_current_exn () in
   let code_id =

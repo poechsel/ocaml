@@ -65,7 +65,7 @@ module Function_params_and_body : sig
     -> body:rebuilt_expr
     -> free_names_of_body:Name_occurrences.t
     -> my_closure:Variable.t
-    -> my_depth:Depth_variable.t
+    -> my_depth:Variable.t
     -> t
 
   (** This function may only be used when rebuilding terms. *)

@@ -23,7 +23,6 @@ module Continuations = (Permutation.Make [@inlined hint]) (Continuation)
 module Variables = (Permutation.Make [@inlined hint]) (Variable)
 module Code_ids = (Permutation.Make [@inlined hint]) (Code_id)
 module Symbols = (Permutation.Make [@inlined hint]) (Symbol)
-module Depth_variables = (Permutation.Make [@inlined hint]) (Depth_variable)
 
 module Const = Reg_width_things.Const
 module Simple = Reg_width_things.Simple
@@ -141,7 +140,6 @@ type t = {
   variables : Variables.t;
   code_ids : Code_ids.t;
   symbols : Symbols.t;
-  depth_variables : Depth_variables.t;
   import_map : Import_map.t option;
 }
 
@@ -150,7 +148,6 @@ let empty =
     variables = Variables.empty;
     code_ids = Code_ids.empty;
     symbols = Symbols.empty;
-    depth_variables = Depth_variables.empty;
     import_map = None;
   }
 
@@ -164,29 +161,24 @@ let create_import_map ~symbols ~variables ~simples ~consts ~code_ids
   else { empty with import_map = Some import_map; }
 
 let print ppf
-      { continuations; variables; code_ids; symbols; depth_variables;
-        import_map = _; } =
+      { continuations; variables; code_ids; symbols; import_map = _; } =
   Format.fprintf ppf "@[<hov 1>(\
       @[<hov 1>(continuations@ %a)@]@ \
       @[<hov 1>(variables@ %a)@])@ \
       @[<hov 1>(code_ids@ %a)@])@ \
       @[<hov 1>(symbols@ %a)@])@ \
-      @[<hov 1>(depth_variables@ %a)@])\
       @]"
     Continuations.print continuations
     Variables.print variables
     Code_ids.print code_ids
     Symbols.print symbols
-    Depth_variables.print depth_variables
 
 let is_empty
-      { continuations; variables; code_ids; symbols; depth_variables;
-        import_map; } =
+      { continuations; variables; code_ids; symbols; import_map; } =
   Continuations.is_empty continuations
   && Variables.is_empty variables
   && Code_ids.is_empty code_ids
   && Symbols.is_empty symbols
-  && Depth_variables.is_empty depth_variables
   && match import_map with
      | None -> true
      | Some import_map -> Import_map.is_empty import_map
@@ -197,7 +189,6 @@ let compose0
            variables = variables2;
            code_ids = code_ids2;
            symbols = symbols2;
-           depth_variables = depth_variables2;
            import_map = import_map2;
          } as second)
       ~first:
@@ -205,7 +196,6 @@ let compose0
            variables = variables1;
            code_ids = code_ids1;
            symbols = symbols1;
-           depth_variables = depth_variables1;
            import_map = import_map1;
          } as first) =
   { continuations =
@@ -213,8 +203,6 @@ let compose0
     variables = Variables.compose ~second:variables2 ~first:variables1;
     code_ids = Code_ids.compose ~second:code_ids2 ~first:code_ids1;
     symbols = Symbols.compose ~second:symbols2 ~first:symbols1;
-    depth_variables =
-      Depth_variables.compose ~second:depth_variables2 ~first:depth_variables1;
     (* The process of simplification of terms together with the collection of
        [Ids_for_export] from types, prior to writing of .cmx files, should
        ensure that only [first] (and not [second]) has an import map. *)
@@ -357,15 +345,3 @@ let closure_var_is_used t closure_var =
   match t.import_map with
   | None -> true  (* N.B. not false! *)
   | Some import_map -> Import_map.closure_var_is_used import_map closure_var
-
-let add_depth_variable t dv1 dv2 =
-  { t with
-    depth_variables = Depth_variables.compose_one ~first:t.depth_variables dv1 dv2 }
-
-let add_fresh_depth_variable t dv1 ~guaranteed_fresh:dv2 =
-  { t with
-    depth_variables =
-      Depth_variables.compose_one_fresh t.depth_variables dv1 ~fresh:dv2 }
-
-let apply_depth_variable t dv =
-  Depth_variables.apply t.depth_variables dv

@@ -602,11 +602,6 @@ module For_code_ids = For_one_variety_of_names (struct
   let apply_renaming t perm = Renaming.apply_code_id perm t
 end)
 
-module For_depth_variables = For_one_variety_of_names (struct
-  include Depth_variable
-  let apply_renaming t perm = Renaming.apply_depth_variable perm t
-end)
-
 type t = {
   names : For_names.t;
   continuations : For_continuations.t;
@@ -617,7 +612,6 @@ type t = {
   newer_version_of_code_ids : For_code_ids.t;
   (* [newer_version_of_code_ids] tracks those code IDs that occur in
      "newer version of" fields (e.g. in [Flambda_static.Static_part.code]). *)
-  depth_variables : For_depth_variables.t;
 }
 
 let empty = {
@@ -626,15 +620,13 @@ let empty = {
   continuations_with_traps = For_continuations.empty;
   continuations_in_trap_actions = For_continuations.empty;
   closure_vars = For_closure_vars.empty;
-  depth_variables = For_depth_variables.empty;
   code_ids = For_code_ids.empty;
   newer_version_of_code_ids = For_code_ids.empty;
 }
 
 let print ppf ({ names; continuations; continuations_with_traps;
                  continuations_in_trap_actions;
-                 closure_vars; depth_variables;
-                 code_ids; newer_version_of_code_ids; } as t) =
+                 closure_vars; code_ids; newer_version_of_code_ids; } as t) =
   if t = empty then
     Format.fprintf ppf "no_occurrences"
   else
@@ -646,7 +638,6 @@ let print ppf ({ names; continuations; continuations_with_traps;
       @[<hov 1>(closure_vars %a)@]@ \
       @[<hov 1>(code_ids %a)@] \
       @[<hov 1>(newer_version_of_code_ids %a)@]@ \
-      @[<hov 1>(depth_variables %a)@]\
       @]"
     For_names.print names
     For_continuations.print continuations
@@ -655,7 +646,6 @@ let print ppf ({ names; continuations; continuations_with_traps;
     For_closure_vars.print closure_vars
     For_code_ids.print code_ids
     For_code_ids.print newer_version_of_code_ids
-    For_depth_variables.print depth_variables
 
 let singleton_continuation cont =
   { empty with
@@ -737,15 +727,6 @@ let add_newer_version_of_code_id t id kind =
       For_code_ids.add t.newer_version_of_code_ids id kind;
   }
 
-let add_depth_variable t depth_variable =
-  { t with
-    depth_variables =
-      For_depth_variables.add t.depth_variables depth_variable Kind.normal;
-  }
-
-let singleton_depth_variable depth_variable =
-  add_depth_variable empty depth_variable
-
 let singleton_symbol sym kind =
   { empty with
     names = For_names.singleton (Name.symbol sym) kind;
@@ -791,7 +772,7 @@ let create_closure_vars clos_vars =
   { empty with closure_vars; }
 
 let binary_conjunction ~for_names ~for_continuations
-      ~for_closure_vars ~for_code_ids ~for_depth_variables
+      ~for_closure_vars ~for_code_ids
       { names = names1;
         continuations = continuations1;
         continuations_with_traps = continuations_with_traps1;
@@ -799,7 +780,6 @@ let binary_conjunction ~for_names ~for_continuations
         closure_vars = closure_vars1;
         code_ids = code_ids1;
         newer_version_of_code_ids = newer_version_of_code_ids1;
-        depth_variables = depth_variables1;
       }
       { names = names2;
         continuations = continuations2;
@@ -808,7 +788,6 @@ let binary_conjunction ~for_names ~for_continuations
         closure_vars = closure_vars2;
         code_ids = code_ids2;
         newer_version_of_code_ids = newer_version_of_code_ids2;
-        depth_variables = depth_variables2;
       } =
   for_names names1 names2
     && for_continuations continuations1 continuations2
@@ -819,10 +798,9 @@ let binary_conjunction ~for_names ~for_continuations
     && for_closure_vars closure_vars1 closure_vars2
     && for_code_ids code_ids1 code_ids2
     && for_code_ids newer_version_of_code_ids1 newer_version_of_code_ids2
-    && for_depth_variables depth_variables1 depth_variables2
 
 let binary_disjunction ~for_names ~for_continuations
-      ~for_closure_vars ~for_code_ids ~for_depth_variables
+      ~for_closure_vars ~for_code_ids
       { names = names1;
         continuations = continuations1;
         continuations_with_traps = continuations_with_traps1;
@@ -830,7 +808,6 @@ let binary_disjunction ~for_names ~for_continuations
         closure_vars = closure_vars1;
         code_ids = code_ids1;
         newer_version_of_code_ids = newer_version_of_code_ids1;
-        depth_variables = depth_variables1;
       }
       { names = names2;
         continuations = continuations2;
@@ -839,7 +816,6 @@ let binary_disjunction ~for_names ~for_continuations
         closure_vars = closure_vars2;
         code_ids = code_ids2;
         newer_version_of_code_ids = newer_version_of_code_ids2;
-        depth_variables = depth_variables2;
       } =
   for_names names1 names2
     || for_continuations continuations1 continuations2
@@ -850,10 +826,8 @@ let binary_disjunction ~for_names ~for_continuations
     || for_closure_vars closure_vars1 closure_vars2
     || for_code_ids code_ids1 code_ids2
     || for_code_ids newer_version_of_code_ids1 newer_version_of_code_ids2
-    || for_depth_variables depth_variables1 depth_variables2
 
 let binary_op ~for_names ~for_continuations ~for_closure_vars ~for_code_ids
-      ~for_depth_variables
       { names = names1;
         continuations = continuations1;
         continuations_with_traps = continuations_with_traps1;
@@ -861,7 +835,6 @@ let binary_op ~for_names ~for_continuations ~for_closure_vars ~for_code_ids
         closure_vars = closure_vars1;
         code_ids = code_ids1;
         newer_version_of_code_ids = newer_version_of_code_ids1;
-        depth_variables = depth_variables1;
       }
       { names = names2;
         continuations = continuations2;
@@ -870,7 +843,6 @@ let binary_op ~for_names ~for_continuations ~for_closure_vars ~for_code_ids
         closure_vars = closure_vars2;
         code_ids = code_ids2;
         newer_version_of_code_ids = newer_version_of_code_ids2;
-        depth_variables = depth_variables2;
       } =
   let names = for_names names1 names2 in
   let continuations = for_continuations continuations1 continuations2 in
@@ -887,7 +859,6 @@ let binary_op ~for_names ~for_continuations ~for_closure_vars ~for_code_ids
   let newer_version_of_code_ids =
     for_code_ids newer_version_of_code_ids1 newer_version_of_code_ids2
   in
-  let depth_variables = for_depth_variables depth_variables1 depth_variables2 in
   { names;
     continuations;
     continuations_with_traps;
@@ -895,7 +866,6 @@ let binary_op ~for_names ~for_continuations ~for_closure_vars ~for_code_ids
     closure_vars;
     code_ids;
     newer_version_of_code_ids;
-    depth_variables;
   }
 
 let diff
@@ -906,7 +876,6 @@ let diff
         closure_vars = closure_vars1;
         code_ids = code_ids1;
         newer_version_of_code_ids = newer_version_of_code_ids1;
-        depth_variables = depth_variables1;
       }
       { names = names2;
         continuations = continuations2;
@@ -915,7 +884,6 @@ let diff
         closure_vars = closure_vars2;
         code_ids = code_ids2;
         newer_version_of_code_ids = newer_version_of_code_ids2;
-        depth_variables = depth_variables2;
       } =
   let names = For_names.diff names1 names2 in
   let continuations = For_continuations.diff continuations1 continuations2 in
@@ -934,9 +902,6 @@ let diff
       (* Note special case here: *)
       (For_code_ids.union newer_version_of_code_ids2 code_ids2)
   in
-  let depth_variables =
-    For_depth_variables.diff depth_variables1 depth_variables2
-  in
   { names;
     continuations;
     continuations_with_traps;
@@ -944,7 +909,6 @@ let diff
     closure_vars;
     code_ids;
     newer_version_of_code_ids;
-    depth_variables;
   }
 
 let union t1 t2 =
@@ -952,7 +916,6 @@ let union t1 t2 =
     ~for_continuations:For_continuations.union
     ~for_closure_vars:For_closure_vars.union
     ~for_code_ids:For_code_ids.union
-    ~for_depth_variables:For_depth_variables.union
     t1 t2
 
 let equal t1 t2 =
@@ -960,7 +923,6 @@ let equal t1 t2 =
     ~for_continuations:For_continuations.equal
     ~for_closure_vars:For_closure_vars.equal
     ~for_code_ids:For_code_ids.equal
-    ~for_depth_variables:For_depth_variables.equal
     t1 t2
 
 let is_empty t = equal t empty
@@ -971,7 +933,7 @@ let no_variables t =
 
 let no_continuations
       { names = _; continuations; continuations_with_traps = _;
-        continuations_in_trap_actions; depth_variables = _;
+        continuations_in_trap_actions;
         closure_vars = _; code_ids = _; newer_version_of_code_ids = _; } =
   (* Note: continuations_with_traps is included in continuations *)
   For_continuations.is_empty continuations
@@ -997,7 +959,6 @@ let subset_domain t1 t2 =
     ~for_continuations:For_continuations.subset_domain
     ~for_closure_vars:For_closure_vars.subset_domain
     ~for_code_ids:For_code_ids.subset_domain
-    ~for_depth_variables:For_depth_variables.subset_domain
     t1 t2
 
 let inter_domain_is_non_empty t1 t2 =
@@ -1005,7 +966,6 @@ let inter_domain_is_non_empty t1 t2 =
     ~for_continuations:For_continuations.inter_domain_is_non_empty
     ~for_closure_vars:For_closure_vars.inter_domain_is_non_empty
     ~for_code_ids:For_code_ids.inter_domain_is_non_empty
-    ~for_depth_variables:For_depth_variables.inter_domain_is_non_empty
     t1 t2
 
 let rec union_list ts =
@@ -1022,7 +982,6 @@ let continuations_including_in_trap_actions t =
     (For_continuations.keys t.continuations_in_trap_actions)
 let code_ids t = For_code_ids.keys t.code_ids
 let newer_version_of_code_ids t = For_code_ids.keys t.newer_version_of_code_ids
-let depth_variables t = For_depth_variables.keys t.depth_variables
 
 let code_ids_and_newer_version_of_code_ids t =
   Code_id.Set.union (code_ids t) (newer_version_of_code_ids t)
@@ -1109,7 +1068,7 @@ let greatest_name_mode_var t var =
 let downgrade_occurrences_at_strictly_greater_kind
       { names; continuations; continuations_with_traps;
         continuations_in_trap_actions; closure_vars;
-        code_ids; newer_version_of_code_ids; depth_variables; }
+        code_ids; newer_version_of_code_ids; }
       max_kind =
   (* CR mshinwell: Don't reallocate the record if nothing changed *)
   let names =
@@ -1132,10 +1091,6 @@ let downgrade_occurrences_at_strictly_greater_kind
     For_closure_vars.downgrade_occurrences_at_strictly_greater_kind
       closure_vars max_kind
   in
-  let depth_variables =
-    For_depth_variables.downgrade_occurrences_at_strictly_greater_kind
-      depth_variables max_kind
-  in
   let code_ids =
     For_code_ids.downgrade_occurrences_at_strictly_greater_kind
       code_ids max_kind
@@ -1151,7 +1106,6 @@ let downgrade_occurrences_at_strictly_greater_kind
     closure_vars;
     code_ids;
     newer_version_of_code_ids;
-    depth_variables;
   }
 
 let with_only_variables { names; _ } =
@@ -1200,8 +1154,7 @@ let fold_code_ids t ~init ~f =
 let apply_renaming
       ({ names; continuations; continuations_with_traps;
          continuations_in_trap_actions;
-         closure_vars; code_ids; newer_version_of_code_ids;
-         depth_variables; } as t)
+         closure_vars; code_ids; newer_version_of_code_ids; } as t)
       renaming =
   if Renaming.is_empty renaming then t
   else
@@ -1220,9 +1173,6 @@ let apply_renaming
     let newer_version_of_code_ids =
       For_code_ids.apply_renaming newer_version_of_code_ids renaming
     in
-    let depth_variables =
-      For_depth_variables.apply_renaming depth_variables renaming
-    in
     { names;
       continuations;
       continuations_with_traps;
@@ -1230,14 +1180,12 @@ let apply_renaming
       closure_vars;
       code_ids;
       newer_version_of_code_ids;
-      depth_variables;
     }
 
 let restrict_to_closure_vars
       { names = _; continuations = _; continuations_with_traps = _;
         continuations_in_trap_actions = _;
-        closure_vars; code_ids = _; newer_version_of_code_ids = _;
-        depth_variables = _; } =
+        closure_vars; code_ids = _; newer_version_of_code_ids = _; } =
   { empty with
     closure_vars;
   }

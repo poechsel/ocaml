@@ -542,8 +542,6 @@ and let_expr env le =
       dynamic_let_expr env closure_vars defining_expr body
     | Symbols { bound_symbols; scoping_rule } ->
       static_let_expr env bound_symbols scoping_rule defining_expr body
-    | Depth _dv ->
-      Misc.fatal_error "TODO: depth variables"
   )
 and dynamic_let_expr env vars (defining_expr : Flambda.Named.t) body
       : Fexpr.expr =

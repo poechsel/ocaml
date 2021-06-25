@@ -690,11 +690,11 @@ and let_expr env res t =
             ~num_normal_occurrences_of_bound_vars soc
         | Symbols { bound_symbols; scoping_rule; }, Static_consts consts ->
           let_symbol env res bound_symbols scoping_rule consts body
-        | Depth _, Rec_info _ ->
+        | Singleton _, Rec_info _ ->
           (* Erase *)
           expr env res body
         (* Error cases *)
-        | Singleton _, (Set_of_closures _ | Static_consts _ | Rec_info _) ->
+        | Singleton _, (Set_of_closures _ | Static_consts _) ->
           Misc.fatal_errorf
             "Singleton binding neither a simple expression nor a primitive \
              application:@ %a"
@@ -707,10 +707,6 @@ and let_expr env res t =
         | Symbols _, (Simple _ | Prim _ | Set_of_closures _ | Rec_info _) ->
           Misc.fatal_errorf
             "Symbols binding a non-Static const:@ %a"
-            Let.print t
-        | Depth _, (Simple _ | Prim _ | Set_of_closures _ | Static_consts _) ->
-          Misc.fatal_errorf
-            "Depth variable binding a non-Rec_info:@ %a"
             Let.print t
         end
       end)

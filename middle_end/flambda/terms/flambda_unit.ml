@@ -124,7 +124,7 @@ module Iter = struct
       match bindable_let_bound with
       | Symbols { bound_symbols; _ } ->
         static_consts f_c f_s bound_symbols consts
-      | Singleton _ | Set_of_closures _ | Depth _ ->
+      | Singleton _ | Set_of_closures _ ->
         Misc.fatal_errorf "[Static_const] can only be bound to [Symbols]:@ %a"
           Let.print let_expr
 

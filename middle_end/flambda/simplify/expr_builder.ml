@@ -59,9 +59,6 @@ let create_let uacc (bound_vars : BLB.t) defining_expr
             | Present name_mode, Present greatest_name_mode ->
               Name_mode.max_in_terms name_mode greatest_name_mode
               |> Name_mode.Or_absent.present)
-      | Depth _ ->
-        (* depth variables are never phantom *)
-        Name_mode.Or_absent.present Name_mode.normal
       | Symbols _ -> assert false  (* see below *)
     in
     let declared_name_mode = BLB.name_mode bound_vars in
@@ -95,9 +92,9 @@ let create_let uacc (bound_vars : BLB.t) defining_expr
       bound_vars, Some Name_mode.normal, Nothing_deleted_at_runtime
     end else begin
       let is_depth =
-        match bound_vars with
-        | Depth _ -> true
-        | Singleton _ | Set_of_closures _ | Symbols _ -> false
+        match (defining_expr : Named.t) with
+        | Rec_info _ -> true
+        | Simple _ | Prim _ | Set_of_closures _ | Static_consts _ -> false
       in
       let has_uses = Name_mode.Or_absent.is_present greatest_name_mode in
       let user_visible =
@@ -189,7 +186,7 @@ let make_new_let_bindings uacc
         let defining_expr = Simplified_named.to_named defining_expr in
         let expr, uacc, creation_result =
           match (let_bound : Bindable_let_bound.t) with
-          | Singleton _ | Set_of_closures _ | Depth _ ->
+          | Singleton _ | Set_of_closures _ ->
             create_let uacc let_bound defining_expr
               ~free_names_of_defining_expr ~body:expr
               ~cost_metrics_of_defining_expr

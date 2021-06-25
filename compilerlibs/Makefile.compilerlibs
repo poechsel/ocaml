@@ -186,7 +186,6 @@ MIDDLE_END_FLAMBDA_COMPILENV_DEPS=\
   middle_end/flambda/compilenv_deps/target_imm.cmo \
   middle_end/flambda/compilenv_deps/flambda_colours.cmo \
   middle_end/flambda/compilenv_deps/compilation_unit.cmo \
-  middle_end/flambda/compilenv_deps/depth_variable.cmo \
   middle_end/flambda/compilenv_deps/rec_info.cmo \
   middle_end/flambda/compilenv_deps/coercion.cmo \
   middle_end/flambda/compilenv_deps/reg_width_things.cmo \
@@ -247,7 +246,6 @@ MIDDLE_END_FLAMBDA_NAMING=\
   middle_end/flambda/naming/var_in_binding_pos.cmo \
   middle_end/flambda/naming/bindable.cmo \
   middle_end/flambda/terms/bound_symbols.cmo \
-  middle_end/flambda/naming/bindable_depth_variable.cmo \
   middle_end/flambda/naming/bindable_let_bound.cmo \
   middle_end/flambda/naming/bindable_continuation.cmo \
   middle_end/flambda/naming/bindable_exn_continuation.cmo \

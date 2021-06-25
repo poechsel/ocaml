@@ -92,14 +92,3 @@ val apply_simple : t -> Reg_width_things.Simple.t -> Reg_width_things.Simple.t
 
 (* CR mshinwell: See CR in the implementation about this function. *)
 val closure_var_is_used : t -> Var_within_closure.t -> bool
-
-(** Depth variables *)
-val add_depth_variable : t -> Depth_variable.t -> Depth_variable.t -> t
-
-val add_fresh_depth_variable
-   : t
-  -> Depth_variable.t
-  -> guaranteed_fresh:Depth_variable.t
-  -> t
-
-val apply_depth_variable : t -> Depth_variable.t -> Depth_variable.t

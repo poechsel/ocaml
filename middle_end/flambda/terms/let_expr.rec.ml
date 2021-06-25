@@ -192,7 +192,7 @@ let flatten_for_printing t =
           (Named.must_be_static_consts t.defining_expr)
       in
       Some (flattened, body)
-    | Singleton _ | Set_of_closures _ | Depth _ -> None)
+    | Singleton _ | Set_of_closures _ -> None)
 
 let print_closure_binding ppf (closure_id, sym) =
   Format.fprintf ppf "@[%a @<0>%s\u{21a4}@<0>%s %a@]"
@@ -302,10 +302,14 @@ let print_let_symbol_with_cache ~cache ppf t =
 
 let print_with_cache ~cache ppf
       ({ name_abstraction = _; defining_expr; } as t) =
-  let let_bound_var_colour bindable_let_bound =
+  let let_bound_var_colour bindable_let_bound defining_expr =
     let name_mode = Bindable_let_bound.name_mode bindable_let_bound in
     if Name_mode.is_phantom name_mode then Flambda_colours.elide ()
-    else Flambda_colours.variable ()
+    else match (defining_expr : Named.t) with
+      | Rec_info _ ->
+        Flambda_colours.depth_variable ()
+      | Simple _ | Prim _ | Set_of_closures _ | Static_consts _ ->
+        Flambda_colours.variable ()
   in
   let rec let_body (expr : Expr.t) =
     match Expr.descr expr with
@@ -313,10 +317,10 @@ let print_with_cache ~cache ppf
       pattern_match t
         ~f:(fun (bindable_let_bound : Bindable_let_bound.t) ~body ->
           match bindable_let_bound with
-          | Singleton _ | Set_of_closures _ | Depth _ ->
+          | Singleton _ | Set_of_closures _ ->
             fprintf ppf
               "@ @[<hov 1>@<0>%s%a@<0>%s =@<0>%s@ %a@]"
-              (let_bound_var_colour bindable_let_bound)
+              (let_bound_var_colour bindable_let_bound defining_expr)
               Bindable_let_bound.print bindable_let_bound
               (Flambda_colours.elide ())
               (Flambda_colours.normal ())
@@ -328,12 +332,12 @@ let print_with_cache ~cache ppf
   pattern_match t ~f:(fun (bindable_let_bound : Bindable_let_bound.t) ~body ->
     match bindable_let_bound with
     | Symbols _ -> print_let_symbol_with_cache ~cache ppf t
-    | Singleton _ | Set_of_closures _ | Depth _ ->
+    | Singleton _ | Set_of_closures _ ->
       fprintf ppf "@[<v 1>(@<0>%slet@<0>%s@ (@[<v 0>\
           @[<hov 1>@<0>%s%a@<0>%s =@<0>%s@ %a@]"
         (Flambda_colours.expr_keyword ())
         (Flambda_colours.normal ())
-        (let_bound_var_colour bindable_let_bound)
+        (let_bound_var_colour bindable_let_bound defining_expr)
         Bindable_let_bound.print bindable_let_bound
         (Flambda_colours.elide ())
         (Flambda_colours.normal ())
@@ -406,13 +410,7 @@ let invariant env t =
       | (Simple _ | Prim _ | Set_of_closures _ | Rec_info _), Symbols _ ->
         Misc.fatal_errorf "Cannot bind a non-[Static_const] to [Symbols]:@ %a"
           print t
-      | Rec_info _, Depth _ -> env
-      | Rec_info _, Singleton _ ->
-        Misc.fatal_errorf "Cannot bind a [Rec_info] to non-[Depth]:@ %a"
-          print t
-      | (Simple _ | Prim _ | Set_of_closures _ | Static_consts _), Depth _ ->
-        Misc.fatal_errorf "Cannot bind a non-[Rec_info] to [Depth]:@ %a"
-          print t
+      | Rec_info _, Singleton _ -> env
     in
     Expr.invariant env body)
 

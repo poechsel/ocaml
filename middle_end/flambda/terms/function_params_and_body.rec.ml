@@ -25,7 +25,7 @@ module T2 = Name_abstraction.Make (Bindable_continuation) (T1)
 (* CR lmaurer: It would be good to avoid the extra abstraction when a
    function is known to be non-recursive. Maybe we should flatten all
    of these into one big [Bindable]? *)
-module A = Name_abstraction.Make (Bindable_depth_variable) (T2)
+module A = Name_abstraction.Make (Bindable_variable_in_terms) (T2)
 
 type t = {
   abst : A.t;
@@ -89,14 +89,15 @@ let print_with_cache ~cache ppf t =
       fprintf ppf
         "@[<hov 1>(@<0>%s@<1>\u{03bb}@<0>%s@[<hov 1>\
          @<1>\u{3008}%a@<1>\u{3009}@<1>\u{300a}%a@<1>\u{300b}\
-         %a %a %a @<0>%s.@<0>%s@]@ %a))@]"
+         %a %a @<0>%s%a @<0>%s.@<0>%s@]@ %a))@]"
         (Flambda_colours.lambda ())
         (Flambda_colours.normal ())
         Continuation.print return_continuation
         Exn_continuation.print exn_continuation
         Kinded_parameter.List.print params
         Kinded_parameter.print my_closure
-        Bindable_depth_variable.print my_depth
+        (Flambda_colours.depth_variable ())
+        Bindable_variable_in_terms.print my_depth
         (Flambda_colours.elide ())
         (Flambda_colours.normal ())
         (Expr.print_with_cache ~cache) body)

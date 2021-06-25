@@ -23,7 +23,8 @@ type t =
   | Initial
     (** The initial recursion depth. In user code, all occurrences have depth
         zero. *)
-  | Var of Depth_variable.t
+  | Var of Variable.t
+    (** A variable of kind [Flambda_kind.rec_info]. *)
   | Succ of t
     (** The next depth. If we inline an occurrence with depth [d], then in the
         inlined body, recursive references will have depth [succ d]. *)
@@ -33,7 +34,7 @@ type t =
         point all unrolling should stop. *)
 
 val initial : t
-val var : Depth_variable.t -> t
+val var : Variable.t -> t
 val succ : t -> t
 val unroll_to : int -> t -> t
 

@@ -145,8 +145,7 @@ let simplify_let ~simplify_expr ~simplify_toplevel dacc let_expr ~down_to_up =
                     Data_flow.record_binding (VB.var v) free_names
                       ~generate_phantom_lets acc)
                 | Symbols _ ->
-                  Data_flow.add_used_in_current_handler free_names acc
-                | Depth _ -> acc))
+                  Data_flow.add_used_in_current_handler free_names acc))
     in
     (* Next remember any lifted constants that were generated during the
        simplification of the defining expression and sort them, since they

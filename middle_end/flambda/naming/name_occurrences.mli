@@ -73,10 +73,6 @@ val add_code_id : t -> Code_id.t -> Name_mode.t -> t
      "newer version of" field (e.g. in [Flambda_static.Static_part.code]). *)
 val add_newer_version_of_code_id : t -> Code_id.t -> Name_mode.t -> t
 
-val singleton_depth_variable : Depth_variable.t -> t
-
-val add_depth_variable : t -> Depth_variable.t -> t
-
 val singleton_name : Name.t -> Name_mode.t -> t
 
 val singleton_symbol : Symbol.t -> Name_mode.t -> t
@@ -120,8 +116,6 @@ val continuations_including_in_trap_actions : t -> Continuation.Set.t
 val closure_vars : t -> Var_within_closure.Set.t
 
 val symbols : t -> Symbol.Set.t
-
-val depth_variables : t -> Depth_variable.Set.t
 
 val code_ids : t -> Code_id.Set.t
 
