@@ -658,6 +658,10 @@ struct
       map_maps_to t ~f:(fun closures_entry ->
           Closures_entry.map_function_decl_types closures_entry ~f)
 
+    let map_closure_types t ~f =
+      map_maps_to t ~f:(fun closures_entry ->
+          Closures_entry.map_closure_types closures_entry ~f)
+
     let create_exactly
         (closure_id : Closure_id.t)
         (contents : Set_of_closures_contents.t)

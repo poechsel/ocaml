@@ -202,3 +202,15 @@ let map_function_decl_types
       }
     in
     Ok t
+
+let map_closure_types
+      { function_decls; closure_types; closure_var_types; }
+      ~(f : Type_grammar.t -> Type_grammar.t Or_bottom.t) : _ Or_bottom.t =
+  let closure_types =
+    Product.Closure_id_indexed.map_types closure_types ~f
+  in
+  Or_bottom.map closure_types ~f:(fun closure_types ->
+      { function_decls;
+        closure_types;
+        closure_var_types;
+      })

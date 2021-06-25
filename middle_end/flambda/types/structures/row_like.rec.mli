@@ -119,6 +119,11 @@ module For_closures_entry_by_set_of_closures_contents : sig
     -> f:(Function_declaration_type.t -> Function_declaration_type.t Or_bottom.t)
     -> t Or_bottom.t
 
+  val map_closure_types
+     : t
+    -> f:(Type_grammar.t -> Type_grammar.t Or_bottom.t)
+    -> t Or_bottom.t
+
   include Type_structure_intf.S
     with type t := t
     with type flambda_type := Type_grammar.t

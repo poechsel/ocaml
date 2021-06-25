@@ -159,13 +159,25 @@ let all_ids_for_export t =
 let apply_coercion t coercion : _ Or_bottom.t =
   match t with
   | Closures { by_closure_id; } ->
-    Or_bottom.map
-      (Row_like.For_closures_entry_by_set_of_closures_contents.
-       map_function_decl_types
-        by_closure_id
-        ~f:(fun (decl : Function_declaration_type.t) : _ Or_bottom.t ->
-          Function_declaration_type.apply_coercion decl coercion))
-      ~f:(fun by_closure_id -> Closures { by_closure_id; })
+    begin match
+      Row_like.For_closures_entry_by_set_of_closures_contents.
+        map_function_decl_types
+         by_closure_id
+         ~f:(fun (decl : Function_declaration_type.t) : _ Or_bottom.t ->
+           Function_declaration_type.apply_coercion decl coercion)
+    with
+    | Bottom -> Bottom
+    | Ok by_closure_id ->
+      match
+        Row_like.For_closures_entry_by_set_of_closures_contents.
+          map_closure_types
+          by_closure_id
+          ~f:(fun ty -> Type_grammar.apply_coercion ty coercion)
+      with
+      | Bottom -> Bottom
+      | Ok by_closure_id ->
+        Ok (Closures { by_closure_id; })
+    end
   | Variant _
   | Boxed_float _
   | Boxed_int32 _
