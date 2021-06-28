@@ -100,6 +100,8 @@ let create_non_recursive' ~cont handler ~body
 
 let create_non_recursive cont handler ~body ~free_names_of_body =
   let num_free_occurrences_of_cont_in_body, is_applied_with_traps =
+    (* Only the continuations of [free_names_of_body] are used.
+       [Closure_conversion_aux] relies on this property. *)
     match (free_names_of_body : _ Or_unknown.t) with
     | Unknown -> Or_unknown.Unknown, true
     | Known free_names_of_body ->

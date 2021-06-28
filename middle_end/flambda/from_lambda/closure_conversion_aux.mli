@@ -122,6 +122,7 @@ module Acc : sig
   val shareable_constants : t -> Symbol.t Flambda.Static_const.Map.t
   val code : t -> Flambda.Code.t Code_id.Map.t
   val free_names_of_current_function : t -> Name_occurrences.t
+  val free_continuations : t -> Name_occurrences.t
 
   val seen_a_function : t -> bool
   val with_seen_a_function : t -> bool -> t
@@ -142,6 +143,8 @@ module Acc : sig
 
   val add_symbol_to_free_names : symbol:Symbol.t -> t -> t
   val add_closure_var_to_free_names : closure_var:Var_within_closure.t -> t -> t
+  val add_continuation_occurrence
+    : cont:Continuation.t -> has_traps:bool -> t -> t
 
   val with_free_names : Name_occurrences.t -> t -> t
 
@@ -226,6 +229,21 @@ module Expr_with_acc : sig
     -> Acc.t * t
 end
 
+module Apply_cont_with_acc : sig
+  val create
+     : Acc.t
+    -> ?trap_action:Trap_action.t
+    -> Continuation.t
+    -> args:Simple.t list
+    -> dbg:Debuginfo.t
+    -> Acc.t * Apply_cont.t
+
+  val goto
+     : Acc.t
+    -> Continuation.t
+    -> Acc.t * Apply_cont.t
+end
+
 module Let_with_acc : sig
   val create
      : Acc.t
@@ -252,7 +270,6 @@ module Let_cont_with_acc : sig
     -> Continuation.t
     -> Continuation_handler.t
     -> body:Expr_with_acc.t
-    -> free_names_of_body:Name_occurrences.t Or_unknown.t
     -> cost_metrics_of_handler:Cost_metrics.t
     -> Acc.t * Expr_with_acc.t
 

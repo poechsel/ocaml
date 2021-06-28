@@ -23,6 +23,7 @@ module IR =  Closure_conversion_aux.IR
 module Acc = Closure_conversion_aux.Acc
 module Env = Closure_conversion_aux.Env
 module Expr_with_acc = Closure_conversion_aux.Expr_with_acc
+module Apply_cont_with_acc = Closure_conversion_aux.Apply_cont_with_acc
 module Let_cont_with_acc = Closure_conversion_aux.Let_cont_with_acc
 module Let_with_acc = Closure_conversion_aux.Let_with_acc
 module Continuation_handler_with_acc =
@@ -235,8 +236,8 @@ let close_c_call acc ~let_bound_var (prim : Primitive.description)
             let result' = Var_in_binding_pos.create result Name_mode.normal in
             let bindable = Bindable_let_bound.singleton result' in
             let prim = P.Unary (Reinterpret_int64_as_float, arg) in
-            let return_result =
-              Apply_cont.create return_continuation
+            let acc, return_result =
+              Apply_cont_with_acc.create acc return_continuation
                 ~args:[Simple.var result]
                 ~dbg
             in
@@ -340,7 +341,6 @@ let close_c_call acc ~let_bound_var (prim : Primitive.description)
     in
     Let_cont_with_acc.create_non_recursive acc return_continuation after_call
       ~body:c_call
-      ~free_names_of_body:Unknown
       ~cost_metrics_of_handler
   in
   let keep_body ~cost_metrics_of_body acc =
@@ -441,8 +441,8 @@ let close_primitive acc env ~let_bound_var named (prim : Lambda.primitive) ~args
     in
     let raise_kind = Some (LC.raise_kind raise_kind) in
     let trap_action = Trap_action.Pop { exn_handler; raise_kind; } in
-    let apply_cont =
-      Apply_cont.create ~trap_action exn_handler ~args ~dbg
+    let acc, apply_cont =
+      Apply_cont_with_acc.create acc ~trap_action exn_handler ~args ~dbg
     in
     (* Since raising of an exception doesn't terminate, we don't call [k]. *)
     Expr_with_acc.create_apply_cont acc apply_cont
@@ -549,7 +549,7 @@ let close_let_cont acc env ~name ~is_exn_handler ~params
   begin match recursive with
   | Nonrecursive ->
     Let_cont_with_acc.create_non_recursive acc name handler ~body
-      ~free_names_of_body:Unknown ~cost_metrics_of_handler
+      ~cost_metrics_of_handler
   | Recursive ->
     let handlers = Continuation.Map.singleton name handler in
     Let_cont_with_acc.create_recursive acc handlers ~body
@@ -588,8 +588,8 @@ let close_apply_cont acc env cont trap_action args
   : Acc.t * Expr_with_acc.t =
   let acc, args = find_simples acc env args in
   let trap_action = close_trap_action_opt trap_action in
-  let apply_cont =
-    Apply_cont.create ?trap_action cont ~args ~dbg:Debuginfo.none
+  let acc, apply_cont =
+    Apply_cont_with_acc.create acc ?trap_action cont ~args ~dbg:Debuginfo.none
   in
   Expr_with_acc.create_apply_cont acc apply_cont
 
@@ -614,10 +614,12 @@ let close_switch acc env scrutinee (sw : IR.switch)
     List.fold_left_map (fun acc (case, cont, trap_action, args) ->
         let trap_action = close_trap_action_opt trap_action in
         let acc, args = find_simples acc env args in
+        let acc, action =
+          Apply_cont_with_acc.create acc ?trap_action cont ~args
+           ~dbg:Debuginfo.none
+        in
         acc,
-        (Targetint_31_63.int (Targetint_31_63.Imm.of_int case),
-         Apply_cont.create ?trap_action cont ~args
-           ~dbg:Debuginfo.none))
+        (Targetint_31_63.int (Targetint_31_63.Imm.of_int case), action))
       acc
       sw.consts
   in
@@ -640,8 +642,7 @@ let close_switch acc env scrutinee (sw : IR.switch)
     let acc, default_action =
       let acc, args = find_simples acc env default_args in
       let trap_action = close_trap_action_opt default_trap_action in
-      acc,
-      Apply_cont.create ?trap_action default_action ~args
+      Apply_cont_with_acc.create acc ?trap_action default_action ~args
         ~dbg:Debuginfo.none
     in
     let acc, switch =
@@ -670,8 +671,8 @@ let close_switch acc env scrutinee (sw : IR.switch)
             else
               let acc, args = find_simples acc env args in
               let trap_action = close_trap_action_opt trap_action in
-              let default =
-                Apply_cont.create ?trap_action default ~args
+              let acc, default =
+                Apply_cont_with_acc.create acc ?trap_action default ~args
                   ~dbg:Debuginfo.none
               in
               acc,
@@ -1057,16 +1058,16 @@ let close_program ~backend ~module_ident ~module_block_size_in_words
         Block (module_block_tag, Immutable, field_vars)
       in
       let acc, arg = use_of_symbol_as_simple acc module_symbol in
-      let acc, return =
+      let acc, apply_cont =
         (* Module initialisers return unit, but since that is taken care of
            during Cmm generation, we can instead "return" [module_symbol]
            here to ensure that its associated "let symbol" doesn't get
            deleted. *)
-        Apply_cont.create return_cont
+        Apply_cont_with_acc.create acc return_cont
           ~args:[arg]
           ~dbg:Debuginfo.none
-        |> Expr_with_acc.create_apply_cont acc
       in
+      let acc, return = Expr_with_acc.create_apply_cont acc apply_cont in
       let bound_symbols =
         Bound_symbols.singleton
           (Bound_symbols.Pattern.block_like module_symbol)
@@ -1128,7 +1129,6 @@ let close_program ~backend ~module_ident ~module_block_size_in_words
     Let_cont_with_acc.create_non_recursive acc prog_return_cont
       load_fields_cont_handler
       ~body
-      ~free_names_of_body:Unknown
       ~cost_metrics_of_handler
   in
   let acc, body =

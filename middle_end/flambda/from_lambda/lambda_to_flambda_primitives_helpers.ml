@@ -109,8 +109,10 @@ let raise_exn_for_failure acc ~dbg exn_cont exn_bucket extra_let_binding =
     [exn_bucket] @ extra_args
   in
   let acc, apply_cont =
-    Expr_with_acc.create_apply_cont acc
-      (Apply_cont.create ~trap_action exn_handler ~args ~dbg)
+    Apply_cont_with_acc.create acc ~trap_action exn_handler ~args ~dbg
+  in
+  let acc, apply_cont =
+    Expr_with_acc.create_apply_cont acc apply_cont
   in
   match extra_let_binding with
   | None -> acc, apply_cont
@@ -270,6 +272,7 @@ let rec bind_rec acc ~backend exn_cont
       )
     in
     let acc, check_validity_conditions =
+      let acc, prim_apply_cont = Apply_cont_with_acc.goto acc primitive_cont in
       List.fold_left (fun (acc, rest) expr_primitive ->
           let condition_passed_cont = Continuation.create () in
           let cost_metrics_of_handler, acc, condition_passed_cont_handler =
@@ -283,36 +286,36 @@ let rec bind_rec acc ~backend exn_cont
             bind_rec_primitive acc ~backend exn_cont ~register_const_string
               (Prim expr_primitive) dbg
               (fun acc prim_result ->
+                let acc, condition_passed =
+                  Apply_cont_with_acc.goto acc condition_passed_cont
+                in
+                let acc, failure =
+                  Apply_cont_with_acc.goto acc failure_cont
+                in
                 (Expr_with_acc.create_switch
                    acc
                    (Switch.create
                     ~scrutinee:prim_result
                     ~arms:(Targetint_31_63.Map.of_list [
-                      Targetint_31_63.bool_true,
-                        Apply_cont.goto condition_passed_cont;
-                      Targetint_31_63.bool_false,
-                        Apply_cont.goto failure_cont;
+                      Targetint_31_63.bool_true, condition_passed;
+                      Targetint_31_63.bool_false, failure;
                   ]))))
           in
           Let_cont_with_acc.create_non_recursive acc condition_passed_cont
             condition_passed_cont_handler ~body
-            ~free_names_of_body:Unknown
             ~cost_metrics_of_handler)
-        (Expr_with_acc.create_apply_cont acc
-           (Apply_cont.create primitive_cont ~args:[] ~dbg:Debuginfo.none))
+        (Expr_with_acc.create_apply_cont acc prim_apply_cont)
         validity_conditions
     in
     let acc, body =
       Let_cont_with_acc.create_non_recursive acc failure_cont
         failure_cont_handler
         ~body:check_validity_conditions
-        ~free_names_of_body:Unknown
         ~cost_metrics_of_handler:cost_metrics_of_failure_handler
     in
     Let_cont_with_acc.create_non_recursive acc primitive_cont
       primitive_cont_handler
       ~body
-      ~free_names_of_body:Unknown
       ~cost_metrics_of_handler:cost_metrics_of_primitive_handler
 
 and bind_rec_primitive acc ~backend exn_cont ~register_const_string
