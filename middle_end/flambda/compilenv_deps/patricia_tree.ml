@@ -480,12 +480,38 @@ struct
 
   module Set = Set
 
-  type 'a t =
-    | Empty
-    | Leaf of int * 'a
-    | Branch of int * int * 'a t * 'a t
+  module T : sig
+    type +'a t = private
+      | Empty
+      | Leaf of int * 'a
+      | Branch of int * int * 'a t * 'a t
 
-  let empty = Empty
+    val empty : 'a t
+    val leaf : int -> 'a -> 'a t
+    val branch : int -> int -> 'a t -> 'a t -> 'a t
+    val branch_non_empty : int -> int -> 'a t -> 'a t -> 'a t
+  end = struct
+    type 'a t =
+      | Empty
+      | Leaf of int * 'a
+      | Branch of int * int * 'a t * 'a t
+
+    let empty = Empty
+    let leaf key datum = Leaf (key, datum) [@@inline always]
+
+    let branch prefix bit t0 t1 =
+      match t0, t1 with
+      | Empty, _ -> t1
+      | _, Empty -> t0
+      | _, _ -> Branch (prefix, bit, t0, t1)
+    [@@inline always]
+
+    let branch_non_empty prefix bit t0 t1 =
+      Branch (prefix, bit, t0, t1)
+    [@@inline always]
+  end
+
+  include T
 
   let is_empty t =
     match t with
@@ -493,7 +519,7 @@ struct
     | Leaf _ -> false
     | Branch _ -> false
 
-  let singleton i d = Leaf(i, d)
+  let singleton i d = leaf i d
 
   let zero_bit i bit =
     i land bit = 0
@@ -530,67 +556,61 @@ struct
         else if zero_bit i bit then mem i t0
         else mem i t1
 
-  let branch prefix bit t0 t1 =
-    match t0, t1 with
-    | Empty, _ -> t1
-    | _, Empty -> t0
-    | t0, t1 -> Branch(prefix, bit, t0, t1)
-
   let join prefix0 t0 prefix1 t1 =
     let bit = branching_bit prefix0 prefix1 in
     if zero_bit prefix0 bit then
-      Branch(mask prefix0 bit, bit, t0, t1)
+      branch (mask prefix0 bit) bit t0 t1
     else
-      Branch(mask prefix0 bit, bit, t1, t0)
+      branch (mask prefix0 bit) bit t1 t0
 
   (* CR mshinwell: This is now [add_or_replace], like [Map] *)
   let rec add i d = function
-    | Empty -> Leaf(i, d)
+    | Empty -> leaf i d
     | Leaf(j, _) as t ->
-      if i = j then Leaf (i, d)
-      else join i (Leaf(i, d)) j t
+      if i = j then leaf i d
+      else join i (leaf i d) j t
     | Branch(prefix, bit, t0, t1) as t ->
       if match_prefix i prefix bit then
         if zero_bit i bit then
-          Branch(prefix, bit, add i d t0, t1)
+          branch_non_empty prefix bit (add i d t0) t1
         else
-          Branch(prefix, bit, t0, add i d t1)
+          branch_non_empty prefix bit t0 (add i d t1)
       else
-        join i (Leaf(i, d)) prefix t
+        join i (leaf i d) prefix t
 
   let rec replace key f = function
-    | Empty -> Empty
+    | Empty -> empty
     | Leaf (key', datum) as t ->
       if key = key' then
         let datum = f datum in
-        Leaf (key, datum)
+        leaf key datum
       else
         t
     | Branch (prefix, bit, t0, t1) as t ->
       if match_prefix key prefix bit then
         if zero_bit key bit then
-          Branch(prefix, bit, replace key f t0, t1)
+          branch_non_empty prefix bit (replace key f t0) t1
         else
-          Branch(prefix, bit, t0, replace key f t1)
+          branch_non_empty prefix bit t0 (replace key f t1)
       else
         t
 
   let rec update key f = function
     | Empty ->
       begin match f None with
-      | None -> Empty
-      | Some datum -> Leaf (key, datum)
+      | None -> empty
+      | Some datum -> leaf key datum
       end
     | Leaf (key', datum) as t ->
       if key = key' then
         begin match f (Some datum) with
-        | None -> Empty
-        | Some datum -> Leaf (key, datum)
+        | None -> empty
+        | Some datum -> leaf key datum
         end
       else
         begin match f None with
         | None -> t
-        | Some datum -> join key (Leaf (key, datum)) key' t
+        | Some datum -> join key (leaf key datum) key' t
         end
     | Branch (prefix, bit, t0, t1) as t ->
       if match_prefix key prefix bit then
@@ -601,12 +621,12 @@ struct
       else
         match f None with
         | None -> t
-        | Some datum -> join key (Leaf (key, datum)) prefix t
+        | Some datum -> join key (leaf key datum) prefix t
 
   let rec remove i = function
-    | Empty -> Empty
+    | Empty -> empty
     | Leaf(j, _) as t ->
-      if i = j then Empty
+      if i = j then empty
       else t
     | Branch (prefix, bit, t0, t1) as t ->
       if match_prefix i prefix bit then
@@ -628,10 +648,10 @@ struct
          the first datum comes from [t0] and the second from [t1].
          Document. *)
       begin match f i d0 d1 with
-      | None -> Empty
-      | Some datum -> Leaf (i, datum)
+      | None -> empty
+      | Some datum -> leaf i datum
       end
-    | Leaf (i, d0), Leaf (j, _) -> join i (Leaf (i, d0)) j t1
+    | Leaf (i, d0), Leaf (j, _) -> join i (leaf i d0) j t1
     | Leaf (i, d), Branch (prefix, bit, t10, t11) ->
       if match_prefix i prefix bit then
         if zero_bit i bit then
@@ -639,7 +659,7 @@ struct
         else
           branch prefix bit t10 (union f t0 t11)
       else
-        join i (Leaf(i, d)) prefix t1
+        join i (leaf i d) prefix t1
     | Branch (prefix, bit, t00, t01), Leaf (i, d) ->
       if match_prefix i prefix bit then
         let f i d0 d1 = f i d1 d0 in  (* CR mshinwell: add flag to disable? *)
@@ -648,7 +668,7 @@ struct
         else
           branch prefix bit t00 (union f t1 t01)
       else
-        join i (Leaf(i, d)) prefix t0
+        join i (leaf i d) prefix t0
     | Branch(prefix0, bit0, t00, t01), Branch(prefix1, bit1, t10, t11) ->
       if equal_prefix prefix0 bit0 prefix1 bit1 then
         branch prefix0 bit0 (union f t00 t10) (union f t01 t11)
@@ -686,10 +706,10 @@ struct
 
   let rec inter_domains t0 t1 =
     match t0, t1 with
-    | Empty, _ -> Empty
-    | _, Empty -> Empty
-    | Leaf(i, _), _ -> if mem i t1 then t0 else Empty
-    | _, Leaf(i, _) -> if mem i t0 then t1 else Empty
+    | Empty, _ -> empty
+    | _, Empty -> empty
+    | Leaf(i, _), _ -> if mem i t1 then t0 else empty
+    | _, Leaf(i, _) -> if mem i t0 then t1 else empty
     | Branch(prefix0, bit0, t00, t01), Branch(prefix1, bit1, t10, t11) ->
         if equal_prefix prefix0 bit0 prefix1 bit1 then
           branch prefix0 bit0 (inter_domains t00 t10) (inter_domains t01 t11)
@@ -704,7 +724,7 @@ struct
           else
             inter_domains t0 t11
         else
-          Empty
+          empty
 
   let rec find i = function
     | Empty -> raise Not_found
@@ -716,17 +736,17 @@ struct
 
   let rec inter f t0 t1 =
     match t0, t1 with
-    | Empty, _ -> Empty
-    | _, Empty -> Empty
+    | Empty, _ -> empty
+    | _, Empty -> empty
     | Leaf (i, d0), _ ->
       begin match find i t1 with
-      | exception Not_found -> Empty
-      | d1 -> Leaf (i, f i d0 d1)
+      | exception Not_found -> empty
+      | d1 -> leaf i (f i d0 d1)
       end
     | _, Leaf (i, d1) ->
       begin match find i t0 with
-      | exception Not_found -> Empty
-      | d0 -> Leaf (i, f i d0 d1)
+      | exception Not_found -> empty
+      | d0 -> leaf i (f i d0 d1)
       end
     | Branch(prefix0, bit0, t00, t01), Branch(prefix1, bit1, t10, t11) ->
         if equal_prefix prefix0 bit0 prefix1 bit1 then
@@ -742,7 +762,7 @@ struct
           else
             inter f t0 t11
         else
-          Empty
+          empty
 
   let rec inter_domain_is_non_empty t0 t1 =
     match t0, t1 with
@@ -769,9 +789,9 @@ struct
 
   let rec diff t0 t1 =
     match t0, t1 with
-    | Empty, _ -> Empty
+    | Empty, _ -> empty
     | _, Empty -> t0
-    | Leaf(i, _), _ -> if mem i t1 then Empty else t0
+    | Leaf(i, _), _ -> if mem i t1 then empty else t0
     | _, Leaf(i, _) -> remove i t0
     | Branch(prefix0, bit0, t00, t01), Branch(prefix1, bit1, t10, t11) ->
         if equal_prefix prefix0 bit0 prefix1 bit1 then
@@ -821,7 +841,7 @@ struct
       | Leaf(i, d) -> if p i d then add i d acc else acc
       | Branch(_, _, t0, t1) -> loop (loop acc t0) t1
     in
-    loop Empty t
+    loop empty t
 
   let partition p t =
     let rec loop ((true_, false_) as acc) = function
@@ -831,7 +851,7 @@ struct
         else (true_, add i d false_)
       | Branch(_, _, t0, t1) -> loop (loop acc t0) t1
     in
-    loop (Empty, Empty) t
+    loop (empty, empty) t
 
   let rec choose = function
     | Empty -> raise Not_found
@@ -929,7 +949,7 @@ struct
           else (lt, mem, add j d gt)
       | Branch(_, _, t0, t1) -> loop (loop acc t0) t1
     in
-    loop (Empty, None, Empty) t
+    loop (empty, None, empty) t
 
   let rec bindings_aux acc t =
     match t with
@@ -948,74 +968,74 @@ struct
     match t0, t1 with
     (* Empty cases, just recurse and be sure to call f on all
        leaf cases recursively *)
-    | Empty, Empty -> Empty
+    | Empty, Empty -> empty
     | Empty, Leaf (i, d) ->
     begin match f i None (Some d) with
-      | None -> Empty
-      | Some d' -> Leaf (i, d')
+      | None -> empty
+      | Some d' -> leaf i d'
       end
     | Leaf (i, d), Empty ->
       begin match f i (Some d) None with
-      | None -> Empty
-      | Some d' -> Leaf (i, d')
+      | None -> empty
+      | Some d' -> leaf i d'
       end
     | Empty, Branch (prefix, bit, t10, t11) ->
-      Branch (prefix, bit, merge' f t0 t10, merge' f t0 t11)
+      branch prefix bit (merge' f t0 t10) (merge' f t0 t11)
     | Branch (prefix, bit, t00, t01), Empty ->
-      Branch (prefix, bit, merge' f t00 t1, merge' f t01 t1)
+      branch prefix bit (merge' f t00 t1) (merge' f t01 t1)
 
     (* Leaf cases *)
     | Leaf (i, d0), Leaf (j, d1) when i = j ->
       begin match f i (Some d0) (Some d1) with
-      | None -> Empty
-      | Some datum -> Leaf (i, datum)
+      | None -> empty
+      | Some datum -> leaf i datum
       end
     | Leaf (i, d0), Leaf (j, d1) ->
       begin match f i (Some d0) None, f j None (Some d1) with
-      | None, None -> Empty
-      | Some d0, None -> Leaf (i, d0)
-      | None, Some d1 -> Leaf (j, d1)
-      | Some d0, Some d1 -> join i (Leaf (i, d0)) j (Leaf (j, d1))
+      | None, None -> empty
+      | Some d0, None -> leaf i d0
+      | None, Some d1 -> leaf j d1
+      | Some d0, Some d1 -> join i (leaf i d0) j (leaf j d1)
       end
 
     (* leaf <-> Branch cases *)
     | Leaf (i, d), Branch (prefix, bit, t10, t11) ->
       if match_prefix i prefix bit then
         if zero_bit i bit then
-          branch prefix bit (merge' f t0 t10) (merge' f Empty t11)
+          branch prefix bit (merge' f t0 t10) (merge' f empty t11)
         else
-          branch prefix bit (merge' f Empty t10) (merge' f t0 t11)
+          branch prefix bit (merge' f empty t10) (merge' f t0 t11)
       else
         begin match f i (Some d) None with
-        | None -> merge' f Empty t1
-        | Some d -> join i (Leaf(i, d)) prefix (merge' f Empty t1)
+        | None -> merge' f empty t1
+        | Some d -> join i (leaf i d) prefix (merge' f empty t1)
         end
     | Branch (prefix, bit, t00, t01), Leaf (i, d) ->
       if match_prefix i prefix bit then
         if zero_bit i bit then
-          branch prefix bit (merge' f t00 t1) (merge' f t01 Empty)
+          branch prefix bit (merge' f t00 t1) (merge' f t01 empty)
         else
-          branch prefix bit (merge' f t00 Empty) (merge' f t01 t1)
+          branch prefix bit (merge' f t00 empty) (merge' f t01 t1)
       else
         begin match f i None (Some d) with
-        | None -> merge' f t0 Empty
-        | Some d -> join i (Leaf(i, d)) prefix (merge' f t0 Empty)
+        | None -> merge' f t0 empty
+        | Some d -> join i (leaf i d) prefix (merge' f t0 empty)
         end
     | Branch(prefix0, bit0, t00, t01), Branch(prefix1, bit1, t10, t11) ->
       if equal_prefix prefix0 bit0 prefix1 bit1 then
         branch prefix0 bit0 (merge' f t00 t10) (merge' f t01 t11)
       else if includes_prefix prefix0 bit0 prefix1 bit1 then
         if zero_bit prefix1 bit0 then
-          branch prefix0 bit0 (merge' f t00 t1) (merge' f t01 Empty)
+          branch prefix0 bit0 (merge' f t00 t1) (merge' f t01 empty)
         else
-          branch prefix0 bit0 (merge' f t00 Empty) (merge' f t01 t1)
+          branch prefix0 bit0 (merge' f t00 empty) (merge' f t01 t1)
       else if includes_prefix prefix1 bit1 prefix0 bit0 then
         if zero_bit prefix0 bit1 then
-          branch prefix1 bit1 (merge' f t0 t10) (merge' f Empty t11)
+          branch prefix1 bit1 (merge' f t0 t10) (merge' f empty t11)
         else
-          branch prefix1 bit1 (merge' f Empty t10) (merge' f t0 t11)
+          branch prefix1 bit1 (merge' f empty t10) (merge' f t0 t11)
       else
-        join prefix0 (merge' f t0 Empty) prefix1 (merge' f Empty t1)
+        join prefix0 (merge' f t0 empty) prefix1 (merge' f empty t1)
 
   let find_opt t key =
     match find t key with
