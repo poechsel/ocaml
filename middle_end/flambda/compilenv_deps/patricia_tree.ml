@@ -519,6 +519,19 @@ struct
     | Leaf _ -> false
     | Branch _ -> false
 
+  let print_debug print_datum ppf t =
+    let rec pp ppf t =
+      match t with
+      | Empty -> Format.pp_print_string ppf "()"
+      | Leaf (k, v) ->
+        Format.fprintf ppf "@[<hv 1>(%x@ %a)@]"
+          k print_datum v
+      | Branch (k1, k2, l, r) ->
+        Format.fprintf ppf "@[<hv 1>(branch@ %x@ %x@ %a@ %a)@]"
+          k1 k2 pp l pp r
+    in
+    pp ppf t
+
   let singleton i d = leaf i d
 
   let zero_bit i bit =

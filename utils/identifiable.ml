@@ -46,6 +46,9 @@ module type Map = sig
 
   module Set : Set with module T := T
 
+  val print_debug :
+    (Format.formatter -> 'a -> unit) -> Format.formatter -> 'a t -> unit
+
   val of_list : (key * 'a) list -> 'a t
 
   val disjoint_union :
@@ -167,6 +170,8 @@ module Make_map (T : Thing) (Set : Set with module T := T) = struct
 
   let print print_datum ppf t =
     Misc.print_assoc T.print print_datum ppf (bindings t)
+
+  let print_debug = print
 
   let keys map = fold (fun k _ set -> Set.add k set) map Set.empty
 

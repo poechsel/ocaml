@@ -58,6 +58,9 @@ module type Map = sig
 
   module Set : Set with module T := T
 
+  val print_debug :
+    (Format.formatter -> 'a -> unit) -> Format.formatter -> 'a t -> unit
+
   val of_list : (key * 'a) list -> 'a t
 
   (** [disjoint_union m1 m2] contains all bindings from [m1] and
