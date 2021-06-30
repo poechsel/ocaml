@@ -112,6 +112,10 @@ module Env = struct
   let clear_local_bindings
         { variables = _; globals; simples_to_substitute; backend;
           current_unit_id; symbol_for_global'; } =
+    let simples_to_substitute =
+      Ident.Map.filter (fun _ simple -> not (Simple.is_var simple))
+        simples_to_substitute
+    in
     { variables = Ident.Map.empty;
       globals;
       simples_to_substitute;
