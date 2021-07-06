@@ -74,7 +74,8 @@ type add_result = private {
     returns [{ t = t'; canonical_element; alias_of_demoted_element }], then
     according to [t'],
     - [canonical_element] is the canonical element of both [s1] and [s2];
-    - [alias_of_demoted_element] is either [s1] or [s2]; and
+    - [alias_of_demoted_element] is either [s1] or [s2] (possibly with a new
+      coercion; see note on [add_result]); and
     - in the case that [alias_of_demoted_element] was canonical before
       (meaning that either [s1] or [s2] happened to be canonical), it is
       no longer canonical. *)

@@ -718,11 +718,12 @@ let add_alias t ~element1 ~coercion_from_element2_to_element1 ~element2 =
          the same canonical element, they must already be aliases. But what to
          return? According to the contract for [add],
          [alias_of_demoted_element] must not be canonical and must equal either
-         [element1] or [element2]. Thus we must choose whichever of [element1]
-         and [element2] is not canonical. (They cannot both be canonical: if
-         [element1] is canonical then it's equal to [canonical_element], and
-         the same goes for [element2], but they can't both be equal to
-         [canonical_element] since we assume in [add] that they're different. *)
+         [element1] or [element2] (before the coercion is updated). Thus we must
+         choose whichever of [element1] and [element2] is not canonical. (They
+         cannot both be canonical: if [element1] is canonical then it's equal to
+         [canonical_element], and the same goes for [element2], but they can't
+         both be equal to [canonical_element] since we assume in [add] that
+         they're different. *)
       (* CR lmaurer: These elaborate postconditions are there to avoid breaking
          [Typing_env.add_equations]. It would be better to decouple these
          functions. Per discussions with poechsel and vlaviron, the
@@ -748,7 +749,22 @@ let add_alias t ~element1 ~coercion_from_element2_to_element1 ~element2 =
          as far as [Typing_env] is concerned, but I think this is easier
          to explain than "representative_of_new_alias_class" or some such.) *)
       let alias_of_demoted_element =
-        if Simple.equal element1 canonical_element then element2 else element1
+        (* This needs to return a proper alias of canonical_element, so apply
+           the respective coercion *)
+        if Simple.equal (Simple.without_coercion element1) canonical_element then
+          let coercion_from_element2_to_canonical_element =
+            (* Since canonical_element = canonical_element1 = canonical_element2 *)
+            coercion_from_element2_to_canonical_element2
+          in
+          Simple.with_coercion element2
+            coercion_from_element2_to_canonical_element
+        else
+          let coercion_from_element1_to_canonical_element =
+            (* Since canonical_element = canonical_element1 *)
+            coercion_from_element1_to_canonical_element1
+          in
+          Simple.with_coercion element1
+            coercion_from_element1_to_canonical_element
       in
       { t; canonical_element; alias_of_demoted_element; }
     else
