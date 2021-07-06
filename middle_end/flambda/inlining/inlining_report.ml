@@ -25,7 +25,7 @@ type at_call_site =
     }
   | Inlinable_function of {
       code_id : Code_id.exported;
-      decision : Inlining_decision.Call_site_decision.t;
+      decision : Call_site_inlining_decision.t;
     }
 
 type fundecl_pass =
@@ -35,7 +35,7 @@ type fundecl_pass =
 type at_function_declaration = {
   pass : fundecl_pass;
   code_id : Code_id.exported;
-  decision : Inlining_decision.Function_declaration_decision.t;
+  decision : Function_decl_inlining_decision.t;
 }
 
 type decision =
@@ -98,7 +98,7 @@ let rec print ~depth fmt = function
       stars depth Code_id.(name (import code_id)) print_debuginfo dbg;
     Format.fprintf fmt "%a @[<v>Before simplification:@ @ %a@]@\n@\n"
       stars (depth + 1)
-      Inlining_decision.Function_declaration_decision.report decision;
+      Function_decl_inlining_decision.report decision;
     print ~depth:(depth + 1) fmt r
 
   (* Exiting a function_declaration (possibly nested) *)
@@ -106,7 +106,7 @@ let rec print ~depth fmt = function
       pass = After_simplify; code_id; decision; } } :: r ->
     Format.fprintf fmt "%a @[<v>After simplification of %s{%a}:@ @ %a@]@\n@\n@\n"
       stars depth Code_id.(name (import code_id)) print_debuginfo dbg
-      Inlining_decision.Function_declaration_decision.report decision;
+      Function_decl_inlining_decision.report decision;
     print ~depth:(depth - 1) fmt r
 
   (* Function call *)
@@ -133,7 +133,7 @@ let rec print ~depth fmt = function
       stars depth
       (if depth = 0 then "Toplevel application" else "Application")
       Code_id.(name (import code_id)) print_debuginfo dbg
-      Inlining_decision.Call_site_decision.report decision;
+      Call_site_inlining_decision.report decision;
     print ~depth fmt r
 
 

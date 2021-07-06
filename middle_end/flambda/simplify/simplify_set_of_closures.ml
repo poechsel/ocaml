@@ -29,14 +29,14 @@ open! Simplify_import
 let function_decl_type ~pass ~cost_metrics_source denv function_decl ?code_id
       rec_info =
   let decision =
-    Inlining_decision.make_decision_for_function_declaration
-      denv ~cost_metrics_source function_decl
+    Function_decl_inlining_decision.make_decision denv ~cost_metrics_source
+      function_decl
   in
   let code_id = Option.value code_id ~default:(FD.code_id function_decl) in
   Inlining_report.record_decision (
     At_function_declaration { code_id = Code_id.export code_id; pass; decision; })
     ~dbg:(DE.add_inlined_debuginfo' denv (FD.dbg function_decl));
-  match Inlining_decision.Function_declaration_decision.behaviour decision with
+  match Function_decl_inlining_decision.behaviour decision with
   | Cannot_be_inlined ->
     T.create_non_inlinable_function_declaration
       ~code_id

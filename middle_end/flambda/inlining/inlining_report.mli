@@ -24,7 +24,7 @@ type at_call_site =
       but was marked as non-inlinable. *)
   | Inlinable_function of {
       code_id : Code_id.exported; (** code id of the callee *)
-      decision : Inlining_decision.Call_site_decision.t;
+      decision : Call_site_inlining_decision.t;
     }
   (** Function call where the function's type is known,
       and was marked as inlinable. *)
@@ -39,7 +39,7 @@ type fundecl_pass =
 type at_function_declaration = {
   pass : fundecl_pass;
   code_id : Code_id.exported; (** code id of the function being declared *)
-  decision : Inlining_decision.Function_declaration_decision.t;
+  decision : Function_decl_inlining_decision.t;
 }
 
 type decision =

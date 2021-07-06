@@ -5233,6 +5233,59 @@ middle_end/flambda/from_lambda/lambda_to_flambda_primitives_helpers.cmi : \
     middle_end/flambda/basic/exn_continuation.cmi \
     lambda/debuginfo.cmi \
     middle_end/flambda/from_lambda/closure_conversion_aux.cmi
+middle_end/flambda/inlining/call_site_inlining_decision.cmo : \
+    middle_end/flambda/simplify/env/upwards_env.cmi \
+    middle_end/flambda/simplify/env/upwards_acc.cmi \
+    middle_end/flambda/inlining/inlining_transforms.cmi \
+    middle_end/flambda/inlining/inlining_state.cmi \
+    middle_end/flambda/inlining/inlining_arguments.cmi \
+    middle_end/flambda/types/flambda_type.cmi \
+    middle_end/flambda/terms/flambda.cmi \
+    middle_end/flambda/basic/exn_continuation.cmi \
+    middle_end/flambda/simplify/env/downwards_env.cmi \
+    middle_end/flambda/simplify/env/downwards_acc.cmi \
+    middle_end/flambda/simplify/env/data_flow.cmi \
+    middle_end/flambda/basic/continuation.cmi \
+    middle_end/flambda/inlining/call_site_inlining_decision.cmi
+middle_end/flambda/inlining/call_site_inlining_decision.cmx : \
+    middle_end/flambda/simplify/env/upwards_env.cmx \
+    middle_end/flambda/simplify/env/upwards_acc.cmx \
+    middle_end/flambda/inlining/inlining_transforms.cmx \
+    middle_end/flambda/inlining/inlining_state.cmx \
+    middle_end/flambda/inlining/inlining_arguments.cmx \
+    middle_end/flambda/types/flambda_type.cmx \
+    middle_end/flambda/terms/flambda.cmx \
+    middle_end/flambda/basic/exn_continuation.cmx \
+    middle_end/flambda/simplify/env/downwards_env.cmx \
+    middle_end/flambda/simplify/env/downwards_acc.cmx \
+    middle_end/flambda/simplify/env/data_flow.cmx \
+    middle_end/flambda/basic/continuation.cmx \
+    middle_end/flambda/inlining/call_site_inlining_decision.cmi
+middle_end/flambda/inlining/call_site_inlining_decision.cmi : \
+    middle_end/flambda/simplify/simplify_common.cmi \
+    middle_end/flambda/types/flambda_type.cmi \
+    middle_end/flambda/types/kinds/flambda_arity.cmi \
+    middle_end/flambda/terms/flambda.cmi \
+    middle_end/flambda/simplify/env/downwards_acc.cmi
+middle_end/flambda/inlining/function_decl_inlining_decision.cmo : \
+    middle_end/flambda/inlining/inlining_arguments.cmi \
+    middle_end/flambda/terms/function_declaration.cmi \
+    middle_end/flambda/terms/flambda.cmi \
+    middle_end/flambda/simplify/env/downwards_env.cmi \
+    middle_end/flambda/inlining/metrics/code_size.cmi \
+    middle_end/flambda/inlining/function_decl_inlining_decision.cmi
+middle_end/flambda/inlining/function_decl_inlining_decision.cmx : \
+    middle_end/flambda/inlining/inlining_arguments.cmx \
+    middle_end/flambda/terms/function_declaration.cmx \
+    middle_end/flambda/terms/flambda.cmx \
+    middle_end/flambda/simplify/env/downwards_env.cmx \
+    middle_end/flambda/inlining/metrics/code_size.cmx \
+    middle_end/flambda/inlining/function_decl_inlining_decision.cmi
+middle_end/flambda/inlining/function_decl_inlining_decision.cmi : \
+    middle_end/flambda/terms/function_declaration.cmi \
+    middle_end/flambda/terms/flambda.cmi \
+    middle_end/flambda/simplify/env/downwards_env.cmi \
+    middle_end/flambda/inlining/metrics/code_size.cmi
 middle_end/flambda/inlining/inlining_arguments.cmo : \
     middle_end/flambda/types/basic/or_unknown.cmi \
     utils/misc.cmi \
@@ -5244,68 +5297,29 @@ middle_end/flambda/inlining/inlining_arguments.cmx : \
     utils/clflags.cmx \
     middle_end/flambda/inlining/inlining_arguments.cmi
 middle_end/flambda/inlining/inlining_arguments.cmi :
-middle_end/flambda/inlining/inlining_decision.cmo : \
-    middle_end/flambda/simplify/env/upwards_env.cmi \
-    middle_end/flambda/simplify/env/upwards_acc.cmi \
-    middle_end/flambda/inlining/inlining_transforms.cmi \
-    middle_end/flambda/inlining/inlining_state.cmi \
-    middle_end/flambda/inlining/inlining_arguments.cmi \
-    middle_end/flambda/terms/function_declaration.cmi \
-    middle_end/flambda/types/flambda_type.cmi \
-    middle_end/flambda/terms/flambda.cmi \
-    middle_end/flambda/basic/exn_continuation.cmi \
-    middle_end/flambda/simplify/env/downwards_env.cmi \
-    middle_end/flambda/simplify/env/downwards_acc.cmi \
-    middle_end/flambda/simplify/env/data_flow.cmi \
-    middle_end/flambda/basic/continuation.cmi \
-    middle_end/flambda/inlining/metrics/code_size.cmi \
-    middle_end/flambda/inlining/inlining_decision.cmi
-middle_end/flambda/inlining/inlining_decision.cmx : \
-    middle_end/flambda/simplify/env/upwards_env.cmx \
-    middle_end/flambda/simplify/env/upwards_acc.cmx \
-    middle_end/flambda/inlining/inlining_transforms.cmx \
-    middle_end/flambda/inlining/inlining_state.cmx \
-    middle_end/flambda/inlining/inlining_arguments.cmx \
-    middle_end/flambda/terms/function_declaration.cmx \
-    middle_end/flambda/types/flambda_type.cmx \
-    middle_end/flambda/terms/flambda.cmx \
-    middle_end/flambda/basic/exn_continuation.cmx \
-    middle_end/flambda/simplify/env/downwards_env.cmx \
-    middle_end/flambda/simplify/env/downwards_acc.cmx \
-    middle_end/flambda/simplify/env/data_flow.cmx \
-    middle_end/flambda/basic/continuation.cmx \
-    middle_end/flambda/inlining/metrics/code_size.cmx \
-    middle_end/flambda/inlining/inlining_decision.cmi
-middle_end/flambda/inlining/inlining_decision.cmi : \
-    middle_end/flambda/simplify/simplify_common.cmi \
-    middle_end/flambda/compilenv_deps/rec_info.cmi \
-    middle_end/flambda/terms/function_declaration.cmi \
-    middle_end/flambda/types/flambda_type.cmi \
-    middle_end/flambda/types/kinds/flambda_arity.cmi \
-    middle_end/flambda/terms/flambda.cmi \
-    middle_end/flambda/simplify/env/downwards_env.cmi \
-    middle_end/flambda/simplify/env/downwards_acc.cmi \
-    middle_end/flambda/inlining/metrics/code_size.cmi
 middle_end/flambda/inlining/inlining_report.cmo : \
     utils/misc.cmi \
-    middle_end/flambda/inlining/inlining_decision.cmi \
+    middle_end/flambda/inlining/function_decl_inlining_decision.cmi \
     lambda/debuginfo.cmi \
     middle_end/flambda/compilenv_deps/compilation_unit.cmi \
     middle_end/flambda/basic/code_id.cmi \
     utils/clflags.cmi \
+    middle_end/flambda/inlining/call_site_inlining_decision.cmi \
     middle_end/flambda/inlining/inlining_report.cmi
 middle_end/flambda/inlining/inlining_report.cmx : \
     utils/misc.cmx \
-    middle_end/flambda/inlining/inlining_decision.cmx \
+    middle_end/flambda/inlining/function_decl_inlining_decision.cmx \
     lambda/debuginfo.cmx \
     middle_end/flambda/compilenv_deps/compilation_unit.cmx \
     middle_end/flambda/basic/code_id.cmx \
     utils/clflags.cmx \
+    middle_end/flambda/inlining/call_site_inlining_decision.cmx \
     middle_end/flambda/inlining/inlining_report.cmi
 middle_end/flambda/inlining/inlining_report.cmi : \
-    middle_end/flambda/inlining/inlining_decision.cmi \
+    middle_end/flambda/inlining/function_decl_inlining_decision.cmi \
     lambda/debuginfo.cmi \
-    middle_end/flambda/basic/code_id.cmi
+    middle_end/flambda/basic/code_id.cmi \
+    middle_end/flambda/inlining/call_site_inlining_decision.cmi
 middle_end/flambda/inlining/inlining_state.cmo : \
     middle_end/flambda/inlining/inlining_arguments.cmi \
     middle_end/flambda/inlining/inlining_state.cmi
@@ -6436,7 +6450,6 @@ middle_end/flambda/simplify/simplify_apply_expr.cmo : \
     middle_end/flambda/inlining/inlining_transforms.cmi \
     middle_end/flambda/inlining/inlining_state.cmi \
     middle_end/flambda/inlining/inlining_report.cmi \
-    middle_end/flambda/inlining/inlining_decision.cmi \
     middle_end/flambda/terms/function_declarations.cmi \
     middle_end/flambda/terms/function_declaration.cmi \
     middle_end/flambda/types/kinds/flambda_arity.cmi \
@@ -6449,6 +6462,7 @@ middle_end/flambda/simplify/simplify_apply_expr.cmo : \
     middle_end/flambda/basic/code_id.cmi \
     middle_end/flambda/types/structures/code_age_relation.cmi \
     middle_end/flambda/basic/closure_id.cmi \
+    middle_end/flambda/inlining/call_site_inlining_decision.cmi \
     middle_end/flambda/terms/call_kind.cmi \
     middle_end/flambda/terms/bound_symbols.cmi \
     middle_end/flambda/naming/bindable_let_bound.cmi \
@@ -6473,7 +6487,6 @@ middle_end/flambda/simplify/simplify_apply_expr.cmx : \
     middle_end/flambda/inlining/inlining_transforms.cmx \
     middle_end/flambda/inlining/inlining_state.cmx \
     middle_end/flambda/inlining/inlining_report.cmx \
-    middle_end/flambda/inlining/inlining_decision.cmx \
     middle_end/flambda/terms/function_declarations.cmx \
     middle_end/flambda/terms/function_declaration.cmx \
     middle_end/flambda/types/kinds/flambda_arity.cmx \
@@ -6486,6 +6499,7 @@ middle_end/flambda/simplify/simplify_apply_expr.cmx : \
     middle_end/flambda/basic/code_id.cmx \
     middle_end/flambda/types/structures/code_age_relation.cmx \
     middle_end/flambda/basic/closure_id.cmx \
+    middle_end/flambda/inlining/call_site_inlining_decision.cmx \
     middle_end/flambda/terms/call_kind.cmx \
     middle_end/flambda/terms/bound_symbols.cmx \
     middle_end/flambda/naming/bindable_let_bound.cmx \
@@ -6970,9 +6984,9 @@ middle_end/flambda/simplify/simplify_set_of_closures.cmo : \
     middle_end/flambda/compilenv_deps/linkage_name.cmi \
     middle_end/flambda/basic/kinded_parameter.cmi \
     middle_end/flambda/inlining/inlining_report.cmi \
-    middle_end/flambda/inlining/inlining_decision.cmi \
     middle_end/flambda/terms/function_declarations.cmi \
     middle_end/flambda/terms/function_declaration.cmi \
+    middle_end/flambda/inlining/function_decl_inlining_decision.cmi \
     middle_end/flambda/compilenv_deps/flambda_colours.cmi \
     middle_end/flambda/terms/flambda.cmi \
     middle_end/flambda/basic/exn_continuation.cmi \
@@ -7011,9 +7025,9 @@ middle_end/flambda/simplify/simplify_set_of_closures.cmx : \
     middle_end/flambda/compilenv_deps/linkage_name.cmx \
     middle_end/flambda/basic/kinded_parameter.cmx \
     middle_end/flambda/inlining/inlining_report.cmx \
-    middle_end/flambda/inlining/inlining_decision.cmx \
     middle_end/flambda/terms/function_declarations.cmx \
     middle_end/flambda/terms/function_declaration.cmx \
+    middle_end/flambda/inlining/function_decl_inlining_decision.cmx \
     middle_end/flambda/compilenv_deps/flambda_colours.cmx \
     middle_end/flambda/terms/flambda.cmx \
     middle_end/flambda/basic/exn_continuation.cmx \

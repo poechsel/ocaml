@@ -116,7 +116,7 @@ let simplify_direct_full_application ~simplify_expr dacc apply function_decl_opt
       None
     | Some function_decl ->
       let decision =
-        Inlining_decision.make_decision_for_call_site dacc
+        Call_site_inlining_decision.make_decision dacc
           ~simplify_expr
           ~apply
           ~function_decl
@@ -128,7 +128,7 @@ let simplify_direct_full_application ~simplify_expr dacc apply function_decl_opt
         (At_call_site (
           Inlinable_function { code_id = Code_id.export code_id; decision; }))
         ~dbg:(DE.add_inlined_debuginfo' (DA.denv dacc) (Apply.dbg apply));
-      match Inlining_decision.Call_site_decision.can_inline decision with
+      match Call_site_inlining_decision.can_inline decision with
       | Do_not_inline ->
         (* emission of the warning at this point should not happen,
            if it does, then that means that
