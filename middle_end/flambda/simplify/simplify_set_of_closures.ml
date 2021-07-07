@@ -374,9 +374,9 @@ let simplify_function context ~used_closure_vars ~shareable_constants
     |> DE.inlining_arguments
   in
   (* Compute the set of inlining_arguments used to define this function
-    by taking the "least powerfull" set between the one set in the environment
+    by taking the "least powerful" set between the one set in the environment
     and the one used to define the symbol previously. This way, functions that
-    were imported from a foreign compilation unit after inlining will still
+    were imported from a foreign compilation unit after inlining will still be
     considered with a set of inlining arguments coherent with the one used
     to compile the current file when inlining.
   *)
